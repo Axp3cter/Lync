@@ -6,15 +6,15 @@
             "$className": "ReplicatedStorage",
             "Lync": {
                 "$path": "src",
-                "tests": {
-                    "$path": "tests"
+                "test": {
+                    "$path": "test"
                 }
             }
         },
         "ServerScriptService": {
             "$className": "ServerScriptService",
             "RunTests": {
-                "$path": "tests/Run.server.luau"
+                "$path": "test/Run.server.luau"
             }
         }
     }

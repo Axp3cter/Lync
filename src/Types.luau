@@ -2,52 +2,56 @@
 -- Types.luau — Shared type definitions for Lync. No runtime code.
 
 export type ChannelState = {
-    buff: buffer,
-    cursor: number,
-    size: number,
-    refs: { Instance },
-    lowFrames: number,
+    buff:       buffer,
+    cursor:     number,
+    size:       number,
+    refs:       { Instance },
+    lastId:     number,
+    countPos:   number,
+    batchCount: number,
+    deltas:     { [number]: any },
+    prevDump:   buffer?,
 }
 
 export type Codec<T> = {
     write: (ch: ChannelState, value: T) -> (),
-    read: (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
+    read:  (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
 }
 
 export type RateLimitConfig = {
-    maxPerSecond: number,
+    maxPerSecond:   number,
     burstAllowance: number?,
 }
 
 export type PacketConfig<T> = {
-    value: Codec<T>,
-    reliability: ("reliable" | "unreliable")?,
-    rateLimit: RateLimitConfig?,
-    validate: ((data: T, player: Player) -> (boolean, string?))?,
+    value:       Codec<T>,
+    unreliable:  boolean?,
+    rateLimit:   RateLimitConfig?,
+    validate:    ((data: T, player: Player) -> (boolean, string?))?,
 }
 
 export type QueryConfig<Req, Resp> = {
-    request: Codec<Req>,
+    request:  Codec<Req>,
     response: Codec<Resp>,
-    timeout: number?,
+    timeout:  number?,
 }
 
 export type Registration = {
-    id: number,
-    name: string,
-    baseName: string,
-    codec: Codec<any>,
-    reliability: "reliable" | "unreliable",
-    kind: "packet" | "request" | "response",
-    partner: number?,
-    signal: any,
-    rateLimit: RateLimitConfig?,
-    validate: ((data: any, player: Player) -> (boolean, string?))?,
+    id:           number,
+    name:         string,
+    baseName:     string,
+    codec:        Codec<any>,
+    isUnreliable: boolean,
+    kind:         number,
+    partner:      number?,
+    signal:       any,
+    rateLimit:    RateLimitConfig?,
+    validate:     ((data: any, player: Player) -> (boolean, string?))?,
 }
 
 export type Connection = {
     disconnect: (self: Connection) -> (),
-    connected: boolean,
+    connected:  boolean,
 }
 
 return nil

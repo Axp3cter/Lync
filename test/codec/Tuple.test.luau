@@ -1,0 +1,50 @@
+--!strict
+--!optimize 2
+local Runner = require(script.Parent.Parent.Runner)
+local Lync   = require(script.Parent.Parent.Parent)
+local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
+
+describe("Tuple 3-element", function(): ()
+    local codec = Lync.tuple(Lync.u8, Lync.string, Lync.bool)
+    it("round-trips values",  function(): () local r = roundTrip(codec, { 42, "hello", true }); expect(r[1]):toBe(42); expect(r[2]):toBe("hello"); expect(r[3]):toBe(true) end)
+    it("round-trips zeros",   function(): () local r = roundTrip(codec, { 0, "", false }); expect(r[1]):toBe(0); expect(r[2]):toBe(""); expect(r[3]):toBe(false) end)
+    it("wire size = sum",     function(): () local _, w = roundTrip(codec, { 1, "ab", true }); expect(w):toBe(5) end)
+    it("_size nil (has string)", function(): () expect((codec :: any)._size):toBeNil() end)
+end)
+
+describe("Tuple fixed-size", function(): ()
+    local codec = Lync.tuple(Lync.u8, Lync.u16, Lync.f32)
+    it("round-trips",   function(): () local r = roundTrip(codec, { 255, 1000, 3.14 }); expect(r[1]):toBe(255); expect(r[2]):toBe(1000); expect(r[3]):toBeCloseTo(3.14, 0.001) end)
+    it("_size is 7",     function(): () expect((codec :: any)._size):toBe(7) end)
+    it("wire matches _size", function(): () local _, w = roundTrip(codec, { 0, 0, 0 }); expect(w):toBe(7) end)
+end)
+
+describe("Tuple single-element", function(): ()
+    local codec = Lync.tuple(Lync.f64)
+    it("round-trips pi",  function(): () expect(roundTrip(codec, { math.pi })[1]):toBe(math.pi) end)
+    it("_size is 8",       function(): () expect((codec :: any)._size):toBe(8) end)
+end)
+
+describe("Tuple nested", function(): ()
+    local inner = Lync.tuple(Lync.u8, Lync.u8)
+    local outer = Lync.tuple(inner, Lync.string)
+    it("round-trips nested", function(): ()
+        local r = roundTrip(outer, { { 1, 2 }, "hi" })
+        expect(r[1][1]):toBe(1); expect(r[1][2]):toBe(2); expect(r[2]):toBe("hi")
+    end)
+end)
+
+describe("Tuple 5-element", function(): ()
+    local codec = Lync.tuple(Lync.u8, Lync.u8, Lync.u8, Lync.u8, Lync.u8)
+    it("round-trips all", function(): ()
+        local r = roundTrip(codec, { 10, 20, 30, 40, 50 })
+        expect(r[1]):toBe(10); expect(r[2]):toBe(20); expect(r[3]):toBe(30); expect(r[4]):toBe(40); expect(r[5]):toBe(50)
+    end)
+    it("_size is 5", function(): () expect((codec :: any)._size):toBe(5) end)
+end)
+
+describe("Tuple validation", function(): ()
+    it("throws on empty", function(): () expect(function(): () Lync.tuple() end):toThrow("at least one codec") end)
+end)
+
+return nil

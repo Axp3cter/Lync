@@ -2,71 +2,89 @@
 --!optimize 2
 -- Reader.luau — Deserializes incoming buffers and routes by registration kind.
 
-local Gate = require (script.Parent.Gate)
-local Middleware = require (script.Parent.Parent.core.Middleware)
-local Registry = require (script.Parent.Parent.core.Registry)
-local Varint = require (script.Parent.Parent.core.Varint)
+local Baseline   = require(script.Parent.Parent.core.Baseline)
+local Gate       = require(script.Parent.Gate)
+local Middleware = require(script.Parent.Parent.core.Middleware)
+local Registry   = require(script.Parent.Parent.core.Registry)
+
+-- Constants --------------------------------------------------------------
+
+local KIND_PACKET  = Registry.KIND_PACKET
+local KIND_REQUEST = Registry.KIND_REQUEST
 
 -- Public -----------------------------------------------------------------
 
 local Reader = {}
 
-function Reader.process (
-    incoming: buffer,
-    refs: { Instance }?,
-    player: Player?,
-    startOffset: number
-): ()
-    local length = buffer.len (incoming)
-    local pos = startOffset
+--[[
+    Callers (Server/Client receive) already wrap this in pcall.
+    Any codec.read throw propagates up and aborts the entire buffer
+    from this source, which is the correct security behavior.
+]]
+function Reader.process(incoming: buffer, refs: { Instance }?, player: Player?, startOffset: number): ()
+    local length = buffer.len(incoming)
+    local pos    = startOffset
+
+    Baseline.setReadKey(player or false)
 
     while pos < length do
-        local id, idBytes = Varint.read (incoming, pos)
-        pos += idBytes
+        local id = buffer.readu8(incoming, pos)
+        pos += 1
 
-        local reg = Registry.get (id)
+        local reg = Registry.get(id)
         if not reg then
-            warn ("[Lync] Unknown ID", id)
+            warn("[Lync] Unknown ID", id)
             break
         end
 
         local kind = reg.kind
-        local correlationId = nil :: number?
 
-        if kind ~= "packet" then
-            if pos >= length then
-                break
+        if kind == KIND_PACKET then
+            if pos + 2 > length then break end
+
+            local count = buffer.readu16(incoming, pos)
+            pos += 2
+
+            if count == 0 then continue end
+
+            local codec    = reg.codec
+            local signal   = reg.signal
+            local baseName = reg.baseName
+
+            for _ = 1, count do
+                if pos >= length then break end
+
+                local value, consumed = codec.read(incoming, pos, refs)
+                pos += consumed
+
+                if player and not Gate.check(value, reg, player) then return end
+
+                local final = Middleware.runReceive(value, baseName, player)
+                if final == nil then continue end
+
+                signal:fire(final, player)
             end
-            correlationId = buffer.readu8 (incoming, pos)
-            pos += 1
-        end
-
-        local ok, value, consumed = pcall (reg.codec.read, incoming, pos, refs)
-        if not ok then
-            warn (`[Lync] Read error ({reg.name}): {value}`)
-            break
-        end
-        pos += consumed :: number
-
-        -- Gate failure breaks: corrupted data makes the cursor unreliable
-        if player and not Gate.check (value, reg, player) then
-            break
-        end
-
-        -- Middleware nil continues: the read succeeded and pos is valid
-        local final = Middleware.runReceive (value, reg.baseName, player)
-        if final == nil then
-            continue
-        end
-
-        if kind == "packet" then
-            reg.signal:fire (final, player)
-        elseif kind == "request" then
-            reg.signal:fire (final, player, correlationId)
         else
-            reg.signal:fire (final, correlationId)
+            if pos >= length then break end
+
+            local correlationId = buffer.readu8(incoming, pos)
+            pos += 1
+
+            local value, consumed = reg.codec.read(incoming, pos, refs)
+            pos += consumed
+
+            if player and not Gate.check(value, reg, player) then break end
+
+            local final = Middleware.runReceive(value, reg.baseName, player)
+            if final == nil then continue end
+
+            if kind == KIND_REQUEST then
+                reg.signal:fire(final, player, correlationId)
+            else
+                reg.signal:fire(final, correlationId)
+            end
         end
     end
 end
 
-return table.freeze (Reader)
+return table.freeze(Reader)

@@ -1,0 +1,52 @@
+--!strict
+--!optimize 2
+local Runner = require(script.Parent.Parent.Runner)
+local Group  = require(script.Parent.Parent.Parent.event.Group)
+local describe, it, expect, fakePlayer = Runner.describe, Runner.it, Runner.expect, Runner.fakePlayer
+
+local function count(name: string): number local n = 0; Group.forEach(name, function(): () n += 1 end); return n end
+
+describe("Group create+destroy", function(): ()
+    it("creates and destroys",  function(): () Group.create("__g_life"); expect(function(): () Group.destroy("__g_life") end).never:toThrow() end)
+    it("throws duplicate",      function(): () Group.create("__g_dup"); expect(function(): () Group.create("__g_dup") end):toThrow("already exists"); Group.destroy("__g_dup") end)
+    it("throws nonexistent",    function(): () expect(function(): () Group.destroy("__g_nope") end):toThrow("does not exist") end)
+end)
+
+describe("Group add+remove+has", function(): ()
+    it("adds and reports",      function(): () Group.create("__g_m"); local a, b = fakePlayer("A",1), fakePlayer("B",2); expect(Group.add("__g_m",a)):toBe(true); expect(Group.add("__g_m",b)):toBe(true); expect(count("__g_m")):toBe(2); expect(Group.has("__g_m",a)):toBe(true); Group.destroy("__g_m") end)
+    it("duplicate add = false", function(): () Group.create("__g_da"); local p = fakePlayer("A",1); expect(Group.add("__g_da",p)):toBe(true); expect(Group.add("__g_da",p)):toBe(false); Group.destroy("__g_da") end)
+    it("removes",               function(): () Group.create("__g_rm"); local p = fakePlayer("A",1); Group.add("__g_rm",p); Group.remove("__g_rm",p); expect(count("__g_rm")):toBe(0); expect(Group.has("__g_rm",p)):toBe(false); Group.destroy("__g_rm") end)
+    it("throws add nonexistent", function(): () expect(function(): () Group.add("__g_ghost", fakePlayer("A",1)) end):toThrow("does not exist") end)
+    it("throws remove nonexistent", function(): () expect(function(): () Group.remove("__g_ghost2", fakePlayer("A",1)) end):toThrow("does not exist") end)
+    it("throws has nonexistent", function(): () expect(function(): () Group.has("__g_ghost3", fakePlayer("A",1)) end):toThrow("does not exist") end)
+end)
+
+describe("Group getSet", function(): ()
+    it("returns set",       function(): () Group.create("__g_gs"); local p = fakePlayer("A",1); Group.add("__g_gs",p); expect(Group.getSet("__g_gs")[p]):toBe(true); Group.destroy("__g_gs") end)
+    it("throws nonexistent", function(): () expect(function(): () Group.getSet("__g_gs_nope") end):toThrow("does not exist") end)
+end)
+
+describe("Group forEach", function(): ()
+    it("iterates all",       function(): () Group.create("__g_fe"); Group.add("__g_fe", fakePlayer("A",1)); Group.add("__g_fe", fakePlayer("B",2)); expect(count("__g_fe")):toBe(2); Group.destroy("__g_fe") end)
+    it("throws nonexistent", function(): () expect(function(): () Group.forEach("__g_fe_nope", function(): () end) end):toThrow("does not exist") end)
+end)
+
+describe("Group destroy cleanup", function(): ()
+    it("clears reverse index", function(): ()
+        Group.create("__g_dc"); local p = fakePlayer("A",1); Group.add("__g_dc",p); Group.destroy("__g_dc")
+        Group.create("__g_dc"); expect(Group.has("__g_dc",p)):toBe(false); Group.destroy("__g_dc")
+    end)
+end)
+
+describe("Group multi-membership", function(): ()
+    it("player in 2 groups, destroy one", function(): ()
+        Group.create("__g_ma"); Group.create("__g_mb")
+        local p = fakePlayer("A",1)
+        Group.add("__g_ma",p); Group.add("__g_mb",p)
+        Group.destroy("__g_ma")
+        expect(Group.has("__g_mb",p)):toBe(true)
+        Group.destroy("__g_mb")
+    end)
+end)
+
+return nil

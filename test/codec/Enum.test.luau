@@ -1,0 +1,57 @@
+--!strict
+--!optimize 2
+local Runner  = require(script.Parent.Parent.Runner)
+local Channel = require(script.Parent.Parent.Parent.core.Channel)
+local Lync    = require(script.Parent.Parent.Parent)
+local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
+
+describe("Enum round-trip", function(): ()
+    local codec = Lync.enum("idle", "walking", "running", "dead")
+    it("first variant",  function(): () expect(roundTrip(codec, "idle")):toBe("idle") end)
+    it("last variant",   function(): () expect(roundTrip(codec, "dead")):toBe("dead") end)
+    it("middle variant", function(): () expect(roundTrip(codec, "walking")):toBe("walking") end)
+    it("all variants round-trip", function(): ()
+        for _, v in {"idle", "walking", "running", "dead"} do
+            expect(roundTrip(codec, v)):toBe(v)
+        end
+    end)
+end)
+
+describe("Enum wire", function(): ()
+    local codec = Lync.enum("idle", "walking", "running", "dead")
+    it("uses 1 byte",  function(): () local _, w = roundTrip(codec, "running"); expect(w):toBe(1) end)
+    it("_size is 1",   function(): () expect((codec :: any)._size):toBe(1) end)
+    it("indices follow insertion order", function(): ()
+        local ch = Channel.create()
+        codec.write(ch, "idle"); local idleIdx = buffer.readu8(ch.buff, 0)
+        ch.cursor = 0
+        codec.write(ch, "dead"); local deadIdx = buffer.readu8(ch.buff, 0)
+        -- "idle" is defined before "dead", so idle < dead
+        expect(idleIdx < deadIdx):toBe(true)
+    end)
+end)
+
+describe("Enum single variant", function(): ()
+    local codec = Lync.enum("only")
+    it("round-trips", function(): () expect(roundTrip(codec, "only")):toBe("only") end)
+    it("writes index 0", function(): ()
+        local ch = Channel.create()
+        codec.write(ch, "only")
+        expect(buffer.readu8(ch.buff, 0)):toBe(0)
+    end)
+end)
+
+describe("Enum validation", function(): ()
+    it("throws on invalid write", function(): ()
+        local codec = Lync.enum("a", "b")
+        expect(function(): () local ch = Channel.create(); codec.write(ch, "c") end):toThrow("Invalid enum value")
+    end)
+    it("throws on duplicate define", function(): ()
+        expect(function(): () Lync.enum("a", "b", "a") end):toThrow("Duplicate enum value")
+    end)
+    it("throws on empty define", function(): ()
+        expect(function(): () Lync.enum() end):toThrow("at least one value")
+    end)
+end)
+
+return nil

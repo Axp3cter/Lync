@@ -1,0 +1,30 @@
+{
+    "name": "Lync-bench",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Lync": {
+                "$path": "src",
+                "bench": {
+                    "$path": "bench"
+                }
+            }
+        },
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "RunBench": {
+                "$path": "bench/Run.server.luau"
+            }
+        },
+        "StarterPlayer": {
+            "$className": "StarterPlayer",
+            "StarterPlayerScripts": {
+                "$className": "StarterPlayerScripts",
+                "BenchReceiver": {
+                    "$path": "bench/Receive.client.luau"
+                }
+            }
+        }
+    }
+}

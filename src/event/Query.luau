@@ -2,141 +2,151 @@
 --!optimize 2
 -- Query.luau — Request-reply over RemoteEvents. No RemoteFunction, no polling.
 
-local RunService = game:GetService ("RunService")
+local RunService = game:GetService("RunService")
 
-local Client = require (script.Parent.Parent.transport.Client)
-local Registry = require (script.Parent.Parent.core.Registry)
-local Server = require (script.Parent.Parent.transport.Server)
-local Signal = require (script.Parent.Parent.event.Signal)
-local Types = require (script.Parent.Parent.Types)
+local Registry = require(script.Parent.Parent.core.Registry)
+local Signal   = require(script.Parent.Parent.event.Signal)
+local Server   = require(script.Parent.Parent.transport.Server)
+local Client   = require(script.Parent.Parent.transport.Client)
+local Types    = require(script.Parent.Parent.Types)
 
-type Connection = Types.Connection
+type Connection        = Types.Connection
 type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
 -- Constants --------------------------------------------------------------
 
-local IS_SERVER = RunService:IsServer ()
+local IS_SERVER = RunService:IsServer()
+
+-- Correlation IDs are u8 on the wire. This ceiling MUST NOT exceed 256.
 local MAX_PENDING = 256
 
 -- State ------------------------------------------------------------------
 
-local _nextId = 0
-local _pending = {} :: { [number]: thread }
+local _pending  = {} :: { [number]: thread }
 local _timeouts = {} :: { [number]: thread }
+
+-- Free-stack for O(1) correlation ID allocation
+local _freeStack = table.create(MAX_PENDING) :: { number }
+local _freeDepth = MAX_PENDING
 
 -- Private ----------------------------------------------------------------
 
-local function allocCorrelation (): number
-    local start = _nextId
-
-    repeat
-        local id = _nextId
-        _nextId = (id + 1) % MAX_PENDING
-        if not _pending[id] then
-            return id
-        end
-    until _nextId == start
-
-    error ("[Lync] All 256 query correlation slots are in use")
+-- Pre-fill the free stack with all IDs
+for i = 0, MAX_PENDING - 1 do
+    _freeStack[i + 1] = i
 end
 
-local function resolveCorrelation (id: number, data: any): ()
-    local waiting = _pending[id]
-    if not waiting then
-        return
+local function allocCorrelation(): number
+    if _freeDepth == 0 then
+        error("[Lync] All query correlation slots are in use")
     end
 
+    local id = _freeStack[_freeDepth]
+    _freeStack[_freeDepth] = nil :: any
+    _freeDepth -= 1
+    return id
+end
+
+local function freeCorrelation(id: number): ()
+    _freeDepth += 1
+    _freeStack[_freeDepth] = id
+end
+
+local function resolveCorrelation(id: number, data: any): ()
+    local waiting = _pending[id]
+    if not waiting then return end
+
     _pending[id] = nil
+    freeCorrelation(id)
 
     local timeout = _timeouts[id]
     if timeout then
-        task.cancel (timeout)
+        task.cancel(timeout)
         _timeouts[id] = nil
     end
 
-    task.spawn (waiting, data)
+    coroutine.resume(waiting, data)
+end
+
+-- Shared timeout handler — avoids NEWCLOSURE per invoke.
+-- Reads correlation ID from the thread's first argument.
+local function onTimeout(correlation: number): ()
+    local waiting = _pending[correlation]
+    if not waiting then return end
+
+    _pending[correlation]  = nil
+    _timeouts[correlation] = nil
+    freeCorrelation(correlation)
+
+    coroutine.resume(waiting, nil)
 end
 
 -- Query class
 local QueryImpl = {}
 QueryImpl.__index = QueryImpl
 
-function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
-    if not IS_SERVER then
-        error ("[Lync] Query:listen is server-only")
-    end
+function QueryImpl.listen(self: any, callback: (...any) -> any): Connection
+    if not IS_SERVER then error("[Lync] Query:listen is server-only") end
 
-    local respId = self._respReg.id
-    local respName = self._name
+    local respId    = self._respReg.id
+    local respName  = self._name
     local respCodec = self._respReg.codec
 
-    return self._reqReg.signal:connect (
-        function (request: any, player: Player, correlation: number): ()
-            local response = callback (request, player)
-            if response == nil then
-                return
-            end
-
-            Server.writeQueryResponse (player, respId, respName, correlation, respCodec, response)
-        end
-    )
-end
-
-function QueryImpl.invoke (self: any, request: any): any
-    if IS_SERVER then
-        error ("[Lync] Query:invoke is client-only")
-    end
-
-    local correlation = allocCorrelation ()
-    local thread = coroutine.running ()
-
-    _pending[correlation] = thread
-    Client.writeQueryRequest (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
-
-    _timeouts[correlation] = task.delay (self._timeout, function (): ()
-        local waiting = _pending[correlation]
-        if not waiting then
+    return self._reqReg.signal:connect(function(request: any, player: Player, correlation: number): ()
+        local ok, response = pcall(callback, request, player)
+        if not ok then
+            warn(`[Lync] Query handler error ({respName}): {response}`)
             return
         end
+        if response == nil then return end
 
-        _pending[correlation] = nil
-        _timeouts[correlation] = nil
-        task.spawn (waiting, nil)
+        Server.writeQueryResponse(player, respId, respName, correlation, respCodec, response)
     end)
+end
 
-    return coroutine.yield ()
+function QueryImpl.invoke(self: any, request: any): any
+    if IS_SERVER then error("[Lync] Query:invoke is client-only") end
+
+    local correlation = allocCorrelation()
+    local thread      = coroutine.running()
+
+    _pending[correlation] = thread
+    Client.writeQueryRequest(
+        self._reqReg.id, self._name, correlation, self._reqReg.codec, request
+    )
+
+    _timeouts[correlation] = task.delay(self._timeout, onTimeout, correlation)
+
+    return coroutine.yield()
 end
 
 -- Public -----------------------------------------------------------------
 
 local Query = {}
 
-function Query.define (name: string, config: QueryConfig<any, any>): any
-    if not config.request then
-        error (`[Lync] Query "{name}" requires a request codec`)
-    end
-    if not config.response then
-        error (`[Lync] Query "{name}" requires a response codec`)
-    end
+function Query.define(name: string, config: QueryConfig<any, any>): any
+    if not config.request then error(`[Lync] Query "{name}" requires a request codec`) end
+    if not config.response then error(`[Lync] Query "{name}" requires a response codec`) end
 
-    local reqSignal = Signal.create ()
-    local respSignal = Signal.create ()
+    local reqSignal  = Signal.create()
+    local respSignal = Signal.create()
 
-    local reqReg, respReg =
-        Registry.registerQueryPair (name, config.request, config.response, reqSignal, respSignal)
+    local reqReg, respReg = Registry.registerQueryPair(
+        name, config.request, config.response, reqSignal, respSignal
+    )
 
     if not IS_SERVER then
-        respSignal:connect (function (resp: any, correlation: number): ()
-            resolveCorrelation (correlation, resp)
+        respSignal:connect(function(resp: any, correlation: number): ()
+            resolveCorrelation(correlation, resp)
         end)
     end
 
-    return setmetatable ({
-        _name = name,
-        _reqReg = reqReg,
+    return setmetatable({
+        _name    = name,
+        _reqReg  = reqReg,
         _respReg = respReg,
-        _timeout = config.timeout or 10,
+        _timeout = config.timeout or 5,
     }, QueryImpl)
 end
 
-return table.freeze (Query)
+return table.freeze(Query)

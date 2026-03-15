@@ -1,0 +1,83 @@
+--!strict
+--!optimize 2
+local Runner = require(script.Parent.Parent.Runner)
+local Signal = require(script.Parent.Parent.Parent.event.Signal)
+local describe, it, expect = Runner.describe, Runner.it, Runner.expect
+
+describe("Signal fire+connect", function(): ()
+    it("fires with argument",      function(): () local s = Signal.create(); local r: any; s:connect(function(v: any): () r = v end); s:fire(42); task.wait(); expect(r):toBe(42) end)
+    it("fires multiple listeners",  function(): () local s = Signal.create(); local n = 0; s:connect(function(): () n += 1 end); s:connect(function(): () n += 1 end); s:connect(function(): () n += 1 end); s:fire(); task.wait(); expect(n):toBe(3) end)
+    it("passes multiple args",      function(): () local s = Signal.create(); local a, b, c: any, any, any; s:connect(function(x: any, y: any, z: any): () a,b,c = x,y,z end); s:fire(1, "two", true); task.wait(); expect(a):toBe(1); expect(b):toBe("two"); expect(c):toBe(true) end)
+    it("zero args",                 function(): () local s = Signal.create(); local fired = false; s:connect(function(): () fired = true end); s:fire(); task.wait(); expect(fired):toBe(true) end)
+    it("no listeners = no-op",      function(): () expect(function(): () Signal.create():fire(42) end).never:toThrow() end)
+end)
+
+describe("Signal disconnect", function(): ()
+    it("stops receiving",     function(): () local s = Signal.create(); local n = 0; local c = s:connect(function(): () n += 1 end); s:fire(); task.wait(); c:disconnect(); s:fire(); task.wait(); expect(n):toBe(1) end)
+    it("sets connected false", function(): () local s = Signal.create(); local c = s:connect(function(): () end); c:disconnect(); expect(c.connected):toBe(false) end)
+    it("double disconnect safe", function(): () local s = Signal.create(); local c = s:connect(function(): () end); c:disconnect(); expect(function(): () c:disconnect() end).never:toThrow() end)
+    it("swap-remove preserves others", function(): ()
+        local s = Signal.create(); local log = {} :: { string }
+        local cA = s:connect(function(): () table.insert(log, "a") end)
+        s:connect(function(): () table.insert(log, "b") end)
+        s:connect(function(): () table.insert(log, "c") end)
+        cA:disconnect()
+        s:fire(); task.wait()
+        expect(table.find(log, "a")):toBeNil()
+        expect(table.find(log, "b")).never:toBeNil()
+        expect(table.find(log, "c")).never:toBeNil()
+    end)
+    it("disconnect middle of 5", function(): ()
+        local s = Signal.create(); local results = {} :: { number }
+        local conns = {} :: { any }
+        for i = 1, 5 do local ii = i; conns[i] = s:connect(function(): () table.insert(results, ii) end) end
+        conns[3]:disconnect()
+        s:fire(); task.wait()
+        expect(#results):toBe(4)
+        expect(table.find(results, 3)):toBeNil()
+    end)
+end)
+
+describe("Signal once", function(): ()
+    it("fires once then disconnects", function(): ()
+        local s = Signal.create(); local n = 0
+        s:once(function(): () n += 1 end)
+        s:fire(); task.wait(); s:fire(); task.wait()
+        expect(n):toBe(1)
+    end)
+    it("can pre-disconnect", function(): ()
+        local s = Signal.create(); local n = 0
+        local c = s:once(function(): () n += 1 end)
+        c:disconnect(); s:fire(); task.wait()
+        expect(n):toBe(0)
+    end)
+    it("returns connection", function(): ()
+        local c = Signal.create():once(function(): () end)
+        expect(c.connected):toBe(true)
+    end)
+end)
+
+describe("Signal disconnectAll", function(): ()
+    it("disconnects all", function(): ()
+        local s = Signal.create(); local n = 0
+        local cA = s:connect(function(): () n += 1 end)
+        local cB = s:connect(function(): () n += 1 end)
+        s:disconnectAll()
+        s:fire(); task.wait()
+        expect(n):toBe(0); expect(cA.connected):toBe(false); expect(cB.connected):toBe(false)
+    end)
+    it("safe on empty signal", function(): ()
+        expect(function(): () Signal.create():disconnectAll() end).never:toThrow()
+    end)
+end)
+
+describe("Signal wait", function(): ()
+    it("yields and returns args", function(): ()
+        local s = Signal.create(); local r: any
+        task.defer(function(): () r = s:wait() end)
+        task.wait(); s:fire(99); task.wait()
+        expect(r):toBe(99)
+    end)
+end)
+
+return nil

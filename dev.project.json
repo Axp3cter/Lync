@@ -1,0 +1,21 @@
+{
+    "name": "Lync-dev",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Lync": {
+                "$path": "src",
+                "tests": {
+                    "$path": "tests"
+                }
+            }
+        },
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "RunTests": {
+                "$path": "tests/Run.server.luau"
+            }
+        }
+    }
+}

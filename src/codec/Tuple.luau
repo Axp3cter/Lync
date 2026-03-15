@@ -2,21 +2,23 @@
 --!optimize 2
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
-local Types = require(script.Parent.Parent.Types)
+local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T>     = Types.Codec<T>
+type Codec<T> = Types.Codec<T>
 
 -- Public -----------------------------------------------------------------
 
 local Tuple = {}
 
-function Tuple.define(...: Codec<any>): Codec<{ any }>
+function Tuple.define (...: Codec<any>): Codec<{ any }>
     local codecs = { ... }
-    local count  = #codecs
-    if count == 0 then error("[Lync] Tuple requires at least one codec") end
+    local count = #codecs
+    if count == 0 then
+        error ("[Lync] Tuple requires at least one codec")
+    end
 
-    table.freeze(codecs)
+    table.freeze (codecs)
 
     local totalSize: number? = 0
     for i = 1, count do
@@ -29,19 +31,19 @@ function Tuple.define(...: Codec<any>): Codec<{ any }>
         end
     end
 
-    return table.freeze({
+    return table.freeze ({
         _size = totalSize,
-        write = function(ch: ChannelState, value: { any }): ()
+        write = function (ch: ChannelState, value: { any }): ()
             for i = 1, count do
-                codecs[i].write(ch, value[i])
+                codecs[i].write (ch, value[i])
             end
         end,
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
-            local result = table.create(count)
-            local total  = 0
+        read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            local result = table.create (count)
+            local total = 0
 
             for i = 1, count do
-                local value, n = codecs[i].read(src, pos + total, refs)
+                local value, n = codecs[i].read (src, pos + total, refs)
                 result[i] = value
                 total += n
             end
@@ -51,4 +53,4 @@ function Tuple.define(...: Codec<any>): Codec<{ any }>
     })
 end
 
-return table.freeze(Tuple)
+return table.freeze (Tuple)

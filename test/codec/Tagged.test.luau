@@ -45,23 +45,17 @@ end)
 
 describe ("Tagged _size", function (): ()
     it ("nil when variants have variable-size", function (): ()
-        local codec = Lync.tagged (
-            "t",
-            {
-                a = Lync.struct ({ t = Lync.string, x = Lync.u16 }),
-                b = Lync.struct ({ t = Lync.string, y = Lync.u16 }),
-            }
-        )
+        local codec = Lync.tagged ("t", {
+            a = Lync.struct ({ t = Lync.string, x = Lync.u16 }),
+            b = Lync.struct ({ t = Lync.string, y = Lync.u16 }),
+        })
         expect ((codec :: any)._size):toBeNil ()
     end)
     it ("computed when all variants same fixed size", function (): ()
-        local codec = Lync.tagged (
-            "t",
-            {
-                a = Lync.struct ({ t = Lync.string, x = Lync.u32 }),
-                b = Lync.struct ({ t = Lync.string, y = Lync.u32 }),
-            }
-        )
+        local codec = Lync.tagged ("t", {
+            a = Lync.struct ({ t = Lync.string, x = Lync.u32 }),
+            b = Lync.struct ({ t = Lync.string, y = Lync.u32 }),
+        })
         -- string is variable, so nil
         expect ((codec :: any)._size):toBeNil ()
     end)

@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rokit
+        uses: CompeyDev/setup-rokit@v0.1.2
+
+      - name: Build Lync.rbxm
+        run: rojo build default.project.json -o Lync.rbxm
+
+      - name: Build Lync-dev.rbxl
+        run: rojo build dev.project.json -o Lync-dev.rbxl
+
+      - name: Build Lync-bench.rbxl
+        run: rojo build bench.project.json -o Lync-bench.rbxl
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Lync.rbxm
+            Lync-dev.rbxl
+            Lync-bench.rbxl
+          generate_release_notes: true

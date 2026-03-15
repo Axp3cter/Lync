@@ -1,7 +1,6 @@
 # Lync
 
-**Binary networking for Roblox.**  
-Batches, compresses, and delta-encodes packets over RemoteEvents.
+Binary networking for Roblox. Packets are batched per player, delta-encoded, XOR-compressed, and sent as a single RemoteEvent per frame.
 
 &nbsp;
 
@@ -11,13 +10,12 @@ Batches, compresses, and delta-encodes packets over RemoteEvents.
 
 ## Installation
 
-Place `Lync` in `ReplicatedStorage`.  
-Define all packets before calling `start()`.
+Place `Lync` in `ReplicatedStorage`. Define all packets before calling `start()`.
 
 ```luau
 local Lync = require(ReplicatedStorage.Lync)
 
--- definitions go here
+-- definitions
 
 Lync.start()
 ```
@@ -29,8 +27,6 @@ Lync.start()
 &nbsp;
 
 ## Packets
-
-Define once in a shared module. API splits by context automatically.
 
 ```luau
 local Hit = Lync.definePacket("Hit", {
@@ -128,54 +124,54 @@ local items = GetInventory:invoke(localPlayer.UserId)
 
 ### Primitives
 
-| Type   | Bytes | Range                              |
-| ------ | ----: | ---------------------------------- |
-| `u8`   |     1 | 0 – 255                            |
-| `u16`  |     2 | 0 – 65,535                         |
-| `u32`  |     4 | 0 – 4,294,967,295                  |
-| `i8`   |     1 | -128 – 127                         |
-| `i16`  |     2 | -32,768 – 32,767                   |
-| `i32`  |     4 | -2,147,483,648 – 2,147,483,647     |
-| `f16`  |     2 | ±65,504 (~3 digits)                |
-| `f32`  |     4 | IEEE 754 single                    |
-| `f64`  |     8 | IEEE 754 double                    |
-| `bool` |     1 | true / false                       |
+| Type   | Bytes | Range                          |
+| ------ | ----: | ------------------------------ |
+| `u8`   |     1 | 0 – 255                        |
+| `u16`  |     2 | 0 – 65,535                     |
+| `u32`  |     4 | 0 – 4,294,967,295              |
+| `i8`   |     1 | -128 – 127                     |
+| `i16`  |     2 | -32,768 – 32,767               |
+| `i32`  |     4 | -2,147,483,648 – 2,147,483,647 |
+| `f16`  |     2 | ±65,504 (~3 digits)            |
+| `f32`  |     4 | IEEE 754 single                |
+| `f64`  |     8 | IEEE 754 double                |
+| `bool` |     1 | true / false                   |
 
 &nbsp;
 
 ### Complex
 
-| Type     | Bytes       | Description                  |
-| -------- | ----------: | ---------------------------- |
-| `string` | varint + N  | UTF-8 string                 |
-| `vec2`   |           8 | Vector2                      |
-| `vec3`   |          12 | Vector3                      |
-| `cframe` |          24 | CFrame (position + rotation) |
-| `color3` |           3 | Color3 (0–255 per channel)   |
-| `inst`   |           2 | Instance reference           |
-| `buff`   | varint + N  | Raw buffer                   |
+| Type     | Bytes      | Description                  |
+| -------- | ---------: | ---------------------------- |
+| `string` | varint + N | UTF-8 string                 |
+| `vec2`   |          8 | Vector2                      |
+| `vec3`   |         12 | Vector3                      |
+| `cframe` |         24 | CFrame (position + rotation) |
+| `color3` |          3 | Color3 (0–255 per channel)   |
+| `inst`   |          2 | Instance reference           |
+| `buff`   | varint + N | Raw buffer                   |
 
 &nbsp;
 
 ### Composites
 
 ```luau
-Lync.struct({ key = codec, ... })        -- named fields, bools auto-packed
-Lync.array(codec)                        -- variable-length list
-Lync.map(keyCodec, valueCodec)           -- key-value pairs
-Lync.optional(codec)                     -- nil flag + value
-Lync.tuple(codec1, codec2, ...)          -- positional, ordered
+Lync.struct({ key = codec, ... })
+Lync.array(codec)
+Lync.map(keyCodec, valueCodec)
+Lync.optional(codec)
+Lync.tuple(codec1, codec2, ...)
 ```
 
 &nbsp;
 
 ### Delta
 
-Only sends what changed between frames.
+Only changed data is sent between frames.
 
 ```luau
-Lync.deltaStruct({ key = codec, ... })   -- dirty fields only
-Lync.deltaArray(codec)                   -- dirty elements only
+Lync.deltaStruct({ key = codec, ... })
+Lync.deltaArray(codec)
 ```
 
 > Requires reliable delivery. Errors if paired with `unreliable = true`.
@@ -185,22 +181,22 @@ Lync.deltaArray(codec)                   -- dirty elements only
 ### Specialized
 
 ```luau
-Lync.enum("idle", "walking", "running")                                               -- 1 byte
-Lync.quantizedFloat(min, max, precision)                                              -- 1–4 bytes
-Lync.quantizedVec3(min, max, precision)                                               -- 3–12 bytes
-Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })   -- bit-packed
-Lync.tagged("kind", { move = moveCodec, chat = chatCodec })                           -- union
+Lync.enum("idle", "walking", "running")
+Lync.quantizedFloat(min, max, precision)
+Lync.quantizedVec3(min, max, precision)
+Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })
+Lync.tagged("kind", { move = moveCodec, chat = chatCodec })
 ```
 
 &nbsp;
 
 ### Special
 
-| Type      | Description                                             |
-| --------- | ------------------------------------------------------- |
-| `nothing` | Zero bytes, reads nil                                   |
-| `unknown` | Bypasses binary encoding, passes through Roblox sidecar |
-| `auto`    | Self-describing tag + value                             |
+| Type      | Description                                  |
+| --------- | -------------------------------------------- |
+| `nothing` | Zero bytes, reads nil                        |
+| `unknown` | Bypasses binary encoding, uses Roblox sidecar |
+| `auto`    | Self-describing tag + value                  |
 
 &nbsp;
 
@@ -221,18 +217,14 @@ Lync.definePacket("Position", {
 })
 ```
 
-&nbsp;
+| Option       | Description                                                |
+| ------------ | ---------------------------------------------------------- |
+| `value`      | Required. Codec for the payload.                           |
+| `unreliable` | Use UnreliableRemoteEvent. Default `false`.                |
+| `rateLimit`  | Token bucket. `burstAllowance` defaults to `maxPerSecond`. |
+| `validate`   | Server-only. Return `false, "reason"` to drop.             |
 
-| Option       | Description                                                          |
-| ------------ | -------------------------------------------------------------------- |
-| `value`      | **Required.** Codec for the payload.                                 |
-| `unreliable` | Use UnreliableRemoteEvent. Default `false`.                          |
-| `rateLimit`  | Token bucket. `burstAllowance` defaults to `maxPerSecond`.           |
-| `validate`   | Server-only. Return `false, "reason"` to drop.                       |
-
-&nbsp;
-
-> NaN/inf scanning, depth limiting, and rate limiting run automatically on all incoming packets.
+> NaN/inf scanning, depth limiting, and rate limiting run on all incoming packets automatically.
 
 &nbsp;
 
@@ -241,8 +233,6 @@ Lync.definePacket("Position", {
 &nbsp;
 
 ## Groups
-
-Named player sets for targeted sends.
 
 ```luau
 Lync.createGroup("lobby")
@@ -276,7 +266,7 @@ end)
 remove()
 ```
 
-> Return `nil` from any handler to cancel. Handlers chain in registration order.
+> Return `nil` to cancel. Handlers chain in registration order.
 
 &nbsp;
 
@@ -300,11 +290,8 @@ end)
 
 ## How It Works
 
-Every `send` call writes binary data into a per-player buffer. On `Heartbeat`, each buffer is sealed into a batch, XOR'd against the previous frame, LZSS compressed, and sent as a single RemoteEvent. The receiver reverses the pipeline.
-
 ```
 write → batch → xor → compress → fire → decompress → unxor → read → gate → signal
 ```
 
-> Static data costs near-zero bandwidth.  
-> Changing data compresses proportionally to how much actually changed.
+Static data costs near-zero bandwidth. Changing data compresses proportionally to how much actually changed.

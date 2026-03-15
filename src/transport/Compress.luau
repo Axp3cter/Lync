@@ -1,14 +1,16 @@
 --!strict
 --!native
 -- Compress.luau — LZSS compression with hash-probe match finder.
+-- Encoding: 8-bit offset (256 window) + 8-bit length (3–258 match).
+-- Derived from: zero runs use offset=1, non-zero XOR patches don't
+-- back-reference, so maximize match length at the cost of window size.
 
 -- Constants --------------------------------------------------------------
 
 local THRESHOLD   = 32
 local MIN_MATCH   = 3
-local MAX_MATCH   = 18
-local WINDOW_SIZE = 4096
-local HASH_BITS   = 12
+local MAX_MATCH   = 258
+local WINDOW_SIZE = 255
 local HASH_SIZE   = 4096
 local HASH_EMPTY  = 0xFFFF
 
@@ -16,19 +18,15 @@ local band   = bit32.band
 local bor    = bit32.bor
 local bxor   = bit32.bxor
 local lshift = bit32.lshift
-local rshift = bit32.rshift
 local min    = math.min
 local max    = math.max
 local ceil   = math.ceil
 
 -- State ------------------------------------------------------------------
 
--- Shared scratch avoids per-call allocation. Safe because Luau is
--- single-threaded and pack is never called reentrantly.
 local _scratch    = buffer.create(512)
 local _scratchLen = 512
 
--- Hash table: 4096 entries × 2 bytes = 8KB. Persistent, cleared per call.
 local _hashTable = buffer.create(HASH_SIZE * 2)
 
 -- Private ----------------------------------------------------------------
@@ -55,7 +53,6 @@ local function findMatch(src: buffer, pos: number, srcLen: number): (number, num
     local slot      = h * 2
     local candidate = buffer.readu16(_hashTable, slot)
 
-    -- Store current position in hash table
     buffer.writeu16(_hashTable, slot, pos)
 
     if candidate == HASH_EMPTY then return 0, 0 end
@@ -63,11 +60,10 @@ local function findMatch(src: buffer, pos: number, srcLen: number): (number, num
     local offset = pos - candidate
     if offset > WINDOW_SIZE or offset <= 0 then return 0, 0 end
 
-    -- Verify first byte before extending
     if buffer.readu8(src, candidate) ~= buffer.readu8(src, pos) then return 0, 0 end
 
-    local maxLen  = min(MAX_MATCH, remaining)
-    local len     = 1
+    local maxLen = min(MAX_MATCH, remaining)
+    local len    = 1
     while len < maxLen and buffer.readu8(src, candidate + len) == buffer.readu8(src, pos + len) do
         len += 1
     end
@@ -87,7 +83,6 @@ function Compress.pack(src: buffer): (buffer, boolean)
     local worstCase = srcLen + ceil(srcLen / 8)
     ensureScratch(worstCase)
 
-    -- Clear hash table
     buffer.fill(_hashTable, 0, 0xFF, HASH_SIZE * 2)
 
     local dst    = _scratch
@@ -108,8 +103,8 @@ function Compress.pack(src: buffer): (buffer, boolean)
             local offset, matchLen = findMatch(src, srcPos, srcLen)
 
             if matchLen >= MIN_MATCH then
-                buffer.writeu8(dst, dstPos, band(offset, 0xFF))
-                buffer.writeu8(dst, dstPos + 1, bor(lshift(rshift(offset, 8), 4), matchLen - MIN_MATCH))
+                buffer.writeu8(dst, dstPos, offset)
+                buffer.writeu8(dst, dstPos + 1, matchLen - MIN_MATCH)
                 dstPos += 2
                 srcPos += matchLen
             else
@@ -146,7 +141,7 @@ function Compress.unpack(src: buffer): buffer
         for bit = 0, 7 do
             if srcPos >= srcLen then break end
 
-            if dstPos + MAX_MATCH >= cap then
+            while dstPos + MAX_MATCH >= cap do
                 cap *= 2
                 local grown = buffer.create(cap)
                 buffer.copy(grown, 0, dst, 0, dstPos)
@@ -160,10 +155,8 @@ function Compress.unpack(src: buffer): buffer
             else
                 if srcPos + 1 >= srcLen then break end
 
-                local lo       = buffer.readu8(src, srcPos)
-                local hi       = buffer.readu8(src, srcPos + 1)
-                local offset   = bor(lo, lshift(rshift(hi, 4), 8))
-                local matchLen = band(hi, 0x0F) + MIN_MATCH
+                local offset   = buffer.readu8(src, srcPos)
+                local matchLen = buffer.readu8(src, srcPos + 1) + MIN_MATCH
                 srcPos += 2
 
                 if offset == 0 or offset > dstPos then break end

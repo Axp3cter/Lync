@@ -103,17 +103,15 @@ local function flushChannel(remote: any, ch: ChannelState, target: Player, apply
     if applyXor then
         local xored = Channel.xorApply(raw, ch.prevDump)
         ch.prevDump = raw
-        payload = xored
-    else
-        payload = raw
-    end
 
-    local packed, wasCompressed = Compress.pack(payload)
-
-    if wasCompressed then
-        remote:FireClient(target, packed, refs, true)
+        local packed, wasCompressed = Compress.pack(xored)
+        if wasCompressed then
+            remote:FireClient(target, packed, refs, true)
+        else
+            remote:FireClient(target, packed, refs)
+        end
     else
-        remote:FireClient(target, packed, refs)
+        remote:FireClient(target, raw, refs)
     end
 
     Channel.reset(ch)

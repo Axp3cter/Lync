@@ -2,7 +2,7 @@
   <h1 align="center">Lync</h1>
   <p align="center">
     Binary networking for Roblox.<br>
-    Packets are batched, delta-encoded, XOR-compressed, and sent as a single RemoteEvent per frame.
+    Packets are batched, delta-encoded, XOR-framed, and sent as a single RemoteEvent per frame.
   </p>
 </p>
 
@@ -265,7 +265,7 @@ To run: `rojo build bench.project.json -o Lync-bench.rbxl`, open in Studio, star
 ## How It Works
 
 ```
-write → batch → xor → compress → fire → decompress → unxor → read → gate → signal
+write → batch → xor → fire → [roblox compression] → unxor → read → gate → signal
 ```
 
-Static data costs near-zero bandwidth. Changing data compresses proportionally to how much actually changed.
+XOR transforms unchanged bytes to zeros. Roblox compresses the buffer transparently before sending. Static data costs near-zero bandwidth. Changing data compresses proportionally to how much actually changed.

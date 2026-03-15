@@ -2,114 +2,102 @@
 --!optimize 2
 -- Post-deserialization security: NaN/inf, rate limiting, custom validate.
 
-local Types = require (script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
-type Registration = Types.Registration
+type Registration    = Types.Registration
 type RateLimitConfig = Types.RateLimitConfig
 
 -- Constants --------------------------------------------------------------
 
 local MAX_DEPTH = 8
 
-local huge = math.huge
-local min = math.min
+local huge  = math.huge
+local min   = math.min
 local clock = os.clock
 
 -- State ------------------------------------------------------------------
 
 type Bucket = {
-    tokens: number,
+    tokens:  number,
     lastRef: number,
 }
 
-local _buckets = {} :: { [Player]: { [number]: Bucket } }
+local _buckets  = {} :: { [Player]: { [number]: Bucket } }
 local _callback = nil :: ((player: Player, reason: string, packetName: string, data: any?) -> ())?
 
 -- Private ----------------------------------------------------------------
 
-local function isFinite (value: number): boolean
+local function isFinite(value: number): boolean
     return value == value and value ~= huge and value ~= -huge
 end
 
-local function isClean (value: any, depth: number): boolean
-    if depth > MAX_DEPTH then
-        return false
-    end
+local function isClean(value: any, depth: number): boolean
+    if depth > MAX_DEPTH then return false end
 
     -- type() is cheaper than typeof() for primitives and tables.
     -- typeof() only needed for userdata (Vector2, Vector3, CFrame, Color3).
-    local t = type (value)
+    local t = type(value)
 
     if t == "number" then
-        return isFinite (value)
+        return isFinite(value)
+
     elseif t == "table" then
         local deeper = depth + 1
         for k, v in value do
-            if not isClean (k, deeper) then
-                return false
-            end
-            if not isClean (v, deeper) then
-                return false
-            end
+            if not isClean(k, deeper) then return false end
+            if not isClean(v, deeper) then return false end
         end
         return true
+
     elseif t == "userdata" or t == "vector" then
-        local ut = typeof (value)
+        local ut = typeof(value)
 
         if ut == "Vector2" then
-            return isFinite (value.X) and isFinite (value.Y)
+            return isFinite(value.X) and isFinite(value.Y)
+
         elseif ut == "Vector3" then
-            return isFinite (value.X) and isFinite (value.Y) and isFinite (value.Z)
+            return isFinite(value.X) and isFinite(value.Y) and isFinite(value.Z)
+
         elseif ut == "CFrame" then
             local position = value.Position
-            if
-                not isFinite (position.X)
-                or not isFinite (position.Y)
-                or not isFinite (position.Z)
-            then
+            if not isFinite(position.X) or not isFinite(position.Y) or not isFinite(position.Z) then
                 return false
             end
-            local axis, angle = value:ToAxisAngle ()
-            return isFinite (angle)
-                and isFinite (axis.X)
-                and isFinite (axis.Y)
-                and isFinite (axis.Z)
+            local axis, angle = value:ToAxisAngle()
+            return isFinite(angle) and isFinite(axis.X) and isFinite(axis.Y) and isFinite(axis.Z)
+
         elseif ut == "Color3" then
-            return isFinite (value.R) and isFinite (value.G) and isFinite (value.B)
+            return isFinite(value.R) and isFinite(value.G) and isFinite(value.B)
         end
     end
 
     return true
 end
 
-local function checkRate (player: Player, reg: Registration): boolean
+local function checkRate(player: Player, reg: Registration): boolean
     local cfg = reg.rateLimit
-    if not cfg then
-        return true
-    end
+    if not cfg then return true end
 
     local playerBuckets = _buckets[player]
-    if not playerBuckets then
-        return true
-    end
+    if not playerBuckets then return true end
 
-    local id = reg.id
+    local id     = reg.id
     local bucket = playerBuckets[id]
-    local now = clock ()
+    local now    = clock()
 
     if not bucket then
         local cap = cfg.burstAllowance or cfg.maxPerSecond
         playerBuckets[id] = {
-            tokens = cap - 1,
+            tokens  = cap - 1,
             lastRef = now,
         }
         return true
     end
 
-    local cap = cfg.burstAllowance or cfg.maxPerSecond
-    local rate = cfg.maxPerSecond
-    local elapsed = now - bucket.lastRef
-    bucket.tokens = min (cap, bucket.tokens + elapsed * rate)
+    local cap      = cfg.burstAllowance or cfg.maxPerSecond
+    local rate     = cfg.maxPerSecond
+    local elapsed  = now - bucket.lastRef
+    bucket.tokens  = min(cap, bucket.tokens + elapsed * rate)
     bucket.lastRef = now
 
     if bucket.tokens >= 1 then
@@ -120,9 +108,9 @@ local function checkRate (player: Player, reg: Registration): boolean
     return false
 end
 
-local function drop (player: Player, reason: string, name: string, data: any?): ()
+local function drop(player: Player, reason: string, name: string, data: any?): ()
     if _callback then
-        _callback (player, reason, name, data)
+        _callback(player, reason, name, data)
     end
 end
 
@@ -131,22 +119,22 @@ end
 local Gate = {}
 
 -- Rate limit first (cheapest), then NaN scan (recursive), then user validate.
-function Gate.check (value: any, reg: Registration, player: Player): boolean
-    if not checkRate (player, reg) then
-        drop (player, "rate", reg.name, nil)
+function Gate.check(value: any, reg: Registration, player: Player): boolean
+    if not checkRate(player, reg) then
+        drop(player, "rate", reg.name, nil)
         return false
     end
 
-    if not isClean (value, 1) then
-        drop (player, "nan", reg.name, value)
+    if not isClean(value, 1) then
+        drop(player, "nan", reg.name, value)
         return false
     end
 
     local validate = reg.validate
     if validate then
-        local ok, reason = validate (value, player)
+        local ok, reason = validate(value, player)
         if not ok then
-            drop (player, reason or "validate", reg.name, value)
+            drop(player, reason or "validate", reg.name, value)
             return false
         end
     end
@@ -154,18 +142,18 @@ function Gate.check (value: any, reg: Registration, player: Player): boolean
     return true
 end
 
-function Gate.onDrop (
+function Gate.onDrop(
     callback: (player: Player, reason: string, packetName: string, data: any?) -> ()
 ): ()
     _callback = callback
 end
 
-function Gate.onPlayerAdded (player: Player): ()
+function Gate.onPlayerAdded(player: Player): ()
     _buckets[player] = {}
 end
 
-function Gate.onPlayerRemoved (player: Player): ()
+function Gate.onPlayerRemoved(player: Player): ()
     _buckets[player] = nil
 end
 
-return table.freeze (Gate)
+return table.freeze(Gate)

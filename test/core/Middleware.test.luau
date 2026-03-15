@@ -1,147 +1,80 @@
 --!strict
 --!optimize 2
-local Middleware = require (script.Parent.Parent.Parent.core.Middleware)
-local Runner = require (script.Parent.Parent.Runner)
+local Runner     = require(script.Parent.Parent.Runner)
+local Middleware = require(script.Parent.Parent.Parent.core.Middleware)
 local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 
-describe ("Middleware no handlers", function (): ()
-    it ("returns data unchanged", function (): ()
-        expect (Middleware.runSend (42, "test", nil)):toBe (42)
-    end)
-    it ("passes tables through", function (): ()
-        local d = { hp = 100 }
-        expect (Middleware.runSend (d, "test", nil)):toBe (d)
-    end)
-    it ("receive also passthrough", function (): ()
-        expect (Middleware.runReceive ("hello", "test", nil)):toBe ("hello")
-    end)
+describe("Middleware no handlers", function(): ()
+    it("returns data unchanged",  function(): () expect(Middleware.runSend(42, "test", nil)):toBe(42) end)
+    it("passes tables through",   function(): () local d = { hp = 100 }; expect(Middleware.runSend(d, "test", nil)):toBe(d) end)
+    it("receive also passthrough", function(): () expect(Middleware.runReceive("hello", "test", nil)):toBe("hello") end)
 end)
 
-describe ("Middleware send chain", function (): ()
-    it ("transforms in order", function (): ()
-        local rA = Middleware.addSend (function (d: any): any?
-            return (d :: number) + 1
-        end)
-        local rB = Middleware.addSend (function (d: any): any?
-            return (d :: number) * 10
-        end)
-        expect (Middleware.runSend (5, "t", nil)):toBe (60)
-        rA ()
-        rB ()
+describe("Middleware send chain", function(): ()
+    it("transforms in order", function(): ()
+        local rA = Middleware.addSend(function(d: any): any? return (d :: number) + 1 end)
+        local rB = Middleware.addSend(function(d: any): any? return (d :: number) * 10 end)
+        expect(Middleware.runSend(5, "t", nil)):toBe(60); rA(); rB()
     end)
-    it ("short-circuits nil", function (): ()
-        local r = Middleware.addSend (function (): any?
-            return nil
-        end)
-        expect (Middleware.runSend (42, "t", nil)):toBeNil ()
-        r ()
+    it("short-circuits nil", function(): ()
+        local r = Middleware.addSend(function(): any? return nil end)
+        expect(Middleware.runSend(42, "t", nil)):toBeNil(); r()
     end)
-    it ("forwards name", function (): ()
+    it("forwards name", function(): ()
         local captured: string? = nil
-        local r = Middleware.addSend (function (d: any, name: string): any?
-            captured = name
-            return d
-        end)
-        Middleware.runSend (1, "myPacket", nil)
-        expect (captured):toBe ("myPacket")
-        r ()
+        local r = Middleware.addSend(function(d: any, name: string): any? captured = name; return d end)
+        Middleware.runSend(1, "myPacket", nil); expect(captured):toBe("myPacket"); r()
     end)
-    it ("forwards player", function (): ()
+    it("forwards player", function(): ()
         local captured: any = "unset"
-        local r = Middleware.addSend (function (d: any, _: string, player: Player?): any?
-            captured = player
-            return d
-        end)
+        local r = Middleware.addSend(function(d: any, _: string, player: Player?): any? captured = player; return d end)
         local fp = { Name = "Test", UserId = 1 } :: any
-        Middleware.runSend (1, "t", fp)
-        expect (captured):toBe (fp)
-        r ()
+        Middleware.runSend(1, "t", fp); expect(captured):toBe(fp); r()
     end)
 end)
 
-describe ("Middleware receive chain", function (): ()
-    it ("transforms data", function (): ()
-        local r = Middleware.addReceive (function (d: any): any?
-            return (d :: number) + 100
-        end)
-        expect (Middleware.runReceive (5, "t", nil)):toBe (105)
-        r ()
+describe("Middleware receive chain", function(): ()
+    it("transforms data", function(): ()
+        local r = Middleware.addReceive(function(d: any): any? return (d :: number) + 100 end)
+        expect(Middleware.runReceive(5, "t", nil)):toBe(105); r()
     end)
-    it ("chain of 3", function (): ()
-        local r1 = Middleware.addReceive (function (d: any): any?
-            return (d :: number) + 1
-        end)
-        local r2 = Middleware.addReceive (function (d: any): any?
-            return (d :: number) + 1
-        end)
-        local r3 = Middleware.addReceive (function (d: any): any?
-            return (d :: number) + 1
-        end)
-        expect (Middleware.runReceive (0, "t", nil)):toBe (3)
-        r1 ()
-        r2 ()
-        r3 ()
+    it("chain of 3", function(): ()
+        local r1 = Middleware.addReceive(function(d: any): any? return (d :: number) + 1 end)
+        local r2 = Middleware.addReceive(function(d: any): any? return (d :: number) + 1 end)
+        local r3 = Middleware.addReceive(function(d: any): any? return (d :: number) + 1 end)
+        expect(Middleware.runReceive(0, "t", nil)):toBe(3); r1(); r2(); r3()
     end)
 end)
 
-describe ("Middleware removal", function (): ()
-    it ("disconnects handler", function (): ()
-        local n = 0
-        local r = Middleware.addSend (function (d: any): any?
-            n += 1
-            return d
-        end)
-        Middleware.runSend (1, "t", nil)
-        expect (n):toBe (1)
-        r ()
-        Middleware.runSend (1, "t", nil)
-        expect (n):toBe (1)
+describe("Middleware removal", function(): ()
+    it("disconnects handler",   function(): ()
+        local n = 0; local r = Middleware.addSend(function(d: any): any? n += 1; return d end)
+        Middleware.runSend(1, "t", nil); expect(n):toBe(1)
+        r(); Middleware.runSend(1, "t", nil); expect(n):toBe(1)
     end)
-    it ("double removal safe", function (): ()
-        local r = Middleware.addSend (function (d: any): any?
-            return d
-        end)
-        r ()
-        expect (function (): ()
-            r ()
-        end).never:toThrow ()
+    it("double removal safe",   function(): ()
+        local r = Middleware.addSend(function(d: any): any? return d end); r()
+        expect(function(): () r() end).never:toThrow()
     end)
-    it ("removing first doesn't break second", function (): ()
+    it("removing first doesn't break second", function(): ()
         local log = {} :: { string }
-        local r1 = Middleware.addSend (function (d: any): any?
-            table.insert (log, "a")
-            return d
-        end)
-        local r2 = Middleware.addSend (function (d: any): any?
-            table.insert (log, "b")
-            return d
-        end)
-        r1 ()
-        Middleware.runSend (1, "t", nil)
-        expect (table.find (log, "b")).never:toBeNil ()
-        expect (table.find (log, "a")):toBeNil ()
-        r2 ()
+        local r1 = Middleware.addSend(function(d: any): any? table.insert(log, "a"); return d end)
+        local r2 = Middleware.addSend(function(d: any): any? table.insert(log, "b"); return d end)
+        r1(); Middleware.runSend(1, "t", nil)
+        expect(table.find(log, "b")).never:toBeNil(); expect(table.find(log, "a")):toBeNil()
+        r2()
     end)
 end)
 
-describe ("Middleware error handling", function (): ()
-    it ("returns nil on error", function (): ()
-        local r = Middleware.addSend (function (): any?
-            error ("intentional")
-        end)
-        expect (Middleware.runSend (42, "t", nil)):toBeNil ()
-        r ()
+describe("Middleware error handling", function(): ()
+    it("returns nil on error",  function(): ()
+        local r = Middleware.addSend(function(): any? error("intentional") end)
+        expect(Middleware.runSend(42, "t", nil)):toBeNil(); r()
     end)
-    it ("error in chain[2] still nil", function (): ()
-        local r1 = Middleware.addSend (function (d: any): any?
-            return d
-        end)
-        local r2 = Middleware.addSend (function (): any?
-            error ("boom")
-        end)
-        expect (Middleware.runSend (42, "t", nil)):toBeNil ()
-        r1 ()
-        r2 ()
+    it("error in chain[2] still nil", function(): ()
+        local r1 = Middleware.addSend(function(d: any): any? return d end)
+        local r2 = Middleware.addSend(function(): any? error("boom") end)
+        expect(Middleware.runSend(42, "t", nil)):toBeNil(); r1(); r2()
     end)
 end)
 

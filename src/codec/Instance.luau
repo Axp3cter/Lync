@@ -25,8 +25,8 @@ InstanceCodec.inst = table.freeze({
     end,
     read = function(src: buffer, pos: number, refs: { Instance }?): (Instance, number)
         local idx = buffer.readu16(src, pos)
-        if not refs then error("[Lync] Instance codec: refs array is nil") end
-        if not refs[idx] then error(`[Lync] Instance codec: invalid ref index {idx}`) end
+        if not refs then error("[Lync] Instance read requires refs array") end
+        if not refs[idx] then error(`[Lync] Instance ref index out of bounds: {idx}`) end
 
         return refs[idx], 2
     end,

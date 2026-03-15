@@ -16,7 +16,7 @@ function EnumCodec.define(...: string): Codec<string>
     local values = { ... }
     local count  = #values
     if count == 0 then error("[Lync] Enum requires at least one value") end
-    if count > 256 then error(`[Lync] Enum exceeds 256 values ({count})`) end
+    if count > 256 then error(`[Lync] Enum exceeds 256 values: {count}`) end
 
     local toIndex = {} :: { [string]: number }
     local toValue = table.create(count) :: { string }

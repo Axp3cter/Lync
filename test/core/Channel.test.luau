@@ -19,7 +19,7 @@ describe("Channel.alloc", function(): ()
     it("grows when needed",           function(): () local ch = Channel.create(); Channel.alloc(ch, 2000); expect(ch.size >= 2000):toBe(true) end)
     it("grows by doubling",           function(): () local ch = Channel.create(); Channel.alloc(ch, 1025); expect(ch.size):toBe(2048) end)
     it("preserves data on grow",      function(): () local ch = Channel.create(); buffer.writeu8(ch.buff, 0, 0xAB); ch.cursor = 1; Channel.alloc(ch, 2000); expect(buffer.readu8(ch.buff, 0)):toBe(0xAB) end)
-    it("throws on >65536",            function(): () expect(function(): () Channel.alloc(Channel.create(), 65537) end):toThrow("Buffer overflow") end)
+    it("throws on >65536",            function(): () expect(function(): () Channel.alloc(Channel.create(), 65537) end):toThrow("buffer overflow") end)
     it("allows exactly 65536",        function(): () expect(function(): () Channel.alloc(Channel.create(), 65536) end).never:toThrow() end)
 end)
 

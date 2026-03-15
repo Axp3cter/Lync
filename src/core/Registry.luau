@@ -33,15 +33,15 @@ local function assign(
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?
 ): Registration
-    if _names[name] then error(`[Lync] Already registered: {name}`) end
-    if _nextId > MAX_PACKETS then error(`[Lync] Packet limit reached: max {MAX_PACKETS} registrations`) end
+    if _names[name] then error(`[Lync] Duplicate registration: "{name}"`) end
+    if _nextId > MAX_PACKETS then error(`[Lync] Registration limit reached: {MAX_PACKETS} max`) end
 
     if rateLimit then
         if rateLimit.maxPerSecond <= 0 then
-            error(`[Lync] "{name}" rateLimit.maxPerSecond must be positive`)
+            error(`[Lync] "{name}" maxPerSecond must be positive`)
         end
         if rateLimit.burstAllowance and rateLimit.burstAllowance <= 0 then
-            error(`[Lync] "{name}" rateLimit.burstAllowance must be positive`)
+            error(`[Lync] "{name}" burstAllowance must be positive`)
         end
     end
 

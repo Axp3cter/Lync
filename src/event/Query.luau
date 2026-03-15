@@ -38,7 +38,7 @@ end
 
 local function allocCorrelation(): number
     if _freeDepth == 0 then
-        error("[Lync] All query correlation slots are in use")
+        error(`[Lync] All {MAX_PENDING} query correlation slots are in use`)
     end
 
     local id = _freeStack[_freeDepth]
@@ -95,7 +95,7 @@ function QueryImpl.listen(self: any, callback: (...any) -> any): Connection
     return self._reqReg.signal:connect(function(request: any, player: Player, correlation: number): ()
         local ok, response = pcall(callback, request, player)
         if not ok then
-            warn(`[Lync] Query handler error ({respName}): {response}`)
+            warn(`[Lync] Query "{respName}" handler error: {response}`)
             return
         end
         if response == nil then return end

@@ -28,7 +28,7 @@ Buffer.buff = table.freeze({
 
         local remaining = buffer.len(src) - pos - lenBytes
         if len > remaining then
-            error(`[Lync] Buffer length {len} exceeds remaining buffer ({remaining})`)
+            error(`[Lync] Buffer length exceeds remaining: {len} > {remaining}`)
         end
 
         local out = buffer.create(len)

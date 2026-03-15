@@ -40,8 +40,8 @@ end
 local Quantized = {}
 
 function Quantized.float(minVal: number, maxVal: number, precision: number): Codec<number>
-    if minVal > maxVal then error(`[Lync] Quantized: min ({minVal}) > max ({maxVal})`) end
-    if precision <= 0 then error(`[Lync] Quantized: precision must be positive ({precision})`) end
+    if minVal > maxVal then error(`[Lync] Quantized min > max: {minVal} > {maxVal}`) end
+    if precision <= 0 then error(`[Lync] Quantized precision must be positive: {precision}`) end
 
     local delta = maxVal - minVal
 
@@ -80,8 +80,8 @@ function Quantized.float(minVal: number, maxVal: number, precision: number): Cod
 end
 
 function Quantized.vec3(minVal: number, maxVal: number, precision: number): Codec<Vector3>
-    if minVal > maxVal then error(`[Lync] Quantized: min ({minVal}) > max ({maxVal})`) end
-    if precision <= 0 then error(`[Lync] Quantized: precision must be positive ({precision})`) end
+    if minVal > maxVal then error(`[Lync] Quantized min > max: {minVal} > {maxVal}`) end
+    if precision <= 0 then error(`[Lync] Quantized precision must be positive: {precision}`) end
 
     local delta = maxVal - minVal
 

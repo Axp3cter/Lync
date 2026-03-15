@@ -38,7 +38,7 @@ end
 function Channel.alloc(ch: ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
     if needed <= ch.size then return end
-    if needed > MAX_SIZE then error(`[Lync] Buffer overflow: {needed} bytes exceeds {MAX_SIZE} limit`) end
+    if needed > MAX_SIZE then error(`[Lync] Channel buffer overflow: {needed} > {MAX_SIZE}`) end
 
     local newSize = ch.size
     while needed > newSize do

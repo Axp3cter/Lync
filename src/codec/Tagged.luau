@@ -29,7 +29,7 @@ function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Co
 
     local count = #names
     if count == 0 then error("[Lync] Tagged union requires at least one variant") end
-    if count > 256 then error(`[Lync] Tagged union exceeds 256 variants ({count})`) end
+    if count > 256 then error(`[Lync] Tagged union exceeds 256 variants: {count}`) end
 
     local nameToTag = {} :: { [string]: number }
     local tagCodecs = table.create(count) :: { Codec<any> }

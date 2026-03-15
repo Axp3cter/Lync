@@ -47,7 +47,7 @@ require(script.transport["Integrity.test"])
 local isSuccess = Runner.run()
 
 if not isSuccess then
-    error("[Lync] One or more tests failed — see output above")
+    error("[Lync] Tests failed, see output above")
 end
 
 return isSuccess

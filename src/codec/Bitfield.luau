@@ -49,10 +49,10 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Codec<any>
         if isBool then
             width = 1
         else
-            if not spec.width then error(`[Lync] Bitfield uint "{key}" requires a width`) end
+            if not spec.width then error(`[Lync] Bitfield "{key}" requires a width`) end
             width = spec.width
             if width < 1 or width > 32 then
-                error(`[Lync] Bitfield uint "{key}" width must be 1-32 ({width})`)
+                error(`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
             end
         end
 
@@ -80,7 +80,7 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Codec<any>
         totalBits += field.width
     end
 
-    if totalBits > 32 then error(`[Lync] Bitfield exceeds 32 bits ({totalBits})`) end
+    if totalBits > 32 then error(`[Lync] Bitfield exceeds 32 bits: {totalBits}`) end
 
     table.freeze(keys)
     table.freeze(isBool)

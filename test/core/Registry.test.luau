@@ -59,7 +59,7 @@ describe("Registry.registerQueryPair", function(): ()
 end)
 
 describe("Registry validation", function(): ()
-    it("throws duplicate",           function(): () local s = { connect = function() end }; Registry.register("__r_dup", Lync.u8, false, s, nil, nil); expect(function(): () Registry.register("__r_dup", Lync.u8, false, s, nil, nil) end):toThrow("Already registered") end)
+    it("throws duplicate",           function(): () local s = { connect = function() end }; Registry.register("__r_dup", Lync.u8, false, s, nil, nil); expect(function(): () Registry.register("__r_dup", Lync.u8, false, s, nil, nil) end):toThrow("Duplicate registration") end)
     it("throws bad maxPerSecond",    function(): () expect(function(): () local s = { connect = function() end }; Registry.register("__r_br", Lync.u8, false, s, { maxPerSecond = 0 }, nil) end):toThrow("maxPerSecond must be positive") end)
     it("throws bad burstAllowance",  function(): () expect(function(): () local s = { connect = function() end }; Registry.register("__r_bb", Lync.u8, false, s, { maxPerSecond = 10, burstAllowance = 0 }, nil) end):toThrow("burstAllowance must be positive") end)
     it("throws negative maxPerSecond", function(): () expect(function(): () local s = { connect = function() end }; Registry.register("__r_br2", Lync.u8, false, s, { maxPerSecond = -1 }, nil) end):toThrow("maxPerSecond must be positive") end)

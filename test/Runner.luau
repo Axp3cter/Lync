@@ -163,7 +163,7 @@ function Runner.describe(name: string, fn: () -> ()): ()
 end
 
 function Runner.it(name: string, fn: () -> ()): ()
-    if not _current then error("[Test] it() must be called inside describe()") end
+    if not _current then error("[Lync] Test it() must be called inside describe()") end
     table.insert(_current.tests, { name = name, fn = fn })
 end
 

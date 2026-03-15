@@ -28,7 +28,7 @@ String.string = table.freeze({
 
         local remaining = buffer.len(src) - pos - lenBytes
         if len > remaining then
-            error(`[Lync] String length {len} exceeds remaining buffer ({remaining})`)
+            error(`[Lync] String length exceeds buffer: {len} > {remaining}`)
         end
 
         return buffer.readstring(src, pos + lenBytes, len), lenBytes + len

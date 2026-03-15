@@ -179,7 +179,7 @@ Special.auto = table.freeze({
         -- Userdata / vector types — need typeof()
         local ut    = typeof(value)
         local entry = TYPE_DISPATCH[ut]
-        if not entry then error(`[Lync] auto: unsupported type {ut}`) end
+        if not entry then error(`[Lync] Auto unsupported type: {ut}`) end
 
         local size = entry.size
         if size then
@@ -197,7 +197,7 @@ Special.auto = table.freeze({
         if tag == TAG_NIL then return nil, 1 end
 
         local codec = READ_DISPATCH[tag]
-        if not codec then error(`[Lync] auto: unknown tag {tag}`) end
+        if not codec then error(`[Lync] Auto unknown tag: {tag}`) end
 
         local value, n = codec.read(src, pos + 1, refs)
         return value, 1 + n

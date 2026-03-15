@@ -54,7 +54,7 @@ local function receive(data: any, refs: any, compressed: any, applyXor: boolean)
 
     local safeRefs: { Instance }? = if typeof(refs) == "table" then refs else nil
     local ok, err = pcall(Reader.process, raw, safeRefs, nil, 0)
-    if not ok then warn(`[Lync] Client read error: {err}`) end
+    if not ok then warn(`[Lync] Read failed: {err}`) end
 end
 
 local function flushChannel(remote: any, ch: ChannelState, applyXor: boolean): ()

@@ -33,7 +33,7 @@ function Reader.process(incoming: buffer, refs: { Instance }?, player: Player?, 
 
         local reg = Registry.get(id)
         if not reg then
-            warn("[Lync] Unknown ID", id)
+            warn(`[Lync] Unknown packet ID {id}`)
             break
         end
 

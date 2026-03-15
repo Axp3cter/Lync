@@ -89,7 +89,7 @@ local function extractFields(schema: { [string]: Codec<any> }): ({ Field }, { st
     table.sort(boolKeys)
 
     if #dataFields == 0 and #boolKeys == 0 then
-        error("[Lync] Schema requires at least one field")
+        error("[Lync] Struct requires at least one field")
     end
 
     table.freeze(dataFields)

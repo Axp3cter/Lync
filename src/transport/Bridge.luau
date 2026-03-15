@@ -40,7 +40,7 @@ function Bridge.setup(): ()
         _unreliable = unreliable
     else
         local folder = ReplicatedStorage:WaitForChild(FOLDER, TIMEOUT)
-        if not folder then error("[Lync] Network folder not found — is the server started?") end
+        if not folder then error("[Lync] Network folder not found, is the server started?") end
 
         local reliable = folder:WaitForChild(RELIABLE, TIMEOUT)
         if not reliable then error("[Lync] Reliable remote not found") end

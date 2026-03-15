@@ -125,7 +125,7 @@ function Runner.measure(
     fn: () -> (),
     config: { samples: number?, warmup: number?, batch: number? }?
 ): ()
-    if not _current then error("[Bench] measure() must be called inside group()") end
+    if not _current then error("[Lync] Bench measure() must be called inside group()") end
 
     local cfg = config or {}
     table.insert(_current.entries, {

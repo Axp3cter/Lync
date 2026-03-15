@@ -80,7 +80,7 @@ local function receiveReliable(player: Player, data: any, refs: any, compressed:
 
     local safeRefs: { Instance }? = if typeof(refs) == "table" then refs else nil
     local ok, err = pcall(Reader.process, raw, safeRefs, player, 0)
-    if not ok then warn(`[Lync] Bad buffer from {player.Name}: {err}`) end
+    if not ok then warn(`[Lync] Reliable read failed from {player.Name} ({player.UserId}): {err}`) end
 end
 
 local function receiveUnreliable(player: Player, data: any, refs: any, compressed: any): ()
@@ -89,7 +89,7 @@ local function receiveUnreliable(player: Player, data: any, refs: any, compresse
 
     local safeRefs: { Instance }? = if typeof(refs) == "table" then refs else nil
     local ok, err = pcall(Reader.process, buf, safeRefs, player, 0)
-    if not ok then warn(`[Lync] Bad buffer from {player.Name}: {err}`) end
+    if not ok then warn(`[Lync] Unreliable read failed from {player.Name} ({player.UserId}): {err}`) end
 end
 
 local function flushChannel(remote: any, ch: ChannelState, target: Player, applyXor: boolean): ()

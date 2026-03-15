@@ -2,7 +2,7 @@
 --!optimize 2
 -- Signal.luau — O(1) disconnect listener system with thread reuse.
 
-local Types = require(script.Parent.Parent.Types)
+local Types = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 
@@ -11,69 +11,73 @@ type Connection = Types.Connection
 -- Thread reuse pool
 local _freeThread: thread? = nil
 
-local function passer(fn: (...any) -> (), ...: any): ()
+local function passer (fn: (...any) -> (), ...: any): ()
     local acquired = _freeThread
     _freeThread = nil
-    fn(...)
+    fn (...)
     _freeThread = acquired
 end
 
-local function yielder(): ()
+local function yielder (): ()
     while true do
-        passer(coroutine.yield())
+        passer (coroutine.yield ())
     end
 end
 
-local function spawn(fn: (...any) -> (), ...: any): ()
+local function spawn (fn: (...any) -> (), ...: any): ()
     if not _freeThread then
-        _freeThread = coroutine.create(yielder)
-        coroutine.resume(_freeThread :: thread)
+        _freeThread = coroutine.create (yielder)
+        coroutine.resume (_freeThread :: thread)
     end
-    task.spawn(_freeThread :: thread, fn, ...)
+    task.spawn (_freeThread :: thread, fn, ...)
 end
 
 -- Connection
 local ConnectionImpl = {}
 ConnectionImpl.__index = ConnectionImpl
 
-function ConnectionImpl.disconnect(self: any): ()
-    if not self.connected then return end
+function ConnectionImpl.disconnect (self: any): ()
+    if not self.connected then
+        return
+    end
 
     self.connected = false
-    self._signal:_swapRemove(self._index)
+    self._signal:_swapRemove (self._index)
 end
 
 -- Signal
 local SignalImpl = {}
 SignalImpl.__index = SignalImpl
 
-function SignalImpl._swapRemove(self: any, index: number): ()
+function SignalImpl._swapRemove (self: any, index: number): ()
     local entries = self._entries
-    local count   = self._count
-    if count == 0 or index > count then return end
+    local count = self._count
+    if count == 0 or index > count then
+        return
+    end
 
     if index < count then
-        local last       = entries[count]
-        entries[index]   = last
+        local last = entries[count]
+        entries[index] = last
         last.conn._index = index
     end
 
     entries[count] = nil
-    self._count    = count - 1
+    self._count = count - 1
 end
 
-local function addEntry(self: any, callback: (...any) -> (), isOnce: boolean): Connection
+local function addEntry (self: any, callback: (...any) -> (), isOnce: boolean): Connection
     local count = self._count + 1
     self._count = count
 
-    local conn = setmetatable({
+    local conn = setmetatable ({
         connected = true,
-        _signal   = self,
-        _index    = count,
+        _signal = self,
+        _index = count,
     }, ConnectionImpl)
 
     self._entries[count] = {
-        fn   = callback,
+        fn = callback,
         once = isOnce,
         conn = conn,
     }
@@ -81,36 +85,38 @@ local function addEntry(self: any, callback: (...any) -> (), isOnce: boolean): C
     return conn :: any
 end
 
-function SignalImpl.connect(self: any, callback: (...any) -> ()): Connection
-    return addEntry(self, callback, false)
+function SignalImpl.connect (self: any, callback: (...any) -> ()): Connection
+    return addEntry (self, callback, false)
 end
 
-function SignalImpl.once(self: any, callback: (...any) -> ()): Connection
-    return addEntry(self, callback, true)
+function SignalImpl.once (self: any, callback: (...any) -> ()): Connection
+    return addEntry (self, callback, true)
 end
 
-function SignalImpl.wait(self: any): ...any
-    local thread = coroutine.running()
+function SignalImpl.wait (self: any): ...any
+    local thread = coroutine.running ()
     local conn: any
 
-    conn = addEntry(self, function(...: any): ()
-        conn:disconnect()
-        task.spawn(thread, ...)
+    conn = addEntry (self, function (...: any): ()
+        conn:disconnect ()
+        task.spawn (thread, ...)
     end, true)
 
-    return coroutine.yield()
+    return coroutine.yield ()
 end
 
-function SignalImpl.fire(self: any, ...: any): ()
+function SignalImpl.fire (self: any, ...: any): ()
     local entries = self._entries
-    local count   = self._count
+    local count = self._count
     local isDirty = false
 
     for i = 1, count do
         local entry = entries[i]
-        if not entry then continue end
+        if not entry then
+            continue
+        end
 
-        spawn(entry.fn, ...)
+        spawn (entry.fn, ...)
 
         if entry.once then
             entry.conn.connected = false
@@ -122,13 +128,13 @@ function SignalImpl.fire(self: any, ...: any): ()
         for i = self._count, 1, -1 do
             local entry = entries[i]
             if entry and not entry.conn.connected then
-                self:_swapRemove(i)
+                self:_swapRemove (i)
             end
         end
     end
 end
 
-function SignalImpl.disconnectAll(self: any): ()
+function SignalImpl.disconnectAll (self: any): ()
     local entries = self._entries
 
     for i = 1, self._count do
@@ -146,8 +152,8 @@ end
 
 local Signal = {}
 
-function Signal.create(): any
-    return setmetatable({ _entries = {}, _count = 0 }, SignalImpl)
+function Signal.create (): any
+    return setmetatable ({ _entries = {}, _count = 0 }, SignalImpl)
 end
 
-return table.freeze(Signal)
+return table.freeze (Signal)

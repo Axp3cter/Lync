@@ -34,6 +34,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Lync ${{ github.ref_name }}
           files: |
             Lync.rbxm
             Lync-dev.rbxl

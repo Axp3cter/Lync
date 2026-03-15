@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- init.luau — Benchmark entry point. Require all suites, run, report.
+-- Benchmark entry point.
 
 local Runner = require(script.Runner)
 

@@ -1,6 +1,6 @@
 --!strict
 --!native
--- String.luau — Variable-length string codec with varint length prefix.
+-- Variable-length string codec with varint length prefix.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Varint  = require(script.Parent.Varint)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Signal.luau — O(1) disconnect listener system with thread reuse.
+-- O(1) disconnect listener system with thread reuse.
 
 local Types = require(script.Parent.Parent.Types)
 

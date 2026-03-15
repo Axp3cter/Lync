@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Group.luau — Named player sets with auto-cleanup on PlayerRemoving.
+-- Named player sets with auto-cleanup on PlayerRemoving.
 
 local Players = game:GetService("Players")
 

@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Varint.luau — LEB128 variable-length integer encoding and decoding.
+-- LEB128 variable-length integer encoding and decoding.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Compress.bench.luau — LZSS pack/unpack throughput at various data patterns.
+-- LZSS throughput.
 
 local Runner   = require(script.Parent.Parent.Runner)
 local Compress = require(script.Parent.Parent.Parent.transport.Compress)

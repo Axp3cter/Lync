@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Baseline.luau — Read-side baseline cache keyed by source (player or client sentinel).
+-- Read-side baseline cache keyed by source (player or client sentinel).
 
 -- State ------------------------------------------------------------------
 

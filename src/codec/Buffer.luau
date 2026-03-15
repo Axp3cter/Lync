@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Buffer.luau — Raw buffer codec with varint length prefix.
+-- Raw buffer codec with varint length prefix.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Varint  = require(script.Parent.Varint)

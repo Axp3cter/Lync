@@ -1,7 +1,6 @@
 --!strict
 --!native
--- Float16.luau — Half-precision float codec. 2 bytes, ±65504, ~3 decimal digits.
--- Note: negative zero round-trips as positive zero (IEEE f16 limitation).
+-- Half-precision float codec. 2 bytes, ±65504, ~3 decimal digits.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

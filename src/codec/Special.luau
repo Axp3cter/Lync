@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Special.luau — Nothing, unknown, and auto (self-describing) codecs.
+-- Nothing, unknown, and auto (self-describing) codecs.
 
 local Buffer      = require(script.Parent.Buffer)
 local Channel     = require(script.Parent.Parent.core.Channel)

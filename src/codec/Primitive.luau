@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Primitive.luau — Fixed-size numeric and boolean codecs via factory.
+-- Fixed-size numeric and boolean codecs via factory.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

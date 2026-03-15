@@ -1,5 +1,5 @@
 --!strict
--- Receive.client.luau — Receives bench packets, signals ready to server.
+-- Client-side bench receiver.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

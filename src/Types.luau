@@ -1,5 +1,5 @@
 --!strict
--- Types.luau — Shared type definitions for Lync. No runtime code.
+-- Shared type definitions.
 
 export type ChannelState = {
     buff:       buffer,

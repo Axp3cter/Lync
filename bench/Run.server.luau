@@ -1,5 +1,5 @@
 --!strict
--- Run.server.luau — 1000 fires/frame for 10s per test. Matches blink/zap/bytenet methodology.
+-- Server-side bench runner.
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")

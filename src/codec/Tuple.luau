@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Tuple.luau — Positional ordered codec. Like struct but indexed, not keyed.
+-- Positional ordered codec. Like struct but indexed, not keyed.
 
 local Types = require(script.Parent.Parent.Types)
 

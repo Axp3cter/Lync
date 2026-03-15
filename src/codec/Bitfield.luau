@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Bitfield.luau — Pack booleans and small integers at the bit level.
+-- Pack booleans and small integers at the bit level.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

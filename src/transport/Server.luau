@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Server.luau — Server-side transport with batching, delta state, frame XOR.
+-- Server-side transport with batching, delta state, frame XOR.
 
 local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -189,7 +189,6 @@ function Server.writeToAll(
 
     local snapLen, snapRefs = serializeBroadcast(codec, final)
 
-
     for player, state in _players do
         local ch = if isUnreliable then state.unreliable else state.reliable
         Channel.writeBatchRaw(ch, id, _broadScratch.buff, snapLen, snapRefs)
@@ -208,7 +207,6 @@ function Server.writeToList(
     if final == nil then return end
 
     local snapLen, snapRefs = serializeBroadcast(codec, final)
-
 
     for _, player in players do
         local state = _players[player]
@@ -232,7 +230,6 @@ function Server.writeToAllExcept(
 
     local snapLen, snapRefs = serializeBroadcast(codec, final)
 
-
     for player, state in _players do
         if player == except then continue end
 
@@ -253,7 +250,6 @@ function Server.writeToGroup(
     if final == nil then return end
 
     local snapLen, snapRefs = serializeBroadcast(codec, final)
-
 
     for player in Group.getSet(groupName) do
         local state = _players[player]

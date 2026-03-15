@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Bridge.luau — Creates and exposes the network remote instances.
+-- Creates and exposes the network remote instances.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService        = game:GetService("RunService")

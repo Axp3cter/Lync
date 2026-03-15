@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Gate.luau — Post-deserialization security: NaN/inf, rate limiting, custom validate.
+-- Post-deserialization security: NaN/inf, rate limiting, custom validate.
 
 local Types = require(script.Parent.Parent.Types)
 

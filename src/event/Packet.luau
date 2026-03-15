@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Packet.luau — Packet definition and send/listen API.
+-- Packet definition and send/listen API.
 
 local RunService = game:GetService("RunService")
 

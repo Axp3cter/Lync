@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Channel.luau — Per-channel buffer state with batching, delta cache, frame XOR.
+-- Per-channel buffer state with batching, delta cache, frame XOR.
 
 local Types = require(script.Parent.Parent.Types)
 

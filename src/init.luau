@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- init.luau — Lync public API. Call start() after all definitions are registered.
+-- Public API.
 
 local RunService = game:GetService("RunService")
 

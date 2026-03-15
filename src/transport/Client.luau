@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Client.luau — Client-side transport with batching, frame XOR on reliable.
+-- Client-side transport with batching, frame XOR on reliable.
 
 local RunService = game:GetService("RunService")
 

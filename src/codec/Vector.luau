@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Vector.luau — Vector2 and Vector3 codecs.
+-- Vector2 and Vector3 codecs.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

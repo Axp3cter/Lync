@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Primitive.bench.luau — Write/read throughput for fixed-size codecs.
+-- Fixed-size codec throughput.
 
 local Runner  = require(script.Parent.Parent.Runner)
 local Channel = require(script.Parent.Parent.Parent.core.Channel)

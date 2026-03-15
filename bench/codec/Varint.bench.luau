@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Varint.bench.luau — Encode/decode throughput at various value sizes.
+-- Varint throughput.
 
 local Runner  = require(script.Parent.Parent.Runner)
 local Channel = require(script.Parent.Parent.Parent.core.Channel)

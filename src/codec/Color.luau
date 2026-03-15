@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Color.luau — Color3 codec packed as 3 bytes (0-255 per channel, clamped).
+-- Color3 codec packed as 3 bytes (0-255 per channel, clamped).
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Query.luau — Request-reply over RemoteEvents. No RemoteFunction, no polling.
+-- Request-reply over RemoteEvents.
 
 local RunService = game:GetService("RunService")
 

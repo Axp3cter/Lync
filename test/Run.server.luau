@@ -1,6 +1,5 @@
 --!strict
--- Run.server.luau — Rojo maps this to ServerScriptService.RunTests.
--- Requires the test init inside ReplicatedStorage.Lync.test.
+-- Test runner entry point.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

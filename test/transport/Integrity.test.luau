@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Integrity.test.luau — End-to-end data fidelity through the full transport pipeline.
+-- Full transport pipeline fidelity.
 
 local Runner   = require(script.Parent.Parent.Runner)
 local Channel  = require(script.Parent.Parent.Parent.core.Channel)

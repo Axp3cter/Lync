@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Composite.luau — Struct, deltaStruct, deltaArray, array, map, optional.
+-- Struct, deltaStruct, deltaArray, array, map, optional.
 
 local Baseline = require(script.Parent.Parent.core.Baseline)
 local Channel  = require(script.Parent.Parent.core.Channel)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Runner.luau — Test framework: describe/it/expect, roundTrip, fakePlayer.
+-- Test framework.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

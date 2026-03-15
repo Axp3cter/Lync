@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Pool.luau — Stack-based ChannelState pool with warmup support.
+-- Stack-based ChannelState pool with warmup support.
 
 local Channel = require(script.Parent.Channel)
 local Types   = require(script.Parent.Parent.Types)

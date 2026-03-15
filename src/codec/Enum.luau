@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Enum.luau — String enum codec. Maps values to u8 indices at definition time.
+-- String enum codec. Maps values to u8 indices at definition time.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Instance.luau — Instance codec via sidecar reference array.
+-- Instance codec via sidecar reference array.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

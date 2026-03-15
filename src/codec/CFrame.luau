@@ -1,6 +1,6 @@
 --!strict
 --!native
--- CFrame.luau — Axis-angle CFrame codec. Zero axis at identity for clean deltas.
+-- Axis-angle CFrame codec. Zero axis at identity for clean deltas.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

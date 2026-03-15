@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Tagged.luau — Discriminated union codec. u8 variant tag + variant payload.
+-- Discriminated union codec. u8 variant tag + variant payload.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

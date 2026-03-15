@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Runner.luau — Benchmark harness with batched sampling for sub-tick resolution.
+-- Benchmark harness.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

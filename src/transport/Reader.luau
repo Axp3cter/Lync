@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Reader.luau — Deserializes incoming buffers and routes by registration kind.
+-- Deserializes incoming buffers and routes by registration kind.
 
 local Baseline   = require(script.Parent.Parent.core.Baseline)
 local Gate       = require(script.Parent.Gate)

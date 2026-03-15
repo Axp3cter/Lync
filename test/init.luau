@@ -1,7 +1,6 @@
 --!strict
 --!optimize 2
--- init.luau — Test entry point. Require all suites, run, report.
--- Drop this ModuleScript into ServerScriptService and require() it from a Script.
+-- Test entry point.
 
 local Runner = require(script.Runner)
 

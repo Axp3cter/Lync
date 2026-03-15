@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Registry.luau — Deterministic ID assignment for packets and queries.
+-- Deterministic ID assignment for packets and queries.
 
 local Types = require(script.Parent.Parent.Types)
 

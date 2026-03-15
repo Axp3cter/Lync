@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Composite.bench.luau — Write/read throughput for struct, array, map.
+-- Struct, array, map throughput.
 
 local Runner  = require(script.Parent.Parent.Runner)
 local Channel = require(script.Parent.Parent.Parent.core.Channel)

@@ -1,6 +1,6 @@
 --!strict
 --!native
--- Quantized.luau — Fixed-point compression. Maps float ranges to integer ranges.
+-- Fixed-point compression. Maps float ranges to integer ranges.
 
 local Channel = require(script.Parent.Parent.core.Channel)
 local Types   = require(script.Parent.Parent.Types)

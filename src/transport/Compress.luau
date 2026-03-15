@@ -1,9 +1,6 @@
 --!strict
 --!native
--- Compress.luau — LZSS compression with hash-probe match finder.
--- Encoding: 8-bit offset (256 window) + 8-bit length (3–258 match).
--- Derived from: zero runs use offset=1, non-zero XOR patches don't
--- back-reference, so maximize match length at the cost of window size.
+-- LZSS compression with hash-probe match finder.
 
 -- Constants --------------------------------------------------------------
 

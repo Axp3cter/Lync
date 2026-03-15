@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Definitions.luau — Packet definitions and test data for benchmarking.
+-- Packet definitions and test data.
 
 local Lync = require(script.Parent.Parent)
 

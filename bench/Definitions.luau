@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Packet definitions and test data.
+-- Packet definitions for benchmarks.
 
 local Lync = require (script.Parent.Parent)
 
@@ -27,11 +27,9 @@ Definitions.Entities = Lync.definePacket ("BenchEntity", {
     }),
 })
 
--- Data -------------------------------------------------------------------
+-- Static data ------------------------------------------------------------
 
-Definitions.BOOL_DATA = true
-
-Definitions.ENTITY_DATA = {
+Definitions.STATIC_ENTITY = {
     position = Vector3.new (100.5, 50.25, -200.75),
     velocity = Vector3.new (10.1, 0, -5.3),
     health = 87.5,

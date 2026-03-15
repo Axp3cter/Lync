@@ -19,6 +19,9 @@ jobs:
       - name: Install Rokit
         uses: CompeyDev/setup-rokit@v0.1.2
 
+      - name: Check formatting
+        run: stylua --check src/ test/ bench/
+
       - name: Build Lync.rbxm
         run: rojo build default.project.json -o Lync.rbxm
 

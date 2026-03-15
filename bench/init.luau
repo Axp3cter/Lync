@@ -2,20 +2,20 @@
 --!optimize 2
 -- Benchmark entry point.
 
-local Runner = require(script.Runner)
+local Runner = require (script.Runner)
 
 -- Codec ------------------------------------------------------------------
 
-require(script.codec["Primitive.bench"])
-require(script.codec["Composite.bench"])
+require (script.codec["Primitive.bench"])
+require (script.codec["Composite.bench"])
 
 -- Core -------------------------------------------------------------------
 
-require(script.codec["Varint.bench"])
-require(script.core["Compress.bench"])
+require (script.codec["Varint.bench"])
+require (script.core["Compress.bench"])
 
 -- Run --------------------------------------------------------------------
 
-Runner.run()
+Runner.run ()
 
 return true

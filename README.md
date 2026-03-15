@@ -251,12 +251,12 @@ end)
 
 | Scenario | What changes | Raw Kbps | Actual Kbps | Reduction |
 | :------- | :----------- | -------: | ----------: | --------: |
-| Static booleans | Nothing | 480 | 2.04 | 99.6% |
-| Static entities | Nothing | 16,320 | 3.18 | 99.98% |
-| Moving entities | Position only | 16,320 | 6.07 | 99.96% |
-| Chaotic entities | Every field, random | 16,320 | 60.43 | 99.6% |
+| Static booleans | Nothing | 480 | 2.33 | 99.5% |
+| Static entities | Nothing | 16,320 | 2.58 | 99.98% |
+| Moving entities | Position only | 16,320 | 3.12 | 99.98% |
+| Chaotic entities | Every field, random | 16,320 | 4.74 | 99.97% |
 
-All tests held 60 FPS. Even worst-case random data compresses to under 1% of raw bandwidth.
+All tests held 60 FPS. Roblox handles buffer compression transparently via deflate.
 
 To run: `rojo build bench.project.json -o Lync-bench.rbxl`, open in Studio, start a local server with one player.
 

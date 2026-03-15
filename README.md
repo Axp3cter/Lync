@@ -247,18 +247,18 @@ end)
 
 ## Benchmarks
 
-1000 packets/frame to a single player for 10 seconds per scenario. Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
+1000 packets/frame to one player, 10 seconds per test, 60 FPS. Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
 
-| Scenario | What changes per frame | Raw Kbps | Compressed Kbps |
-| :------- | :--------------------- | -------: | --------------: |
-| Static booleans | Nothing | 480 | ~3 |
-| Static entities | Nothing | 16,320 | ~3.5 |
-| Moving entities | Position only (12 of 34 bytes) | 16,320 | Run bench |
-| Chaotic entities | Everything (random) | 16,320 | Run bench |
+| Scenario | What changes | Raw Kbps | Actual Kbps | Reduction |
+| :------- | :----------- | -------: | ----------: | --------: |
+| Static booleans | Nothing | 480 | 2.04 | 99.6% |
+| Static entities | Nothing | 16,320 | 3.18 | 99.98% |
+| Moving entities | Position only | 16,320 | 6.07 | 99.96% |
+| Chaotic entities | Every field, random | 16,320 | 60.43 | 99.6% |
 
-Raw Kbps = `bytes × 1000 × 60fps × 8 / 1000`. Compressed Kbps is what Roblox actually sends after batching + XOR + LZSS.
+All tests held 60 FPS. Even worst-case random data compresses to under 1% of raw bandwidth.
 
-To run: build `Lync-bench.rbxl` with Rojo, open in Studio, start a local server with one player.
+To run: `rojo build bench.project.json -o Lync-bench.rbxl`, open in Studio, start a local server with one player.
 
 <br>
 

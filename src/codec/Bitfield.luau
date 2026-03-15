@@ -2,40 +2,36 @@
 --!native
 -- Pack booleans and small integers at the bit level.
 
-local Channel = require (script.Parent.Parent.core.Channel)
-local Types = require (script.Parent.Parent.Types)
+local Channel = require(script.Parent.Parent.core.Channel)
+local Types   = require(script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
+type Codec<T>     = Types.Codec<T>
 
 -- Constants --------------------------------------------------------------
 
-local band = bit32.band
-local bor = bit32.bor
+local band   = bit32.band
+local bor    = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
 -- Private ----------------------------------------------------------------
 
 type FieldSpec = {
-    type: "bool" | "uint",
+    type:  "bool" | "uint",
     width: number?,
 }
 
-local function selectIO (bytes: number): ((b: buffer, offset: number, v: number) -> (), (
-    b: buffer,
-    offset: number
-) -> number)
-    if bytes == 1 then
-        return buffer.writeu8, buffer.readu8
-    end
-    if bytes == 2 then
-        return buffer.writeu16, buffer.readu16
-    end
+local function selectIO(bytes: number): (
+    (b: buffer, offset: number, v: number) -> (),
+    (b: buffer, offset: number) -> number
+)
+    if bytes == 1 then return buffer.writeu8, buffer.readu8 end
+    if bytes == 2 then return buffer.writeu16, buffer.readu16 end
     return buffer.writeu32, buffer.readu32
 end
 
-local function sortByKey (a: { key: string }, b: { key: string }): boolean
+local function sortByKey(a: { key: string }, b: { key: string }): boolean
     return a.key < b.key
 end
 
@@ -43,7 +39,7 @@ end
 
 local Bitfield = {}
 
-function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
+function Bitfield.define(schema: { [string]: FieldSpec }): Codec<any>
     local raw = {} :: { { key: string, isBool: boolean, width: number } }
 
     for key, spec in schema do
@@ -53,74 +49,68 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
         if isBool then
             width = 1
         else
-            if not spec.width then
-                error (`[Lync] Bitfield "{key}" requires a width`)
-            end
+            if not spec.width then error(`[Lync] Bitfield "{key}" requires a width`) end
             width = spec.width
             if width < 1 or width > 32 then
-                error (`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
+                error(`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
             end
         end
 
-        table.insert (raw, { key = key, isBool = isBool, width = width })
+        table.insert(raw, { key = key, isBool = isBool, width = width })
     end
 
-    table.sort (raw, sortByKey)
+    table.sort(raw, sortByKey)
 
-    local count = #raw
-    if count == 0 then
-        error ("[Lync] Bitfield requires at least one field")
-    end
+    local count  = #raw
+    if count == 0 then error("[Lync] Bitfield requires at least one field") end
 
     -- Build flat parallel arrays for zero-indirection hot path
-    local keys = table.create (count) :: { string }
-    local isBool = table.create (count) :: { boolean }
-    local offsets = table.create (count) :: { number }
-    local masks = table.create (count) :: { number }
+    local keys    = table.create(count) :: { string }
+    local isBool  = table.create(count) :: { boolean }
+    local offsets = table.create(count) :: { number }
+    local masks   = table.create(count) :: { number }
 
     local totalBits = 0
     for i = 1, count do
-        local field = raw[i]
-        keys[i] = field.key
-        isBool[i] = field.isBool
+        local field  = raw[i]
+        keys[i]    = field.key
+        isBool[i]  = field.isBool
         offsets[i] = totalBits
-        masks[i] = lshift (1, field.width) - 1
+        masks[i]   = lshift(1, field.width) - 1
         totalBits += field.width
     end
 
-    if totalBits > 32 then
-        error (`[Lync] Bitfield exceeds 32 bits: {totalBits}`)
-    end
+    if totalBits > 32 then error(`[Lync] Bitfield exceeds 32 bits: {totalBits}`) end
 
-    table.freeze (keys)
-    table.freeze (isBool)
-    table.freeze (offsets)
-    table.freeze (masks)
+    table.freeze(keys)
+    table.freeze(isBool)
+    table.freeze(offsets)
+    table.freeze(masks)
 
-    local bytes = if totalBits <= 8 then 1 elseif totalBits <= 16 then 2 else 4
-    local wfn, rfn = selectIO (bytes)
+    local bytes    = if totalBits <= 8 then 1 elseif totalBits <= 16 then 2 else 4
+    local wfn, rfn = selectIO(bytes)
 
-    return table.freeze ({
+    return table.freeze({
         _size = bytes,
-        write = function (ch: ChannelState, value: any): ()
+        write = function(ch: ChannelState, value: any): ()
             local packed = 0
             for i = 1, count do
                 local bits = if isBool[i]
                     then (if value[keys[i]] then 1 else 0)
-                    else band (value[keys[i]], masks[i])
-                packed = bor (packed, lshift (bits, offsets[i]))
+                    else band(value[keys[i]], masks[i])
+                packed = bor(packed, lshift(bits, offsets[i]))
             end
 
-            Channel.alloc (ch, bytes)
-            wfn (ch.buff, ch.cursor, packed)
+            Channel.alloc(ch, bytes)
+            wfn(ch.buff, ch.cursor, packed)
             ch.cursor += bytes
         end,
-        read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
-            local packed = rfn (src, pos)
+        read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
+            local packed = rfn(src, pos)
             local result = {}
 
             for i = 1, count do
-                local raw = band (rshift (packed, offsets[i]), masks[i])
+                local raw = band(rshift(packed, offsets[i]), masks[i])
                 result[keys[i]] = if isBool[i] then raw ~= 0 else raw
             end
 
@@ -129,4 +119,4 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
     })
 end
 
-return table.freeze (Bitfield)
+return table.freeze(Bitfield)

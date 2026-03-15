@@ -1,12 +1,12 @@
-# Lync
+<p align="center">
+  <h1 align="center">Lync</h1>
+  <p align="center">
+    Binary networking for Roblox.<br>
+    Packets are batched, delta-encoded, XOR-compressed, and sent as a single RemoteEvent per frame.
+  </p>
+</p>
 
-Binary networking for Roblox. Packets are batched per player, delta-encoded, XOR-compressed, and sent as a single RemoteEvent per frame.
-
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Installation
 
@@ -20,13 +20,11 @@ local Lync = require(ReplicatedStorage.Lync)
 Lync.start()
 ```
 
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Packets
+
+Define once in a shared module. The API splits by context automatically.
 
 ```luau
 local Hit = Lync.definePacket("Hit", {
@@ -38,9 +36,8 @@ local Hit = Lync.definePacket("Hit", {
 })
 ```
 
-&nbsp;
-
-**Server**
+<details>
+<summary><b>Server</b></summary>
 
 ```luau
 Hit:sendTo(data, player)
@@ -49,18 +46,18 @@ Hit:sendToAllExcept(data, player)
 Hit:sendToList(data, players)
 Hit:sendToGroup(data, "lobby")
 ```
+</details>
 
-&nbsp;
-
-**Client**
+<details>
+<summary><b>Client</b></summary>
 
 ```luau
 Hit:send(data)
 ```
+</details>
 
-&nbsp;
-
-**Listening**
+<details>
+<summary><b>Listening</b></summary>
 
 ```luau
 Hit:listen(function(data, sender) end)
@@ -69,17 +66,14 @@ Hit:wait()
 Hit:disconnectAll()
 ```
 
-> `sender` is the `Player` on the server, `nil` on the client.
+`sender` is the `Player` on the server, `nil` on the client.
+</details>
 
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Queries
 
-Request-reply over RemoteEvents.
+Request-reply over RemoteEvents. No RemoteFunctions.
 
 ```luau
 local GetInventory = Lync.defineQuery("GetInventory", {
@@ -92,40 +86,33 @@ local GetInventory = Lync.defineQuery("GetInventory", {
 })
 ```
 
-&nbsp;
-
-**Server**
+<details>
+<summary><b>Server</b></summary>
 
 ```luau
 GetInventory:listen(function(playerId, player)
     return fetchInventory(playerId)
 end)
 ```
+</details>
 
-&nbsp;
-
-**Client**
+<details>
+<summary><b>Client</b></summary>
 
 ```luau
 local items = GetInventory:invoke(localPlayer.UserId)
+-- yields, returns nil on timeout
 ```
+</details>
 
-> Yields. Returns `nil` on timeout.
-
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Types
-
-&nbsp;
 
 ### Primitives
 
 | Type   | Bytes | Range                          |
-| ------ | ----: | ------------------------------ |
+| :----- | ----: | :----------------------------- |
 | `u8`   |     1 | 0 – 255                        |
 | `u16`  |     2 | 0 – 65,535                     |
 | `u32`  |     4 | 0 – 4,294,967,295              |
@@ -137,12 +124,10 @@ local items = GetInventory:invoke(localPlayer.UserId)
 | `f64`  |     8 | IEEE 754 double                |
 | `bool` |     1 | true / false                   |
 
-&nbsp;
-
 ### Complex
 
-| Type     | Bytes      | Description                  |
-| -------- | ---------: | ---------------------------- |
+| Type     |      Bytes | Description                  |
+| :------- | ---------: | :--------------------------- |
 | `string` | varint + N | UTF-8 string                 |
 | `vec2`   |          8 | Vector2                      |
 | `vec3`   |         12 | Vector3                      |
@@ -151,32 +136,24 @@ local items = GetInventory:invoke(localPlayer.UserId)
 | `inst`   |          2 | Instance reference           |
 | `buff`   | varint + N | Raw buffer                   |
 
-&nbsp;
-
 ### Composites
 
 ```luau
-Lync.struct({ key = codec, ... })
-Lync.array(codec)
-Lync.map(keyCodec, valueCodec)
-Lync.optional(codec)
-Lync.tuple(codec1, codec2, ...)
+Lync.struct({ key = codec, ... })        -- named fields, bools packed
+Lync.array(codec)                        -- variable-length list
+Lync.map(keyCodec, valueCodec)           -- key-value pairs
+Lync.optional(codec)                     -- nil flag + value
+Lync.tuple(codec1, codec2, ...)          -- positional, ordered
 ```
-
-&nbsp;
 
 ### Delta
 
-Only changed data is sent between frames.
+Only changed data is sent between frames. Requires reliable delivery.
 
 ```luau
-Lync.deltaStruct({ key = codec, ... })
-Lync.deltaArray(codec)
+Lync.deltaStruct({ key = codec, ... })   -- dirty fields only
+Lync.deltaArray(codec)                   -- dirty elements only
 ```
-
-> Requires reliable delivery. Errors if paired with `unreliable = true`.
-
-&nbsp;
 
 ### Specialized
 
@@ -188,21 +165,15 @@ Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } 
 Lync.tagged("kind", { move = moveCodec, chat = chatCodec })
 ```
 
-&nbsp;
-
 ### Special
 
-| Type      | Description                                  |
-| --------- | -------------------------------------------- |
-| `nothing` | Zero bytes, reads nil                        |
+| Type      | Description                                   |
+| :-------- | :-------------------------------------------- |
+| `nothing` | Zero bytes, reads nil                         |
 | `unknown` | Bypasses binary encoding, uses Roblox sidecar |
-| `auto`    | Self-describing tag + value                  |
+| `auto`    | Self-describing tag + value                   |
 
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Packet Options
 
@@ -218,21 +189,19 @@ Lync.definePacket("Position", {
 ```
 
 | Option       | Description                                                |
-| ------------ | ---------------------------------------------------------- |
+| :----------- | :--------------------------------------------------------- |
 | `value`      | Required. Codec for the payload.                           |
 | `unreliable` | Use UnreliableRemoteEvent. Default `false`.                |
 | `rateLimit`  | Token bucket. `burstAllowance` defaults to `maxPerSecond`. |
 | `validate`   | Server-only. Return `false, "reason"` to drop.             |
 
-> NaN/inf scanning, depth limiting, and rate limiting run on all incoming packets automatically.
+NaN/inf scanning, depth limiting, and rate limiting run on all incoming packets automatically.
 
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Groups
+
+Named player sets for targeted sends. Players are auto-removed on `PlayerRemoving`.
 
 ```luau
 Lync.createGroup("lobby")
@@ -244,15 +213,11 @@ Lync.forEachInGroup("lobby", fn)
 Lync.destroyGroup("lobby")
 ```
 
-> Players are auto-removed on `PlayerRemoving`.
-
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Middleware
+
+Intercept packets globally. Return `nil` to cancel. Handlers chain in registration order.
 
 ```luau
 local remove = Lync.onSend(function(data, name, player)
@@ -266,15 +231,11 @@ end)
 remove()
 ```
 
-> Return `nil` to cancel. Handlers chain in registration order.
-
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## Drop Handler
+
+Called when an incoming packet is rejected by the gate.
 
 ```luau
 Lync.onDrop(function(player, reason, name, data)
@@ -282,11 +243,7 @@ Lync.onDrop(function(player, reason, name, data)
 end)
 ```
 
-&nbsp;
-
----
-
-&nbsp;
+<br>
 
 ## How It Works
 

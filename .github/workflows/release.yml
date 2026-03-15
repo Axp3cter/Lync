@@ -31,11 +31,6 @@ jobs:
       - name: Build Lync-bench.rbxl
         run: rojo build bench.project.json -o Lync-bench.rbxl
 
-      - name: Delete existing release
-        run: gh release delete ${{ github.ref_name }} --yes || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

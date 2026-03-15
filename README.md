@@ -1,20 +1,28 @@
 # Lync
 
-Binary networking for Roblox. Batches, compresses, and delta-encodes packets over RemoteEvents.
+**Binary networking for Roblox.**  
+Batches, compresses, and delta-encodes packets over RemoteEvents.
 
-## Setup
+<br>
 
-Drop `Lync` into `ReplicatedStorage`. Call `start()` once on both server and client after all packets are defined.
+## Installation
+
+Drop the `Lync` folder into `ReplicatedStorage`.  
+Call `start()` once on both server and client after all packets are defined.
 
 ```luau
 local Lync = require(ReplicatedStorage.Lync)
 
--- Define packets here (runs on both server and client)
+-- Define all packets and queries here
 
 Lync.start()
 ```
 
+<br>
+
 ## Packets
+
+Define a packet once in a shared module. The API splits by context automatically.
 
 ```luau
 local Damage = Lync.definePacket("Damage", {
@@ -24,140 +32,276 @@ local Damage = Lync.definePacket("Damage", {
         crit     = Lync.bool,
     }),
 })
+```
 
--- Server
-Damage:sendTo({ targetId = 5, amount = 25.5, crit = true }, player)
+**Server — sending:**
+
+```luau
+Damage:sendTo(data, player)
 Damage:sendToAll(data)
 Damage:sendToAllExcept(data, excludedPlayer)
 Damage:sendToList(data, { player1, player2 })
 Damage:sendToGroup(data, "team_red")
+```
 
--- Client
-Damage:send({ targetId = 5, amount = 25.5, crit = true })
+**Client — sending:**
 
--- Both
-Damage:listen(function(data, sender) end) -- sender is nil on client
+```luau
+Damage:send(data)
+```
+
+**Listening (both):**
+
+```luau
+local connection = Damage:listen(function(data, sender)
+    -- sender is the Player on server, nil on client
+end)
+
 Damage:once(function(data, sender) end)
 Damage:wait()
 Damage:disconnectAll()
 ```
 
-## Queries (Request-Reply)
+<br>
+
+## Queries
+
+Request-reply over RemoteEvents. No RemoteFunctions.
 
 ```luau
 local GetInventory = Lync.defineQuery("GetInventory", {
-    request  = Lync.u32,          -- player ID
-    response = Lync.array(Lync.struct({ itemId = Lync.u32, count = Lync.u16 })),
-    timeout  = 5,                 -- seconds, default 5
+    request  = Lync.u32,
+    response = Lync.array(Lync.struct({
+        itemId = Lync.u32,
+        count  = Lync.u16,
+    })),
+    timeout = 5, -- seconds (default 5)
 })
+```
 
--- Server
+**Server — handler:**
+
+```luau
 GetInventory:listen(function(playerId, player)
     return fetchInventory(playerId)
 end)
-
--- Client
-local items = GetInventory:invoke(localPlayer.UserId)
-if items then
-    -- got response
-end
 ```
+
+**Client — invoke:**
+
+```luau
+local items = GetInventory:invoke(localPlayer.UserId)
+-- returns nil on timeout
+```
+
+<br>
 
 ## Types
 
 ### Primitives
-`u8` `u16` `u32` `i8` `i16` `i32` `f32` `f64` `bool` `f16`
+
+| Type | Bytes | Range |
+|------|------:|-------|
+| `u8` | 1 | 0 – 255 |
+| `u16` | 2 | 0 – 65,535 |
+| `u32` | 4 | 0 – 4,294,967,295 |
+| `i8` | 1 | -128 – 127 |
+| `i16` | 2 | -32,768 – 32,767 |
+| `i32` | 4 | -2,147,483,648 – 2,147,483,647 |
+| `f16` | 2 | ±65,504 (~3 decimal digits) |
+| `f32` | 4 | IEEE 754 single |
+| `f64` | 8 | IEEE 754 double |
+| `bool` | 1 | true / false |
 
 ### Complex
-`string` `vec2` `vec3` `cframe` `color3` `inst` `buff`
+
+| Type | Bytes | Description |
+|------|------:|-------------|
+| `string` | varint + N | UTF-8 string |
+| `vec2` | 8 | Vector2 (2× f32) |
+| `vec3` | 12 | Vector3 (3× f32) |
+| `cframe` | 24 | CFrame (position + axis-angle) |
+| `color3` | 3 | Color3 (RGB, 0–255 per channel) |
+| `inst` | 2 | Instance reference (sidecar) |
+| `buff` | varint + N | Raw buffer |
 
 ### Composites
+
 ```luau
-Lync.struct({ key = codec, ... })
-Lync.array(codec)
-Lync.map(keyCodec, valueCodec)
-Lync.optional(codec)
-Lync.tuple(codec1, codec2, ...)
+Lync.struct({ key = codec, ... })       -- named fields, bools auto-packed
+Lync.array(codec)                       -- variable-length list
+Lync.map(keyCodec, valueCodec)          -- key-value pairs
+Lync.optional(codec)                    -- 1 byte nil flag + value
+Lync.tuple(codec1, codec2, ...)         -- positional, ordered
 ```
 
-### Delta (automatic frame-to-frame compression)
+### Delta
+
+Automatic frame-to-frame compression. Only changed data is sent.
+
 ```luau
-Lync.deltaStruct({ key = codec, ... })  -- only sends changed fields
-Lync.deltaArray(codec)                  -- only sends changed elements
+Lync.deltaStruct({ key = codec, ... })  -- sends only dirty fields
+Lync.deltaArray(codec)                  -- sends only dirty elements
 ```
-Delta codecs require reliable delivery. Lync errors if you pair them with `unreliable = true`.
+
+> Delta codecs require reliable delivery. Pairing with `unreliable = true` throws an error.
 
 ### Specialized
+
 ```luau
-Lync.enum("idle", "walking", "running")
-Lync.quantizedFloat(min, max, precision)    -- e.g. (0, 100, 0.1) → 2 bytes
-Lync.quantizedVec3(min, max, precision)     -- per-component quantization
-Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })
-Lync.tagged("type", { move = moveCodec, chat = chatCodec })
+Lync.enum("idle", "walking", "running")                                       -- 1 byte
+Lync.quantizedFloat(min, max, precision)                                      -- 1–4 bytes
+Lync.quantizedVec3(min, max, precision)                                       -- 3–12 bytes
+Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })  -- bit-packed
+Lync.tagged("type", { move = moveCodec, chat = chatCodec })                   -- discriminated union
 ```
 
 ### Special
-```luau
-Lync.nothing   -- zero bytes, reads nil
-Lync.unknown   -- passes value through Roblox sidecar (no binary encoding)
-Lync.auto      -- self-describing tag + value (flexible, larger wire size)
-```
+
+| Type | Description |
+|------|-------------|
+| `nothing` | Zero bytes on the wire, reads `nil` |
+| `unknown` | Passes value through the Roblox remote sidecar (no binary encoding) |
+| `auto` | Self-describing tag + value (flexible, larger wire size) |
+
+<br>
 
 ## Packet Options
 
 ```luau
 Lync.definePacket("Position", {
     value      = Lync.vec3,
-    unreliable = true,                               -- use UnreliableRemoteEvent
+    unreliable = true,
     rateLimit  = { maxPerSecond = 30, burstAllowance = 5 },
-    validate   = function(data, player)              -- server-only, runs after deserialize
+    validate   = function(data, player)
         if data.X ~= data.X then return false, "nan" end
         return true
     end,
 })
 ```
 
-NaN/inf scanning, depth limiting, and rate limiting run automatically on all incoming packets. `validate` is an additional user-defined check.
+| Option | Type | Description |
+|--------|------|-------------|
+| `value` | `Codec` | **Required.** The codec for the packet payload. |
+| `unreliable` | `boolean?` | Use `UnreliableRemoteEvent`. Default `false`. |
+| `rateLimit` | `{ maxPerSecond, burstAllowance? }` | Server-side token bucket. Drops excess packets. |
+| `validate` | `(data, player) → (bool, string?)` | Server-side check after deserialization. |
+
+**Rate limiting** uses a token bucket. `burstAllowance` is the bucket capacity (defaults to `maxPerSecond`). Tokens refill at `maxPerSecond` rate. Each packet costs 1 token. At 0 tokens, packets are dropped.
+
+**Built-in security** runs automatically on all incoming packets — NaN/inf rejection, recursive depth limiting (max 8 levels), and rate limiting all execute before `validate`.
+
+<br>
 
 ## Groups
 
+Named player sets for targeted broadcasting.
+
 ```luau
 Lync.createGroup("team_red")
-Lync.addToGroup("team_red", player)        -- returns false if already in group
+Lync.addToGroup("team_red", player)         -- returns false if already in group
 Lync.removeFromGroup("team_red", player)
-Lync.hasInGroup("team_red", player)        -- returns boolean
-Lync.getGroupSet("team_red")               -- returns { [Player]: true }
+Lync.hasInGroup("team_red", player)         -- boolean
+Lync.getGroupSet("team_red")               -- { [Player]: true }
 Lync.forEachInGroup("team_red", function(player) end)
 Lync.destroyGroup("team_red")
 ```
 
 Players are auto-removed from all groups on `PlayerRemoving`.
 
+<br>
+
 ## Middleware
+
+Intercept outgoing and incoming data globally.
 
 ```luau
 local removeSend = Lync.onSend(function(data, packetName, player)
-    print("sending", packetName)
-    return data -- return nil to cancel
+    return data   -- return nil to cancel the send
 end)
 
 local removeRecv = Lync.onReceive(function(data, packetName, player)
-    return data
+    return data   -- return nil to discard
 end)
 
-removeSend()  -- disconnect
+removeSend()      -- disconnect the handler
 ```
+
+Handlers chain in registration order. If any handler returns `nil`, the chain stops.
+
+<br>
 
 ## Drop Handler
 
+Called when an incoming packet is rejected.
+
 ```luau
 Lync.onDrop(function(player, reason, packetName, data)
-    -- reason: "nan" | "rate" | "validate" | custom string
+    -- reason: "nan" | "rate" | "validate" | custom string from validate()
 end)
 ```
 
-## How It Works
+<br>
 
-Every `send`/`sendTo` call writes binary data into a per-player channel buffer. On `Heartbeat`, each channel is sealed, XOR'd against the previous frame (producing zeros where nothing changed), LZSS compressed, and fired as a single `RemoteEvent`. The receiver reverses the pipeline: decompress → un-XOR → parse batches → deserialize → gate check → middleware → signal fire.
+## Architecture
 
-Static data costs near-zero bandwidth. Incrementally changing data (player movement) compresses proportionally to how much actually changed.
+```
+send() / sendTo()
+    │
+    ▼
+┌──────────────────────┐
+│  Middleware (onSend)  │  ── return nil to cancel
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  Codec Serialize     │  ── struct/delta/quantized/bitfield/etc.
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  Channel Batch       │  ── multiple packets → one buffer
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  XOR Delta           │  ── zeros where nothing changed (reliable only)
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  LZSS Compress       │  ── collapses zero runs
+└──────────┬───────────┘
+           ▼
+     RemoteEvent:Fire()
+           │
+           ▼
+     RemoteEvent.OnEvent
+           │
+           ▼
+┌──────────────────────┐
+│  LZSS Decompress     │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  XOR Restore         │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  Codec Deserialize   │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  Gate (server only)  │  ── NaN scan → rate limit → validate
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  Middleware (onRecv)  │
+└──────────┬───────────┘
+           ▼
+     signal:fire()
+```
+
+Static data costs near-zero bandwidth. Incrementally changing data compresses proportionally to how much actually changed.
+
+<br>
+
+## License
+
+MIT

@@ -11,6 +11,8 @@ local _readCaches = {} :: { [any]: { [number]: any } }
 
 local Baseline = {}
 
+Baseline.hasDelta = false
+
 function Baseline.setReadKey (key: any): ()
     _readKey = key
 end
@@ -21,6 +23,9 @@ function Baseline.getCache (deltaId: number): any
 end
 
 function Baseline.setCache (deltaId: number, data: any): ()
+    if not Baseline.hasDelta then
+        Baseline.hasDelta = true
+    end
     local map = _readCaches[_readKey]
     if not map then
         map = {}
@@ -33,4 +38,4 @@ function Baseline.clearSource (key: any): ()
     _readCaches[key] = nil
 end
 
-return table.freeze (Baseline)
+return Baseline

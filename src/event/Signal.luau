@@ -6,6 +6,11 @@ local Types = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 
+-- Listener state: single numeric field for both connected and once checks.
+local STATE_DISCONNECTED = 0
+local STATE_CONNECTED = 1
+local STATE_ONCE = 2
+
 -- Private ----------------------------------------------------------------
 
 local _freeThread: thread? = nil
@@ -36,10 +41,11 @@ local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 
 function EntryImpl.disconnect (self: any): ()
-    if not self.connected then
+    if self._state == STATE_DISCONNECTED then
         return
     end
 
+    self._state = STATE_DISCONNECTED
     self.connected = false
 
     local entries = self._signal._entries
@@ -69,7 +75,7 @@ local function addEntry (self: any, callback: (...any) -> (), isOnce: boolean): 
 
     local entry = setmetatable ({
         fn = callback,
-        once = isOnce,
+        _state = if isOnce then STATE_ONCE else STATE_CONNECTED,
         connected = true,
         _signal = self,
         _index = count,
@@ -99,6 +105,7 @@ function SignalImpl.wait (self: any): ...any
     return coroutine.yield ()
 end
 
+-- Dispatches to all listeners via task.spawn (safe for yielding handlers).
 function SignalImpl.fire (self: any, ...: any): ()
     local entries = self._entries
     local count = self._count
@@ -106,12 +113,25 @@ function SignalImpl.fire (self: any, ...: any): ()
         return
     end
 
-    local snapshot = self._snapshot
-    for i = 1, count do
-        snapshot[i] = entries[i]
+    -- Single listener: skip snapshot entirely.
+    if count == 1 then
+        local entry = entries[1]
+        local state = entry._state
+        if state == STATE_DISCONNECTED then
+            return
+        end
+
+        spawn (entry.fn, ...)
+
+        if state == STATE_ONCE then
+            entry:disconnect ()
+        end
+        return
     end
 
-    -- Nil out stale tail from previous larger fires
+    local snapshot = self._snapshot
+    table.move (entries, 1, count, 1, snapshot)
+
     local tail = count + 1
     if snapshot[tail] ~= nil then
         snapshot[tail] = nil
@@ -120,13 +140,64 @@ function SignalImpl.fire (self: any, ...: any): ()
     for i = 1, count do
         local entry = snapshot[i]
         snapshot[i] = nil
-        if not entry.connected then
+
+        local state = entry._state
+        if state == STATE_DISCONNECTED then
             continue
         end
 
         spawn (entry.fn, ...)
 
-        if entry.once then
+        if state == STATE_ONCE then
+            entry:disconnect ()
+        end
+    end
+end
+
+-- Dispatches to all listeners synchronously without task.spawn.
+-- Only safe when all listeners are guaranteed non-yielding.
+function SignalImpl.fireSync (self: any, ...: any): ()
+    local entries = self._entries
+    local count = self._count
+    if count == 0 then
+        return
+    end
+
+    if count == 1 then
+        local entry = entries[1]
+        local state = entry._state
+        if state == STATE_DISCONNECTED then
+            return
+        end
+
+        entry.fn (...)
+
+        if state == STATE_ONCE then
+            entry:disconnect ()
+        end
+        return
+    end
+
+    local snapshot = self._snapshot
+    table.move (entries, 1, count, 1, snapshot)
+
+    local tail = count + 1
+    if snapshot[tail] ~= nil then
+        snapshot[tail] = nil
+    end
+
+    for i = 1, count do
+        local entry = snapshot[i]
+        snapshot[i] = nil
+
+        local state = entry._state
+        if state == STATE_DISCONNECTED then
+            continue
+        end
+
+        entry.fn (...)
+
+        if state == STATE_ONCE then
             entry:disconnect ()
         end
     end
@@ -136,6 +207,7 @@ function SignalImpl.disconnectAll (self: any): ()
     local entries = self._entries
 
     for i = 1, self._count do
+        entries[i]._state = STATE_DISCONNECTED
         entries[i].connected = false
         entries[i] = nil
     end

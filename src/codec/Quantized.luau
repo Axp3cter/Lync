@@ -3,6 +3,7 @@
 -- Fixed-point compression. Maps float ranges to integer ranges.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -75,6 +76,10 @@ function Quantized.float (minVal: number, maxVal: number, precision: number): Co
     if not delta then
         return table.freeze ({
             _size = 0,
+            _directWrite = function (_b: buffer, _offset: number, _value: number): () end,
+            _directRead = function (_b: buffer, _offset: number): number
+                return minVal
+            end,
             write = function (_ch: ChannelState, _value: number): () end,
             read = function (_src: buffer, _pos: number, _refs: { Instance }?): (number, number)
                 return minVal, 0
@@ -84,10 +89,19 @@ function Quantized.float (minVal: number, maxVal: number, precision: number): Co
 
     return table.freeze ({
         _size = bytes,
+        _directWrite = function (b: buffer, offset: number, value: number): ()
+            wfn (b, offset, round (clamp ((value - minVal) * invDelta, 0, 1) * maxInt))
+        end,
+        _directRead = function (b: buffer, offset: number): number
+            return rfn (b, offset) * invMaxInt + minVal
+        end,
         write = function (ch: ChannelState, value: number): ()
-            Channel.alloc (ch, bytes)
-            wfn (ch.buff, ch.cursor, round (clamp ((value - minVal) * invDelta, 0, 1) * maxInt))
-            ch.cursor += bytes
+            local c = ch.cursor
+            if c + bytes > ch.size then
+                alloc (ch, bytes)
+            end
+            wfn (ch.buff, c, round (clamp ((value - minVal) * invDelta, 0, 1) * maxInt))
+            ch.cursor = c + bytes
         end,
         read = function (src: buffer, pos: number, _refs: { Instance }?): (number, number)
             return rfn (src, pos) * invMaxInt + minVal, bytes
@@ -102,6 +116,10 @@ function Quantized.vec3 (minVal: number, maxVal: number, precision: number): Cod
         local val = Vector3.new (minVal, minVal, minVal)
         return table.freeze ({
             _size = 0,
+            _directWrite = function (_b: buffer, _offset: number, _value: Vector3): () end,
+            _directRead = function (_b: buffer, _offset: number): Vector3
+                return val
+            end,
             write = function (_ch: ChannelState, _value: Vector3): () end,
             read = function (_src: buffer, _pos: number, _refs: { Instance }?): (Vector3, number)
                 return val, 0
@@ -115,9 +133,24 @@ function Quantized.vec3 (minVal: number, maxVal: number, precision: number): Cod
 
     return table.freeze ({
         _size = totalBytes,
+        _directWrite = function (b: buffer, offset: number, value: Vector3): ()
+            wfn (b, offset, round (clamp ((value.X - minVal) * invDelta, 0, 1) * maxInt))
+            wfn (b, offset + stride, round (clamp ((value.Y - minVal) * invDelta, 0, 1) * maxInt))
+            wfn (b, offset + stride2, round (clamp ((value.Z - minVal) * invDelta, 0, 1) * maxInt))
+        end,
+        _directRead = function (b: buffer, offset: number): Vector3
+            return Vector3.new (
+                rfn (b, offset) * invMaxInt + minVal,
+                rfn (b, offset + stride) * invMaxInt + minVal,
+                rfn (b, offset + stride2) * invMaxInt + minVal
+            )
+        end,
         write = function (ch: ChannelState, value: Vector3): ()
-            Channel.alloc (ch, totalBytes)
-            local b, c = ch.buff, ch.cursor
+            local c = ch.cursor
+            if c + totalBytes > ch.size then
+                alloc (ch, totalBytes)
+            end
+            local b = ch.buff
             wfn (b, c, round (clamp ((value.X - minVal) * invDelta, 0, 1) * maxInt))
             wfn (b, c + stride, round (clamp ((value.Y - minVal) * invDelta, 0, 1) * maxInt))
             wfn (b, c + stride2, round (clamp ((value.Z - minVal) * invDelta, 0, 1) * maxInt))

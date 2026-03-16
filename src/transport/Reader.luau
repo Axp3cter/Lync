@@ -7,6 +7,8 @@ local Gate = require (script.Parent.Gate)
 local Middleware = require (script.Parent.Parent.core.Middleware)
 local Registry = require (script.Parent.Parent.core.Registry)
 
+local registryGet = Registry.get
+
 -- Constants --------------------------------------------------------------
 
 local KIND_PACKET = Registry.KIND_PACKET
@@ -43,7 +45,9 @@ function Reader.process (
     local length = buffer.len (incoming)
     local pos = startOffset
 
-    Baseline.setReadKey (player or false)
+    if Baseline.hasDelta then
+        Baseline.setReadKey (player or false)
+    end
 
     -- Cache middleware flag once per frame-buffer, not per packet
     local hasReceiveMiddleware = Middleware.hasReceive
@@ -53,7 +57,7 @@ function Reader.process (
         local id = buffer.readu8 (incoming, pos)
         pos += 1
 
-        local reg = Registry.get (id)
+        local reg = registryGet (id)
         if not reg then
             warn (`[Lync] Unknown packet ID {id}`)
             break

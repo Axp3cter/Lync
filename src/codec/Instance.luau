@@ -1,8 +1,9 @@
 --!strict
---!optimize 2
+--!native
 -- Instance codec via sidecar reference array.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -22,20 +23,25 @@ InstanceCodec.inst = table.freeze ({
 
         refs[idx] = value
 
-        Channel.alloc (ch, 2)
-        buffer.writeu16 (ch.buff, ch.cursor, idx)
-        ch.cursor += 2
+        local c = ch.cursor
+        if c + 2 > ch.size then
+            alloc (ch, 2)
+        end
+        buffer.writeu16 (ch.buff, c, idx)
+        ch.cursor = c + 2
     end,
     read = function (src: buffer, pos: number, refs: { Instance }?): (Instance, number)
         local idx = buffer.readu16 (src, pos)
         if not refs then
             error ("[Lync] Instance read requires refs array")
         end
-        if not refs[idx] then
+
+        local inst = refs[idx]
+        if not inst then
             error (`[Lync] Instance ref index out of bounds: {idx}`)
         end
 
-        return refs[idx], 2
+        return inst, 2
     end,
 })
 

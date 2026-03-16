@@ -3,6 +3,7 @@
 -- Fixed-size numeric and boolean codecs via factory.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -17,12 +18,15 @@ local function numeric (
 ): Codec<number>
     return table.freeze ({
         _size = bytes,
+        _directWrite = writeFn,
+        _directRead = readFn,
         write = function (ch: ChannelState, value: number): ()
-            if ch.cursor + bytes > ch.size then
-                Channel.alloc (ch, bytes)
+            local c = ch.cursor
+            if c + bytes > ch.size then
+                alloc (ch, bytes)
             end
-            writeFn (ch.buff, ch.cursor, value)
-            ch.cursor += bytes
+            writeFn (ch.buff, c, value)
+            ch.cursor = c + bytes
         end,
         read = function (src: buffer, pos: number, _refs: { Instance }?): (number, number)
             return readFn (src, pos), bytes
@@ -50,10 +54,19 @@ local Primitive = {
     bool = table.freeze ({
         _size = 1,
         _isBool = true,
+        _directWrite = function (b: buffer, offset: number, value: boolean): ()
+            buffer.writeu8 (b, offset, if value then 1 else 0)
+        end,
+        _directRead = function (b: buffer, offset: number): boolean
+            return buffer.readu8 (b, offset) ~= 0
+        end,
         write = function (ch: ChannelState, value: boolean): ()
-            Channel.alloc (ch, 1)
-            buffer.writeu8 (ch.buff, ch.cursor, if value then 1 else 0)
-            ch.cursor += 1
+            local c = ch.cursor
+            if c + 1 > ch.size then
+                alloc (ch, 1)
+            end
+            buffer.writeu8 (ch.buff, c, if value then 1 else 0)
+            ch.cursor = c + 1
         end,
         read = function (src: buffer, pos: number, _refs: { Instance }?): (boolean, number)
             return buffer.readu8 (src, pos) ~= 0, 1

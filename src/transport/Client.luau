@@ -22,12 +22,6 @@ local _isStarted = false
 
 -- Private ----------------------------------------------------------------
 
-local function assertStarted (): ()
-    if not _isStarted then
-        error ("[Lync] Client not started — call Lync.start() before sending")
-    end
-end
-
 local function receive (data: any, refs: any, applyXor: boolean): ()
     local buf = Reader.decodeIncoming (data)
     if not buf then
@@ -103,7 +97,9 @@ function Client.write (
     data: any,
     isUnreliable: boolean
 ): ()
-    assertStarted ()
+    if not _isStarted then
+        error ("[Lync] Client not started — call Lync.start() before sending")
+    end
 
     local final: any
     if Middleware.hasSend then
@@ -127,7 +123,9 @@ function Client.writeQuery (
     codec: Codec<any>,
     data: any
 ): ()
-    assertStarted ()
+    if not _isStarted then
+        error ("[Lync] Client not started — call Lync.start() before sending")
+    end
 
     local final: any
     if Middleware.hasSend then
@@ -143,7 +141,9 @@ function Client.writeQuery (
 end
 
 function Client.writeQueryNil (id: number, name: string, correlationId: number): ()
-    assertStarted ()
+    if not _isStarted then
+        error ("[Lync] Client not started — call Lync.start() before sending")
+    end
     Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, nil, nil)
 end
 

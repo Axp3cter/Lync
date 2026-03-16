@@ -5,6 +5,7 @@
 local Buffer = require (script.Parent.Buffer)
 local CFrameCodec = require (script.Parent.CFrame)
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Color = require (script.Parent.Color)
 local Primitive = require (script.Parent.Primitive)
 local String = require (script.Parent.String)
@@ -55,26 +56,57 @@ local READ_DISPATCH = table.freeze ({
 })
 
 local TYPE_DISPATCH = table.freeze ({
-    boolean = { tag = TAG_BOOL, codec = Primitive.bool, size = 1 },
-    string = { tag = TAG_STRING, codec = String.string, size = nil },
-    Vector2 = { tag = TAG_VEC2, codec = Vector.vec2, size = 8 },
-    Vector3 = { tag = TAG_VEC3, codec = Vector.vec3, size = 12 },
-    Color3 = { tag = TAG_COLOR3, codec = Color.color3, size = 3 },
-    CFrame = { tag = TAG_CFRAME, codec = CFrameCodec.cframe, size = 24 },
-    buffer = { tag = TAG_BUFFER, codec = Buffer.buff, size = nil },
+    boolean = { tag = TAG_BOOL, codec = Primitive.bool, size = 1, dw = nil },
+    string = { tag = TAG_STRING, codec = String.string, size = nil, dw = nil },
+    Vector2 = {
+        tag = TAG_VEC2,
+        codec = Vector.vec2,
+        size = 8,
+        dw = (Vector.vec2 :: any)._directWrite,
+    },
+    Vector3 = {
+        tag = TAG_VEC3,
+        codec = Vector.vec3,
+        size = 12,
+        dw = (Vector.vec3 :: any)._directWrite,
+    },
+    Color3 = {
+        tag = TAG_COLOR3,
+        codec = Color.color3,
+        size = 3,
+        dw = (Color.color3 :: any)._directWrite,
+    },
+    CFrame = {
+        tag = TAG_CFRAME,
+        codec = CFrameCodec.cframe,
+        size = 24,
+        dw = (CFrameCodec.cframe :: any)._directWrite,
+    },
+    buffer = { tag = TAG_BUFFER, codec = Buffer.buff, size = nil, dw = nil },
 })
 
 -- Numeric write dispatch: one lookup for both codec and payload size.
-local NUM_DISPATCH = table.freeze ({
-    [TAG_U8] = { codec = Primitive.u8, size = 1 },
-    [TAG_U16] = { codec = Primitive.u16, size = 2 },
-    [TAG_U32] = { codec = Primitive.u32, size = 4 },
-    [TAG_I8] = { codec = Primitive.i8, size = 1 },
-    [TAG_I16] = { codec = Primitive.i16, size = 2 },
-    [TAG_I32] = { codec = Primitive.i32, size = 4 },
-    [TAG_F32] = { codec = Primitive.f32, size = 4 },
-    [TAG_F64] = { codec = Primitive.f64, size = 8 },
-})
+local NUM_SIZES = {} :: { [number]: number }
+local NUM_DWRITES = {} :: { [number]: any }
+
+for _, pair in
+    {
+        { TAG_U8, Primitive.u8, 1 },
+        { TAG_U16, Primitive.u16, 2 },
+        { TAG_U32, Primitive.u32, 4 },
+        { TAG_I8, Primitive.i8, 1 },
+        { TAG_I16, Primitive.i16, 2 },
+        { TAG_I32, Primitive.i32, 4 },
+        { TAG_F32, Primitive.f32, 4 },
+        { TAG_F64, Primitive.f64, 8 },
+    }
+do
+    NUM_SIZES[pair[1]] = pair[3]
+    NUM_DWRITES[pair[1]] = (pair[2] :: any)._directWrite
+end
+
+table.freeze (NUM_SIZES)
+table.freeze (NUM_DWRITES)
 
 -- Private ----------------------------------------------------------------
 
@@ -123,6 +155,11 @@ end
 local Special = {}
 
 Special.nothing = table.freeze ({
+    _size = 0,
+    _directWrite = function (_b: buffer, _offset: number, _value: any): () end,
+    _directRead = function (_b: buffer, _offset: number): any
+        return nil
+    end,
     write = function (_ch: ChannelState, _value: any): () end,
     read = function (_src: buffer, _pos: number, _refs: { Instance }?): (any, number)
         return nil, 0
@@ -144,9 +181,12 @@ Special.unknown = table.freeze ({
 
         refs[idx] = value
 
-        Channel.alloc (ch, 2)
-        buffer.writeu16 (ch.buff, ch.cursor, idx)
-        ch.cursor += 2
+        local c = ch.cursor
+        if c + 2 > ch.size then
+            alloc (ch, 2)
+        end
+        buffer.writeu16 (ch.buff, c, idx)
+        ch.cursor = c + 2
     end,
     read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
         local idx = buffer.readu16 (src, pos)
@@ -157,9 +197,12 @@ Special.unknown = table.freeze ({
 Special.auto = table.freeze ({
     write = function (ch: ChannelState, value: any): ()
         if value == nil then
-            Channel.alloc (ch, 1)
-            buffer.writeu8 (ch.buff, ch.cursor, TAG_NIL)
-            ch.cursor += 1
+            local c = ch.cursor
+            if c + 1 > ch.size then
+                alloc (ch, 1)
+            end
+            buffer.writeu8 (ch.buff, c, TAG_NIL)
+            ch.cursor = c + 1
             return
         end
 
@@ -167,29 +210,42 @@ Special.auto = table.freeze ({
 
         if t == "number" then
             local tag = selectNumberTag (value)
-            local entry = NUM_DISPATCH[tag]
+            local payloadSize = NUM_SIZES[tag]
+            local totalSize = 1 + payloadSize
 
-            Channel.alloc (ch, 1 + entry.size)
-            buffer.writeu8 (ch.buff, ch.cursor, tag)
-            ch.cursor += 1
-            entry.codec.write (ch, value)
+            local c = ch.cursor
+            if c + totalSize > ch.size then
+                alloc (ch, totalSize)
+            end
+            local b = ch.buff
+            buffer.writeu8 (b, c, tag)
+            NUM_DWRITES[tag] (b, c + 1, value)
+            ch.cursor = c + totalSize
             return
         end
 
         if t == "string" then
             local len = #value
-            Channel.alloc (ch, 6 + len)
-            buffer.writeu8 (ch.buff, ch.cursor, TAG_STRING)
-            ch.cursor += 1
+            local total = 6 + len
+            local c = ch.cursor
+            if c + total > ch.size then
+                alloc (ch, total)
+            end
+            buffer.writeu8 (ch.buff, c, TAG_STRING)
+            ch.cursor = c + 1
             Varint.write (ch, len)
-            buffer.writestring (ch.buff, ch.cursor, value)
-            ch.cursor += len
+            local c2 = ch.cursor
+            buffer.writestring (ch.buff, c2, value)
+            ch.cursor = c2 + len
             return
         end
 
         if t == "boolean" then
-            Channel.alloc (ch, 2)
-            local b, c = ch.buff, ch.cursor
+            local c = ch.cursor
+            if c + 2 > ch.size then
+                alloc (ch, 2)
+            end
+            local b = ch.buff
             buffer.writeu8 (b, c, TAG_BOOL)
             buffer.writeu8 (b, c + 1, if value then 1 else 0)
             ch.cursor = c + 2
@@ -202,10 +258,27 @@ Special.auto = table.freeze ({
             error (`[Lync] Auto unsupported type: {ut}`)
         end
 
-        Channel.alloc (ch, 1)
-        buffer.writeu8 (ch.buff, ch.cursor, entry.tag)
-        ch.cursor += 1
-        entry.codec.write (ch, value)
+        local dw = entry.dw
+        local size = entry.size
+        if dw and size then
+            local totalSize = 1 + size
+            local c = ch.cursor
+            if c + totalSize > ch.size then
+                alloc (ch, totalSize)
+            end
+            local b = ch.buff
+            buffer.writeu8 (b, c, entry.tag)
+            dw (b, c + 1, value)
+            ch.cursor = c + totalSize
+        else
+            local c = ch.cursor
+            if c + 1 > ch.size then
+                alloc (ch, 1)
+            end
+            buffer.writeu8 (ch.buff, c, entry.tag)
+            ch.cursor = c + 1
+            entry.codec.write (ch, value)
+        end
     end,
     read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
         local tag = buffer.readu8 (src, pos)

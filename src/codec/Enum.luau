@@ -3,6 +3,7 @@
 -- String enum codec. Maps values to u8 indices at definition time.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -38,15 +39,32 @@ function EnumCodec.define (...: string): Codec<string>
 
     return table.freeze ({
         _size = 1,
+        _directWrite = function (b: buffer, offset: number, value: string): ()
+            local idx = toIndex[value]
+            if idx == nil then
+                error (`[Lync] Invalid enum value: {value}`)
+            end
+            buffer.writeu8 (b, offset, idx)
+        end,
+        _directRead = function (b: buffer, offset: number): string
+            local idx = buffer.readu8 (b, offset)
+            local value = toValue[idx + 1]
+            if value == nil then
+                error (`[Lync] Invalid enum index: {idx}`)
+            end
+            return value
+        end,
         write = function (ch: ChannelState, value: string): ()
             local idx = toIndex[value]
             if idx == nil then
                 error (`[Lync] Invalid enum value: {value}`)
             end
-
-            Channel.alloc (ch, 1)
-            buffer.writeu8 (ch.buff, ch.cursor, idx)
-            ch.cursor += 1
+            local c = ch.cursor
+            if c + 1 > ch.size then
+                alloc (ch, 1)
+            end
+            buffer.writeu8 (ch.buff, c, idx)
+            ch.cursor = c + 1
         end,
         read = function (src: buffer, pos: number, _refs: { Instance }?): (string, number)
             local idx = buffer.readu8 (src, pos)
@@ -54,7 +72,6 @@ function EnumCodec.define (...: string): Codec<string>
             if value == nil then
                 error (`[Lync] Invalid enum index: {idx}`)
             end
-
             return value, 1
         end,
     })

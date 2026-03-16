@@ -3,6 +3,7 @@
 -- Pack booleans, unsigned and signed integers at the bit level.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -125,47 +126,64 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
     local bytes = if totalBits <= 8 then 1 elseif totalBits <= 16 then 2 else 4
     local wfn, rfn = selectIO (bytes)
 
+    -- Shared pack logic
+    local function packValue (value: any): number
+        local packed = 0
+        for i = 1, count do
+            local bits = if isBool[i]
+                then (if value[keys[i]] then 1 else 0)
+                else band (value[keys[i]], masks[i])
+            packed = bor (packed, lshift (bits, offsets[i]))
+        end
+        return packed
+    end
+
+    -- Shared unpack logic
+    local function unpackValue (packed: number): any
+        local result = {}
+
+        if hasSigned then
+            local sb = signBits :: { number }
+            local se = signExtends :: { number }
+
+            for i = 1, count do
+                local raw = band (rshift (packed, offsets[i]), masks[i])
+                if isBool[i] then
+                    result[keys[i]] = raw ~= 0
+                elseif sb[i] > 0 and raw >= sb[i] then
+                    result[keys[i]] = raw - se[i]
+                else
+                    result[keys[i]] = raw
+                end
+            end
+        else
+            for i = 1, count do
+                local raw = band (rshift (packed, offsets[i]), masks[i])
+                result[keys[i]] = if isBool[i] then raw ~= 0 else raw
+            end
+        end
+
+        return result
+    end
+
     return table.freeze ({
         _size = bytes,
+        _directWrite = function (b: buffer, offset: number, value: any): ()
+            wfn (b, offset, packValue (value))
+        end,
+        _directRead = function (b: buffer, offset: number): any
+            return unpackValue (rfn (b, offset))
+        end,
         write = function (ch: ChannelState, value: any): ()
-            local packed = 0
-            for i = 1, count do
-                local bits = if isBool[i]
-                    then (if value[keys[i]] then 1 else 0)
-                    else band (value[keys[i]], masks[i])
-                packed = bor (packed, lshift (bits, offsets[i]))
+            local c = ch.cursor
+            if c + bytes > ch.size then
+                alloc (ch, bytes)
             end
-
-            Channel.alloc (ch, bytes)
-            wfn (ch.buff, ch.cursor, packed)
-            ch.cursor += bytes
+            wfn (ch.buff, c, packValue (value))
+            ch.cursor = c + bytes
         end,
         read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
-            local packed = rfn (src, pos)
-            local result = {}
-
-            if hasSigned then
-                local sb = signBits :: { number }
-                local se = signExtends :: { number }
-
-                for i = 1, count do
-                    local raw = band (rshift (packed, offsets[i]), masks[i])
-                    if isBool[i] then
-                        result[keys[i]] = raw ~= 0
-                    elseif sb[i] > 0 and raw >= sb[i] then
-                        result[keys[i]] = raw - se[i]
-                    else
-                        result[keys[i]] = raw
-                    end
-                end
-            else
-                for i = 1, count do
-                    local raw = band (rshift (packed, offsets[i]), masks[i])
-                    result[keys[i]] = if isBool[i] then raw ~= 0 else raw
-                end
-            end
-
-            return result, bytes
+            return unpackValue (rfn (src, pos)), bytes
         end,
     })
 end

@@ -17,6 +17,13 @@ type PacketConfig<T> = Types.PacketConfig<T>
 
 local IS_SERVER = RunService:IsServer ()
 
+local serverWriteTo = Server.writeTo
+local serverWriteToAll = Server.writeToAll
+local serverWriteToList = Server.writeToList
+local serverWriteToAllExcept = Server.writeToAllExcept
+local serverWriteToGroup = Server.writeToGroup
+local clientWrite = Client.write
+
 -- Private ----------------------------------------------------------------
 
 -- Shared methods (both contexts)
@@ -43,23 +50,23 @@ local ServerImpl = setmetatable ({}, { __index = SharedImpl })
 ServerImpl.__index = ServerImpl
 
 function ServerImpl.sendTo (self: any, data: any, player: Player): ()
-    Server.writeTo (player, self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteTo (player, self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 function ServerImpl.sendToAll (self: any, data: any): ()
-    Server.writeToAll (self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteToAll (self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 function ServerImpl.sendToList (self: any, data: any, players: { Player }): ()
-    Server.writeToList (players, self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteToList (players, self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 function ServerImpl.sendToAllExcept (self: any, data: any, except: Player): ()
-    Server.writeToAllExcept (except, self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteToAllExcept (except, self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 function ServerImpl.sendToGroup (self: any, data: any, groupName: string): ()
-    Server.writeToGroup (groupName, self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteToGroup (groupName, self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 table.freeze (ServerImpl)
@@ -69,7 +76,7 @@ local ClientImpl = setmetatable ({}, { __index = SharedImpl })
 ClientImpl.__index = ClientImpl
 
 function ClientImpl.send (self: any, data: any): ()
-    Client.write (self._id, self._name, self._codec, data, self._isUnreliable)
+    clientWrite (self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
 table.freeze (ClientImpl)

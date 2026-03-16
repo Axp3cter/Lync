@@ -4,6 +4,7 @@
 
 local Baseline = require (script.Parent.Parent.core.Baseline)
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 local Varint = require (script.Parent.Varint)
 
@@ -108,7 +109,7 @@ end
 
 local function packBools (ch: ChannelState, boolKeys: { string }, boolCount: number, value: any): ()
     local boolByteCount = ceil (boolCount / 8)
-    Channel.alloc (ch, boolByteCount)
+    alloc (ch, boolByteCount)
     local b = ch.buff
     local c = ch.cursor
 
@@ -161,30 +162,126 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
     local dataCount = #dataKeys
     local boolCount = #boolKeys
     local boolByteCount = ceil (boolCount / 8)
+    local hasBools = boolCount > 0
 
+    -- Check if all data fields support direct buffer writes.
+
+    local canDirect = true
     local fixedSize = boolByteCount
     local isAllFixed = true
+
+    local directWrites = table.create (dataCount) :: { any }
+    local directReads = table.create (dataCount) :: { any }
+    local fieldSizes = table.create (dataCount) :: { number }
+
     for i = 1, dataCount do
-        local size = (dataCodecs[i] :: any)._size
+        local codec = dataCodecs[i] :: any
+        local size = codec._size
+        local dw = codec._directWrite
+        local dr = codec._directRead
+
         if size then
             fixedSize += size
+            fieldSizes[i] = size
         else
             isAllFixed = false
+            canDirect = false
+        end
+
+        if not (dw and dr and size) then
+            canDirect = false
+        else
+            directWrites[i] = dw
+            directReads[i] = dr
         end
     end
 
-    local hasBools = boolCount > 0
+    -- Specialized path: all fields have known size and direct buffer access.
+    if canDirect and isAllFixed then
+        table.freeze (directWrites)
+        table.freeze (directReads)
+        table.freeze (fieldSizes)
+
+        local function directWriteBody (b: buffer, c: number, value: any): ()
+            for i = 1, dataCount do
+                directWrites[i] (b, c, value[dataKeys[i]])
+                c += fieldSizes[i]
+            end
+            if hasBools then
+                for byteIdx = 0, boolByteCount - 1 do
+                    local packed = 0
+                    local base = byteIdx * 8
+                    local limit = min (8, boolCount - base)
+                    for bit = 0, limit - 1 do
+                        if value[boolKeys[base + bit + 1]] then
+                            packed = bor (packed, lshift (1, bit))
+                        end
+                    end
+                    buffer.writeu8 (b, c + byteIdx, packed)
+                end
+            end
+        end
+
+        local function directReadBody (b: buffer, pos: number): any
+            local result = {}
+            local c = pos
+            for i = 1, dataCount do
+                result[dataKeys[i]] = directReads[i] (b, c)
+                c += fieldSizes[i]
+            end
+            if hasBools then
+                for byteIdx = 0, boolByteCount - 1 do
+                    local byte = buffer.readu8 (b, c + byteIdx)
+                    local base = byteIdx * 8
+                    local limit = min (8, boolCount - base)
+                    for bit = 0, limit - 1 do
+                        result[boolKeys[base + bit + 1]] = band (byte, lshift (1, bit)) ~= 0
+                    end
+                end
+            end
+            return result
+        end
+
+        return table.freeze ({
+            _size = fixedSize,
+            _directWrite = directWriteBody,
+            _directRead = directReadBody,
+
+            write = function (ch: ChannelState, value: any): ()
+                local c = ch.cursor
+                if c + fixedSize > ch.size then
+                    alloc (ch, fixedSize)
+                end
+                directWriteBody (ch.buff, c, value)
+                ch.cursor = c + fixedSize
+            end,
+            read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
+                return directReadBody (src, pos), fixedSize
+            end,
+        })
+    end
+
+    -- Generic fallback: variable-size fields or missing _directWrite.
+    -- Extract write/read functions into parallel arrays at define time.
+    local writeFns = table.create (dataCount) :: { any }
+    local readFns = table.create (dataCount) :: { any }
+    for i = 1, dataCount do
+        writeFns[i] = dataCodecs[i].write
+        readFns[i] = dataCodecs[i].read
+    end
+    table.freeze (writeFns)
+    table.freeze (readFns)
 
     return table.freeze ({
         _size = if isAllFixed then fixedSize else nil,
 
         write = function (ch: ChannelState, value: any): ()
             if isAllFixed then
-                Channel.alloc (ch, fixedSize)
+                alloc (ch, fixedSize)
             end
 
             for i = 1, dataCount do
-                dataCodecs[i].write (ch, value[dataKeys[i]])
+                writeFns[i] (ch, value[dataKeys[i]])
             end
 
             if hasBools then
@@ -196,7 +293,7 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
             local absPos = pos
 
             for i = 1, dataCount do
-                local value, n = dataCodecs[i].read (src, absPos, refs)
+                local value, n = readFns[i] (src, absPos, refs)
                 result[dataKeys[i]] = value
                 absPos += n
             end
@@ -225,6 +322,44 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     local _scratchBounds = table.create (segCount + 1) :: { number }
     _scratchBounds[1] = 0
 
+    -- Extract write/read functions at define time.
+    local writeFns = table.create (dataCount) :: { any }
+    local readFns = table.create (dataCount) :: { any }
+    for i = 1, dataCount do
+        writeFns[i] = dataCodecs[i].write
+        readFns[i] = dataCodecs[i].read
+    end
+    table.freeze (writeFns)
+    table.freeze (readFns)
+
+    -- Check if all fields support direct buffer writes into scratch.
+    local scratchDirect = true
+    local scratchDirectWrites = table.create (dataCount) :: { any }
+    local scratchFieldSizes = table.create (dataCount) :: { number }
+    local scratchFieldOffsets = table.create (dataCount) :: { number }
+    local scratchDataTotal = 0
+
+    for i = 1, dataCount do
+        local codec = dataCodecs[i] :: any
+        local size = codec._size
+        local dw = codec._directWrite
+        if size and dw then
+            scratchDirectWrites[i] = dw
+            scratchFieldSizes[i] = size
+            scratchFieldOffsets[i] = scratchDataTotal
+            scratchDataTotal += size
+        else
+            scratchDirect = false
+            break
+        end
+    end
+
+    local scratchTotalFixed = scratchDataTotal + boolByteCount
+
+    -- Skip scratch alloc at runtime when the total fits in the initial
+    -- 1024-byte scratch buffer.
+    local scratchSkipAlloc = scratchDirect and scratchTotalFixed <= 1024
+
     return table.freeze ({
         _isDelta = true,
 
@@ -235,21 +370,40 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             local bounds = _scratchBounds
             bounds[1] = 0
 
-            for i = 1, dataCount do
-                dataCodecs[i].write (scratch, value[dataKeys[i]])
-                bounds[i + 1] = scratch.cursor
-            end
+            -- Scratch write: direct path when all fields support it
+            if scratchDirect then
+                if not scratchSkipAlloc then
+                    alloc (scratch, scratchTotalFixed)
+                end
+                local b = scratch.buff
 
-            if boolCount > 0 then
-                packBools (scratch, boolKeys, boolCount, value)
-                bounds[segCount + 1] = scratch.cursor
+                for i = 1, dataCount do
+                    scratchDirectWrites[i] (b, scratchFieldOffsets[i], value[dataKeys[i]])
+                    bounds[i + 1] = scratchFieldOffsets[i] + scratchFieldSizes[i]
+                end
+                scratch.cursor = scratchDataTotal
+
+                if boolCount > 0 then
+                    packBools (scratch, boolKeys, boolCount, value)
+                    bounds[segCount + 1] = scratch.cursor
+                end
+            else
+                for i = 1, dataCount do
+                    writeFns[i] (scratch, value[dataKeys[i]])
+                    bounds[i + 1] = scratch.cursor
+                end
+
+                if boolCount > 0 then
+                    packBools (scratch, boolKeys, boolCount, value)
+                    bounds[segCount + 1] = scratch.cursor
+                end
             end
 
             local scratchTotal = scratch.cursor
 
             -- FLAG_FULL: first frame, no cache exists yet
             if not cache then
-                Channel.alloc (ch, 1 + scratchTotal)
+                alloc (ch, 1 + scratchTotal)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
                 ch.cursor += 1
                 buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
@@ -260,7 +414,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                 scratchTotal == cache.total
                 and rangeEqual (scratch.buff, 0, cache.raw, 0, scratchTotal)
             then
-                Channel.alloc (ch, 1)
+                alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
                 ch.cursor += 1
                 releaseScratch ()
@@ -286,7 +440,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                     end
                 end
 
-                Channel.alloc (ch, 2)
+                alloc (ch, 2)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
                 buffer.writeu8 (ch.buff, ch.cursor + 1, mask)
                 ch.cursor += 2
@@ -295,7 +449,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                     if band (mask, lshift (1, i - 1)) ~= 0 then
                         local newOff = bounds[i]
                         local newLen = bounds[i + 1] - newOff
-                        Channel.alloc (ch, newLen)
+                        alloc (ch, newLen)
                         buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
                         ch.cursor += newLen
                     end
@@ -321,7 +475,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                     end
                 end
 
-                Channel.alloc (ch, 1 + bitmaskBytes)
+                alloc (ch, 1 + bitmaskBytes)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
                 ch.cursor += 1
 
@@ -337,7 +491,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                     if band (maskBuf[byteIdx], lshift (1, bitIdx % 8)) ~= 0 then
                         local newOff = bounds[i]
                         local newLen = bounds[i + 1] - newOff
-                        Channel.alloc (ch, newLen)
+                        alloc (ch, newLen)
                         buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
                         ch.cursor += newLen
                     end
@@ -372,7 +526,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                 local result = {}
 
                 for i = 1, dataCount do
-                    local val, n = dataCodecs[i].read (src, absPos, refs)
+                    local val, n = readFns[i] (src, absPos, refs)
                     result[dataKeys[i]] = val
                     absPos += n
                 end
@@ -397,7 +551,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
 
                 if band (byte, lshift (1, bitIdx % 8)) ~= 0 then
                     if i <= dataCount then
-                        local val, n = dataCodecs[i].read (src, absPos, refs)
+                        local val, n = readFns[i] (src, absPos, refs)
                         result[dataKeys[i]] = val
                         absPos += n
                     else
@@ -416,6 +570,15 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
     local deltaId = _nextDeltaId
     _nextDeltaId += 1
 
+    -- Extract write/read functions at define time.
+    local writeElement = element.write
+    local readElement = element.read
+
+    -- Check if element supports direct buffer writes into scratch.
+    local elemSize = (element :: any)._size :: number?
+    local elemDirect = (element :: any)._directWrite
+    local elemDRead = (element :: any)._directRead
+
     return table.freeze ({
         _isDelta = true,
 
@@ -426,19 +589,35 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
 
             local bounds = table.create (len + 1)
             bounds[1] = 0
-            for i = 1, len do
-                element.write (scratch, value[i])
-                bounds[i + 1] = scratch.cursor
+
+            -- Scratch write: direct path when element supports it
+            if elemDirect and elemSize then
+                local totalBytes = len * elemSize
+                alloc (scratch, totalBytes)
+                local b = scratch.buff
+                local c = 0
+                for i = 1, len do
+                    elemDirect (b, c, value[i])
+                    c += elemSize
+                    bounds[i + 1] = c
+                end
+                scratch.cursor = totalBytes
+            else
+                for i = 1, len do
+                    writeElement (scratch, value[i])
+                    bounds[i + 1] = scratch.cursor
+                end
             end
+
             local scratchTotal = scratch.cursor
 
             if not cache or cache.len ~= len then
-                Channel.alloc (ch, 1)
+                alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
                 ch.cursor += 1
                 Varint.write (ch, len)
 
-                Channel.alloc (ch, scratchTotal)
+                alloc (ch, scratchTotal)
                 buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                 ch.cursor += scratchTotal
             else
@@ -463,14 +642,14 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
                 end
 
                 if dirtyN == 0 then
-                    Channel.alloc (ch, 1)
+                    alloc (ch, 1)
                     buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
                     ch.cursor += 1
                     releaseScratch ()
                     return
                 end
 
-                Channel.alloc (ch, 1)
+                alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
                 ch.cursor += 1
                 Varint.write (ch, dirtyN)
@@ -481,7 +660,7 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
                     local newLen = bounds[i + 1] - newOff
 
                     Varint.write (ch, i - 1)
-                    Channel.alloc (ch, newLen)
+                    alloc (ch, newLen)
                     buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
                     ch.cursor += newLen
                 end
@@ -510,10 +689,19 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
                 absPos += lenBytes
 
                 local result = table.create (len)
-                for i = 1, len do
-                    local val, n = element.read (src, absPos, refs)
-                    result[i] = val
-                    absPos += n
+
+                -- Direct read path
+                if elemDRead and elemSize then
+                    for i = 1, len do
+                        result[i] = elemDRead (src, absPos)
+                        absPos += elemSize
+                    end
+                else
+                    for i = 1, len do
+                        local val, n = readElement (src, absPos, refs)
+                        result[i] = val
+                        absPos += n
+                    end
                 end
 
                 Baseline.setCache (deltaId, result)
@@ -530,9 +718,14 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
                 local idx, idxBytes = Varint.read (src, absPos)
                 absPos += idxBytes
 
-                local val, n = element.read (src, absPos, refs)
-                result[idx + 1] = val
-                absPos += n
+                if elemDRead and elemSize then
+                    result[idx + 1] = elemDRead (src, absPos)
+                    absPos += elemSize
+                else
+                    local val, n = readElement (src, absPos, refs)
+                    result[idx + 1] = val
+                    absPos += n
+                end
             end
 
             Baseline.setCache (deltaId, result)
@@ -542,12 +735,63 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
 end
 
 function Composite.array (element: Codec<any>): Codec<{ any }>
+    local elementSize = (element :: any)._size :: number?
+    local directWrite = (element :: any)._directWrite
+    local directRead = (element :: any)._directRead
+
+    -- Specialized path: element has known size + direct buffer access.
+    -- Writes the entire array with a single alloc and cursor update.
+    if elementSize and directWrite and directRead then
+        return table.freeze ({
+            write = function (ch: ChannelState, value: { any }): ()
+                local len = #value
+                Varint.write (ch, len)
+                if len == 0 then
+                    return
+                end
+
+                local totalBytes = len * elementSize
+                local c = ch.cursor
+                if c + totalBytes > ch.size then
+                    alloc (ch, totalBytes)
+                end
+
+                local b = ch.buff
+                for i = 1, len do
+                    directWrite (b, c, value[i])
+                    c += elementSize
+                end
+                ch.cursor = c
+            end,
+            read = function (src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
+                local len, lenBytes = Varint.read (src, pos)
+
+                local result = table.create (len)
+                local c = pos + lenBytes
+
+                for i = 1, len do
+                    result[i] = directRead (src, c)
+                    c += elementSize
+                end
+
+                return result, c - pos
+            end,
+        })
+    end
+
+    -- Generic fallback: variable-size or no direct access.
+    local writeElement = element.write
+    local readElement = element.read
+
     return table.freeze ({
         write = function (ch: ChannelState, value: { any }): ()
             local len = #value
             Varint.write (ch, len)
+            if elementSize and len > 0 then
+                alloc (ch, len * elementSize)
+            end
             for i = 1, len do
-                element.write (ch, value[i])
+                writeElement (ch, value[i])
             end
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
@@ -557,7 +801,7 @@ function Composite.array (element: Codec<any>): Codec<{ any }>
             local absPos = pos + lenBytes
 
             for i = 1, len do
-                local value, n = element.read (src, absPos, refs)
+                local value, n = readElement (src, absPos, refs)
                 result[i] = value
                 absPos += n
             end
@@ -568,6 +812,70 @@ function Composite.array (element: Codec<any>): Codec<{ any }>
 end
 
 function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [any]: any }>
+    local keySize = (keyCodec :: any)._size :: number?
+    local valSize = (valueCodec :: any)._size :: number?
+    local keyDWrite = (keyCodec :: any)._directWrite
+    local valDWrite = (valueCodec :: any)._directWrite
+    local keyDRead = (keyCodec :: any)._directRead
+    local valDRead = (valueCodec :: any)._directRead
+
+    -- Specialized path: both key and value have fixed size + direct access
+    if keySize and valSize and keyDWrite and valDWrite and keyDRead and valDRead then
+        local entrySize = keySize + valSize
+
+        return table.freeze ({
+            write = function (ch: ChannelState, value: { [any]: any }): ()
+                local count = 0
+                for _ in value do
+                    count += 1
+                end
+
+                Varint.write (ch, count)
+
+                if count > 0 then
+                    local totalBytes = count * entrySize
+                    local c = ch.cursor
+                    if c + totalBytes > ch.size then
+                        alloc (ch, totalBytes)
+                    end
+
+                    local b = ch.buff
+                    for k, v in value do
+                        keyDWrite (b, c, k)
+                        valDWrite (b, c + keySize, v)
+                        c += entrySize
+                    end
+                    ch.cursor = c
+                end
+            end,
+            read = function (
+                src: buffer,
+                pos: number,
+                _refs: { Instance }?
+            ): ({ [any]: any }, number)
+                local count, lenBytes = Varint.read (src, pos)
+
+                local result = {}
+                local c = pos + lenBytes
+
+                for _ = 1, count do
+                    local k = keyDRead (src, c)
+                    local v = valDRead (src, c + keySize)
+                    result[k] = v
+                    c += entrySize
+                end
+
+                return result, c - pos
+            end,
+        })
+    end
+
+    -- Extract write/read functions at define time.
+    local writeKey = keyCodec.write
+    local writeVal = valueCodec.write
+    local readKey = keyCodec.read
+    local readVal = valueCodec.read
+
     return table.freeze ({
         write = function (ch: ChannelState, value: { [any]: any }): ()
             local count = 0
@@ -578,8 +886,8 @@ function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [
             Varint.write (ch, count)
 
             for k, v in value do
-                keyCodec.write (ch, k)
-                valueCodec.write (ch, v)
+                writeKey (ch, k)
+                writeVal (ch, v)
             end
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
@@ -589,9 +897,9 @@ function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [
             local absPos = pos + lenBytes
 
             for _ = 1, count do
-                local k, kn = keyCodec.read (src, absPos, refs)
+                local k, kn = readKey (src, absPos, refs)
                 absPos += kn
-                local v, vn = valueCodec.read (src, absPos, refs)
+                local v, vn = readVal (src, absPos, refs)
                 absPos += vn
                 result[k] = v
             end
@@ -616,37 +924,74 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
     local deltaId = _nextDeltaId
     _nextDeltaId += 1
 
+    -- Extract write/read functions at define time.
+    local writeKey = keyCodec.write
+    local writeVal = valueCodec.write
+    local readKey = keyCodec.read
+    local readVal = valueCodec.read
+
+    -- Check if key/value support direct buffer writes into scratch.
+    local keySize = (keyCodec :: any)._size :: number?
+    local valSize = (valueCodec :: any)._size :: number?
+    local keyDWrite = (keyCodec :: any)._directWrite
+    local valDWrite = (valueCodec :: any)._directWrite
+    local keyDRead = (keyCodec :: any)._directRead
+    local valDRead = (valueCodec :: any)._directRead
+    local scratchDirect = keySize and valSize and keyDWrite and valDWrite
+    local entrySize = if keySize and valSize then keySize + valSize else nil
+
     return table.freeze ({
         _isDelta = true,
 
         write = function (ch: ChannelState, value: { [any]: any }): ()
             local scratch = acquireScratch ()
 
-            -- Serialize all entries into scratch, track per-entry bounds.
-            -- Key bytes are extracted as strings for identity in the lookup table.
             type EntryBounds = { keyOff: number, keyLen: number, valOff: number, valLen: number }
 
             local entries = {} :: { EntryBounds }
             local keyLookup = {} :: { [string]: number }
             local entryCount = 0
 
-            for k, v in value do
-                entryCount += 1
-                local keyStart = scratch.cursor
-                keyCodec.write (scratch, k)
-                local keyEnd = scratch.cursor
-                valueCodec.write (scratch, v)
-                local valEnd = scratch.cursor
+            if scratchDirect then
+                -- Direct scratch write: write key+value straight to buffer
+                for k, v in value do
+                    entryCount += 1
+                    local c = scratch.cursor
+                    alloc (scratch, entrySize :: number)
+                    local b = scratch.buff
+                    keyDWrite (b, c, k)
+                    valDWrite (b, c + (keySize :: number), v)
+                    scratch.cursor = c + (entrySize :: number)
 
-                entries[entryCount] = {
-                    keyOff = keyStart,
-                    keyLen = keyEnd - keyStart,
-                    valOff = keyEnd,
-                    valLen = valEnd - keyEnd,
-                }
+                    entries[entryCount] = {
+                        keyOff = c,
+                        keyLen = keySize :: number,
+                        valOff = c + (keySize :: number),
+                        valLen = valSize :: number,
+                    }
 
-                local keyId = buffer.readstring (scratch.buff, keyStart, keyEnd - keyStart)
-                keyLookup[keyId] = entryCount
+                    local keyId = buffer.readstring (b, c, keySize :: number)
+                    keyLookup[keyId] = entryCount
+                end
+            else
+                for k, v in value do
+                    entryCount += 1
+                    local keyStart = scratch.cursor
+                    writeKey (scratch, k)
+                    local keyEnd = scratch.cursor
+                    writeVal (scratch, v)
+                    local valEnd = scratch.cursor
+
+                    entries[entryCount] = {
+                        keyOff = keyStart,
+                        keyLen = keyEnd - keyStart,
+                        valOff = keyEnd,
+                        valLen = valEnd - keyEnd,
+                    }
+
+                    local keyId = buffer.readstring (scratch.buff, keyStart, keyEnd - keyStart)
+                    keyLookup[keyId] = entryCount
+                end
             end
 
             local scratchTotal = scratch.cursor
@@ -662,13 +1007,13 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
 
             -- FLAG_FULL: no cache yet
             if not cache then
-                Channel.alloc (ch, 1)
+                alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
                 ch.cursor += 1
                 Varint.write (ch, entryCount)
 
                 if scratchTotal > 0 then
-                    Channel.alloc (ch, scratchTotal)
+                    alloc (ch, scratchTotal)
                     buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                     ch.cursor += scratchTotal
                 end
@@ -678,7 +1023,6 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
                 local cacheEntries = cache.entries
                 local cacheLookup = cache.keyLookup
 
-                -- Find upserts: entries in new that are absent or changed in cache
                 local upsertKeys = {} :: { number }
                 local upsertN = 0
 
@@ -706,7 +1050,6 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
                     end
                 end
 
-                -- Find removes: keys in cache not present in new
                 local removeKeyIds = {} :: { string }
                 local removeN = 0
 
@@ -718,41 +1061,37 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
                 end
 
                 if upsertN == 0 and removeN == 0 then
-                    Channel.alloc (ch, 1)
+                    alloc (ch, 1)
                     buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
                     ch.cursor += 1
                     releaseScratch ()
                     return
                 end
 
-                -- Write delta
-                Channel.alloc (ch, 1)
+                alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
                 ch.cursor += 1
 
-                -- Upserts: full key + value bytes
                 Varint.write (ch, upsertN)
                 for i = 1, upsertN do
                     local e = entries[upsertKeys[i]]
                     local totalLen = e.keyLen + e.valLen
-                    Channel.alloc (ch, totalLen)
+                    alloc (ch, totalLen)
                     buffer.copy (ch.buff, ch.cursor, scratch.buff, e.keyOff, totalLen)
                     ch.cursor += totalLen
                 end
 
-                -- Removes: key bytes only
                 Varint.write (ch, removeN)
                 for i = 1, removeN do
                     local keyId = removeKeyIds[i]
                     local oldIdx = cacheLookup[keyId]
                     local oldE = cacheEntries[oldIdx]
-                    Channel.alloc (ch, oldE.keyLen)
+                    alloc (ch, oldE.keyLen)
                     buffer.copy (ch.buff, ch.cursor, cacheRaw, oldE.keyOff, oldE.keyLen)
                     ch.cursor += oldE.keyLen
                 end
             end
 
-            -- Update cache
             local rawBuf = buffer.create (scratchTotal)
             if scratchTotal > 0 then
                 buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
@@ -782,40 +1121,47 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
                 absPos += lenBytes
 
                 local result = {}
-                for _ = 1, count do
-                    local k, kn = keyCodec.read (src, absPos, refs)
-                    absPos += kn
-                    local v, vn = valueCodec.read (src, absPos, refs)
-                    absPos += vn
-                    result[k] = v
+
+                if keyDRead and valDRead and keySize and valSize then
+                    for _ = 1, count do
+                        local k = keyDRead (src, absPos)
+                        local v = valDRead (src, absPos + keySize)
+                        result[k] = v
+                        absPos += entrySize :: number
+                    end
+                else
+                    for _ = 1, count do
+                        local k, kn = readKey (src, absPos, refs)
+                        absPos += kn
+                        local v, vn = readVal (src, absPos, refs)
+                        absPos += vn
+                        result[k] = v
+                    end
                 end
 
                 Baseline.setCache (deltaId, result)
                 return result, absPos - pos
             end
 
-            -- FLAG_DELTA
             local cache = Baseline.getCache (deltaId) :: { [any]: any }?
             local result = if cache then table.clone (cache) else {}
 
-            -- Upserts
             local upsertN, unBytes = Varint.read (src, absPos)
             absPos += unBytes
 
             for _ = 1, upsertN do
-                local k, kn = keyCodec.read (src, absPos, refs)
+                local k, kn = readKey (src, absPos, refs)
                 absPos += kn
-                local v, vn = valueCodec.read (src, absPos, refs)
+                local v, vn = readVal (src, absPos, refs)
                 absPos += vn
                 result[k] = v
             end
 
-            -- Removes
             local removeN, rnBytes = Varint.read (src, absPos)
             absPos += rnBytes
 
             for _ = 1, removeN do
-                local k, kn = keyCodec.read (src, absPos, refs)
+                local k, kn = readKey (src, absPos, refs)
                 absPos += kn
                 result[k] = nil
             end
@@ -827,13 +1173,56 @@ function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Code
 end
 
 function Composite.optional (inner: Codec<any>): Codec<any>
+    local innerSize = (inner :: any)._size :: number?
+    local innerDWrite = (inner :: any)._directWrite
+    local innerDRead = (inner :: any)._directRead
+
+    -- Specialized path: inner has fixed size + direct access
+    if innerSize and innerDWrite and innerDRead then
+        local presentSize = 1 + innerSize
+
+        return table.freeze ({
+            write = function (ch: ChannelState, value: any): ()
+                local c = ch.cursor
+                if value ~= nil then
+                    if c + presentSize > ch.size then
+                        alloc (ch, presentSize)
+                    end
+                    local b = ch.buff
+                    buffer.writeu8 (b, c, 1)
+                    innerDWrite (b, c + 1, value)
+                    ch.cursor = c + presentSize
+                else
+                    if c + 1 > ch.size then
+                        alloc (ch, 1)
+                    end
+                    buffer.writeu8 (ch.buff, c, 0)
+                    ch.cursor = c + 1
+                end
+            end,
+            read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
+                if buffer.readu8 (src, pos) == 0 then
+                    return nil, 1
+                end
+                return innerDRead (src, pos + 1), presentSize
+            end,
+        })
+    end
+
+    -- Generic fallback: extract inner write/read
+    local writeInner = inner.write
+    local readInner = inner.read
+
     return table.freeze ({
         write = function (ch: ChannelState, value: any): ()
-            Channel.alloc (ch, 1)
-            buffer.writeu8 (ch.buff, ch.cursor, if value ~= nil then 1 else 0)
-            ch.cursor += 1
+            local c = ch.cursor
+            if c + 1 > ch.size then
+                alloc (ch, 1)
+            end
+            buffer.writeu8 (ch.buff, c, if value ~= nil then 1 else 0)
+            ch.cursor = c + 1
             if value ~= nil then
-                inner.write (ch, value)
+                writeInner (ch, value)
             end
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
@@ -841,7 +1230,7 @@ function Composite.optional (inner: Codec<any>): Codec<any>
                 return nil, 1
             end
 
-            local value, n = inner.read (src, pos + 1, refs)
+            local value, n = readInner (src, pos + 1, refs)
             return value, 1 + n
         end,
     })

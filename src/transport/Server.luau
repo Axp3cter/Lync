@@ -8,6 +8,11 @@ local RunService = game:GetService ("RunService")
 local Baseline = require (script.Parent.Parent.core.Baseline)
 local Bridge = require (script.Parent.Bridge)
 local Channel = require (script.Parent.Parent.core.Channel)
+
+local channelWriteBatch = Channel.writeBatch
+local channelWriteBatchRaw = Channel.writeBatchRaw
+local channelSetPacket = Channel.setCurrentPacket
+
 local Gate = require (script.Parent.Gate)
 local Group = require (script.Parent.Parent.event.Group)
 local Middleware = require (script.Parent.Parent.core.Middleware)
@@ -122,7 +127,7 @@ local function serializeBroadcast (
     local scratch = _broadScratch
     scratch.cursor = 0
     table.clear (scratch.refs)
-    Channel.setCurrentPacket (name)
+    channelSetPacket (name)
     codec.write (scratch, data)
 
     local snapRefs = if #scratch.refs > 0 then table.clone (scratch.refs) else nil
@@ -169,7 +174,7 @@ local function broadcastTo (
                 continue
             end
             local ch = if isUnreliable then state.unreliable else state.reliable
-            Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+            channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
         end
     else
         -- Map path: { [Player]: PlayerState } or { [Player]: true }
@@ -182,7 +187,7 @@ local function broadcastTo (
                     continue
                 end
                 local ch = if isUnreliable then state.unreliable else state.reliable
-                Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+                channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
             end
         else
             -- Group set: { [Player]: true } — look up state from _players
@@ -192,7 +197,7 @@ local function broadcastTo (
                     continue
                 end
                 local ch = if isUnreliable then state.unreliable else state.reliable
-                Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+                channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
             end
         end
     end
@@ -249,7 +254,7 @@ function Server.writeTo (
     end
 
     local ch = if isUnreliable then state.unreliable else state.reliable
-    Channel.writeBatch (ch, id, name, codec, final)
+    channelWriteBatch (ch, id, name, codec, final)
 end
 
 function Server.writeToAll (

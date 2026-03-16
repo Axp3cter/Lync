@@ -56,6 +56,7 @@ function Channel.create (): ChannelState
     }
 end
 
+-- Grows the channel buffer to fit the requested bytes. Power-of-two sizing.
 function Channel.alloc (ch: ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
     if needed <= ch.size then
@@ -75,6 +76,9 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
     ch.size = newSize
 end
 
+local alloc = Channel.alloc
+
+-- Seals the open batch header and returns a snapshot of the buffer + refs.
 function Channel.sealAndDump (ch: ChannelState): (buffer, { Instance }?)
     if ch.lastId >= 0 then
         buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
@@ -91,13 +95,21 @@ function Channel.sealAndDump (ch: ChannelState): (buffer, { Instance }?)
     return out, if #refs > 0 then table.clone (refs) else nil
 end
 
-local function openBatch (ch: ChannelState, id: number): ()
+-- Sets the packet name for overflow diagnostics.
+function Channel.setCurrentPacket (name: string): ()
+    _currentPacket = name
+end
+
+-- Writes a single value into the batch for the given packet ID.
+-- Opens a new batch header when the ID changes or count overflows.
+function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: any, data: any): ()
     if id ~= ch.lastId or ch.batchCount >= MAX_BATCH then
         if ch.lastId >= 0 then
             buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
         end
 
-        Channel.alloc (ch, 3)
+        _currentPacket = name
+        alloc (ch, 3)
         local c = ch.cursor
         buffer.writeu8 (ch.buff, c, id)
         ch.countPos = c + 1
@@ -107,22 +119,11 @@ local function openBatch (ch: ChannelState, id: number): ()
     end
 
     ch.batchCount += 1
-end
-
-function Channel.setCurrentPacket (name: string): ()
-    _currentPacket = name
-end
-
-function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: any, data: any): ()
-    _currentPacket = name
-    openBatch (ch, id)
     codec.write (ch, data)
 end
 
---[[
-    Append pre-serialized bytes into a batch. Assumes src was produced by a
-    single codec.write call into a scratch channel. refs are appended as-is.
-]]
+-- Appends pre-serialized bytes into a batch. Used by broadcast fan-out
+-- to avoid re-encoding the same payload for each player.
 function Channel.writeBatchRaw (
     ch: ChannelState,
     id: number,
@@ -130,10 +131,24 @@ function Channel.writeBatchRaw (
     srcLen: number,
     srcRefs: { Instance }?
 ): ()
-    openBatch (ch, id)
+    if id ~= ch.lastId or ch.batchCount >= MAX_BATCH then
+        if ch.lastId >= 0 then
+            buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
+        end
+
+        alloc (ch, 3)
+        local c = ch.cursor
+        buffer.writeu8 (ch.buff, c, id)
+        ch.countPos = c + 1
+        ch.cursor = c + 3
+        ch.lastId = id
+        ch.batchCount = 0
+    end
+
+    ch.batchCount += 1
 
     if srcLen > 0 then
-        Channel.alloc (ch, srcLen)
+        alloc (ch, srcLen)
         buffer.copy (ch.buff, ch.cursor, src, 0, srcLen)
         ch.cursor += srcLen
     end
@@ -154,10 +169,9 @@ local function sealOpen (ch: ChannelState): ()
 end
 
 --[[
-    Write a query frame. Seals any open batch, writes:
+    Writes a query frame. Seals any open batch, then writes:
         id (u8) + correlationId (u16) + status (u8)
-    If codec is provided, writes status 0 + payload.
-    If codec is nil, writes status 1 (nil response, no payload).
+    Status 0 = payload follows. Status 1 = nil response.
 ]]
 function Channel.writeQuery (
     ch: ChannelState,
@@ -170,7 +184,7 @@ function Channel.writeQuery (
     _currentPacket = name
     sealOpen (ch)
 
-    Channel.alloc (ch, 4)
+    alloc (ch, 4)
     local c = ch.cursor
     buffer.writeu8 (ch.buff, c, id)
     buffer.writeu16 (ch.buff, c + 1, correlationId)
@@ -185,11 +199,8 @@ function Channel.writeQuery (
     end
 end
 
---[[
-    XOR a buffer against a previous buffer. Overlapping region is XOR'd,
-    remaining bytes (if current is longer) are copied raw. Produces a buffer
-    with many zero bytes when frame-to-frame content is similar.
-]]
+-- XOR current frame against the previous frame. Produces zero-heavy
+-- output when content is similar, feeding Roblox's deflate compressor.
 function Channel.xorApply (current: buffer, previous: buffer?): buffer
     local curLen = buffer.len (current)
     if not previous then
@@ -205,13 +216,11 @@ function Channel.xorApply (current: buffer, previous: buffer?): buffer
     local overlap = min (curLen, prevLen)
     local prev = previous :: buffer
 
-    -- u32 fast path for aligned portion
     local aligned = band32 (overlap, 0xFFFFFFFC)
     for i = 0, aligned - 4, 4 do
         buffer.writeu32 (result, i, bxor (buffer.readu32 (current, i), buffer.readu32 (prev, i)))
     end
 
-    -- Remaining bytes
     for i = aligned, overlap - 1 do
         buffer.writeu8 (result, i, bxor (buffer.readu8 (current, i), buffer.readu8 (prev, i)))
     end

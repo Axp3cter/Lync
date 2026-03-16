@@ -7,6 +7,8 @@ local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
+local alloc = Channel.alloc
+
 -- Constants --------------------------------------------------------------
 
 local CONT = 0x80
@@ -30,15 +32,20 @@ function Varint.write (ch: ChannelState, value: number): ()
 
     -- Fast path: ~80%+ of real-world varints are single-byte (lengths, counts)
     if value < CONT then
-        Channel.alloc (ch, 1)
-        buffer.writeu8 (ch.buff, ch.cursor, value)
-        ch.cursor += 1
+        local c = ch.cursor
+        if c + 1 > ch.size then
+            alloc (ch, 1)
+        end
+        buffer.writeu8 (ch.buff, c, value)
+        ch.cursor = c + 1
         return
     end
 
-    Channel.alloc (ch, MAX_BYTES)
-    local b = ch.buff
     local c = ch.cursor
+    if c + MAX_BYTES > ch.size then
+        alloc (ch, MAX_BYTES)
+    end
+    local b = ch.buff
 
     while value >= CONT do
         buffer.writeu8 (b, c, bor (band (value, MASK), CONT))

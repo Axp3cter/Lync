@@ -3,6 +3,7 @@
 -- Half-precision float codec. 2 bytes, ±65504, ~3 decimal digits.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
@@ -79,7 +80,6 @@ local function decode (packed: number): number
         result = ldexp (mantissa / MANT_SCALE + 1, exponent - BIAS)
     end
 
-    -- Single sign application
     return if band (packed, SIGN_BIT) ~= 0 then -result else result
 end
 
@@ -89,10 +89,19 @@ local Float16 = {}
 
 Float16.f16 = table.freeze ({
     _size = 2,
+    _directWrite = function (b: buffer, offset: number, value: number): ()
+        buffer.writeu16 (b, offset, encode (value))
+    end,
+    _directRead = function (b: buffer, offset: number): number
+        return decode (buffer.readu16 (b, offset))
+    end,
     write = function (ch: ChannelState, value: number): ()
-        Channel.alloc (ch, 2)
-        buffer.writeu16 (ch.buff, ch.cursor, encode (value))
-        ch.cursor += 2
+        local c = ch.cursor
+        if c + 2 > ch.size then
+            alloc (ch, 2)
+        end
+        buffer.writeu16 (ch.buff, c, encode (value))
+        ch.cursor = c + 2
     end,
     read = function (src: buffer, pos: number, _refs: { Instance }?): (number, number)
         return decode (buffer.readu16 (src, pos)), 2

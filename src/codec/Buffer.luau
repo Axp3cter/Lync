@@ -3,6 +3,7 @@
 -- Raw buffer codec with varint length prefix.
 
 local Channel = require (script.Parent.Parent.core.Channel)
+local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Types)
 local Varint = require (script.Parent.Varint)
 
@@ -16,9 +17,12 @@ Buffer.buff = table.freeze ({
     write = function (ch: ChannelState, value: buffer): ()
         local len = buffer.len (value)
         Varint.write (ch, len)
-        Channel.alloc (ch, len)
-        buffer.copy (ch.buff, ch.cursor, value, 0, len)
-        ch.cursor += len
+        local c = ch.cursor
+        if c + len > ch.size then
+            alloc (ch, len)
+        end
+        buffer.copy (ch.buff, c, value, 0, len)
+        ch.cursor = c + len
     end,
     read = function (src: buffer, pos: number, _refs: { Instance }?): (buffer, number)
         local len, lenBytes = Varint.read (src, pos)

@@ -9,12 +9,7 @@
 
 ---
 
-- **Zero config** — define packets, call `start()`, done
-- **Binary codecs** — typed serialization into buffers, not tables
-- **Delta encoding** — only changed fields hit the wire
-- **XOR framing** — unchanged bytes become zeros, Roblox deflate does the rest
-- **One fire per frame** — all packets batched into a single RemoteEvent
-- **Built-in security** — NaN/inf rejection, rate limiting, validation callbacks
+Define packets, call `start()`. Lync serializes your data into buffers, batches every packet into one RemoteEvent per frame, delta-encodes repeated sends, and XOR-frames the result so Roblox's built-in deflate compresses it down to near-zero. NaN/inf scanning, rate limiting, and validation run automatically on everything coming in.
 
 ---
 

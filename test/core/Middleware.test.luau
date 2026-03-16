@@ -145,4 +145,54 @@ describe ("Middleware error handling", function (): ()
     end)
 end)
 
+describe ("Middleware hasSend / hasReceive flags", function (): ()
+    it ("hasSend is false initially", function (): ()
+        expect (Middleware.hasSend):toBe (false)
+    end)
+    it ("hasReceive is false initially", function (): ()
+        expect (Middleware.hasReceive):toBe (false)
+    end)
+    it ("hasSend becomes true after addSend", function (): ()
+        local r = Middleware.addSend (function (d: any): any?
+            return d
+        end)
+        expect (Middleware.hasSend):toBe (true)
+        r ()
+    end)
+    it ("hasSend becomes false after last remover", function (): ()
+        local r = Middleware.addSend (function (d: any): any?
+            return d
+        end)
+        r ()
+        expect (Middleware.hasSend):toBe (false)
+    end)
+    it ("hasReceive becomes true after addReceive", function (): ()
+        local r = Middleware.addReceive (function (d: any): any?
+            return d
+        end)
+        expect (Middleware.hasReceive):toBe (true)
+        r ()
+    end)
+    it ("hasReceive becomes false after last remover", function (): ()
+        local r = Middleware.addReceive (function (d: any): any?
+            return d
+        end)
+        r ()
+        expect (Middleware.hasReceive):toBe (false)
+    end)
+    it ("hasSend stays true with multiple handlers until all removed", function (): ()
+        local r1 = Middleware.addSend (function (d: any): any?
+            return d
+        end)
+        local r2 = Middleware.addSend (function (d: any): any?
+            return d
+        end)
+        expect (Middleware.hasSend):toBe (true)
+        r1 ()
+        expect (Middleware.hasSend):toBe (true)
+        r2 ()
+        expect (Middleware.hasSend):toBe (false)
+    end)
+end)
+
 return nil

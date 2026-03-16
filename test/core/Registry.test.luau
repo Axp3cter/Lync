@@ -157,4 +157,38 @@ describe ("Registry validation", function (): ()
     end)
 end)
 
+describe ("Registration needsGate", function (): ()
+    it ("false when no rateLimit and no validate", function (): ()
+        local s = { connect = function () end }
+        local reg = Registry.register ("__r_ng1", Lync.u8, false, s, nil, nil)
+        expect (reg.needsGate):toBe (false)
+    end)
+    it ("true when rateLimit set", function (): ()
+        local s = { connect = function () end }
+        local reg = Registry.register ("__r_ng2", Lync.u8, false, s, { maxPerSecond = 10 }, nil)
+        expect (reg.needsGate):toBe (true)
+    end)
+    it ("true when validate set", function (): ()
+        local s = { connect = function () end }
+        local reg = Registry.register ("__r_ng3", Lync.u8, false, s, nil, function ()
+            return true
+        end)
+        expect (reg.needsGate):toBe (true)
+    end)
+    it ("true when both rateLimit and validate set", function (): ()
+        local s = { connect = function () end }
+        local reg = Registry.register (
+            "__r_ng4",
+            Lync.u8,
+            false,
+            s,
+            { maxPerSecond = 5 },
+            function ()
+                return true
+            end
+        )
+        expect (reg.needsGate):toBe (true)
+    end)
+end)
+
 return nil

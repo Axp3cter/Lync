@@ -22,6 +22,14 @@ require (script.codec["Bitfield.test"])
 require (script.codec["Tagged.test"])
 require (script.codec["Tuple.test"])
 require (script.codec["Varint.test"])
+require (script.codec["Custom.test"])
+require (script.codec["IntVector.test"])
+require (script.codec["UDim.test"])
+require (script.codec["NumberRange.test"])
+require (script.codec["Rect.test"])
+require (script.codec["Region.test"])
+require (script.codec["Ray.test"])
+require (script.codec["Sequence.test"])
 
 -- Core -------------------------------------------------------------------
 

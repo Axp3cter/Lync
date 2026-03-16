@@ -219,6 +219,17 @@ declare namespace Lync {
     export const color3: Codec<Color3>;
     export const inst: Codec<Instance>;
     export const buff: Codec<buffer>;
+    export const udim: Codec<UDim>;
+    export const udim2: Codec<UDim2>;
+    export const numberRange: Codec<NumberRange>;
+    export const rect: Codec<Rect>;
+    export const vec2int16: Codec<Vector2int16>;
+    export const vec3int16: Codec<Vector3int16>;
+    export const region3: Codec<Region3>;
+    export const region3int16: Codec<Region3int16>;
+    export const ray: Codec<Ray>;
+    export const numberSequence: Codec<NumberSequence>;
+    export const colorSequence: Codec<ColorSequence>;
 
     // Composites
     export function struct<S extends Record<string, Codec<unknown>>>(schema: S): Codec<InferSchema<S>>;
@@ -240,6 +251,11 @@ declare namespace Lync {
         variants: V,
     ): Codec<InferTagged<Tag, V>>;
     export function tuple<T extends Codec<unknown>[]>(...codecs: T): Codec<InferTuple<T>>;
+    export function custom<T>(
+        size: number,
+        write: (b: buffer, offset: number, value: T) => void,
+        read: (b: buffer, offset: number) => T,
+    ): Codec<T>;
 
     // Special
     export const nothing: Codec<undefined>;

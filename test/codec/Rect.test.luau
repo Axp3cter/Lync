@@ -1,0 +1,38 @@
+--!strict
+--!optimize 2
+local Lync = require (script.Parent.Parent.Parent)
+local Runner = require (script.Parent.Parent.Runner)
+local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
+
+describe ("Rect", function (): ()
+    it ("round-trips zero", function (): ()
+        local r = roundTrip (Lync.rect, Rect.new (0, 0, 0, 0))
+        expect (r.Min.X):toBe (0)
+        expect (r.Min.Y):toBe (0)
+        expect (r.Max.X):toBe (0)
+        expect (r.Max.Y):toBe (0)
+    end)
+    it ("round-trips positive", function (): ()
+        local r = roundTrip (Lync.rect, Rect.new (10, 20, 100, 200))
+        expect (r.Min.X):toBeCloseTo (10)
+        expect (r.Min.Y):toBeCloseTo (20)
+        expect (r.Max.X):toBeCloseTo (100)
+        expect (r.Max.Y):toBeCloseTo (200)
+    end)
+    it ("round-trips negative", function (): ()
+        local r = roundTrip (Lync.rect, Rect.new (-50, -50, 50, 50))
+        expect (r.Min.X):toBeCloseTo (-50)
+        expect (r.Min.Y):toBeCloseTo (-50)
+        expect (r.Max.X):toBeCloseTo (50)
+        expect (r.Max.Y):toBeCloseTo (50)
+    end)
+    it ("uses 16 bytes", function (): ()
+        local _, w = roundTrip (Lync.rect, Rect.new (0, 0, 1, 1))
+        expect (w):toBe (16)
+    end)
+    it ("_size is 16", function (): ()
+        expect ((Lync.rect :: any)._size):toBe (16)
+    end)
+end)
+
+return nil

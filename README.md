@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.0.1"
+Lync = "axp3cter/lync@1.1.0"
 ```
 
 **npm (roblox-ts)**
@@ -35,8 +35,8 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.version` | `"1.0.1"` |
-| `Lync.VERSION` | `"1.0.1"` |
+| `Lync.version` | `"1.1.0"` |
+| `Lync.VERSION` | `"1.1.0"` |
 
 ## Packets
 
@@ -148,6 +148,17 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | `Lync.color3` | 3 | RGB 0-255 per channel, clamped. |
 | `Lync.inst` | 2 | Instance ref through sidecar array. |
 | `Lync.buff` | varint + N | Varint length prefix then raw bytes. |
+| `Lync.udim` | 8 | Scale f32 + Offset i32. |
+| `Lync.udim2` | 16 | 2x UDim (X then Y). |
+| `Lync.numberRange` | 8 | Min f32 + Max f32. |
+| `Lync.rect` | 16 | Min.X f32 + Min.Y f32 + Max.X f32 + Max.Y f32. |
+| `Lync.vec2int16` | 4 | 2x i16. |
+| `Lync.vec3int16` | 6 | 3x i16. |
+| `Lync.region3` | 24 | Min Vec3 + Max Vec3 as 6x f32. |
+| `Lync.region3int16` | 12 | Min Vec3int16 + Max Vec3int16 as 6x i16. |
+| `Lync.ray` | 24 | Origin Vec3 + Direction Vec3 as 6x f32. |
+| `Lync.numberSequence` | varint + N×12 | Varint count then (time f32 + value f32 + envelope f32) per keypoint. |
+| `Lync.colorSequence` | varint + N×7 | Varint count then (time f32 + R u8 + G u8 + B u8) per keypoint. |
 
 ### Composites
 
@@ -178,6 +189,7 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | `Lync.quantizedVec3(min, max, precision)` | Same thing but for all 3 components. |
 | `Lync.bitfield({ key = spec })` | Sub-byte packing, 1 to 32 bits total. Spec is `{ type = "bool" }` or `{ type = "uint", width = N }` or `{ type = "int", width = N }`. |
 | `Lync.tagged(tagField, { name = codec })` | Discriminated union with a u8 variant tag. Puts `tagField` into the decoded table so you know which variant it is. |
+| `Lync.custom(size, write, read)` | User-defined fixed-size codec. `write` is `(b, offset, value) → ()`, `read` is `(b, offset) → value`. Plugs into struct/array/delta specialization automatically. |
 | `Lync.nothing` | Zero bytes. Reads nil. Good for fire-and-forget signals. |
 | `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Use when you dont have a codec for the value. |
 | `Lync.auto` | Self-describing. Writes a u8 type tag then the value. Handles nil, bool, all number types, string, vec2, vec3, color3, cframe, buffer. |

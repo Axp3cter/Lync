@@ -11,23 +11,31 @@ local Channel = require (script.core.Channel)
 local Client = require (script.transport.Client)
 local Color = require (script.codec.Color)
 local Composite = require (script.codec.Composite)
+local Custom = require (script.codec.Custom)
 local EnumCodec = require (script.codec.Enum)
 local Float16 = require (script.codec.Float16)
 local Gate = require (script.transport.Gate)
 local Group = require (script.event.Group)
 local InstanceCodec = require (script.codec.Instance)
+local IntVector = require (script.codec.IntVector)
 local Middleware = require (script.core.Middleware)
 local Namespace = require (script.event.Namespace)
+local NumberRangeCodec = require (script.codec.NumberRange)
 local Packet = require (script.event.Packet)
 local Pool = require (script.core.Pool)
 local Primitive = require (script.codec.Primitive)
 local Quantized = require (script.codec.Quantized)
 local Query = require (script.event.Query)
+local RayCodec = require (script.codec.Ray)
+local RectCodec = require (script.codec.Rect)
+local Region = require (script.codec.Region)
+local Sequence = require (script.codec.Sequence)
 local Server = require (script.transport.Server)
 local Special = require (script.codec.Special)
 local String = require (script.codec.String)
 local Tagged = require (script.codec.Tagged)
 local Tuple = require (script.codec.Tuple)
+local UDimCodec = require (script.codec.UDim)
 local Vector = require (script.codec.Vector)
 
 -- Public -----------------------------------------------------------------
@@ -41,8 +49,8 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "1.0.1",
-    version = "1.0.1",
+    VERSION = "1.1.0",
+    version = "1.1.0",
 
     -- Lifecycle
     start = start,
@@ -72,6 +80,17 @@ local Lync = {
     color3 = Color.color3,
     inst = InstanceCodec.inst,
     buff = Buffer.buff,
+    udim = UDimCodec.udim,
+    udim2 = UDimCodec.udim2,
+    numberRange = NumberRangeCodec.numberRange,
+    rect = RectCodec.rect,
+    vec2int16 = IntVector.vec2int16,
+    vec3int16 = IntVector.vec3int16,
+    region3 = Region.region3,
+    region3int16 = Region.region3int16,
+    ray = RayCodec.ray,
+    numberSequence = Sequence.numberSequence,
+    colorSequence = Sequence.colorSequence,
 
     -- Composites
     struct = Composite.struct,
@@ -89,6 +108,7 @@ local Lync = {
     bitfield = Bitfield.define,
     tagged = Tagged.define,
     tuple = Tuple.define,
+    custom = Custom.define,
 
     -- Special
     nothing = Special.nothing,

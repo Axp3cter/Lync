@@ -1,6 +1,6 @@
 {
     "name": "@rbxts/lync",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "description": "Buffer networking for Roblox. Delta compression, XOR framing, built-in security.",
     "main": "src/init.luau",
     "types": "src/index.d.ts",

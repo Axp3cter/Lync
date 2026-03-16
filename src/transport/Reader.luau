@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Reader.luau — Deserializes incoming buffers and routes by registration kind.
+-- Deserializes incoming buffers and routes by registration kind.
 
 local Baseline = require (script.Parent.Parent.core.Baseline)
 local Gate = require (script.Parent.Gate)
@@ -31,11 +31,8 @@ function Reader.decodeIncoming (data: any): buffer?
     return data
 end
 
---[[
-    Callers (Server/Client receive) already wrap this in pcall.
-    Any codec.read throw propagates up and aborts the entire buffer
-    from this source, which is the correct security behavior.
-]]
+-- Callers wrap this in pcall. Any codec.read throw aborts the entire
+-- buffer from this source, which is the correct security behavior.
 function Reader.process (
     incoming: buffer,
     refs: { Instance }?,
@@ -80,7 +77,7 @@ function Reader.process (
             local codec = reg.codec
             local signal = reg.signal
 
-            -- Hot path: no gate, no middleware — straight decode → fire
+            -- Hot path: no gate, no middleware . Straight decode then fire
             if not (isServer and reg.needsGate) and not hasReceiveMiddleware then
                 for _ = 1, count do
                     if pos >= length then

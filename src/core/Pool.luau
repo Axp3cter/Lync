@@ -21,11 +21,7 @@ local _maxSize = DEFAULT_MAX
 
 local Pool = {}
 
---[[
-    Override the maximum number of idle ChannelStates held in the pool.
-    Each cached entry holds a 1KB buffer + metadata (~1.5KB total).
-    Default is 16 (~24KB). Range: 2–128.
-]]
+-- Override the max idle ChannelStates in the pool. Default 16. Range: 2–128.
 function Pool.setMaxSize (count: number): ()
     if count < 2 or count > 128 then
         error (`[Lync] Pool max size must be 2–128, got {count}`)

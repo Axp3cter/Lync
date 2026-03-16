@@ -36,7 +36,7 @@ local function spawn (fn: (...any) -> (), ...: any): ()
     task.spawn (_freeThread :: thread, fn, ...)
 end
 
--- Entry doubles as the Connection handle — 1 alloc per listener, not 2.
+-- Entry doubles as the Connection handle , 1 alloc per listener instead of 2.
 local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 

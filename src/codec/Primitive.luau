@@ -46,11 +46,7 @@ local Primitive = {
     f32 = numeric (buffer.writef32, buffer.readf32, 4),
     f64 = numeric (buffer.writef64, buffer.readf64, 8),
 
-    --[[
-        _isBool sentinel: Composite.struct reads this to pack boolean fields
-        into bitfields instead of writing them as full bytes. Any custom codec
-        that sets _isBool = true MUST serialize exactly like this.
-    ]]
+    -- _isBool tells struct to pack this field into a bitfield instead of a full byte.
     bool = table.freeze ({
         _size = 1,
         _isBool = true,

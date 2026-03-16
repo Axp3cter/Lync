@@ -57,11 +57,8 @@ function Varint.write (ch: ChannelState, value: number): ()
     ch.cursor = c + 1
 end
 
---[[
-    No explicit bounds check — buffer.readu8 throws on OOB and the caller
-    (Reader.process) is already wrapped in pcall. Only MAX_BYTES is checked
-    to reject malformed varints that would loop forever.
-]]
+-- Reads rely on buffer.readu8 throwing on OOB. Only MAX_BYTES is checked
+-- to reject malformed varints that would loop forever.
 function Varint.read (src: buffer, pos: number): (number, number)
     local result = 0
 

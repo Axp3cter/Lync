@@ -244,7 +244,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | bytenet | 8.11 | 5.07 | 8.35 | 8.46 | 8.46 | 8.47 |
 
 > [!NOTE]
-> Other tool numbers are from [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (v0.17.1, Ryzen 9 7900X, 34GB DDR5-4800). Lync was run on different hardware so FPS numbers arent directly comparable but bandwidth numbers are since Kbps is scaled by 60/FPS. Lync hits the 60 FPS frame cap in both tests — serialization is no longer the bottleneck.
+> Other tool numbers are from [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (v0.17.1, Ryzen 9 7900X, 34GB DDR5-4800). Lync was run on different hardware so FPS numbers arent directly comparable but bandwidth numbers are since Kbps is scaled by 60/FPS. Lync hits the 60 FPS frame cap in both tests. Serialization is no longer the bottleneck.
 
 ## Limits & Configuration
 

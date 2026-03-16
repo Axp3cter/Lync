@@ -40,7 +40,7 @@ local function isClean (value: any, depth: number): boolean
         return isfinite (value)
     end
 
-    -- String, boolean, nil are always clean — exit before table/vector/userdata checks
+    -- String, boolean, nil are always clean . Exit before table/vector/userdata checks
     if t == "string" or t == "boolean" or t == "nil" then
         return true
     end
@@ -126,10 +126,7 @@ end
 
 local Gate = {}
 
---[[
-    Override the maximum recursion depth for NaN/inf scanning. Default is 16.
-    Range: 4–32.
-]]
+-- Override the max recursion depth for NaN/inf scanning. Default 16. Range: 4–32.
 function Gate.setMaxDepth (depth: number): ()
     if depth < 4 or depth > 32 then
         error (`[Lync] Gate max depth must be 4–32, got {depth}`)

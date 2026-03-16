@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Namespace.luau — Scoped packet/query groups with batch ops and local middleware.
+-- Scoped packet/query groups with batch ops and local middleware.
 
 local Middleware = require (script.Parent.Parent.core.Middleware)
 local Packet = require (script.Parent.Packet)
@@ -31,11 +31,7 @@ local function prefixName (nsName: string, name: string): string
     return `{nsName}.{name}`
 end
 
---[[
-    Wraps a middleware handler so it only fires for packets whose name
-    starts with the namespace prefix. Returns the raw data unchanged
-    for non-matching packets so the global chain is unaffected.
-]]
+-- Wraps a middleware handler so it only fires for packets in this namespace.
 local function scopedHandler (
     nsName: string,
     handler: (data: any, name: string, player: Player?) -> any?
@@ -56,11 +52,8 @@ end
 local NamespaceImpl = {}
 NamespaceImpl.__index = NamespaceImpl
 
---[[
-    Listens on every packet in this namespace. The callback receives the
-    short name (without prefix), the deserialized data, and the sender.
-    Returns a single Connection that disconnects all internal listeners.
-]]
+-- Listens on every packet in this namespace. Callback gets the short name,
+-- deserialized data, and sender. Returns a Connection that kills all of them.
 function NamespaceImpl.listenAll (
     self: any,
     callback: (name: string, data: any, sender: Player?) -> ()
@@ -97,11 +90,8 @@ function NamespaceImpl.listenAll (
     return bundle :: any
 end
 
---[[
-    Disconnects every connection that was created through this namespace's
-    listenAll, or through individual packet:listen calls tracked here.
-    Does NOT remove namespace-scoped middleware — call the removers for those.
-]]
+-- Disconnects every connection created through listenAll or tracked listeners.
+-- Does not remove namespace-scoped middleware.
 function NamespaceImpl.disconnectAll (self: any): ()
     for _, conn in self._tracked do
         if conn.connected then
@@ -111,10 +101,7 @@ function NamespaceImpl.disconnectAll (self: any): ()
     table.clear (self._tracked)
 end
 
---[[
-    Registers send middleware that only runs for packets in this namespace.
-    Returns a remover function (same pattern as Lync.onSend).
-]]
+-- Registers send middleware scoped to this namespace. Returns a remover.
 function NamespaceImpl.onSend (
     self: any,
     handler: (data: any, name: string, player: Player?) -> any?
@@ -132,10 +119,7 @@ function NamespaceImpl.onSend (
     end
 end
 
---[[
-    Registers receive middleware that only runs for packets in this namespace.
-    Returns a remover function (same pattern as Lync.onReceive).
-]]
+-- Registers receive middleware scoped to this namespace. Returns a remover.
 function NamespaceImpl.onReceive (
     self: any,
     handler: (data: any, name: string, player: Player?) -> any?
@@ -153,10 +137,7 @@ function NamespaceImpl.onReceive (
     end
 end
 
---[[
-    Removes all namespace-scoped middleware and tracked connections.
-    Use when tearing down a system entirely.
-]]
+-- Kills all listeners and removes all scoped middleware. Full cleanup.
 function NamespaceImpl.destroy (self: any): ()
     self:disconnectAll ()
 
@@ -198,25 +179,8 @@ end
 
 local Namespace = {}
 
---[[
-    Defines a namespace. Packet/query names are automatically prefixed
-    with "NamespaceName." to prevent collisions. The returned table
-    exposes each packet/query by its short name, plus namespace methods.
-
-    Example:
-        local Combat = Lync.defineNamespace("Combat", {
-            packets = {
-                Hit = { value = Lync.struct({ ... }) },
-            },
-            queries = {
-                GetStats = { request = Lync.u32, response = ... },
-            },
-        })
-
-        Combat.Hit:sendTo(data, player)
-        Combat.GetStats:invoke(playerId)
-        Combat:listenAll(function(name, data, player) end)
-]]
+-- Defines a namespace. Names are auto-prefixed with "Namespace." to prevent
+-- collisions. Access packets and queries by short name on the returned table.
 function Namespace.define (name: string, config: NamespaceConfig): any
     if #name == 0 then
         error ("[Lync] Namespace name must not be empty")

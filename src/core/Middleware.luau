@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Middleware.luau — Ordered intercept chains for send and receive.
+-- Ordered intercept chains for send and receive.
 
 -- State ------------------------------------------------------------------
 

@@ -166,11 +166,8 @@ Special.nothing = table.freeze ({
     end,
 })
 
---[[
-    Escape hatch: passes value through the Roblox remote argument sidecar
-    instead of binary-serializing it. Bypasses bandwidth control entirely.
-    Use only when no typed codec exists for the value.
-]]
+-- Passes value through the Roblox remote argument sidecar instead of
+-- binary-serializing it. Use when no typed codec exists for the value.
 Special.unknown = table.freeze ({
     write = function (ch: ChannelState, value: any): ()
         local refs = ch.refs

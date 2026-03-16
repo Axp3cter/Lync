@@ -13,11 +13,8 @@ type Codec<T> = Types.Codec<T>
 
 local Tagged = {}
 
---[[
-    Read injects data[tagField] = variantName into the decoded table.
-    Variant codecs MUST return a mutable table (not frozen). All built-in
-    codecs (struct, deltaStruct, etc.) satisfy this.
-]]
+-- Read injects data[tagField] = variantName into the decoded table.
+-- Variant codecs must return a mutable table (not frozen).
 function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): Codec<any>
     if #tagField == 0 then
         error ("[Lync] Tagged union tagField must not be empty")

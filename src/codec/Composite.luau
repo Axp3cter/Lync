@@ -70,10 +70,7 @@ local function rangeEqual (a: buffer, offA: number, b: buffer, offB: number, len
     return true
 end
 
---[[
-    Extract sorted data-field keys/codecs and sorted bool keys from a schema.
-    Returns parallel arrays (keys + codecs indexed together) and bool keys.
-]]
+-- Sorts schema into parallel data-field arrays and a separate bool key list.
 local function extractFields (
     schema: { [string]: Codec<any> }
 ): ({ string }, { Codec<any> }, { string })
@@ -909,17 +906,13 @@ function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [
     })
 end
 
---[[
-    Delta map: tracks per-key changes between frames.
-    First frame sends all entries (FLAG_FULL). Subsequent frames send only
-    upserts (new or changed key-value pairs) and removes (deleted keys).
-    If nothing changed, sends a single FLAG_UNCHANGED byte.
-
-    Wire format:
-        FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
-        FLAG_UNCHANGED: u8(2)
-        FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
-]]
+-- Delta map: tracks per-key changes between frames. First frame sends everything.
+-- After that, only upserts and removes. Unchanged maps cost 1 byte.
+--
+-- Wire format:
+--   FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
+--   FLAG_UNCHANGED: u8(2)
+--   FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
 function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [any]: any }>
     local deltaId = _nextDeltaId
     _nextDeltaId += 1

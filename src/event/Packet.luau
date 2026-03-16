@@ -45,7 +45,7 @@ function SharedImpl.disconnectAll (self: any): ()
     self._signal:disconnectAll ()
 end
 
--- Server-only metatable — no send(), has sendTo/sendToAll/etc.
+-- Server-only metatable . Has sendTo/sendToAll, no send().
 local ServerImpl = setmetatable ({}, { __index = SharedImpl })
 ServerImpl.__index = ServerImpl
 
@@ -71,7 +71,7 @@ end
 
 table.freeze (ServerImpl)
 
--- Client-only metatable — no sendTo/sendToAll, has send()
+-- Client-only metatable . Has send(), no sendTo/sendToAll
 local ClientImpl = setmetatable ({}, { __index = SharedImpl })
 ClientImpl.__index = ClientImpl
 

@@ -27,10 +27,8 @@ local _currentPacket = ""
 
 local Channel = {}
 
---[[
-    Override the maximum buffer size (in bytes). Must be called before
-    start(). Affects all channels. Range: 4096–1048576 (1 MB).
-]]
+-- Override the maximum buffer size (in bytes). Must be called before
+-- start(). Affects all channels. Range: 4096–1048576 (1 MB).
 function Channel.setMaxSize (bytes: number): ()
     if bytes < 4096 or bytes > 1048576 then
         error (`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
@@ -168,11 +166,9 @@ local function sealOpen (ch: ChannelState): ()
     end
 end
 
---[[
-    Writes a query frame. Seals any open batch, then writes:
-        id (u8) + correlationId (u16) + status (u8)
-    Status 0 = payload follows. Status 1 = nil response.
-]]
+-- Writes a query frame. Seals any open batch, then writes:
+--     id (u8) + correlationId (u16) + status (u8)
+-- Status 0 = payload follows. Status 1 = nil response.
 function Channel.writeQuery (
     ch: ChannelState,
     id: number,

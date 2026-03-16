@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Server.luau — Server-side transport with batching, delta state, frame XOR.
+-- Server-side transport with batching, delta state, frame XOR.
 
 local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
@@ -134,10 +134,7 @@ local function serializeBroadcast (
     return scratch.cursor, snapRefs
 end
 
---[[
-    Shared broadcast: middleware → serialize once → fan out to each player's
-    channel. Accepts _players, a { Player } list, or a group set.
-]]
+-- Shared broadcast: run middleware, serialize once, fan out to each player's channel.
 local function broadcastTo (
     targets: { [any]: any },
     id: number,
@@ -167,7 +164,7 @@ local function broadcastTo (
     end
 
     if type (firstKey) == "number" then
-        -- Array path: { Player } — numeric keys, values are players
+        -- Array path: { Player } . Numeric keys, values are players
         for _, player in targets :: { any } do
             local state = _players[player]
             if not state or (except and player == except) then
@@ -190,7 +187,7 @@ local function broadcastTo (
                 channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
             end
         else
-            -- Group set: { [Player]: true } — look up state from _players
+            -- Group set: { [Player]: true } . Look up state from _players
             for player in targets do
                 local state = _players[player]
                 if not state or (except and player == except) then

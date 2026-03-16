@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Query.luau — Bidirectional request-reply over RemoteEvents.
+-- Bidirectional request-reply over RemoteEvents.
 
 local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
@@ -148,11 +148,8 @@ function QueryImpl.invoke (self: any, request: any, player: Player?): any
     return coroutine.yield ()
 end
 
---[[
-    Send a query to multiple players simultaneously and yield until all
-    respond or time out. Returns { [Player]: response? } where nil means
-    the player timed out or returned nil.
-]]
+-- Send a query to multiple players and yield until all respond or time out.
+-- Returns { [Player]: response? } where nil means timeout or nil response.
 local function invokeMulti (self: any, players: { Player }, request: any): { [Player]: any? }
     if not IS_SERVER then
         error ("[Lync] Multi-invoke is server-only")

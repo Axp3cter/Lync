@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Client.luau — Client-side transport with batching, frame XOR on reliable.
+-- Client-side transport with batching, frame XOR on reliable.
 
 local RunService = game:GetService ("RunService")
 
@@ -98,7 +98,7 @@ function Client.write (
     isUnreliable: boolean
 ): ()
     if not _isStarted then
-        error ("[Lync] Client not started — call Lync.start() before sending")
+        error ("[Lync] Client not started. Call Lync.start() before sending")
     end
 
     local final: any
@@ -124,7 +124,7 @@ function Client.writeQuery (
     data: any
 ): ()
     if not _isStarted then
-        error ("[Lync] Client not started — call Lync.start() before sending")
+        error ("[Lync] Client not started. Call Lync.start() before sending")
     end
 
     local final: any
@@ -142,7 +142,7 @@ end
 
 function Client.writeQueryNil (id: number, name: string, correlationId: number): ()
     if not _isStarted then
-        error ("[Lync] Client not started — call Lync.start() before sending")
+        error ("[Lync] Client not started. Call Lync.start() before sending")
     end
     Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, nil, nil)
 end

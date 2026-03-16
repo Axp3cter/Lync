@@ -148,7 +148,7 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 |:------------|:------------|
 | `Lync.deltaStruct({ key = codec })` | First frame sends everything. After that only dirty fields get sent via bitmask. If nothing changed it costs 1 byte. |
 | `Lync.deltaArray(codec)` | Same idea but for arrays. Dirty elements get sent with varint indices. |
-| `Lync.deltaMap(keyCodec, valueCodec)` | Delta compression for key-value maps. Sends only upserted and removed entries after the first frame. |
+| `Lync.deltaMap(keyCodec, valueCodec)` | Same idea but for maps. Only upserted and removed entries get sent after the first frame. |
 
 ### Specialized
 
@@ -198,10 +198,10 @@ Global intercept on all packets. Handlers run in the order you registered them. 
 
 | Scenario | Without Lync | With Lync | FPS |
 |:---------|------------:|---------:|----:|
-| Static booleans (1B) | 480 Kbps | **2.24 Kbps** | 59.99 |
-| Static entities (34B) | 16,320 Kbps | **2.50 Kbps** | 60.00 |
-| Moving entities | 16,320 Kbps | **3.35 Kbps** | 59.99 |
-| Chaotic entities | 16,320 Kbps | **4.63 Kbps** | 59.99 |
+| Static booleans (1B) | 480 Kbps | **2.27 Kbps** | 60.00 |
+| Static entities (34B) | 16,320 Kbps | **2.55 Kbps** | 59.99 |
+| Moving entities | 16,320 Kbps | **3.10 Kbps** | 59.98 |
+| Chaotic entities | 16,320 Kbps | **4.73 Kbps** | 59.98 |
 
 ### Cross-Library Comparison
 
@@ -215,7 +215,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | blink | 42.00 | 45.00 | 42.00 | 42.00 | 42.00 | 42.00 |
 | zap | 39.00 | 40.00 | 38.00 | 38.00 | 38.00 | 38.00 |
 | bytenet | 32.00 | 34.00 | 32.00 | 32.00 | 32.00 | 31.00 |
-| **lync** | 29.00 | 30.00 | 29.00 | 29.00 | 29.00 | 29.00 |
+| **lync** | 36.00 | 37.00 | 36.00 | 36.00 | 36.00 | 35.00 |
 
 | Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
 |:------------|-------:|---:|----:|----:|----:|-----:|
@@ -223,7 +223,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | blink | 41.81 | 26.30 | 42.40 | 42.48 | 42.48 | 42.62 |
 | zap | 41.71 | 25.46 | 42.19 | 42.32 | 42.32 | 42.93 |
 | bytenet | 41.64 | 22.84 | 42.36 | 42.82 | 42.82 | 43.24 |
-| **lync** | 3.96 | 3.81 | 4.18 | 5.45 | 5.45 | 10.40 |
+| **lync** | 3.75 | 3.73 | 3.81 | 4.42 | 4.42 | 8.04 |
 
 **Booleans** (1000x bool, fired 1000 times/frame)
 
@@ -233,7 +233,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | blink | 97.00 | 98.00 | 97.00 | 96.00 | 96.00 | 96.00 |
 | zap | 52.00 | 53.00 | 51.00 | 51.00 | 51.00 | 49.00 |
 | bytenet | 35.00 | 37.00 | 35.00 | 35.00 | 35.00 | 34.00 |
-| **lync** | 23.00 | 24.00 | 22.00 | 22.00 | 22.00 | 22.00 |
+| **lync** | 30.00 | 31.00 | 30.00 | 30.00 | 30.00 | 30.00 |
 
 | Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
 |:------------|-------:|---:|----:|----:|----:|-----:|
@@ -241,7 +241,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | blink | 7.91 | 7.41 | 7.93 | 7.99 | 7.99 | 8.00 |
 | zap | 8.10 | 5.75 | 8.17 | 8.22 | 8.22 | 8.27 |
 | bytenet | 8.11 | 5.07 | 8.35 | 8.46 | 8.46 | 8.47 |
-| **lync** | 4.90 | 4.67 | 5.04 | 5.25 | 5.25 | 5.66 |
+| **lync** | 4.58 | 4.39 | 4.75 | 4.83 | 4.83 | 4.90 |
 
 > [!NOTE]
 > Other tool numbers are from [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (v0.17.1, Ryzen 9 7900X, 34GB DDR5-4800). Lync was run on different hardware so FPS numbers arent directly comparable but bandwidth numbers are since Kbps is scaled by 60/FPS.

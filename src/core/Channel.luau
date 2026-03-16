@@ -117,30 +117,42 @@ function Channel.writeBatchRaw (
     end
 end
 
---[[
-    Write a query frame (request or response). Seals any open batch,
-    writes the id + correlationId header, serializes the payload,
-    then marks the batch state as closed.
-]]
-function Channel.writeQuery (
-    ch: ChannelState,
-    id: number,
-    correlationId: number,
-    codec: any,
-    data: any
-): ()
+local function sealOpen (ch: ChannelState): ()
     if ch.lastId >= 0 then
         buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.batchCount = 0
     end
+end
 
-    Channel.alloc (ch, 2)
-    buffer.writeu8 (ch.buff, ch.cursor, id)
-    buffer.writeu8 (ch.buff, ch.cursor + 1, correlationId)
-    ch.cursor += 2
-    codec.write (ch, data)
+--[[
+    Write a query frame. Seals any open batch, writes id + correlationId +
+    status header. If codec is provided, writes status 0 + payload.
+    If codec is nil, writes status 1 (nil response, no payload).
+]]
+function Channel.writeQuery (
+    ch: ChannelState,
+    id: number,
+    correlationId: number,
+    codec: any?,
+    data: any?
+): ()
+    sealOpen (ch)
+
+    Channel.alloc (ch, 3)
+    local c = ch.cursor
+    buffer.writeu8 (ch.buff, c, id)
+    buffer.writeu8 (ch.buff, c + 1, correlationId)
+
+    if codec then
+        buffer.writeu8 (ch.buff, c + 2, 0)
+        ch.cursor = c + 3
+        codec.write (ch, data)
+    else
+        buffer.writeu8 (ch.buff, c + 2, 1)
+        ch.cursor = c + 3
+    end
 end
 
 --[[

@@ -6,7 +6,8 @@ local Players = game:GetService ("Players")
 
 -- State ------------------------------------------------------------------
 
-local _groups = {} :: { [string]: { [Player]: true } }
+local _groups       = {} :: { [string]: { [Player]: true } }
+local _counts       = {} :: { [string]: number }
 local _playerGroups = {} :: { [Player]: { [string]: true } }
 
 -- Private ----------------------------------------------------------------
@@ -19,8 +20,9 @@ local function onPlayerRemoving (player: Player): ()
 
     for name in memberships do
         local set = _groups[name]
-        if set then
+        if set and set[player] then
             set[player] = nil
+            _counts[name] -= 1
         end
     end
 
@@ -46,6 +48,7 @@ function Group.create (name: string): ()
         error (`[Lync] Group already exists: {name}`)
     end
     _groups[name] = {}
+    _counts[name] = 0
 end
 
 function Group.destroy (name: string): ()
@@ -59,6 +62,7 @@ function Group.destroy (name: string): ()
     end
 
     _groups[name] = nil
+    _counts[name] = nil
 end
 
 function Group.add (name: string, player: Player): boolean
@@ -69,6 +73,7 @@ function Group.add (name: string, player: Player): boolean
     end
 
     set[player] = true
+    _counts[name] += 1
 
     local memberships = _playerGroups[player]
     if not memberships then
@@ -88,6 +93,7 @@ function Group.remove (name: string, player: Player): boolean
     end
 
     set[player] = nil
+    _counts[name] -= 1
 
     local memberships = _playerGroups[player]
     if memberships then
@@ -100,6 +106,11 @@ end
 function Group.has (name: string, player: Player): boolean
     local set = getSetOrError (name)
     return set[player] == true
+end
+
+function Group.count (name: string): number
+    getSetOrError (name)
+    return _counts[name]
 end
 
 function Group.getSet (name: string): { [Player]: true }

@@ -99,8 +99,17 @@ local function flush (): ()
     local unreliable = Bridge.unreliable
 
     for player, state in _players do
-        flushChannel (reliable, state.reliable, player, true)
-        flushChannel (unreliable, state.unreliable, player, false)
+        local ok, err = pcall (flushChannel, reliable, state.reliable, player, true)
+        if not ok then
+            warn (`[Lync] Flush failed for {player.Name} ({player.UserId}): {err}`)
+            Channel.reset (state.reliable)
+        end
+
+        local ok2, err2 = pcall (flushChannel, unreliable, state.unreliable, player, false)
+        if not ok2 then
+            warn (`[Lync] Flush failed for {player.Name} ({player.UserId}): {err2}`)
+            Channel.reset (state.unreliable)
+        end
     end
 end
 
@@ -251,7 +260,8 @@ function Server.writeToGroup (
     broadcastTo (Group.getSet (groupName) :: any, id, name, codec, data, isUnreliable, nil)
 end
 
-function Server.writeQueryResponse (
+-- Shared for both query requests and responses (identical wire format).
+function Server.writeQuery (
     player: Player,
     id: number,
     name: string,
@@ -270,6 +280,15 @@ function Server.writeQueryResponse (
     end
 
     Channel.writeQuery (state.reliable, id, correlationId, codec, final)
+end
+
+function Server.writeQueryNil (player: Player, id: number, correlationId: number): ()
+    local state = _players[player]
+    if not state then
+        return
+    end
+
+    Channel.writeQuery (state.reliable, id, correlationId, nil, nil)
 end
 
 return table.freeze (Server)

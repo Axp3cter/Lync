@@ -38,7 +38,7 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "0.4.0-alpha",
+    VERSION = "0.5.0-alpha",
 
     -- Lifecycle
     start = start,
@@ -101,6 +101,7 @@ local Lync = {
     removeFromGroup = Group.remove,
     hasInGroup = Group.has,
     getGroupSet = Group.getSet,
+    groupCount = Group.count,
     forEachInGroup = Group.forEach,
 }
 

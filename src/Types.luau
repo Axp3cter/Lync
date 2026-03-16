@@ -34,6 +34,8 @@ export type QueryConfig<Req, Resp> = {
     request: Codec<Req>,
     response: Codec<Resp>,
     timeout: number?,
+    rateLimit: RateLimitConfig?,
+    validate: ((data: Req, player: Player) -> (boolean, string?))?,
 }
 
 export type Registration = {

@@ -1,31 +1,31 @@
 --!strict
 --!native
--- Pack booleans and small integers at the bit level.
+-- Pack booleans, unsigned and signed integers at the bit level.
 
 local Channel = require (script.Parent.Parent.core.Channel)
-local Types = require (script.Parent.Parent.Types)
+local Types   = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
+type Codec<T>     = Types.Codec<T>
 
 -- Constants --------------------------------------------------------------
 
-local band = bit32.band
-local bor = bit32.bor
+local band   = bit32.band
+local bor    = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
 -- Private ----------------------------------------------------------------
 
 type FieldSpec = {
-    type: "bool" | "uint",
+    type: "bool" | "uint" | "int",
     width: number?,
 }
 
-local function selectIO (bytes: number): ((b: buffer, offset: number, v: number) -> (), (
-    b: buffer,
-    offset: number
-) -> number)
+local function selectIO (bytes: number): (
+    (b: buffer, offset: number, v: number) -> (),
+    (b: buffer, offset: number) -> number
+)
     if bytes == 1 then
         return buffer.writeu8, buffer.readu8
     end
@@ -53,17 +53,21 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
         error ("[Lync] Bitfield requires at least one field")
     end
 
-    -- Build flat parallel arrays for zero-indirection hot path
-    local keys = table.create (count) :: { string }
-    local isBool = table.create (count) :: { boolean }
+    local keys    = table.create (count) :: { string }
+    local isBool  = table.create (count) :: { boolean }
     local offsets = table.create (count) :: { number }
-    local masks = table.create (count) :: { number }
+    local masks   = table.create (count) :: { number }
+
+    local hasSigned   = false
+    local signBits    = nil :: { number }?
+    local signExtends = nil :: { number }?
 
     local totalBits = 0
     for i = 1, count do
-        local key = sortedKeys[i]
+        local key  = sortedKeys[i]
         local spec = schema[key]
         local specIsBool = spec.type == "bool"
+        local specIsSigned = spec.type == "int"
         local width: number
 
         if specIsBool then
@@ -78,15 +82,39 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
             end
         end
 
-        keys[i] = key
-        isBool[i] = specIsBool
+        if specIsSigned then
+            hasSigned = true
+        end
+
+        keys[i]    = key
+        isBool[i]  = specIsBool
         offsets[i] = totalBits
-        masks[i] = lshift (1, width) - 1
+        masks[i]   = lshift (1, width) - 1
         totalBits += width
     end
 
     if totalBits > 32 then
         error (`[Lync] Bitfield exceeds 32 bits: {totalBits}`)
+    end
+
+    -- Only build sign tables when at least one field is signed
+    if hasSigned then
+        signBits = table.create (count) :: { number }
+        signExtends = table.create (count) :: { number }
+
+        for i = 1, count do
+            local spec = schema[sortedKeys[i]]
+            if spec.type == "int" then
+                (signBits :: { number })[i] = lshift (1, (spec.width :: number) - 1)
+                ;(signExtends :: { number })[i] = lshift (1, spec.width :: number)
+            else
+                (signBits :: { number })[i] = 0
+                ;(signExtends :: { number })[i] = 0
+            end
+        end
+
+        table.freeze (signBits :: { number })
+        table.freeze (signExtends :: { number })
     end
 
     table.freeze (keys)
@@ -116,9 +144,25 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
             local packed = rfn (src, pos)
             local result = {}
 
-            for i = 1, count do
-                local raw = band (rshift (packed, offsets[i]), masks[i])
-                result[keys[i]] = if isBool[i] then raw ~= 0 else raw
+            if hasSigned then
+                local sb = signBits :: { number }
+                local se = signExtends :: { number }
+
+                for i = 1, count do
+                    local raw = band (rshift (packed, offsets[i]), masks[i])
+                    if isBool[i] then
+                        result[keys[i]] = raw ~= 0
+                    elseif sb[i] > 0 and raw >= sb[i] then
+                        result[keys[i]] = raw - se[i]
+                    else
+                        result[keys[i]] = raw
+                    end
+                end
+            else
+                for i = 1, count do
+                    local raw = band (rshift (packed, offsets[i]), masks[i])
+                    result[keys[i]] = if isBool[i] then raw ~= 0 else raw
+                end
             end
 
             return result, bytes

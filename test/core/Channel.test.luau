@@ -226,4 +226,43 @@ describe ("Channel.reset", function (): ()
     end)
 end)
 
+describe ("Channel.writeQuery with payload", function (): ()
+    it ("writes id + correlationId + status(0) + payload", function (): ()
+        local ch = Channel.create ()
+        local codec = {
+            write = function (c: any, v: any): ()
+                Channel.alloc (c, 1)
+                buffer.writeu8 (c.buff, c.cursor, v)
+                c.cursor += 1
+            end,
+        }
+        Channel.writeQuery (ch, 7, 42, codec, 0xBB)
+        expect (ch.cursor):toBe (4)
+        expect (buffer.readu8 (ch.buff, 0)):toBe (7)
+        expect (buffer.readu8 (ch.buff, 1)):toBe (42)
+        expect (buffer.readu8 (ch.buff, 2)):toBe (0)
+        expect (buffer.readu8 (ch.buff, 3)):toBe (0xBB)
+    end)
+    it ("seals open batch before writing", function (): ()
+        local ch = Channel.create ()
+        local noopCodec = { write = function (c: any, _: any): () end }
+        Channel.writeBatch (ch, 1, noopCodec, nil)
+        local batchEnd = ch.cursor
+        Channel.writeQuery (ch, 5, 10, noopCodec, nil)
+        -- Batch header should be sealed: count at offset 1 should be 1
+        expect (buffer.readu16 (ch.buff, 1)):toBe (1)
+    end)
+end)
+
+describe ("Channel.writeQuery nil (no codec)", function (): ()
+    it ("writes id + correlationId + status(1), 3 bytes total", function (): ()
+        local ch = Channel.create ()
+        Channel.writeQuery (ch, 3, 99, nil, nil)
+        expect (ch.cursor):toBe (3)
+        expect (buffer.readu8 (ch.buff, 0)):toBe (3)
+        expect (buffer.readu8 (ch.buff, 1)):toBe (99)
+        expect (buffer.readu8 (ch.buff, 2)):toBe (1)
+    end)
+end)
+
 return nil

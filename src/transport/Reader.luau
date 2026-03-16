@@ -93,12 +93,22 @@ function Reader.process (
                 signal:fire (final, player)
             end
         else
-            if pos >= length then
+            if pos + 1 >= length then
                 break
             end
 
             local correlationId = buffer.readu8 (incoming, pos)
-            pos += 1
+            local status = buffer.readu8 (incoming, pos + 1)
+            pos += 2
+
+            if status == 1 then
+                if kind == KIND_REQUEST then
+                    reg.signal:fire (nil, player, correlationId)
+                else
+                    reg.signal:fire (nil, correlationId)
+                end
+                continue
+            end
 
             local value, consumed = reg.codec.read (incoming, pos, refs)
             pos += consumed

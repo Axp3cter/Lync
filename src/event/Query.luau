@@ -1,14 +1,14 @@
 --!strict
 --!optimize 2
--- Request-reply over RemoteEvents.
+-- Bidirectional request-reply over RemoteEvents.
 
 local RunService = game:GetService ("RunService")
 
-local Client = require (script.Parent.Parent.transport.Client)
+local Client   = require (script.Parent.Parent.transport.Client)
 local Registry = require (script.Parent.Parent.core.Registry)
-local Server = require (script.Parent.Parent.transport.Server)
-local Signal = require (script.Parent.Parent.event.Signal)
-local Types = require (script.Parent.Parent.Types)
+local Server   = require (script.Parent.Parent.transport.Server)
+local Signal   = require (script.Parent.Parent.event.Signal)
+local Types    = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 type QueryConfig<R, S> = Types.QueryConfig<R, S>
@@ -17,7 +17,6 @@ type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
 local IS_SERVER = RunService:IsServer ()
 
--- Correlation IDs are u8 on the wire. This ceiling MUST NOT exceed 256.
 local MAX_PENDING = 256
 
 -- State ------------------------------------------------------------------
@@ -27,15 +26,12 @@ type PendingQuery = {
     timeout: thread?,
 }
 
-local _pending = {} :: { [number]: PendingQuery }
-
--- Free-stack for O(1) correlation ID allocation
+local _pending   = {} :: { [number]: PendingQuery }
 local _freeStack = table.create (MAX_PENDING) :: { number }
 local _freeDepth = MAX_PENDING
 
 -- Private ----------------------------------------------------------------
 
--- Pre-fill the free stack with all IDs
 for i = 0, MAX_PENDING - 1 do
     _freeStack[i + 1] = i
 end
@@ -76,38 +72,52 @@ local function onTimeout (correlation: number): ()
     completeQuery (correlation, nil)
 end
 
--- Query class
+-- Query class ------------------------------------------------------------
+
 local QueryImpl = {}
 QueryImpl.__index = QueryImpl
 
 function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
-    if not IS_SERVER then
-        error ("[Lync] Query:listen is server-only")
-    end
-
-    local respId = self._respReg.id
-    local respName = self._name
+    local respId    = self._respReg.id
+    local respName  = self._name
     local respCodec = self._respReg.codec
 
-    return self._reqReg.signal:connect (
-        function (request: any, player: Player, correlation: number): ()
-            local ok, response = pcall (callback, request, player)
-            if not ok then
-                warn (`[Lync] Query "{respName}" handler error: {response}`)
-                return
-            end
-            if response == nil then
-                return
-            end
+    if IS_SERVER then
+        return self._reqReg.signal:connect (
+            function (request: any, player: Player, correlation: number): ()
+                local ok, response = pcall (callback, request, player)
+                if not ok then
+                    warn (`[Lync] Query "{respName}" handler error: {response}`)
+                end
 
-            Server.writeQueryResponse (player, respId, respName, correlation, respCodec, response)
-        end
-    )
+                if ok and response ~= nil then
+                    Server.writeQuery (player, respId, respName, correlation, respCodec, response)
+                else
+                    Server.writeQueryNil (player, respId, correlation)
+                end
+            end
+        )
+    else
+        return self._reqReg.signal:connect (
+            function (request: any, _player: Player?, correlation: number): ()
+                local ok, response = pcall (callback, request)
+                if not ok then
+                    warn (`[Lync] Query "{respName}" handler error: {response}`)
+                end
+
+                if ok and response ~= nil then
+                    Client.writeQuery (respId, respName, correlation, respCodec, response)
+                else
+                    Client.writeQueryNil (respId, correlation)
+                end
+            end
+        )
+    end
 end
 
-function QueryImpl.invoke (self: any, request: any): any
-    if IS_SERVER then
-        error ("[Lync] Query:invoke is client-only")
+function QueryImpl.invoke (self: any, request: any, player: Player?): any
+    if IS_SERVER and not player then
+        error ("[Lync] Query:invoke on server requires a player argument")
     end
 
     local correlation = allocCorrelation ()
@@ -115,10 +125,17 @@ function QueryImpl.invoke (self: any, request: any): any
 
     local entry: PendingQuery = { thread = thread, timeout = nil }
     _pending[correlation] = entry
-    Client.writeQueryRequest (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
+
+    if IS_SERVER then
+        Server.writeQuery (
+            player :: Player, self._reqReg.id, self._name,
+            correlation, self._reqReg.codec, request
+        )
+    else
+        Client.writeQuery (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
+    end
 
     entry.timeout = task.delay (self._timeout, onTimeout, correlation)
-
     return coroutine.yield ()
 end
 
@@ -134,21 +151,21 @@ function Query.define (name: string, config: QueryConfig<any, any>): any
         error (`[Lync] Query "{name}" requires a response codec`)
     end
 
-    local reqSignal = Signal.create ()
+    local reqSignal  = Signal.create ()
     local respSignal = Signal.create ()
 
-    local reqReg, respReg =
-        Registry.registerQueryPair (name, config.request, config.response, reqSignal, respSignal)
+    local reqReg, respReg = Registry.registerQueryPair (
+        name, config.request, config.response, reqSignal, respSignal,
+        config.rateLimit, config.validate
+    )
 
-    if not IS_SERVER then
-        respSignal:connect (function (resp: any, correlation: number): ()
-            completeQuery (correlation, resp)
-        end)
-    end
+    respSignal:connect (function (resp: any, correlation: number): ()
+        completeQuery (correlation, resp)
+    end)
 
     return setmetatable ({
-        _name = name,
-        _reqReg = reqReg,
+        _name    = name,
+        _reqReg  = reqReg,
         _respReg = respReg,
         _timeout = config.timeout or 5,
     }, QueryImpl)

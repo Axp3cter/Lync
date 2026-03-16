@@ -555,4 +555,106 @@ describe ("Bitfield fidelity under pipeline", function (): ()
     end)
 end)
 
+describe ("Signed bitfield fidelity under pipeline", function (): ()
+    local codec = Lync.bitfield ({
+        alive = { type = "bool" },
+        delta = { type = "int", width = 5 },
+        team = { type = "uint", width = 3 },
+    })
+
+    it ("positive signed survives pipeline", function (): ()
+        local r = pipelineRoundTrip (codec, { alive = true, delta = 15, team = 7 }, nil)
+        expect (r.alive):toBe (true)
+        expect (r.delta):toBe (15)
+        expect (r.team):toBe (7)
+    end)
+    it ("negative signed survives pipeline", function (): ()
+        local r = pipelineRoundTrip (codec, { alive = false, delta = -16, team = 0 }, nil)
+        expect (r.alive):toBe (false)
+        expect (r.delta):toBe (-16)
+        expect (r.team):toBe (0)
+    end)
+    it ("zero signed survives pipeline", function (): ()
+        local r = pipelineRoundTrip (codec, { alive = true, delta = 0, team = 3 }, nil)
+        expect (r.delta):toBe (0)
+    end)
+end)
+
+describe ("Pipeline: query frame with status byte", function (): ()
+    it ("status 0 + payload round-trips through channel", function (): ()
+        local ch = Channel.create ()
+        Channel.writeQuery (ch, 1, 42, Lync.u32, 12345)
+
+        local raw = buffer.create (ch.cursor)
+        buffer.copy (raw, 0, ch.buff, 0, ch.cursor)
+
+        -- Parse: id(1) + correlation(1) + status(1) + u32(4) = 7
+        expect (ch.cursor):toBe (7)
+        expect (buffer.readu8 (raw, 0)):toBe (1)
+        expect (buffer.readu8 (raw, 1)):toBe (42)
+        expect (buffer.readu8 (raw, 2)):toBe (0)
+        expect (buffer.readu32 (raw, 3)):toBe (12345)
+    end)
+    it ("status 1 (nil) is exactly 3 bytes", function (): ()
+        local ch = Channel.create ()
+        Channel.writeQuery (ch, 5, 99, nil, nil)
+
+        expect (ch.cursor):toBe (3)
+        expect (buffer.readu8 (ch.buff, 0)):toBe (5)
+        expect (buffer.readu8 (ch.buff, 1)):toBe (99)
+        expect (buffer.readu8 (ch.buff, 2)):toBe (1)
+    end)
+    it ("mixed batch + query + nil query in one channel", function (): ()
+        local ch = Channel.create ()
+
+        -- Batch
+        Channel.writeBatch (ch, 1, Lync.u8, 42)
+        Channel.sealAndDump (ch)
+        local afterBatch = ch.cursor
+
+        -- Query with payload
+        Channel.writeQuery (ch, 2, 10, Lync.u8, 99)
+        local afterQuery = ch.cursor
+        expect (afterQuery - afterBatch):toBe (4) -- id + corr + status + u8
+
+        -- Nil query
+        Channel.writeQuery (ch, 3, 20, nil, nil)
+        expect (ch.cursor - afterQuery):toBe (3) -- id + corr + status
+    end)
+end)
+
+describe ("Pipeline: XOR with query frames", function (): ()
+    it ("query frame XOR'd against nil previous recovers", function (): ()
+        local ch = Channel.create ()
+        Channel.writeQuery (ch, 1, 0, Lync.f32, 3.14)
+
+        local raw = buffer.create (ch.cursor)
+        buffer.copy (raw, 0, ch.buff, 0, ch.cursor)
+
+        local xored = Channel.xorApply (raw, nil)
+        expect (buffersEqual (xored, raw)):toBe (true)
+    end)
+    it ("identical query frames XOR to zero", function (): ()
+        local ch1 = Channel.create ()
+        local ch2 = Channel.create ()
+        Channel.writeQuery (ch1, 1, 5, Lync.u16, 1000)
+        Channel.writeQuery (ch2, 1, 5, Lync.u16, 1000)
+
+        local raw1 = buffer.create (ch1.cursor)
+        buffer.copy (raw1, 0, ch1.buff, 0, ch1.cursor)
+        local raw2 = buffer.create (ch2.cursor)
+        buffer.copy (raw2, 0, ch2.buff, 0, ch2.cursor)
+
+        local xored = Channel.xorApply (raw2, raw1)
+        local allZero = true
+        for i = 0, buffer.len (xored) - 1 do
+            if buffer.readu8 (xored, i) ~= 0 then
+                allZero = false
+                break
+            end
+        end
+        expect (allZero):toBe (true)
+    end)
+end)
+
 return nil

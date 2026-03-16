@@ -4,23 +4,29 @@
 
 local RunService = game:GetService ("RunService")
 
-local Bridge = require (script.Parent.Bridge)
-local Channel = require (script.Parent.Parent.core.Channel)
+local Bridge     = require (script.Parent.Bridge)
+local Channel    = require (script.Parent.Parent.core.Channel)
 local Middleware = require (script.Parent.Parent.core.Middleware)
-local Reader = require (script.Parent.Reader)
-local Types = require (script.Parent.Parent.Types)
+local Reader     = require (script.Parent.Reader)
+local Types      = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
+type Codec<T>     = Types.Codec<T>
 
 -- State ------------------------------------------------------------------
 
-local _reliable = nil :: ChannelState?
+local _reliable   = nil :: ChannelState?
 local _unreliable = nil :: ChannelState?
-local _prevRecv = nil :: buffer?
-local _isStarted = false
+local _prevRecv   = nil :: buffer?
+local _isStarted  = false
 
 -- Private ----------------------------------------------------------------
+
+local function assertStarted (): ()
+    if not _isStarted then
+        error ("[Lync] Client not started — call Lync.start() before sending")
+    end
+end
 
 local function receive (data: any, refs: any, applyXor: boolean): ()
     local buf = Reader.decodeIncoming (data)
@@ -97,29 +103,38 @@ function Client.write (
     data: any,
     isUnreliable: boolean
 ): ()
+    assertStarted ()
+
     local final = Middleware.runSend (data, name, nil)
     if final == nil then
         return
     end
 
     local ch = if isUnreliable then _unreliable :: ChannelState else _reliable :: ChannelState
-
     Channel.writeBatch (ch, id, codec, final)
 end
 
-function Client.writeQueryRequest (
+-- Shared for both query requests and responses (identical wire format).
+function Client.writeQuery (
     id: number,
     name: string,
     correlationId: number,
     codec: Codec<any>,
     data: any
 ): ()
+    assertStarted ()
+
     local final = Middleware.runSend (data, name, nil)
     if final == nil then
         return
     end
 
     Channel.writeQuery (_reliable :: ChannelState, id, correlationId, codec, final)
+end
+
+function Client.writeQueryNil (id: number, correlationId: number): ()
+    assertStarted ()
+    Channel.writeQuery (_reliable :: ChannelState, id, correlationId, nil, nil)
 end
 
 return table.freeze (Client)

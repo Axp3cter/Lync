@@ -1,5 +1,5 @@
 --!strict
---!optimize 2
+--!native
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
 local Types = require (script.Parent.Parent.Types)

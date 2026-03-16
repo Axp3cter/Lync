@@ -55,7 +55,7 @@ describe ("Channel.alloc", function (): ()
     it ("throws on overflow", function (): ()
         expect (function (): ()
             Channel.alloc (Channel.create (), Channel.getMaxSize () + 1)
-        end):toThrow ("buffer overflow")
+        end):toThrow ("overflow writing")
     end)
     it ("allows alloc at max", function (): ()
         expect (function (): ()
@@ -77,8 +77,8 @@ describe ("Channel.writeBatch + sealAndDump", function (): ()
                 c.cursor += 1
             end,
         }
-        Channel.writeBatch (ch, 5, codec, 0xAA)
-        Channel.writeBatch (ch, 5, codec, 0xBB)
+        Channel.writeBatch (ch, 5, "test", codec, 0xAA)
+        Channel.writeBatch (ch, 5, "test", codec, 0xBB)
         Channel.sealAndDump (ch)
         expect (ch.cursor):toBe (5) -- 1 id + 2 count + 2 payload
         expect (buffer.readu8 (ch.buff, 0)):toBe (5)
@@ -95,8 +95,8 @@ describe ("Channel.writeBatch + sealAndDump", function (): ()
                 c.cursor += 1
             end,
         }
-        Channel.writeBatch (ch, 1, codec, nil)
-        Channel.writeBatch (ch, 2, codec, nil)
+        Channel.writeBatch (ch, 1, "test", codec, nil)
+        Channel.writeBatch (ch, 2, "test", codec, nil)
         Channel.sealAndDump (ch)
         -- Two headers: (1+2+1) + (1+2+1) = 8
         expect (ch.cursor):toBe (8)
@@ -239,7 +239,7 @@ describe ("Channel.writeQuery with payload", function (): ()
                 c.cursor += 1
             end,
         }
-        Channel.writeQuery (ch, 7, 42, codec, 0xBB)
+        Channel.writeQuery (ch, 7, "test", 42, codec, 0xBB)
         expect (ch.cursor):toBe (5) -- 1 + 2 + 1 + 1
         expect (buffer.readu8 (ch.buff, 0)):toBe (7)
         expect (buffer.readu16 (ch.buff, 1)):toBe (42)
@@ -249,14 +249,14 @@ describe ("Channel.writeQuery with payload", function (): ()
     it ("handles large correlationId", function (): ()
         local ch = Channel.create ()
         local noopCodec = { write = function (_: any, _: any): () end }
-        Channel.writeQuery (ch, 1, 60000, noopCodec, nil)
+        Channel.writeQuery (ch, 1, "test", 60000, noopCodec, nil)
         expect (buffer.readu16 (ch.buff, 1)):toBe (60000)
     end)
     it ("seals open batch before writing", function (): ()
         local ch = Channel.create ()
         local noopCodec = { write = function (_: any, _: any): () end }
-        Channel.writeBatch (ch, 1, noopCodec, nil)
-        Channel.writeQuery (ch, 5, 10, noopCodec, nil)
+        Channel.writeBatch (ch, 1, "test", noopCodec, nil)
+        Channel.writeQuery (ch, 5, "test", 10, noopCodec, nil)
         -- Batch header should be sealed: count at offset 1 should be 1
         expect (buffer.readu16 (ch.buff, 1)):toBe (1)
     end)
@@ -265,7 +265,7 @@ end)
 describe ("Channel.writeQuery nil (no codec)", function (): ()
     it ("writes id(u8) + correlationId(u16) + status(u8), 4 bytes total", function (): ()
         local ch = Channel.create ()
-        Channel.writeQuery (ch, 3, 99, nil, nil)
+        Channel.writeQuery (ch, 3, "test", 99, nil, nil)
         expect (ch.cursor):toBe (4) -- 1 + 2 + 1
         expect (buffer.readu8 (ch.buff, 0)):toBe (3)
         expect (buffer.readu16 (ch.buff, 1)):toBe (99)

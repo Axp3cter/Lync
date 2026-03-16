@@ -1,5 +1,5 @@
 --!strict
--- Shared type definitions.
+-- Types.luau — Shared type definitions.
 
 export type ChannelState = {
     buff: buffer,
@@ -49,6 +49,7 @@ export type Registration = {
     signal: any,
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
+    needsGate: boolean,
 }
 
 export type Connection = {

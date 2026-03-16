@@ -63,6 +63,7 @@ local function assign (
         signal = signal,
         rateLimit = rateLimit,
         validate = validate,
+        needsGate = rateLimit ~= nil or validate ~= nil,
     }
 
     _entries[id] = reg

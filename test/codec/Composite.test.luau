@@ -296,6 +296,96 @@ describe ("deltaArray read fidelity", function (): ()
     end)
 end)
 
+-- deltaMap ---------------------------------------------------------------
+
+describe ("deltaMap lifecycle", function (): ()
+    local codec = Lync.deltaMap (Lync.string, Lync.u16)
+    it ("_isDelta is true", function (): ()
+        expect ((codec :: any)._isDelta):toBe (true)
+    end)
+    it ("first = FLAG_FULL", function (): ()
+        local ch = Channel.create ()
+        codec.write (ch, { gold = 100, silver = 50 })
+        expect (buffer.readu8 (ch.buff, 0)):toBe (1)
+    end)
+    it ("unchanged = FLAG_UNCHANGED", function (): ()
+        local ch = Channel.create ()
+        codec.write (ch, { gold = 100, silver = 50 })
+        local pos = ch.cursor
+        codec.write (ch, { gold = 100, silver = 50 })
+        expect (ch.cursor - pos):toBe (1)
+        expect (buffer.readu8 (ch.buff, pos)):toBe (2)
+    end)
+    it ("value change = FLAG_DELTA", function (): ()
+        local ch = Channel.create ()
+        codec.write (ch, { gold = 100, silver = 50 })
+        local pos = ch.cursor
+        codec.write (ch, { gold = 200, silver = 50 })
+        expect (buffer.readu8 (ch.buff, pos)):toBe (0)
+    end)
+    it ("key insert = FLAG_DELTA", function (): ()
+        local ch = Channel.create ()
+        codec.write (ch, { gold = 100 })
+        local pos = ch.cursor
+        codec.write (ch, { gold = 100, silver = 50 })
+        expect (buffer.readu8 (ch.buff, pos)):toBe (0)
+    end)
+    it ("key remove = FLAG_DELTA", function (): ()
+        local ch = Channel.create ()
+        codec.write (ch, { gold = 100, silver = 50 })
+        local pos = ch.cursor
+        codec.write (ch, { gold = 100 })
+        expect (buffer.readu8 (ch.buff, pos)):toBe (0)
+    end)
+end)
+
+describe ("deltaMap read fidelity", function (): ()
+    local codec = Lync.deltaMap (Lync.string, Lync.u16)
+    it ("multi-step: full → unchanged → upsert → remove", function (): ()
+        Baseline.setReadKey ("__dm_fidelity")
+        local ch = Channel.create ()
+
+        -- Full
+        codec.write (ch, { gold = 100, silver = 50 })
+        local b1 = buffer.create (ch.cursor)
+        buffer.copy (b1, 0, ch.buff, 0, ch.cursor)
+        local r1 = codec.read (b1, 0, nil)
+        expect (r1.gold):toBe (100)
+        expect (r1.silver):toBe (50)
+
+        -- Unchanged
+        local p2 = ch.cursor
+        codec.write (ch, { gold = 100, silver = 50 })
+        local b2 = buffer.create (ch.cursor - p2)
+        buffer.copy (b2, 0, ch.buff, p2, ch.cursor - p2)
+        local r2 = codec.read (b2, 0, nil)
+        expect (r2.gold):toBe (100)
+        expect (r2.silver):toBe (50)
+
+        -- Upsert (change gold, add bronze)
+        local p3 = ch.cursor
+        codec.write (ch, { gold = 200, silver = 50, bronze = 10 })
+        local b3 = buffer.create (ch.cursor - p3)
+        buffer.copy (b3, 0, ch.buff, p3, ch.cursor - p3)
+        local r3 = codec.read (b3, 0, nil)
+        expect (r3.gold):toBe (200)
+        expect (r3.silver):toBe (50)
+        expect (r3.bronze):toBe (10)
+
+        -- Remove silver
+        local p4 = ch.cursor
+        codec.write (ch, { gold = 200, bronze = 10 })
+        local b4 = buffer.create (ch.cursor - p4)
+        buffer.copy (b4, 0, ch.buff, p4, ch.cursor - p4)
+        local r4 = codec.read (b4, 0, nil)
+        expect (r4.gold):toBe (200)
+        expect (r4.bronze):toBe (10)
+        expect (r4.silver):toBeNil ()
+
+        Baseline.clearSource ("__dm_fidelity")
+    end)
+end)
+
 -- array ------------------------------------------------------------------
 
 describe ("array", function (): ()

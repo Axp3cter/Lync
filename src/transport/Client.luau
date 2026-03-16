@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Client-side transport with batching, frame XOR on reliable.
+-- Client.luau — Client-side transport with batching, frame XOR on reliable.
 
 local RunService = game:GetService ("RunService")
 
@@ -105,13 +105,18 @@ function Client.write (
 ): ()
     assertStarted ()
 
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, nil)
+        if final == nil then
+            return
+        end
+    else
+        final = data
     end
 
     local ch = if isUnreliable then _unreliable :: ChannelState else _reliable :: ChannelState
-    Channel.writeBatch (ch, id, codec, final)
+    Channel.writeBatch (ch, id, name, codec, final)
 end
 
 -- Shared for both query requests and responses (identical wire format).
@@ -124,17 +129,22 @@ function Client.writeQuery (
 ): ()
     assertStarted ()
 
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, nil)
+        if final == nil then
+            return
+        end
+    else
+        final = data
     end
 
-    Channel.writeQuery (_reliable :: ChannelState, id, correlationId, codec, final)
+    Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, codec, final)
 end
 
-function Client.writeQueryNil (id: number, correlationId: number): ()
+function Client.writeQueryNil (id: number, name: string, correlationId: number): ()
     assertStarted ()
-    Channel.writeQuery (_reliable :: ChannelState, id, correlationId, nil, nil)
+    Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, nil, nil)
 end
 
 return table.freeze (Client)

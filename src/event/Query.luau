@@ -1,10 +1,12 @@
 --!strict
 --!optimize 2
--- Bidirectional request-reply over RemoteEvents.
+-- Query.luau — Bidirectional request-reply over RemoteEvents.
 
+local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
 
 local Client = require (script.Parent.Parent.transport.Client)
+local Group = require (script.Parent.Parent.event.Group)
 local Registry = require (script.Parent.Parent.core.Registry)
 local Server = require (script.Parent.Parent.transport.Server)
 local Signal = require (script.Parent.Parent.event.Signal)
@@ -96,7 +98,7 @@ function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
                 if ok and response ~= nil then
                     Server.writeQuery (player, respId, respName, correlation, respCodec, response)
                 else
-                    Server.writeQueryNil (player, respId, correlation)
+                    Server.writeQueryNil (player, respId, respName, correlation)
                 end
             end
         )
@@ -111,7 +113,7 @@ function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
                 if ok and response ~= nil then
                     Client.writeQuery (respId, respName, correlation, respCodec, response)
                 else
-                    Client.writeQueryNil (respId, correlation)
+                    Client.writeQueryNil (respId, respName, correlation)
                 end
             end
         )
@@ -144,6 +146,114 @@ function QueryImpl.invoke (self: any, request: any, player: Player?): any
 
     entry.timeout = task.delay (self._timeout, onTimeout, correlation)
     return coroutine.yield ()
+end
+
+--[[
+    Send a query to multiple players simultaneously and yield until all
+    respond or time out. Returns { [Player]: response? } where nil means
+    the player timed out or returned nil.
+]]
+local function invokeMulti (self: any, players: { Player }, request: any): { [Player]: any? }
+    if not IS_SERVER then
+        error ("[Lync] Multi-invoke is server-only")
+    end
+
+    local count = #players
+    if count == 0 then
+        return {}
+    end
+
+    -- Single player: fall through to normal invoke
+    if count == 1 then
+        local result = QueryImpl.invoke (self, request, players[1])
+        return { [players[1]] = result }
+    end
+
+    local thread = coroutine.running ()
+    local results = {} :: { [Player]: any? }
+    local remaining = count
+    local correlations = table.create (count) :: { number }
+    local finished = false
+
+    local reqId = self._reqReg.id
+    local reqName = self._name
+    local reqCodec = self._reqReg.codec
+    local timeout = self._timeout
+
+    for i = 1, count do
+        local player = players[i]
+        local correlation = allocCorrelation ()
+        correlations[i] = correlation
+
+        -- Each slot gets its own pending entry that resolves into the shared aggregator
+        local entry: PendingQuery = {
+            thread = coroutine.create (function (data: any): ()
+                results[player] = data
+                remaining -= 1
+                if remaining == 0 and not finished then
+                    finished = true
+                    task.spawn (thread, results)
+                end
+            end),
+            timeout = nil,
+        }
+
+        _pending[correlation] = entry
+
+        Server.writeQuery (player, reqId, reqName, correlation, reqCodec, request)
+    end
+
+    -- Shared timeout: cancel everything after the timeout window
+    local timeoutThread = task.delay (timeout, function (): ()
+        if finished then
+            return
+        end
+        finished = true
+
+        -- Clean up any remaining pending slots
+        for i = 1, count do
+            local cid = correlations[i]
+            local entry = _pending[cid]
+            if entry then
+                _pending[cid] = nil
+                freeCorrelation ()
+                if entry.timeout then
+                    task.cancel (entry.timeout)
+                end
+            end
+        end
+
+        task.spawn (thread, results)
+    end)
+
+    -- Set individual timeouts that feed into the aggregator
+    for i = 1, count do
+        local cid = correlations[i]
+        local entry = _pending[cid]
+        if entry then
+            entry.timeout = timeoutThread
+        end
+    end
+
+    return coroutine.yield ()
+end
+
+function QueryImpl.invokeAll (self: any, request: any): { [Player]: any? }
+    local players = Players:GetPlayers ()
+    return invokeMulti (self, players, request)
+end
+
+function QueryImpl.invokeList (self: any, request: any, players: { Player }): { [Player]: any? }
+    return invokeMulti (self, players, request)
+end
+
+function QueryImpl.invokeGroup (self: any, request: any, groupName: string): { [Player]: any? }
+    local set = Group.getSet (groupName)
+    local players = {} :: { Player }
+    for player in set do
+        table.insert (players, player)
+    end
+    return invokeMulti (self, players, request)
 end
 
 -- Public -----------------------------------------------------------------

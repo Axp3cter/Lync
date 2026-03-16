@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Server-side transport with batching, delta state, frame XOR.
+-- Server.luau — Server-side transport with batching, delta state, frame XOR.
 
 local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
@@ -114,10 +114,15 @@ local function flush (): ()
 end
 
 -- Serialize data once into shared scratch, return raw bytes + refs snapshot.
-local function serializeBroadcast (codec: Codec<any>, data: any): (number, { Instance }?)
+local function serializeBroadcast (
+    name: string,
+    codec: Codec<any>,
+    data: any
+): (number, { Instance }?)
     local scratch = _broadScratch
     scratch.cursor = 0
     table.clear (scratch.refs)
+    Channel.setCurrentPacket (name)
     codec.write (scratch, data)
 
     local snapRefs = if #scratch.refs > 0 then table.clone (scratch.refs) else nil
@@ -137,12 +142,17 @@ local function broadcastTo (
     isUnreliable: boolean,
     except: Player?
 ): ()
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, nil)
+        if final == nil then
+            return
+        end
+    else
+        final = data
     end
 
-    local snapLen, snapRefs = serializeBroadcast (codec, final)
+    local snapLen, snapRefs = serializeBroadcast (name, codec, final)
     local scratchBuff = _broadScratch.buff
 
     -- Determine iteration mode from first key (once, not per entry)
@@ -228,13 +238,18 @@ function Server.writeTo (
         return
     end
 
-    local final = Middleware.runSend (data, name, player)
-    if final == nil then
-        return
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, player)
+        if final == nil then
+            return
+        end
+    else
+        final = data
     end
 
     local ch = if isUnreliable then state.unreliable else state.reliable
-    Channel.writeBatch (ch, id, codec, final)
+    Channel.writeBatch (ch, id, name, codec, final)
 end
 
 function Server.writeToAll (
@@ -294,21 +309,26 @@ function Server.writeQuery (
         return
     end
 
-    local final = Middleware.runSend (data, name, player)
-    if final == nil then
-        return
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, player)
+        if final == nil then
+            return
+        end
+    else
+        final = data
     end
 
-    Channel.writeQuery (state.reliable, id, correlationId, codec, final)
+    Channel.writeQuery (state.reliable, id, name, correlationId, codec, final)
 end
 
-function Server.writeQueryNil (player: Player, id: number, correlationId: number): ()
+function Server.writeQueryNil (player: Player, id: number, name: string, correlationId: number): ()
     local state = _players[player]
     if not state then
         return
     end
 
-    Channel.writeQuery (state.reliable, id, correlationId, nil, nil)
+    Channel.writeQuery (state.reliable, id, name, correlationId, nil, nil)
 end
 
 return table.freeze (Server)

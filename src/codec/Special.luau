@@ -1,5 +1,5 @@
 --!strict
---!optimize 2
+--!native
 -- Nothing, unknown, and auto (self-describing) codecs.
 
 local Buffer = require (script.Parent.Buffer)

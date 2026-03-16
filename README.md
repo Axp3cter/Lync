@@ -10,7 +10,7 @@
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.7.0-alpha"
+Lync = "axpecter/lync@0.8.0"
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
@@ -23,7 +23,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | Function | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
-| `Lync.version` | `"0.7.0-alpha"` |
+| `Lync.version` | `"0.8.0"` |
 
 ## Packets
 
@@ -78,6 +78,9 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | `listen(fn)` | Both | Register a handler. Server gets `fn(request, player) → response`. Client gets `fn(request) → response`. |
 | `invoke(request)` | Client | Send request to server, yield until response comes back or timeout. |
 | `invoke(request, player)` | Server | Send request to a specific client, yield until response or timeout. |
+| `invokeAll(request)` | Server | Send request to all players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
+| `invokeList(request, players)` | Server | Send request to a list of players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
+| `invokeGroup(request, groupName)` | Server | Send request to all players in a named group. Returns `{ [Player]: response? }`. |
 | `Lync.queryPendingCount()` | Both | How many queries are currently waiting for a response. |
 
 ## Namespaces
@@ -145,6 +148,7 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 |:------------|:------------|
 | `Lync.deltaStruct({ key = codec })` | First frame sends everything. After that only dirty fields get sent via bitmask. If nothing changed it costs 1 byte. |
 | `Lync.deltaArray(codec)` | Same idea but for arrays. Dirty elements get sent with varint indices. |
+| `Lync.deltaMap(keyCodec, valueCodec)` | Delta compression for key-value maps. Sends only upserted and removed entries after the first frame. |
 
 ### Specialized
 

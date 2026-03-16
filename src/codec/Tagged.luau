@@ -1,5 +1,5 @@
 --!strict
---!optimize 2
+--!native
 -- Discriminated union codec. u8 variant tag + variant payload.
 
 local Channel = require (script.Parent.Parent.core.Channel)

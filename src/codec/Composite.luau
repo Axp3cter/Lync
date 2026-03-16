@@ -1,6 +1,6 @@
 --!strict
---!optimize 2
--- Struct, deltaStruct, deltaArray, array, map, optional.
+--!native
+-- Struct, deltaStruct, deltaArray, deltaMap, array, map, optional.
 
 local Baseline = require (script.Parent.Parent.core.Baseline)
 local Channel = require (script.Parent.Parent.core.Channel)
@@ -596,6 +596,231 @@ function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [
                 result[k] = v
             end
 
+            return result, absPos - pos
+        end,
+    })
+end
+
+--[[
+    Delta map: tracks per-key changes between frames.
+    First frame sends all entries (FLAG_FULL). Subsequent frames send only
+    upserts (new or changed key-value pairs) and removes (deleted keys).
+    If nothing changed, sends a single FLAG_UNCHANGED byte.
+
+    Wire format:
+        FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
+        FLAG_UNCHANGED: u8(2)
+        FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
+]]
+function Composite.deltaMap (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [any]: any }>
+    local deltaId = _nextDeltaId
+    _nextDeltaId += 1
+
+    return table.freeze ({
+        _isDelta = true,
+
+        write = function (ch: ChannelState, value: { [any]: any }): ()
+            local scratch = acquireScratch ()
+
+            -- Serialize all entries into scratch, track per-entry bounds.
+            -- Key bytes are extracted as strings for identity in the lookup table.
+            type EntryBounds = { keyOff: number, keyLen: number, valOff: number, valLen: number }
+
+            local entries = {} :: { EntryBounds }
+            local keyLookup = {} :: { [string]: number }
+            local entryCount = 0
+
+            for k, v in value do
+                entryCount += 1
+                local keyStart = scratch.cursor
+                keyCodec.write (scratch, k)
+                local keyEnd = scratch.cursor
+                valueCodec.write (scratch, v)
+                local valEnd = scratch.cursor
+
+                entries[entryCount] = {
+                    keyOff = keyStart,
+                    keyLen = keyEnd - keyStart,
+                    valOff = keyEnd,
+                    valLen = valEnd - keyEnd,
+                }
+
+                local keyId = buffer.readstring (scratch.buff, keyStart, keyEnd - keyStart)
+                keyLookup[keyId] = entryCount
+            end
+
+            local scratchTotal = scratch.cursor
+
+            type DeltaMapCache = {
+                raw: buffer,
+                entries: { EntryBounds },
+                keyLookup: { [string]: number },
+                count: number,
+            }
+
+            local cache = ch.deltas[deltaId] :: DeltaMapCache?
+
+            -- FLAG_FULL: no cache yet
+            if not cache then
+                Channel.alloc (ch, 1)
+                buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
+                ch.cursor += 1
+                Varint.write (ch, entryCount)
+
+                if scratchTotal > 0 then
+                    Channel.alloc (ch, scratchTotal)
+                    buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
+                    ch.cursor += scratchTotal
+                end
+            else
+                -- Diff against cache
+                local cacheRaw = cache.raw
+                local cacheEntries = cache.entries
+                local cacheLookup = cache.keyLookup
+
+                -- Find upserts: entries in new that are absent or changed in cache
+                local upsertKeys = {} :: { number }
+                local upsertN = 0
+
+                for keyId, idx in keyLookup do
+                    local oldIdx = cacheLookup[keyId]
+                    if not oldIdx then
+                        upsertN += 1
+                        upsertKeys[upsertN] = idx
+                    else
+                        local newE = entries[idx]
+                        local oldE = cacheEntries[oldIdx]
+                        if
+                            newE.valLen ~= oldE.valLen
+                            or not rangeEqual (
+                                scratch.buff,
+                                newE.valOff,
+                                cacheRaw,
+                                oldE.valOff,
+                                newE.valLen
+                            )
+                        then
+                            upsertN += 1
+                            upsertKeys[upsertN] = idx
+                        end
+                    end
+                end
+
+                -- Find removes: keys in cache not present in new
+                local removeKeyIds = {} :: { string }
+                local removeN = 0
+
+                for keyId in cacheLookup do
+                    if not keyLookup[keyId] then
+                        removeN += 1
+                        removeKeyIds[removeN] = keyId
+                    end
+                end
+
+                if upsertN == 0 and removeN == 0 then
+                    Channel.alloc (ch, 1)
+                    buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
+                    ch.cursor += 1
+                    releaseScratch ()
+                    return
+                end
+
+                -- Write delta
+                Channel.alloc (ch, 1)
+                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                ch.cursor += 1
+
+                -- Upserts: full key + value bytes
+                Varint.write (ch, upsertN)
+                for i = 1, upsertN do
+                    local e = entries[upsertKeys[i]]
+                    local totalLen = e.keyLen + e.valLen
+                    Channel.alloc (ch, totalLen)
+                    buffer.copy (ch.buff, ch.cursor, scratch.buff, e.keyOff, totalLen)
+                    ch.cursor += totalLen
+                end
+
+                -- Removes: key bytes only
+                Varint.write (ch, removeN)
+                for i = 1, removeN do
+                    local keyId = removeKeyIds[i]
+                    local oldIdx = cacheLookup[keyId]
+                    local oldE = cacheEntries[oldIdx]
+                    Channel.alloc (ch, oldE.keyLen)
+                    buffer.copy (ch.buff, ch.cursor, cacheRaw, oldE.keyOff, oldE.keyLen)
+                    ch.cursor += oldE.keyLen
+                end
+            end
+
+            -- Update cache
+            local rawBuf = buffer.create (scratchTotal)
+            if scratchTotal > 0 then
+                buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
+            end
+
+            ch.deltas[deltaId] = {
+                raw = rawBuf,
+                entries = entries,
+                keyLookup = keyLookup,
+                count = entryCount,
+            }
+
+            releaseScratch ()
+        end,
+
+        read = function (src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
+            local flag = buffer.readu8 (src, pos)
+            local absPos = pos + 1
+
+            if flag == FLAG_UNCHANGED then
+                local cache = Baseline.getCache (deltaId)
+                return if cache then table.clone (cache) else {}, 1
+            end
+
+            if flag == FLAG_FULL then
+                local count, lenBytes = Varint.read (src, absPos)
+                absPos += lenBytes
+
+                local result = {}
+                for _ = 1, count do
+                    local k, kn = keyCodec.read (src, absPos, refs)
+                    absPos += kn
+                    local v, vn = valueCodec.read (src, absPos, refs)
+                    absPos += vn
+                    result[k] = v
+                end
+
+                Baseline.setCache (deltaId, result)
+                return result, absPos - pos
+            end
+
+            -- FLAG_DELTA
+            local cache = Baseline.getCache (deltaId) :: { [any]: any }?
+            local result = if cache then table.clone (cache) else {}
+
+            -- Upserts
+            local upsertN, unBytes = Varint.read (src, absPos)
+            absPos += unBytes
+
+            for _ = 1, upsertN do
+                local k, kn = keyCodec.read (src, absPos, refs)
+                absPos += kn
+                local v, vn = valueCodec.read (src, absPos, refs)
+                absPos += vn
+                result[k] = v
+            end
+
+            -- Removes
+            local removeN, rnBytes = Varint.read (src, absPos)
+            absPos += rnBytes
+
+            for _ = 1, removeN do
+                local k, kn = keyCodec.read (src, absPos, refs)
+                absPos += kn
+                result[k] = nil
+            end
+
+            Baseline.setCache (deltaId, result)
             return result, absPos - pos
         end,
     })

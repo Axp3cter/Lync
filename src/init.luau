@@ -41,8 +41,8 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "0.7.0-alpha",
-    version = "0.7.0-alpha",
+    VERSION = "0.8.0",
+    version = "0.8.0",
 
     -- Lifecycle
     start = start,
@@ -77,6 +77,7 @@ local Lync = {
     struct = Composite.struct,
     deltaStruct = Composite.deltaStruct,
     deltaArray = Composite.deltaArray,
+    deltaMap = Composite.deltaMap,
     array = Composite.array,
     map = Composite.map,
     optional = Composite.optional,

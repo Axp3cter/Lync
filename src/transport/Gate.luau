@@ -28,6 +28,7 @@ local _callback = nil :: ((player: Player, reason: string, packetName: string, d
 
 -- Private ----------------------------------------------------------------
 
+@native
 local function isClean (value: any, depth: number): boolean
     if depth > _maxDepth then
         return false

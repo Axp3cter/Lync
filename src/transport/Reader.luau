@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Deserializes incoming buffers and routes by registration kind.
+-- Reader.luau — Deserializes incoming buffers and routes by registration kind.
 
 local Baseline = require (script.Parent.Parent.core.Baseline)
 local Gate = require (script.Parent.Gate)
@@ -45,6 +45,10 @@ function Reader.process (
 
     Baseline.setReadKey (player or false)
 
+    -- Cache middleware flag once per frame-buffer, not per packet
+    local hasReceiveMiddleware = Middleware.hasReceive
+    local isServer = player ~= nil
+
     while pos < length do
         local id = buffer.readu8 (incoming, pos)
         pos += 1
@@ -71,26 +75,45 @@ function Reader.process (
 
             local codec = reg.codec
             local signal = reg.signal
-            local baseName = reg.baseName
 
-            for _ = 1, count do
-                if pos >= length then
-                    break
+            -- Hot path: no gate, no middleware — straight decode → fire
+            if not (isServer and reg.needsGate) and not hasReceiveMiddleware then
+                for _ = 1, count do
+                    if pos >= length then
+                        break
+                    end
+
+                    local value, consumed = codec.read (incoming, pos, refs)
+                    pos += consumed
+                    signal:fire (value, player)
                 end
+            else
+                -- Cold path: gate and/or middleware active
+                local baseName = reg.baseName
+                local needsGate = isServer and reg.needsGate
 
-                local value, consumed = codec.read (incoming, pos, refs)
-                pos += consumed
+                for _ = 1, count do
+                    if pos >= length then
+                        break
+                    end
 
-                if player and not Gate.check (value, reg, player) then
-                    return
+                    local value, consumed = codec.read (incoming, pos, refs)
+                    pos += consumed
+
+                    if needsGate and not Gate.check (value, reg, player :: Player) then
+                        return
+                    end
+
+                    if hasReceiveMiddleware then
+                        local final = Middleware.runReceive (value, baseName, player)
+                        if final == nil then
+                            continue
+                        end
+                        signal:fire (final, player)
+                    else
+                        signal:fire (value, player)
+                    end
                 end
-
-                local final = Middleware.runReceive (value, baseName, player)
-                if final == nil then
-                    continue
-                end
-
-                signal:fire (final, player)
             end
         else
             -- Query frame: id(u8, already read) + correlationId(u16) + status(u8) = 3 more bytes
@@ -100,7 +123,6 @@ function Reader.process (
 
             local queryCodec = reg.codec
             local querySignal = reg.signal
-            local queryName = reg.baseName
 
             local correlationId = buffer.readu16 (incoming, pos)
             local status = buffer.readu8 (incoming, pos + 2)
@@ -118,13 +140,18 @@ function Reader.process (
             local value, consumed = queryCodec.read (incoming, pos, refs)
             pos += consumed
 
-            if player and not Gate.check (value, reg, player) then
+            if isServer and reg.needsGate and not Gate.check (value, reg, player :: Player) then
                 return
             end
 
-            local final = Middleware.runReceive (value, queryName, player)
-            if final == nil then
-                continue
+            local final: any
+            if hasReceiveMiddleware then
+                final = Middleware.runReceive (value, reg.baseName, player)
+                if final == nil then
+                    continue
+                end
+            else
+                final = value
             end
 
             if kind == KIND_REQUEST then

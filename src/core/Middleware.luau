@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Ordered intercept chains for send and receive.
+-- Middleware.luau — Ordered intercept chains for send and receive.
 
 -- State ------------------------------------------------------------------
 
@@ -76,11 +76,23 @@ end
 local Middleware = {}
 
 function Middleware.addSend (fn: Handler): () -> ()
-    return addTo (_send, fn)
+    local remover = addTo (_send, fn)
+    Middleware.hasSend = true
+
+    return function (): ()
+        remover ()
+        Middleware.hasSend = #_send.handlers > 0
+    end
 end
 
 function Middleware.addReceive (fn: Handler): () -> ()
-    return addTo (_receive, fn)
+    local remover = addTo (_receive, fn)
+    Middleware.hasReceive = true
+
+    return function (): ()
+        remover ()
+        Middleware.hasReceive = #_receive.handlers > 0
+    end
 end
 
 function Middleware.runSend (data: any, name: string, player: Player?): any?
@@ -91,4 +103,7 @@ function Middleware.runReceive (data: any, name: string, player: Player?): any?
     return run (_receive, "Receive", data, name, player)
 end
 
-return table.freeze (Middleware)
+Middleware.hasSend = false
+Middleware.hasReceive = false
+
+return Middleware

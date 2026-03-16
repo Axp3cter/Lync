@@ -21,6 +21,7 @@ local lshift = bit32.lshift
 -- State ------------------------------------------------------------------
 
 local _maxSize = MAX_SIZE
+local _currentPacket = ""
 
 -- Public -----------------------------------------------------------------
 
@@ -62,7 +63,7 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
     end
     if needed > _maxSize then
         error (
-            `[Lync] Channel buffer overflow: {needed} > {_maxSize} (call Channel.setMaxSize to raise)`
+            `[Lync] Channel overflow writing "{_currentPacket}": {needed} bytes > {_maxSize} max (call Channel.setMaxSize to raise)`
         )
     end
 
@@ -108,7 +109,12 @@ local function openBatch (ch: ChannelState, id: number): ()
     ch.batchCount += 1
 end
 
-function Channel.writeBatch (ch: ChannelState, id: number, codec: any, data: any): ()
+function Channel.setCurrentPacket (name: string): ()
+    _currentPacket = name
+end
+
+function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: any, data: any): ()
+    _currentPacket = name
     openBatch (ch, id)
     codec.write (ch, data)
 end
@@ -156,10 +162,12 @@ end
 function Channel.writeQuery (
     ch: ChannelState,
     id: number,
+    name: string,
     correlationId: number,
     codec: any?,
     data: any?
 ): ()
+    _currentPacket = name
     sealOpen (ch)
 
     Channel.alloc (ch, 4)

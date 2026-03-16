@@ -21,12 +21,12 @@ require (script.codec["Special.test"])
 require (script.codec["Bitfield.test"])
 require (script.codec["Tagged.test"])
 require (script.codec["Tuple.test"])
+require (script.codec["Varint.test"])
 
 -- Core -------------------------------------------------------------------
 
 require (script.core["Channel.test"])
 require (script.core["Baseline.test"])
-require (script.codec["Varint.test"])
 require (script.core["Pool.test"])
 require (script.core["Registry.test"])
 require (script.core["Middleware.test"])

@@ -28,9 +28,8 @@ end
 local function pipelineRoundTrip (codec: any, data: any, prevDump: buffer?): (any, buffer)
     local ch = Channel.create ()
     Channel.writeBatch (ch, 1, codec, data)
-    Channel.seal (ch)
 
-    local raw, refs = Channel.dump (ch)
+    local raw, refs = Channel.sealAndDump (ch)
     local xored = Channel.xorApply (raw, prevDump)
 
     -- Reverse
@@ -230,11 +229,11 @@ describe ("Pipeline: multi-codec batch ordering", function (): ()
 
         -- Write 3 different messages as separate batches
         Channel.writeBatch (ch, 1, Lync.u32, 12345)
-        Channel.seal (ch)
+        Channel.sealAndDump (ch)
         Channel.writeBatch (ch, 2, Lync.string, "hello")
-        Channel.seal (ch)
+        Channel.sealAndDump (ch)
         Channel.writeBatch (ch, 3, Lync.bool, true)
-        Channel.seal (ch)
+        Channel.sealAndDump (ch)
 
         local raw = buffer.create (ch.cursor)
         buffer.copy (raw, 0, ch.buff, 0, ch.cursor)
@@ -285,7 +284,7 @@ describe ("Pipeline: same-id batch coalescing", function (): ()
         Channel.writeBatch (ch, 5, Lync.u8, 10)
         Channel.writeBatch (ch, 5, Lync.u8, 20)
         Channel.writeBatch (ch, 5, Lync.u8, 30)
-        Channel.seal (ch)
+        Channel.sealAndDump (ch)
 
         local raw = buffer.create (ch.cursor)
         buffer.copy (raw, 0, ch.buff, 0, ch.cursor)

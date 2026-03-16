@@ -3,11 +3,11 @@
 
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
-local Lync = ReplicatedStorage:WaitForChild ("Lync")
-local Definitions = require (Lync:WaitForChild ("bench"):WaitForChild ("Definitions"))
-local LyncModule = require (Lync)
+local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
+local Lync = require (LyncFolder)
+local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
 
-LyncModule.start ()
+Lync.start ()
 
 Definitions.Booleans:listen (function (): () end)
 Definitions.Entities:listen (function (): () end)

@@ -1,6 +1,5 @@
 --!strict
 --!optimize 2
-local Channel = require (script.Parent.Parent.Parent.core.Channel)
 local Lync = require (script.Parent.Parent.Parent)
 local Runner = require (script.Parent.Parent.Runner)
 local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip

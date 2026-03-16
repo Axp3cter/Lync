@@ -6,11 +6,11 @@ local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 local RunService = game:GetService ("RunService")
 local Stats = game:GetService ("Stats")
 
-local Lync = ReplicatedStorage:WaitForChild ("Lync")
-local Definitions = require (Lync:WaitForChild ("bench"):WaitForChild ("Definitions"))
-local LyncModule = require (Lync)
+local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
+local Lync = require (LyncFolder)
+local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
 
-LyncModule.start ()
+Lync.start ()
 
 -- Config -----------------------------------------------------------------
 
@@ -26,11 +26,8 @@ local min = math.min
 -- Helpers ----------------------------------------------------------------
 
 local function getPlayer (): Player
-    local existing = Players:GetPlayers ()
-    if #existing > 0 then
-        return existing[1]
-    end
-    return Players.PlayerAdded:Wait ()
+    local players = Players:GetPlayers ()
+    return if #players > 0 then players[1] else Players.PlayerAdded:Wait ()
 end
 
 local function percentile (sorted: { number }, p: number): number
@@ -106,7 +103,6 @@ end
 -- Main -------------------------------------------------------------------
 
 local player = getPlayer ()
-Definitions.Ready:listen (function (): () end)
 Definitions.Ready:wait ()
 
 print (`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
@@ -127,14 +123,12 @@ print ("")
 
 -- Static entities: 34 bytes, same data every frame.
 -- XOR produces all zeros, Roblox deflate compresses to near nothing.
-local staticEntity = Definitions.STATIC_ENTITY
-
 runTest ({
     name = "Static entities",
     player = player,
     packet = Definitions.Entities,
     data = function (): any
-        return staticEntity
+        return Definitions.STATIC_ENTITY
     end,
     bytes = 34,
 })

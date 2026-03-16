@@ -1,12 +1,22 @@
+<h1 align="center">Lync</h1>
 <p align="center">
-  <h1 align="center">Lync</h1>
-  <p align="center">
-    Binary networking for Roblox.<br>
-    Packets are batched, delta-encoded, XOR-framed, and sent as a single RemoteEvent per frame.
-  </p>
+  Binary networking for Roblox.<br>
+  Batched, delta-encoded, XOR-framed — one RemoteEvent per frame.
+</p>
+<p align="center">
+  <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> · <a href="#installation">Install</a> · <a href="#benchmarks">Benchmarks</a>
 </p>
 
-<br>
+---
+
+- **Zero config** — define packets, call `start()`, done
+- **Binary codecs** — typed serialization into buffers, not tables
+- **Delta encoding** — only changed fields hit the wire
+- **XOR framing** — unchanged bytes become zeros, Roblox deflate does the rest
+- **One fire per frame** — all packets batched into a single RemoteEvent
+- **Built-in security** — NaN/inf rejection, rate limiting, validation callbacks
+
+---
 
 ## Installation
 
@@ -20,7 +30,16 @@ local Lync = require(ReplicatedStorage.Lync)
 Lync.start()
 ```
 
-<br>
+Install via [Wally](https://wally.run):
+
+```toml
+[dependencies]
+Lync = "axpecter/lync@0.4.0"
+```
+
+Or grab the `.rbxm` from the [latest release](https://github.com/Axp3cter/Lync/releases/latest).
+
+---
 
 ## Packets
 
@@ -69,7 +88,7 @@ Hit:disconnectAll()
 `sender` is the `Player` on the server, `nil` on the client.
 </details>
 
-<br>
+---
 
 ## Queries
 
@@ -105,11 +124,12 @@ local items = GetInventory:invoke(localPlayer.UserId)
 ```
 </details>
 
-<br>
+---
 
 ## Types
 
-### Primitives
+<details open>
+<summary><b>Primitives</b></summary>
 
 | Type   | Bytes | Range                          |
 | :----- | ----: | :----------------------------- |
@@ -123,8 +143,10 @@ local items = GetInventory:invoke(localPlayer.UserId)
 | `f32`  |     4 | IEEE 754 single                |
 | `f64`  |     8 | IEEE 754 double                |
 | `bool` |     1 | true / false                   |
+</details>
 
-### Complex
+<details>
+<summary><b>Complex</b></summary>
 
 | Type     |      Bytes | Description                  |
 | :------- | ---------: | :--------------------------- |
@@ -135,8 +157,10 @@ local items = GetInventory:invoke(localPlayer.UserId)
 | `color3` |          3 | Color3 (0–255 per channel)   |
 | `inst`   |          2 | Instance reference           |
 | `buff`   | varint + N | Raw buffer                   |
+</details>
 
-### Composites
+<details>
+<summary><b>Composites</b></summary>
 
 ```luau
 Lync.struct({ key = codec, ... })        -- named fields, bools packed
@@ -145,8 +169,10 @@ Lync.map(keyCodec, valueCodec)           -- key-value pairs
 Lync.optional(codec)                     -- nil flag + value
 Lync.tuple(codec1, codec2, ...)          -- positional, ordered
 ```
+</details>
 
-### Delta
+<details>
+<summary><b>Delta</b></summary>
 
 Only changed data is sent between frames. Requires reliable delivery.
 
@@ -154,8 +180,10 @@ Only changed data is sent between frames. Requires reliable delivery.
 Lync.deltaStruct({ key = codec, ... })   -- dirty fields only
 Lync.deltaArray(codec)                   -- dirty elements only
 ```
+</details>
 
-### Specialized
+<details>
+<summary><b>Specialized</b></summary>
 
 ```luau
 Lync.enum("idle", "walking", "running")
@@ -165,17 +193,16 @@ Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } 
 Lync.tagged("kind", { move = moveCodec, chat = chatCodec })
 ```
 
-### Special
-
 | Type      | Description                                   |
 | :-------- | :-------------------------------------------- |
 | `nothing` | Zero bytes, reads nil                         |
 | `unknown` | Bypasses binary encoding, uses Roblox sidecar |
 | `auto`    | Self-describing tag + value                   |
+</details>
 
-<br>
+---
 
-## Packet Options
+## Options
 
 ```luau
 Lync.definePacket("Position", {
@@ -197,7 +224,7 @@ Lync.definePacket("Position", {
 
 NaN/inf scanning, depth limiting, and rate limiting run on all incoming packets automatically.
 
-<br>
+---
 
 ## Groups
 
@@ -213,7 +240,7 @@ Lync.forEachInGroup("lobby", fn)
 Lync.destroyGroup("lobby")
 ```
 
-<br>
+---
 
 ## Middleware
 
@@ -231,9 +258,8 @@ end)
 remove()
 ```
 
-<br>
-
-## Drop Handler
+<details>
+<summary><b>Drop handler</b></summary>
 
 Called when an incoming packet is rejected by the gate.
 
@@ -242,30 +268,46 @@ Lync.onDrop(function(player, reason, name, data)
     -- "nan" | "rate" | "validate" | custom string
 end)
 ```
+</details>
 
-<br>
+---
 
 ## Benchmarks
 
-1000 packets/frame to one player, 10 seconds per test, 60 FPS. Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
+1000 packets/frame to one player, 10 seconds per test, 60 FPS.
+Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
 
-| Scenario | What changes | Raw Kbps | Actual Kbps | p95 Kbps | Reduction |
-| :------- | :----------- | -------: | ----------: | -------: | --------: |
-| Static booleans | Nothing | 480 | 2.27 | 3.57 | 99.5% |
-| Static entities | Nothing | 16,320 | 2.53 | 2.62 | 99.98% |
-| Moving entities | Position only | 16,320 | 3.08 | 3.09 | 99.98% |
-| Chaotic entities | Every field, random | 16,320 | 4.69 | 4.78 | 99.97% |
+| Scenario         | What changes         | Raw Kbps | Kbps (med) | Kbps (p95) | Reduction |
+| :--------------- | :------------------- | -------: | ---------: | ---------: | --------: |
+| Static booleans  | Nothing              |      480 |       2.27 |       3.57 |     99.5% |
+| Static entities  | Nothing              |   16,320 |       2.53 |       2.62 |    99.98% |
+| Moving entities  | Position only        |   16,320 |       3.08 |       3.09 |    99.98% |
+| Chaotic entities | Every field, random  |   16,320 |       4.69 |       4.78 |    99.97% |
 
-All tests held 60 FPS. Roblox handles buffer compression transparently via deflate.
+All tests held 60 FPS. Roblox compresses buffer payloads transparently via deflate.
 
-To run: `rojo build bench.project.json -o Lync-bench.rbxl`, open in Studio, start a local server with one player.
+<details>
+<summary><b>Run benchmarks</b></summary>
 
-<br>
+```bash
+rojo build bench.project.json -o Lync-bench.rbxl
+```
+
+Open in Studio, start a local server with one player.
+</details>
+
+---
 
 ## How It Works
 
 ```
-write → batch → xor → fire → [roblox compression] → unxor → read → gate → signal
+write → batch → xor → fire → [roblox deflate] → unxor → read → gate → signal
 ```
 
 XOR transforms unchanged bytes to zeros. Roblox compresses the buffer transparently before sending. Static data costs near-zero bandwidth. Changing data compresses proportionally to how much actually changed.
+
+---
+
+## License
+
+MIT

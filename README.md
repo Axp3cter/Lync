@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@1.0.0"
+Lync = "axp3cter/lync@1.0.0"
 ```
 
 **npm (roblox-ts)**

@@ -25,7 +25,6 @@ local rshift = bit32.rshift
 local frexp = math.frexp
 local ldexp = math.ldexp
 local round = math.round
-local abs = math.abs
 local huge = math.huge
 
 -- Private ----------------------------------------------------------------

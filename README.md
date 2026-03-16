@@ -29,7 +29,7 @@ Install via [Wally](https://wally.run):
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.5.0"
+Lync = "axpecter/lync@0.5.0-alpha"
 ```
 
 Or grab the `.rbxm` from the [latest release](https://github.com/Axp3cter/Lync/releases/latest).

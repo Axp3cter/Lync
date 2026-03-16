@@ -1,5 +1,5 @@
 <h1 align="center">Lync</h1>
-<p align="center">Buffer networking for Roblox with delta compression, XOR framing, and built-in security.</p>
+<p align="center">Buffer networking for Roblox. Delta compression, XOR framing, built-in security.</p>
 <p align="center">
   <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
@@ -13,97 +13,90 @@
 Lync = "axpecter/lync@0.6.0-alpha"
 ```
 
-Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest). Place in `ReplicatedStorage`.
+Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
 
 > [!IMPORTANT]
-> All definitions must happen before `Lync.start()`.
+> Define everything before calling `Lync.start()`. Packets, queries, namespaces, all of it.
 
 ## Lifecycle
 
-| Function | Description |
+| Function | What it does |
 |:---------|:------------|
-| `Lync.start()` | Initializes transport. Server creates remotes, client connects. Call once after all definitions. |
+| `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
 | `Lync.version` | `"0.6.0-alpha"` |
 
 ## Packets
 
-`Lync.definePacket(name, config)` → Packet
+`Lync.definePacket(name, config)` returns a Packet.
 
-| Config field | Type | Required | Description |
-|:-------------|:-----|:--------:|:------------|
-| `value` | Codec | Yes | Serialization codec for the payload. |
-| `unreliable` | boolean | No | Use UnreliableRemoteEvent. Default `false`. Cannot combine with delta codecs. |
-| `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket. Burst defaults to maxPerSecond. |
+| Config | Type | Required | What it does |
+|:-------|:-----|:--------:|:-------------|
+| `value` | Codec | Yes | How to serialize the payload. |
+| `unreliable` | boolean | No | Sends over UnreliableRemoteEvent. Default `false`. Cant use with delta codecs. |
+| `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket. Burst defaults to maxPerSecond if you dont set it. |
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side. Return `false, "reason"` to drop. Runs after NaN scan. |
 
-**Packet methods — Server:**
+**Server methods:**
 
-| Method | Description |
+| Method | What it does |
 |:-------|:------------|
 | `sendTo(data, player)` | Send to one player. |
-| `sendToAll(data)` | Send to all players. |
-| `sendToAllExcept(data, except)` | Send to all except one. |
-| `sendToList(data, players)` | Send to a list of players. |
+| `sendToAll(data)` | Send to everyone. |
+| `sendToAllExcept(data, except)` | Send to everyone except one. |
+| `sendToList(data, players)` | Send to a list. |
 | `sendToGroup(data, groupName)` | Send to a named group. |
 
-**Packet methods — Client:**
+**Client methods:**
 
-| Method | Description |
+| Method | What it does |
 |:-------|:------------|
 | `send(data)` | Send to server. |
 
-**Packet methods — Both:**
+**Shared methods:**
 
-| Method | Description |
+| Method | What it does |
 |:-------|:------------|
-| `listen(fn(data, sender))` | Register a listener. Returns a Connection. `sender` is `Player` on server, `nil` on client. |
-| `once(fn(data, sender))` | Listen for one fire, then auto-disconnect. Returns a Connection. |
-| `wait()` | Yields until the next fire. Returns `(data, sender)`. |
-| `disconnectAll()` | Disconnects all listeners on this packet. |
+| `listen(fn(data, sender))` | Listen for incoming. Returns a Connection. Sender is `Player` on server, `nil` on client. |
+| `once(fn(data, sender))` | Same as listen but auto-disconnects after one fire. |
+| `wait()` | Yields until next fire. Returns `(data, sender)`. |
+| `disconnectAll()` | Kills all listeners on this packet. |
 
 ## Queries
 
-`Lync.defineQuery(name, config)` → Query
+`Lync.defineQuery(name, config)` returns a Query. Basically RemoteFunctions but built on RemoteEvents. Returns `nil` if the other side times out or errors.
 
-| Config field | Type | Required | Description |
-|:-------------|:-----|:--------:|:------------|
-| `request` | Codec | Yes | Codec for the request payload. |
-| `response` | Codec | Yes | Codec for the response payload. |
-| `timeout` | number | No | Seconds before returning `nil`. Default `5`. |
-| `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket. |
+| Config | Type | Required | What it does |
+|:-------|:-----|:--------:|:-------------|
+| `request` | Codec | Yes | How to serialize the request. |
+| `response` | Codec | Yes | How to serialize the response. |
+| `timeout` | number | No | Seconds before giving up. Default `5`. |
+| `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket on incoming requests. |
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side validation on incoming requests. |
 
-**Query methods:**
-
-| Method | Context | Description |
-|:-------|:--------|:------------|
-| `listen(fn)` | Both | Register a handler. Server: `fn(request, player) → response`. Client: `fn(request) → response`. Returns a Connection. |
-| `invoke(request)` | Client | Send request to server, yield until response. Returns response or `nil` on timeout. |
-| `invoke(request, player)` | Server | Send request to a client, yield until response. Returns response or `nil` on timeout. |
-
-| Introspection | Description |
-|:--------------|:------------|
-| `Lync.queryPendingCount()` | Number of queries currently awaiting a response. |
+| Method | Where | What it does |
+|:-------|:------|:-------------|
+| `listen(fn)` | Both | Register a handler. Server gets `fn(request, player) → response`. Client gets `fn(request) → response`. |
+| `invoke(request)` | Client | Send request to server, yield until response comes back or timeout. |
+| `invoke(request, player)` | Server | Send request to a specific client, yield until response or timeout. |
+| `Lync.queryPendingCount()` | Both | How many queries are currently waiting for a response. |
 
 ## Namespaces
 
-`Lync.defineNamespace(name, config)` → Namespace
+`Lync.defineNamespace(name, config)` returns a Namespace. Takes a `packets` table and/or a `queries` table. All names get auto-prefixed with `"YourNamespace."` so nothing collides.
 
-Config accepts `packets` and `queries` tables. Names are auto-prefixed with `"NamespaceName."`. Access packets and queries by short name on the returned object.
+You access packets and queries by their short name directly on the returned object.
 
-**Namespace methods:**
-
-| Method | Description |
+| Method | What it does |
 |:-------|:------------|
-| `ns.PacketName` | Access a packet by its short name. |
-| `ns.QueryName` | Access a query by its short name. |
-| `ns:listenAll(fn(name, data, sender))` | Listen to every packet in the namespace. `name` is the short name. Returns a Connection. |
-| `ns:onSend(fn(data, name, player) → data?)` | Scoped send middleware. Only fires for this namespace. Returns a remover function. |
-| `ns:onReceive(fn(data, name, player) → data?)` | Scoped receive middleware. Only fires for this namespace. Returns a remover function. |
-| `ns:disconnectAll()` | Disconnects all listeners created through `listenAll`. |
-| `ns:destroy()` | Disconnects all listeners and removes all scoped middleware. |
-| `ns:packetNames()` | Returns sorted `{ string }` of packet short names. |
-| `ns:queryNames()` | Returns sorted `{ string }` of query short names. |
+| `ns.PacketName` | The packet, by short name. |
+| `ns.QueryName` | The query, by short name. |
+| `ns:listenAll(fn(name, data, sender))` | Listens to every packet in the namespace. `name` is the short name without prefix. Returns a Connection. |
+| `ns:onSend(fn(data, name, player) → data?)` | Send middleware that only runs for this namespace. Returns a remover. |
+| `ns:onReceive(fn(data, name, player) → data?)` | Receive middleware that only runs for this namespace. Returns a remover. |
+| `ns:disconnectAll()` | Kills all listeners made through `listenAll`. |
+| `ns:destroy()` | Kills listeners and removes scoped middleware. Full cleanup. |
+| `ns:packetNames()` | Sorted list of packet short names. |
+| `ns:queryNames()` | Sorted list of query short names. |
 
 ## Types
 
@@ -111,91 +104,91 @@ Config accepts `packets` and `queries` tables. Names are auto-prefixed with `"Na
 
 | Type | Bytes | Range |
 |:-----|------:|:------|
-| `u8` | 1 | 0 – 255 |
-| `u16` | 2 | 0 – 65,535 |
-| `u32` | 4 | 0 – 4,294,967,295 |
-| `i8` | 1 | -128 – 127 |
-| `i16` | 2 | -32,768 – 32,767 |
-| `i32` | 4 | -2,147,483,648 – 2,147,483,647 |
-| `f16` | 2 | ±65,504, ~3 decimal digits |
+| `u8` | 1 | 0 to 255 |
+| `u16` | 2 | 0 to 65,535 |
+| `u32` | 4 | 0 to 4,294,967,295 |
+| `i8` | 1 | -128 to 127 |
+| `i16` | 2 | -32,768 to 32,767 |
+| `i32` | 4 | -2,147,483,648 to 2,147,483,647 |
+| `f16` | 2 | ±65,504, roughly 3 digits of precision |
 | `f32` | 4 | IEEE 754 single |
 | `f64` | 8 | IEEE 754 double |
-| `bool` | 1 | Packed into bitfields inside structs. |
+| `bool` | 1 | Gets packed into bitfields when inside structs. |
 
 ### Complex
 
-| Type | Bytes | Description |
-|:-----|------:|:------------|
-| `string` | varint + N | Varint length prefix + raw bytes. |
-| `vec2` | 8 | 2× f32. |
-| `vec3` | 12 | 3× f32. |
-| `cframe` | 24 | Position (3× f32) + axis-angle rotation (3× f32). |
-| `color3` | 3 | RGB, 0–255 per channel, clamped. |
-| `inst` | 2 | Instance reference via sidecar array. |
-| `buff` | varint + N | Varint length prefix + raw bytes. |
+| Type | Bytes | What it is |
+|:-----|------:|:-----------|
+| `string` | varint + N | Varint length prefix then raw bytes. |
+| `vec2` | 8 | 2x f32. |
+| `vec3` | 12 | 3x f32. |
+| `cframe` | 24 | Position as 3x f32, rotation as axis-angle 3x f32. |
+| `color3` | 3 | RGB 0-255 per channel, clamped. |
+| `inst` | 2 | Instance ref through sidecar array. |
+| `buff` | varint + N | Varint length prefix then raw bytes. |
 
 ### Composites
 
-| Constructor | Description |
+| Constructor | What it does |
 |:------------|:------------|
-| `Lync.struct({ key = codec })` | Named fields. Bools auto-packed into bitfields. |
-| `Lync.array(codec)` | Variable-length list. Varint count prefix. |
-| `Lync.map(keyCodec, valueCodec)` | Key-value pairs. Varint count prefix. |
-| `Lync.optional(codec)` | 1 byte presence flag + value if present. |
-| `Lync.tuple(codec, codec, ...)` | Positional, ordered. No keys. |
+| `Lync.struct({ key = codec })` | Named fields. Bools get packed into bitfields automatically. |
+| `Lync.array(codec)` | Variable length list with varint count. |
+| `Lync.map(keyCodec, valueCodec)` | Key-value pairs with varint count. |
+| `Lync.optional(codec)` | 1 byte flag, value only if present. |
+| `Lync.tuple(codec, codec, ...)` | Ordered positional values, no keys. |
 
 ### Delta
 
-Reliable only. Errors at define time if combined with `unreliable = true`.
+Reliable only. Lync will error if you try to use these with `unreliable = true`.
 
-| Constructor | Description |
+| Constructor | What it does |
 |:------------|:------------|
-| `Lync.deltaStruct({ key = codec })` | First frame sends all fields. Subsequent frames send only dirty fields via bitmask. Unchanged frames cost 1 byte. |
-| `Lync.deltaArray(codec)` | First frame sends all elements. Subsequent frames send only dirty elements via varint indices. Unchanged frames cost 1 byte. |
+| `Lync.deltaStruct({ key = codec })` | First frame sends everything. After that only dirty fields get sent via bitmask. If nothing changed it costs 1 byte. |
+| `Lync.deltaArray(codec)` | Same idea but for arrays. Dirty elements get sent with varint indices. |
 
 ### Specialized
 
-| Constructor | Description |
+| Constructor | What it does |
 |:------------|:------------|
-| `Lync.enum(value, value, ...)` | u8 index. Up to 256 variants. |
-| `Lync.quantizedFloat(min, max, precision)` | Fixed-point. Auto-selects u8/u16/u32 based on range and precision. |
-| `Lync.quantizedVec3(min, max, precision)` | 3× quantized float. |
-| `Lync.bitfield({ key = spec })` | Sub-byte packing, 1–32 bits total. Spec: `{ type = "bool" }`, `{ type = "uint", width = N }`, or `{ type = "int", width = N }`. |
-| `Lync.tagged(tagField, { name = codec })` | Discriminated union. u8 variant tag. Injects `tagField` into decoded table. |
-| `Lync.nothing` | Zero bytes. Reads `nil`. |
-| `Lync.unknown` | Bypasses serialization. Passed through Roblox's remote sidecar. |
-| `Lync.auto` | Self-describing. Writes u8 type tag + value. Supports nil, bool, integers, f32, f64, string, vec2, vec3, color3, cframe, buffer. |
+| `Lync.enum(value, value, ...)` | u8 index, up to 256 variants. |
+| `Lync.quantizedFloat(min, max, precision)` | Fixed-point compression. Picks u8/u16/u32 based on your range and precision. |
+| `Lync.quantizedVec3(min, max, precision)` | Same thing but for all 3 components. |
+| `Lync.bitfield({ key = spec })` | Sub-byte packing, 1 to 32 bits total. Spec is `{ type = "bool" }` or `{ type = "uint", width = N }` or `{ type = "int", width = N }`. |
+| `Lync.tagged(tagField, { name = codec })` | Discriminated union with a u8 variant tag. Puts `tagField` into the decoded table so you know which variant it is. |
+| `Lync.nothing` | Zero bytes. Reads nil. Good for fire-and-forget signals. |
+| `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Use when you dont have a codec for the value. |
+| `Lync.auto` | Self-describing. Writes a u8 type tag then the value. Handles nil, bool, all number types, string, vec2, vec3, color3, cframe, buffer. |
 
 ## Groups
 
-Named player sets. Members auto-removed on `PlayerRemoving`.
+Named player sets. Members get removed automatically on `PlayerRemoving`.
 
-| Function | Returns | Description |
-|:---------|:--------|:------------|
-| `Lync.createGroup(name)` | | Create a new group. Errors if exists. |
-| `Lync.destroyGroup(name)` | | Remove group and all memberships. |
+| Function | Returns | What it does |
+|:---------|:--------|:-------------|
+| `Lync.createGroup(name)` | | Makes a new group. Errors if it already exists. |
+| `Lync.destroyGroup(name)` | | Removes the group and all memberships. |
 | `Lync.addToGroup(name, player)` | `boolean` | `true` if added, `false` if already in. |
-| `Lync.removeFromGroup(name, player)` | `boolean` | `true` if removed, `false` if absent. |
+| `Lync.removeFromGroup(name, player)` | `boolean` | `true` if removed, `false` if wasnt in there. |
 | `Lync.hasInGroup(name, player)` | `boolean` | |
 | `Lync.groupCount(name)` | `number` | |
 | `Lync.getGroupSet(name)` | `{ [Player]: true }` | |
 | `Lync.forEachInGroup(name, fn)` | | Calls `fn(player)` for each member. |
 
-Send to a group via `Packet:sendToGroup(data, groupName)`.
+Send to a group with `Packet:sendToGroup(data, groupName)`.
 
 ## Middleware
 
-Global packet intercept. Handlers chain in registration order. Return `nil` to drop.
+Global intercept on all packets. Handlers run in the order you registered them. Return `nil` from a handler to drop the packet.
 
-| Function | Description |
+| Function | What it does |
 |:---------|:------------|
-| `Lync.onSend(fn(data, name, player) → data?)` | Intercept outgoing packets. Returns a remover function. |
-| `Lync.onReceive(fn(data, name, player) → data?)` | Intercept incoming packets. Returns a remover function. |
-| `Lync.onDrop(fn(player, reason, name, data))` | Called when a packet is rejected. Reason: `"nan"`, `"rate"`, `"validate"`, or custom string. |
+| `Lync.onSend(fn(data, name, player) → data?)` | Runs before a packet goes out. Returns a remover function. |
+| `Lync.onReceive(fn(data, name, player) → data?)` | Runs when a packet comes in. Returns a remover function. |
+| `Lync.onDrop(fn(player, reason, name, data))` | Fires when a packet gets rejected. Reason is `"nan"`, `"rate"`, `"validate"`, or whatever string your validate function returned. |
 
 ## Benchmarks
 
-1,000 packets/frame · 10 seconds · one player
+1,000 packets/frame, 10 seconds, one player.
 
 | Scenario | Without Lync | With Lync | FPS |
 |:---------|------------:|---------:|----:|
@@ -206,17 +199,17 @@ Global packet intercept. Handlers chain in registration order. Return `nil` to d
 
 ## Limits & Configuration
 
-Call configuration functions before `Lync.start()`.
+Call these before `Lync.start()`.
 
-| Constraint | Default | Configure | Notes |
-|:-----------|--------:|:----------|:------|
-| Packet types | 255 | — | u8 on the wire. Each query uses 2 IDs. |
-| Buffer / channel / frame | 256 KB | `Lync.setChannelMaxSize(n)` | Range: 4 KB – 1 MB. |
-| Concurrent queries | 65,536 | — | u16 correlation IDs. Freed on response or timeout. |
-| NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | Range: 4 – 32. |
-| Channel pool | 16 | `Lync.setPoolSize(n)` | Range: 2 – 128. Excess is GC'd. |
-| Namespaces | 64 | — | |
-| Delta + unreliable | — | — | Errors at define time if combined. |
+| What | Default | How to change | Notes |
+|:-----|--------:|:--------------|:------|
+| Packet types | 255 | Cant change | u8 on the wire. Each query eats 2 IDs. |
+| Buffer per channel per frame | 256 KB | `Lync.setChannelMaxSize(n)` | 4 KB to 1 MB. |
+| Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. |
+| NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
+| Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
+| Namespaces | 64 | Cant change | |
+| Delta + unreliable | Nope | Cant change | Errors at define time. |
 
 ## License
 

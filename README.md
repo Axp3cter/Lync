@@ -10,7 +10,7 @@
 
 ```toml
 [dependencies]
-Lync = "axpecter/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7f1306111c3f4f5149514f521e130f171e">[email&#160;protected]</a>"
+Lync = "axpecter/lync@0.7.0-alpha"
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.

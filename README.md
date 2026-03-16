@@ -1,7 +1,7 @@
 <h1 align="center">Lync</h1>
 <p align="center">
   Binary networking for Roblox.<br>
-  Batched, delta-encoded, XOR-framed — one RemoteEvent per frame.
+  Batched, delta-encoded, XOR-framed. One RemoteEvent per frame.
 </p>
 <p align="center">
   <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> · <a href="#installation">Install</a> · <a href="#benchmarks">Benchmarks</a>
@@ -9,7 +9,7 @@
 
 ---
 
-Define packets, call `start()`. Lync serializes your data into buffers, batches every packet into one RemoteEvent per frame, delta-encodes repeated sends, and XOR-frames the result so Roblox's built-in deflate compresses it down to near-zero. NaN/inf scanning, rate limiting, and validation run automatically on everything coming in.
+Define packets, call `start()`. Lync handles the rest: binary serialization, batching, delta compression, and XOR framing that feeds clean input to Roblox's deflate. NaN/inf scanning, rate limiting, and validation run on all incoming data.
 
 ---
 

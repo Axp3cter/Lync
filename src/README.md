@@ -1,22 +1,19 @@
 <h1 align="center">Lync</h1>
-<p align="center">Buffer-based networking for Roblox with delta compression, XOR framing, and built-in security.</p>
+<p align="center">Buffer networking for Roblox — batched, delta-encoded, XOR-framed.</p>
 <p align="center">
-  <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> · <a href="#benchmarks">Benchmarks</a>
+  <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> ·
+  <a href="#benchmarks">Benchmarks</a> ·
+  <a href="#api">API</a>
 </p>
-
----
 
 ## Install
 
 ```toml
-# wally.toml
 [dependencies]
 Lync = "axpecter/lync@0.6.0-alpha"
 ```
 
-Or grab the `.rbxm` from the [latest release](https://github.com/Axp3cter/Lync/releases/latest). Place in `ReplicatedStorage`.
-
----
+Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest). Place in `ReplicatedStorage`.
 
 ## Quick Start
 
@@ -32,7 +29,9 @@ local Hit = Lync.definePacket("Hit", {
 })
 
 Lync.start()
+```
 
+```luau
 -- Server
 Hit:sendTo(data, player)
 Hit:sendToAll(data)
@@ -44,18 +43,34 @@ Hit:send(data)
 Hit:listen(function(data, sender) end)
 ```
 
-All definitions must happen before `Lync.start()`.
+> [!IMPORTANT]
+> All definitions must happen before `Lync.start()`.
 
----
+## Benchmarks
 
-## Packets
+1,000 packets/frame · 10 seconds · local server · one player
+
+| Scenario | Raw Kbps | Actual Kbps | FPS |
+|:---------|--------:|-----------:|----:|
+| Static booleans (1 byte) | 480 | 2.25 | 59.99 |
+| Static entities (34 bytes) | 16,320 | 2.51 | 60.00 |
+| Moving entities (position changes) | 16,320 | 3.31 | 59.99 |
+| Chaotic entities (all random) | 16,320 | 4.66 | 60.01 |
+
+Entity struct: 2× vec3, 2× f32, bool, u8. XOR framing + Roblox deflate compresses unchanged data to near-zero.
+
+## API
+
+### Packets
 
 ```luau
 local Packet = Lync.definePacket("Name", {
-    value      = codec,            -- required
-    unreliable = true,             -- default false
-    rateLimit  = { maxPerSecond = 30, burstAllowance = 5 },
-    validate   = function(data, player) return true end,
+    value      = codec,
+    unreliable = true,                          -- default false
+    rateLimit  = { maxPerSecond = 30 },         -- server-side token bucket
+    validate   = function(data, player)         -- server-side, return false to drop
+        return true
+    end,
 })
 ```
 
@@ -65,13 +80,11 @@ local Packet = Lync.definePacket("Name", {
 | `sendToAll(data)` | | `once(fn)` |
 | `sendToAllExcept(data, except)` | | `wait()` |
 | `sendToList(data, players)` | | `disconnectAll()` |
-| `sendToGroup(data, groupName)` | | |
+| `sendToGroup(data, group)` | | |
 
----
+### Queries
 
-## Queries
-
-Request-reply over RemoteEvents. No RemoteFunctions. Returns `nil` on timeout.
+Request-reply over RemoteEvents. Returns `nil` on timeout.
 
 ```luau
 local GetStats = Lync.defineQuery("GetStats", {
@@ -80,77 +93,57 @@ local GetStats = Lync.defineQuery("GetStats", {
     timeout  = 5,
 })
 
--- Server
-GetStats:listen(function(playerId, player)
-    return fetchStats(playerId)
-end)
+-- Server: listen and return
+GetStats:listen(function(id, player) return fetchStats(id) end)
 
--- Client
+-- Client: invoke and await
 local stats = GetStats:invoke(localPlayer.UserId)
 ```
 
----
+### Namespaces
 
-## Namespaces
-
-Group packets and queries. Names auto-prefix (`"Combat.Hit"`). Scoped middleware only fires for that namespace.
+Group packets/queries. Auto-prefixes names. Scoped middleware.
 
 ```luau
 local Combat = Lync.defineNamespace("Combat", {
     packets = {
-        Hit  = { value = Lync.struct({ targetId = Lync.u32, damage = Lync.f32 }) },
+        Hit   = { value = Lync.struct({ targetId = Lync.u32, damage = Lync.f32 }) },
         Death = { value = Lync.struct({ victimId = Lync.u32 }) },
-    },
-    queries = {
-        GetStats = { request = Lync.u32, response = Lync.struct({ kills = Lync.u32 }) },
     },
 })
 
 Combat.Hit:sendTo(data, player)
-Combat.GetStats:invoke(playerId)
-
-Combat:listenAll(function(name, data, sender) end)  -- all packets in namespace
-Combat:onSend(function(data, name, player) return data end)  -- scoped middleware
-Combat:destroy()  -- cleanup listeners + middleware
+Combat:listenAll(function(name, data, sender) end)
+Combat:onSend(function(data, name, player) return data end)
+Combat:destroy()
 ```
 
----
-
-## Types
+<details>
+<summary><b>Types</b></summary>
 
 ### Primitives
 
-| Type | Bytes | Type | Bytes | Type | Bytes |
-|:-----|------:|:-----|------:|:-----|------:|
-| `u8` | 1 | `i8` | 1 | `f16` | 2 |
-| `u16` | 2 | `i16` | 2 | `f32` | 4 |
-| `u32` | 4 | `i32` | 4 | `f64` | 8 |
-| `bool` | 1 | | | | |
+`u8` `u16` `u32` `i8` `i16` `i32` `f16` `f32` `f64` `bool`
 
 ### Complex
 
-| Type | Bytes | Type | Bytes |
-|:-----|------:|:-----|------:|
-| `string` | varint + N | `color3` | 3 |
-| `vec2` | 8 | `inst` | 2 |
-| `vec3` | 12 | `buff` | varint + N |
-| `cframe` | 24 | | |
+`string` · `vec2` (8B) · `vec3` (12B) · `cframe` (24B) · `color3` (3B) · `inst` (2B) · `buff`
 
 ### Composites
 
 ```luau
-Lync.struct({ key = codec, ... })      -- bools auto-packed into bitfields
-Lync.array(codec)                      -- varint length prefix
+Lync.struct({ key = codec })        -- bools packed into bitfields
+Lync.array(codec)
 Lync.map(keyCodec, valueCodec)
-Lync.optional(codec)                   -- 1 byte flag + value
-Lync.tuple(codec1, codec2, ...)
+Lync.optional(codec)
+Lync.tuple(codec1, codec2)
 ```
 
 ### Delta (reliable only)
 
 ```luau
-Lync.deltaStruct({ key = codec, ... })   -- only dirty fields sent
-Lync.deltaArray(codec)                   -- only dirty elements sent
+Lync.deltaStruct({ key = codec })   -- only dirty fields
+Lync.deltaArray(codec)              -- only dirty elements
 ```
 
 ### Specialized
@@ -161,14 +154,15 @@ Lync.quantizedFloat(min, max, precision)
 Lync.quantizedVec3(min, max, precision)
 Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })
 Lync.tagged("kind", { move = moveCodec, chat = chatCodec })
-Lync.nothing        -- zero bytes
-Lync.unknown        -- bypasses serialization, uses Roblox sidecar
-Lync.auto           -- self-describing tag + value
+Lync.nothing    Lync.unknown    Lync.auto
 ```
 
----
+</details>
 
-## Groups
+<details>
+<summary><b>Groups</b></summary>
+
+Named player sets. Auto-cleaned on `PlayerRemoving`.
 
 ```luau
 Lync.createGroup("lobby")
@@ -179,57 +173,52 @@ Lync.destroyGroup("lobby")
 Hit:sendToGroup(data, "lobby")
 ```
 
-Players auto-removed on `PlayerRemoving`.
+</details>
 
----
+<details>
+<summary><b>Middleware</b></summary>
 
-## Middleware
+Chain handlers on send/receive. Return `nil` to drop.
 
 ```luau
-local remove = Lync.onSend(function(data, name, player)
-    return data   -- return nil to drop
-end)
-
+local remove = Lync.onSend(function(data, name, player) return data end)
 Lync.onReceive(function(data, name, player) return data end)
-
 Lync.onDrop(function(player, reason, name, data) end)
--- reason: "nan" | "rate" | "validate" | custom string
-
 remove()
 ```
 
----
+</details>
 
-## Benchmarks
+<details>
+<summary><b>Configuration</b></summary>
 
-1,000 packets/frame, 10 seconds, local server, one player.
-
-| Scenario | Raw Kbps | Actual Kbps | FPS | Reduction |
-|:---------|--------:|-----------:|----:|----------:|
-| Static booleans (1 byte) | 480 | 2.25 | 59.99 | 99.5% |
-| Static entities (34 bytes) | 16,320 | 2.51 | 60.00 | 99.98% |
-| Moving entities (position changes) | 16,320 | 3.31 | 59.99 | 99.98% |
-| Chaotic entities (all random) | 16,320 | 4.66 | 60.01 | 99.97% |
-
----
-
-## Limits
-
-| | Default | Configurable |
-|:--|------:|:--|
-| Packet types | 255 | No |
-| Buffer per channel/frame | 256 KB | `Lync.setChannelMaxSize(n)` |
-| Concurrent queries | 65,536 | No |
-| NaN scan depth | 16 | `Lync.setValidationDepth(n)` |
-| Channel pool size | 16 | `Lync.setPoolSize(n)` |
-| Namespaces | 64 | No |
+Call before `start()`.
 
 ```luau
-Lync.version              -- "0.6.0-alpha"
-Lync.queryPendingCount()  -- in-flight queries
+Lync.setChannelMaxSize(524288)    -- default 256 KB, range 4 KB – 1 MB
+Lync.setValidationDepth(24)       -- default 16, range 4 – 32
+Lync.setPoolSize(32)              -- default 16, range 2 – 128
 ```
 
----
+```luau
+Lync.version                      -- "0.6.0-alpha"
+Lync.queryPendingCount()          -- in-flight queries
+```
+
+</details>
+
+<details>
+<summary><b>Limits</b></summary>
+
+| Constraint | Value |
+|:--|--:|
+| Packet types | 255 |
+| Buffer per channel/frame | 256 KB |
+| Concurrent queries | 65,536 |
+| NaN scan depth | 16 |
+| Namespaces | 64 |
+
+</details>
 
 ## License
 

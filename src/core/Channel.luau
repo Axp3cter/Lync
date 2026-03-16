@@ -21,16 +21,6 @@ local lshift = bit32.lshift
 -- State ------------------------------------------------------------------
 
 local _maxSize = MAX_SIZE
-local _warnThreshold = 0
-local _hasWarned = {} :: { [ChannelState]: true }
-
--- Private ----------------------------------------------------------------
-
-local function recomputeThreshold (): ()
-    _warnThreshold = _maxSize * 3 // 4
-end
-
-recomputeThreshold ()
 
 -- Public -----------------------------------------------------------------
 
@@ -45,7 +35,6 @@ function Channel.setMaxSize (bytes: number): ()
         error (`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
     end
     _maxSize = bytes
-    recomputeThreshold ()
 end
 
 function Channel.getMaxSize (): number
@@ -74,13 +63,6 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
     if needed > _maxSize then
         error (
             `[Lync] Channel buffer overflow: {needed} > {_maxSize} (call Channel.setMaxSize to raise)`
-        )
-    end
-
-    if needed > _warnThreshold and not _hasWarned[ch] then
-        _hasWarned[ch] = true
-        warn (
-            `[Lync] Channel buffer at {needed}/{_maxSize} bytes ({needed * 100 // _maxSize}%). Consider raising Channel.setMaxSize or reducing send volume.`
         )
     end
 
@@ -239,7 +221,6 @@ function Channel.reset (ch: ChannelState): ()
     ch.countPos = 0
     ch.batchCount = 0
     table.clear (ch.refs)
-    _hasWarned[ch] = nil
 end
 
 return table.freeze (Channel)

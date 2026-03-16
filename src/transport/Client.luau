@@ -4,21 +4,21 @@
 
 local RunService = game:GetService ("RunService")
 
-local Bridge     = require (script.Parent.Bridge)
-local Channel    = require (script.Parent.Parent.core.Channel)
+local Bridge = require (script.Parent.Bridge)
+local Channel = require (script.Parent.Parent.core.Channel)
 local Middleware = require (script.Parent.Parent.core.Middleware)
-local Reader     = require (script.Parent.Reader)
-local Types      = require (script.Parent.Parent.Types)
+local Reader = require (script.Parent.Reader)
+local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T>     = Types.Codec<T>
+type Codec<T> = Types.Codec<T>
 
 -- State ------------------------------------------------------------------
 
-local _reliable   = nil :: ChannelState?
+local _reliable = nil :: ChannelState?
 local _unreliable = nil :: ChannelState?
-local _prevRecv   = nil :: buffer?
-local _isStarted  = false
+local _prevRecv = nil :: buffer?
+local _isStarted = false
 
 -- Private ----------------------------------------------------------------
 

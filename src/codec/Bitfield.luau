@@ -3,15 +3,15 @@
 -- Pack booleans, unsigned and signed integers at the bit level.
 
 local Channel = require (script.Parent.Parent.core.Channel)
-local Types   = require (script.Parent.Parent.Types)
+local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
-type Codec<T>     = Types.Codec<T>
+type Codec<T> = Types.Codec<T>
 
 -- Constants --------------------------------------------------------------
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
@@ -22,10 +22,10 @@ type FieldSpec = {
     width: number?,
 }
 
-local function selectIO (bytes: number): (
-    (b: buffer, offset: number, v: number) -> (),
-    (b: buffer, offset: number) -> number
-)
+local function selectIO (bytes: number): ((b: buffer, offset: number, v: number) -> (), (
+    b: buffer,
+    offset: number
+) -> number)
     if bytes == 1 then
         return buffer.writeu8, buffer.readu8
     end
@@ -53,18 +53,18 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
         error ("[Lync] Bitfield requires at least one field")
     end
 
-    local keys    = table.create (count) :: { string }
-    local isBool  = table.create (count) :: { boolean }
+    local keys = table.create (count) :: { string }
+    local isBool = table.create (count) :: { boolean }
     local offsets = table.create (count) :: { number }
-    local masks   = table.create (count) :: { number }
+    local masks = table.create (count) :: { number }
 
-    local hasSigned   = false
-    local signBits    = nil :: { number }?
+    local hasSigned = false
+    local signBits = nil :: { number }?
     local signExtends = nil :: { number }?
 
     local totalBits = 0
     for i = 1, count do
-        local key  = sortedKeys[i]
+        local key = sortedKeys[i]
         local spec = schema[key]
         local specIsBool = spec.type == "bool"
         local specIsSigned = spec.type == "int"
@@ -86,10 +86,10 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
             hasSigned = true
         end
 
-        keys[i]    = key
-        isBool[i]  = specIsBool
+        keys[i] = key
+        isBool[i] = specIsBool
         offsets[i] = totalBits
-        masks[i]   = lshift (1, width) - 1
+        masks[i] = lshift (1, width) - 1
         totalBits += width
     end
 
@@ -105,11 +105,11 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
         for i = 1, count do
             local spec = schema[sortedKeys[i]]
             if spec.type == "int" then
-                (signBits :: { number })[i] = lshift (1, (spec.width :: number) - 1)
-                ;(signExtends :: { number })[i] = lshift (1, spec.width :: number)
+                (signBits :: { number })[i] = lshift (1, (spec.width :: number) - 1);
+                (signExtends :: { number })[i] = lshift (1, spec.width :: number)
             else
                 (signBits :: { number })[i] = 0
-                ;(signExtends :: { number })[i] = 0
+                (signExtends :: { number })[i] = 0
             end
         end
 

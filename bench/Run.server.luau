@@ -7,8 +7,8 @@ local RunService = game:GetService ("RunService")
 local Stats = game:GetService ("Stats")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
-local Lync = require (LyncFolder)
 local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
+local Lync = require (LyncFolder)
 
 Lync.start ()
 

@@ -6,8 +6,8 @@ local Players = game:GetService ("Players")
 
 -- State ------------------------------------------------------------------
 
-local _groups       = {} :: { [string]: { [Player]: true } }
-local _counts       = {} :: { [string]: number }
+local _groups = {} :: { [string]: { [Player]: true } }
+local _counts = {} :: { [string]: number }
 local _playerGroups = {} :: { [Player]: { [string]: true } }
 
 -- Private ----------------------------------------------------------------

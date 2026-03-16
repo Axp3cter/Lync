@@ -4,11 +4,11 @@
 
 local RunService = game:GetService ("RunService")
 
-local Client   = require (script.Parent.Parent.transport.Client)
+local Client = require (script.Parent.Parent.transport.Client)
 local Registry = require (script.Parent.Parent.core.Registry)
-local Server   = require (script.Parent.Parent.transport.Server)
-local Signal   = require (script.Parent.Parent.event.Signal)
-local Types    = require (script.Parent.Parent.Types)
+local Server = require (script.Parent.Parent.transport.Server)
+local Signal = require (script.Parent.Parent.event.Signal)
+local Types = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 type QueryConfig<R, S> = Types.QueryConfig<R, S>
@@ -26,7 +26,7 @@ type PendingQuery = {
     timeout: thread?,
 }
 
-local _pending   = {} :: { [number]: PendingQuery }
+local _pending = {} :: { [number]: PendingQuery }
 local _freeStack = table.create (MAX_PENDING) :: { number }
 local _freeDepth = MAX_PENDING
 
@@ -78,8 +78,8 @@ local QueryImpl = {}
 QueryImpl.__index = QueryImpl
 
 function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
-    local respId    = self._respReg.id
-    local respName  = self._name
+    local respId = self._respReg.id
+    local respName = self._name
     local respCodec = self._respReg.codec
 
     if IS_SERVER then
@@ -128,8 +128,12 @@ function QueryImpl.invoke (self: any, request: any, player: Player?): any
 
     if IS_SERVER then
         Server.writeQuery (
-            player :: Player, self._reqReg.id, self._name,
-            correlation, self._reqReg.codec, request
+            player :: Player,
+            self._reqReg.id,
+            self._name,
+            correlation,
+            self._reqReg.codec,
+            request
         )
     else
         Client.writeQuery (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
@@ -151,12 +155,17 @@ function Query.define (name: string, config: QueryConfig<any, any>): any
         error (`[Lync] Query "{name}" requires a response codec`)
     end
 
-    local reqSignal  = Signal.create ()
+    local reqSignal = Signal.create ()
     local respSignal = Signal.create ()
 
     local reqReg, respReg = Registry.registerQueryPair (
-        name, config.request, config.response, reqSignal, respSignal,
-        config.rateLimit, config.validate
+        name,
+        config.request,
+        config.response,
+        reqSignal,
+        respSignal,
+        config.rateLimit,
+        config.validate
     )
 
     respSignal:connect (function (resp: any, correlation: number): ()
@@ -164,8 +173,8 @@ function Query.define (name: string, config: QueryConfig<any, any>): any
     end)
 
     return setmetatable ({
-        _name    = name,
-        _reqReg  = reqReg,
+        _name = name,
+        _reqReg = reqReg,
         _respReg = respReg,
         _timeout = config.timeout or 5,
     }, QueryImpl)

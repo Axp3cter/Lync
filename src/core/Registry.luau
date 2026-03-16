@@ -98,8 +98,16 @@ function Registry.registerQueryPair (
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?
 ): (Registration, Registration)
-    local req =
-        assign (`{name}:req`, name, requestCodec, false, KIND_REQUEST, requestSignal, rateLimit, validate)
+    local req = assign (
+        `{name}:req`,
+        name,
+        requestCodec,
+        false,
+        KIND_REQUEST,
+        requestSignal,
+        rateLimit,
+        validate
+    )
     local resp =
         assign (`{name}:resp`, name, responseCodec, false, KIND_RESPONSE, responseSignal, nil, nil)
 

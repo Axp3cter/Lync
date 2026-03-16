@@ -1,0 +1,37 @@
+{
+    "name": "@rbxts/lync",
+    "version": "1.0.0",
+    "description": "Buffer networking for Roblox. Delta compression, XOR framing, built-in security.",
+    "main": "src/init.luau",
+    "types": "src/index.d.ts",
+    "module": "commonjs",
+    "author": "Axp3cter",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Axp3cter/Lync.git"
+    },
+    "homepage": "https://github.com/Axp3cter/Lync",
+    "bugs": {
+        "url": "https://github.com/Axp3cter/Lync/issues"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "keywords": [
+        "roblox",
+        "networking",
+        "buffer",
+        "delta",
+        "compression",
+        "roblox-ts"
+    ],
+    "files": [
+        "src"
+    ],
+    "devDependencies": {
+        "@rbxts/compiler-types": "^3.0.0-types.0",
+        "@rbxts/types": "^1.0.0",
+        "typescript": "^5.6.0"
+    }
+}

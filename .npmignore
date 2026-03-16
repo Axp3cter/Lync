@@ -1,0 +1,14 @@
+test/
+bench/
+.github/
+.luaurc
+.gitattributes
+stylua.toml
+rokit.toml
+wally.toml
+tsconfig.json
+dev.project.json
+bench.project.json
+default.project.json
+*.rbxl
+*.rbxm

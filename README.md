@@ -8,9 +8,21 @@
 
 ## Install
 
+**Wally (Luau)**
+
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.9.0"
+Lync = "axpecter/lync@1.0.0"
+```
+
+**npm (roblox-ts)**
+
+```bash
+npm install @rbxts/lync
+```
+
+```typescript
+import Lync from "@rbxts/lync";
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
@@ -23,7 +35,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | Function | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
-| `Lync.version` | `"0.9.0"` |
+| `Lync.version` | `"1.0.0"` |
 
 ## Packets
 

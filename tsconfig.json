@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "out",
+        "declaration": true,
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "target": "ESNext",
+        "moduleResolution": "node",
+        "types": ["@rbxts/compiler-types", "@rbxts/types"]
+    },
+    "include": ["src/index.d.ts"]
+}

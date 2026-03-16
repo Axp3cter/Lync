@@ -32,10 +32,11 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 
 ## Lifecycle
 
-| Function | What it does |
+| | What it does |
 |:---------|:------------|
-| `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
+| `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
 | `Lync.version` | `"1.0.1"` |
+| `Lync.VERSION` | `"1.0.1"` |
 
 ## Packets
 
@@ -52,26 +53,26 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 
 | Method | What it does |
 |:-------|:------------|
-| `sendTo(data, player)` | Send to one player. |
-| `sendToAll(data)` | Send to everyone. |
-| `sendToAllExcept(data, except)` | Send to everyone except one. |
-| `sendToList(data, players)` | Send to a list. |
-| `sendToGroup(data, groupName)` | Send to a named group. |
+| `packet:sendTo(data, player)` | Send to one player. |
+| `packet:sendToAll(data)` | Send to everyone. |
+| `packet:sendToAllExcept(data, except)` | Send to everyone except one. |
+| `packet:sendToList(data, players)` | Send to a list. |
+| `packet:sendToGroup(data, groupName)` | Send to a named group. |
 
 **Client methods:**
 
 | Method | What it does |
 |:-------|:------------|
-| `send(data)` | Send to server. |
+| `packet:send(data)` | Send to server. |
 
 **Shared methods:**
 
 | Method | What it does |
 |:-------|:------------|
-| `listen(fn(data, sender))` | Listen for incoming. Returns a Connection. Sender is `Player` on server, `nil` on client. |
-| `once(fn(data, sender))` | Same as listen but auto-disconnects after one fire. |
-| `wait()` | Yields until next fire. Returns `(data, sender)`. |
-| `disconnectAll()` | Kills all listeners on this packet. |
+| `packet:listen(fn(data, sender))` | Listen for incoming. Returns a Connection. Sender is `Player` on server, `nil` on client. |
+| `packet:once(fn(data, sender))` | Same as listen but auto-disconnects after one fire. |
+| `packet:wait()` | Yields until next fire. Returns `(data, sender)`. |
+| `packet:disconnectAll()` | Kills all listeners on this packet. |
 
 ## Queries
 
@@ -87,24 +88,21 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 
 | Method | Where | What it does |
 |:-------|:------|:-------------|
-| `listen(fn)` | Both | Register a handler. Server gets `fn(request, player) → response`. Client gets `fn(request) → response`. |
-| `invoke(request)` | Client | Send request to server, yield until response comes back or timeout. |
-| `invoke(request, player)` | Server | Send request to a specific client, yield until response or timeout. |
-| `invokeAll(request)` | Server | Send request to all players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
-| `invokeList(request, players)` | Server | Send request to a list of players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
-| `invokeGroup(request, groupName)` | Server | Send request to all players in a named group. Returns `{ [Player]: response? }`. |
-| `Lync.queryPendingCount()` | Both | How many queries are currently waiting for a response. |
+| `query:listen(fn)` | Both | Register a handler. Server gets `fn(request, player) → response`. Client gets `fn(request) → response`. |
+| `query:invoke(request)` | Client | Send request to server, yield until response comes back or timeout. |
+| `query:invoke(request, player)` | Server | Send request to a specific client, yield until response or timeout. |
+| `query:invokeAll(request)` | Server | Send request to all players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
+| `query:invokeList(request, players)` | Server | Send request to a list of players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
+| `query:invokeGroup(request, groupName)` | Server | Send request to all players in a named group. Returns `{ [Player]: response? }`. |
 
 ## Namespaces
 
 `Lync.defineNamespace(name, config)` returns a Namespace. Takes a `packets` table and/or a `queries` table. All names get auto-prefixed with `"YourNamespace."` so nothing collides.
 
-You access packets and queries by their short name directly on the returned object.
+Access packets and queries by their short name on the returned object: `ns.PacketName`, `ns.QueryName`.
 
 | Method | What it does |
 |:-------|:------------|
-| `ns.PacketName` | The packet, by short name. |
-| `ns.QueryName` | The query, by short name. |
 | `ns:listenAll(fn(name, data, sender))` | Listens to every packet in the namespace. `name` is the short name without prefix. Returns a Connection. |
 | `ns:onSend(fn(data, name, player) → data?)` | Send middleware that only runs for this namespace. Returns a remover. |
 | `ns:onReceive(fn(data, name, player) → data?)` | Receive middleware that only runs for this namespace. Returns a remover. |
@@ -113,34 +111,43 @@ You access packets and queries by their short name directly on the returned obje
 | `ns:packetNames()` | Sorted list of packet short names. |
 | `ns:queryNames()` | Sorted list of query short names. |
 
+## Connection
+
+Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listenAll()`.
+
+| | What it does |
+|:-------|:------------|
+| `connection.connected` | `true` if still connected, `false` after disconnect. |
+| `connection:disconnect()` | Stops the listener. |
+
 ## Types
 
 ### Primitives
 
 | Type | Bytes | Range |
 |:-----|------:|:------|
-| `u8` | 1 | 0 to 255 |
-| `u16` | 2 | 0 to 65,535 |
-| `u32` | 4 | 0 to 4,294,967,295 |
-| `i8` | 1 | -128 to 127 |
-| `i16` | 2 | -32,768 to 32,767 |
-| `i32` | 4 | -2,147,483,648 to 2,147,483,647 |
-| `f16` | 2 | ±65,504, roughly 3 digits of precision |
-| `f32` | 4 | IEEE 754 single |
-| `f64` | 8 | IEEE 754 double |
-| `bool` | 1 | Gets packed into bitfields when inside structs. |
+| `Lync.u8` | 1 | 0 to 255 |
+| `Lync.u16` | 2 | 0 to 65,535 |
+| `Lync.u32` | 4 | 0 to 4,294,967,295 |
+| `Lync.i8` | 1 | -128 to 127 |
+| `Lync.i16` | 2 | -32,768 to 32,767 |
+| `Lync.i32` | 4 | -2,147,483,648 to 2,147,483,647 |
+| `Lync.f16` | 2 | ±65,504, roughly 3 digits of precision |
+| `Lync.f32` | 4 | IEEE 754 single |
+| `Lync.f64` | 8 | IEEE 754 double |
+| `Lync.bool` | 1 | true/false. Gets packed into bitfields when inside structs. |
 
 ### Complex
 
 | Type | Bytes | What it is |
 |:-----|------:|:-----------|
-| `string` | varint + N | Varint length prefix then raw bytes. |
-| `vec2` | 8 | 2x f32. |
-| `vec3` | 12 | 3x f32. |
-| `cframe` | 24 | Position as 3x f32, rotation as axis-angle 3x f32. |
-| `color3` | 3 | RGB 0-255 per channel, clamped. |
-| `inst` | 2 | Instance ref through sidecar array. |
-| `buff` | varint + N | Varint length prefix then raw bytes. |
+| `Lync.string` | varint + N | Varint length prefix then raw bytes. |
+| `Lync.vec2` | 8 | 2x f32. |
+| `Lync.vec3` | 12 | 3x f32. |
+| `Lync.cframe` | 24 | Position as 3x f32, rotation as axis-angle 3x f32. |
+| `Lync.color3` | 3 | RGB 0-255 per channel, clamped. |
+| `Lync.inst` | 2 | Instance ref through sidecar array. |
+| `Lync.buff` | varint + N | Varint length prefix then raw bytes. |
 
 ### Composites
 
@@ -190,7 +197,7 @@ Named player sets. Members get removed automatically on `PlayerRemoving`.
 | `Lync.getGroupSet(name)` | `{ [Player]: true }` | |
 | `Lync.forEachInGroup(name, fn)` | | Calls `fn(player)` for each member. |
 
-Send to a group with `Packet:sendToGroup(data, groupName)`.
+Send to a group with `packet:sendToGroup(data, groupName)`.
 
 ## Middleware
 
@@ -266,7 +273,7 @@ Call these before `Lync.start()`.
 |:-----|--------:|:--------------|:------|
 | Packet types | 255 | Cant change | u8 on the wire. Each query eats 2 IDs. |
 | Buffer per channel per frame | 256 KB | `Lync.setChannelMaxSize(n)` | 4 KB to 1 MB. |
-| Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. |
+| Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. `Lync.queryPendingCount()` returns in-flight count. |
 | NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
 | Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
 | Namespaces | 64 | Cant change | |

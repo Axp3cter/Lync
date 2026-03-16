@@ -9,7 +9,7 @@ type ChannelState = Types.ChannelState
 -- Constants --------------------------------------------------------------
 
 local INITIAL_SIZE = 1024
-local MAX_SIZE = 65536
+local MAX_SIZE = 262144
 local MAX_BATCH = 65535
 
 local min = math.min
@@ -18,9 +18,39 @@ local band32 = bit32.band
 local countlz = bit32.countlz
 local lshift = bit32.lshift
 
+-- State ------------------------------------------------------------------
+
+local _maxSize = MAX_SIZE
+local _warnThreshold = 0
+local _hasWarned = {} :: { [ChannelState]: true }
+
+-- Private ----------------------------------------------------------------
+
+local function recomputeThreshold (): ()
+    _warnThreshold = _maxSize * 3 // 4
+end
+
+recomputeThreshold ()
+
 -- Public -----------------------------------------------------------------
 
 local Channel = {}
+
+--[[
+    Override the maximum buffer size (in bytes). Must be called before
+    start(). Affects all channels. Range: 4096–1048576 (1 MB).
+]]
+function Channel.setMaxSize (bytes: number): ()
+    if bytes < 4096 or bytes > 1048576 then
+        error (`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
+    end
+    _maxSize = bytes
+    recomputeThreshold ()
+end
+
+function Channel.getMaxSize (): number
+    return _maxSize
+end
 
 function Channel.create (): ChannelState
     return {
@@ -41,8 +71,17 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
     if needed <= ch.size then
         return
     end
-    if needed > MAX_SIZE then
-        error (`[Lync] Channel buffer overflow: {needed} > {MAX_SIZE}`)
+    if needed > _maxSize then
+        error (
+            `[Lync] Channel buffer overflow: {needed} > {_maxSize} (call Channel.setMaxSize to raise)`
+        )
+    end
+
+    if needed > _warnThreshold and not _hasWarned[ch] then
+        _hasWarned[ch] = true
+        warn (
+            `[Lync] Channel buffer at {needed}/{_maxSize} bytes ({needed * 100 // _maxSize}%). Consider raising Channel.setMaxSize or reducing send volume.`
+        )
     end
 
     local newSize = lshift (1, 32 - countlz (needed - 1))
@@ -127,8 +166,9 @@ local function sealOpen (ch: ChannelState): ()
 end
 
 --[[
-    Write a query frame. Seals any open batch, writes id + correlationId +
-    status header. If codec is provided, writes status 0 + payload.
+    Write a query frame. Seals any open batch, writes:
+        id (u8) + correlationId (u16) + status (u8)
+    If codec is provided, writes status 0 + payload.
     If codec is nil, writes status 1 (nil response, no payload).
 ]]
 function Channel.writeQuery (
@@ -140,18 +180,18 @@ function Channel.writeQuery (
 ): ()
     sealOpen (ch)
 
-    Channel.alloc (ch, 3)
+    Channel.alloc (ch, 4)
     local c = ch.cursor
     buffer.writeu8 (ch.buff, c, id)
-    buffer.writeu8 (ch.buff, c + 1, correlationId)
+    buffer.writeu16 (ch.buff, c + 1, correlationId)
 
     if codec then
-        buffer.writeu8 (ch.buff, c + 2, 0)
-        ch.cursor = c + 3
+        buffer.writeu8 (ch.buff, c + 3, 0)
+        ch.cursor = c + 4
         codec.write (ch, data)
     else
-        buffer.writeu8 (ch.buff, c + 2, 1)
-        ch.cursor = c + 3
+        buffer.writeu8 (ch.buff, c + 3, 1)
+        ch.cursor = c + 4
     end
 end
 
@@ -199,6 +239,7 @@ function Channel.reset (ch: ChannelState): ()
     ch.countPos = 0
     ch.batchCount = 0
     table.clear (ch.refs)
+    _hasWarned[ch] = nil
 end
 
 return table.freeze (Channel)

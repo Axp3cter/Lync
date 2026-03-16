@@ -7,6 +7,7 @@ local RunService = game:GetService ("RunService")
 local Bitfield = require (script.codec.Bitfield)
 local Buffer = require (script.codec.Buffer)
 local CFrameCodec = require (script.codec.CFrame)
+local Channel = require (script.core.Channel)
 local Client = require (script.transport.Client)
 local Color = require (script.codec.Color)
 local Composite = require (script.codec.Composite)
@@ -16,7 +17,9 @@ local Gate = require (script.transport.Gate)
 local Group = require (script.event.Group)
 local InstanceCodec = require (script.codec.Instance)
 local Middleware = require (script.core.Middleware)
+local Namespace = require (script.event.Namespace)
 local Packet = require (script.event.Packet)
+local Pool = require (script.core.Pool)
 local Primitive = require (script.codec.Primitive)
 local Quantized = require (script.codec.Quantized)
 local Query = require (script.event.Query)
@@ -38,7 +41,8 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "0.5.0-alpha",
+    VERSION = "0.6.0-alpha",
+    version = "0.6.0-alpha",
 
     -- Lifecycle
     start = start,
@@ -46,6 +50,7 @@ local Lync = {
     -- Definition
     definePacket = Packet.define,
     defineQuery = Query.define,
+    defineNamespace = Namespace.define,
 
     -- Primitives
     u8 = Primitive.u8,
@@ -103,6 +108,14 @@ local Lync = {
     getGroupSet = Group.getSet,
     groupCount = Group.count,
     forEachInGroup = Group.forEach,
+
+    -- Configuration (call before start)
+    setChannelMaxSize = Channel.setMaxSize,
+    setValidationDepth = Gate.setMaxDepth,
+    setPoolSize = Pool.setMaxSize,
+
+    -- Introspection
+    queryPendingCount = Query.pendingCount,
 }
 
 return table.freeze (Lync)

@@ -93,7 +93,8 @@ function Reader.process (
                 signal:fire (final, player)
             end
         else
-            if pos + 1 >= length then
+            -- Query frame: id(u8, already read) + correlationId(u16) + status(u8) = 3 more bytes
+            if pos + 2 >= length then
                 break
             end
 
@@ -101,9 +102,9 @@ function Reader.process (
             local querySignal = reg.signal
             local queryName = reg.baseName
 
-            local correlationId = buffer.readu8 (incoming, pos)
-            local status = buffer.readu8 (incoming, pos + 1)
-            pos += 2
+            local correlationId = buffer.readu16 (incoming, pos)
+            local status = buffer.readu8 (incoming, pos + 2)
+            pos += 3
 
             if status == 1 then
                 if kind == KIND_REQUEST then

@@ -17,7 +17,8 @@ type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
 local IS_SERVER = RunService:IsServer ()
 
-local MAX_PENDING = 256
+-- Wire ceiling: correlationId is u16 in Channel.writeQuery / Reader.process.
+local POOL_SIZE = 65536
 
 -- State ------------------------------------------------------------------
 
@@ -27,29 +28,31 @@ type PendingQuery = {
 }
 
 local _pending = {} :: { [number]: PendingQuery }
-local _freeStack = table.create (MAX_PENDING) :: { number }
-local _freeDepth = MAX_PENDING
+local _nextId = 0
+local _activeCount = 0
 
 -- Private ----------------------------------------------------------------
 
-for i = 0, MAX_PENDING - 1 do
-    _freeStack[i + 1] = i
-end
-
 local function allocCorrelation (): number
-    if _freeDepth == 0 then
-        error (`[Lync] All {MAX_PENDING} query correlation slots are in use`)
+    if _activeCount >= POOL_SIZE then
+        error ("[Lync] All 65536 query correlation slots exhausted")
     end
 
-    local id = _freeStack[_freeDepth]
-    _freeStack[_freeDepth] = nil :: any
-    _freeDepth -= 1
+    local id = _nextId
+
+    -- Skip occupied slots. With 65536 capacity and typical single-digit
+    -- concurrency, this loop body almost never executes.
+    while _pending[id] do
+        id = (id + 1) % POOL_SIZE
+    end
+
+    _nextId = (id + 1) % POOL_SIZE
+    _activeCount += 1
     return id
 end
 
-local function freeCorrelation (id: number): ()
-    _freeDepth += 1
-    _freeStack[_freeDepth] = id
+local function freeCorrelation (): ()
+    _activeCount -= 1
 end
 
 local function completeQuery (id: number, data: any): ()
@@ -59,7 +62,7 @@ local function completeQuery (id: number, data: any): ()
     end
 
     _pending[id] = nil
-    freeCorrelation (id)
+    freeCorrelation ()
 
     if entry.timeout then
         task.cancel (entry.timeout)
@@ -178,6 +181,11 @@ function Query.define (name: string, config: QueryConfig<any, any>): any
         _respReg = respReg,
         _timeout = config.timeout or 5,
     }, QueryImpl)
+end
+
+-- Returns the number of queries currently awaiting a response.
+function Query.pendingCount (): number
+    return _activeCount
 end
 
 return table.freeze (Query)

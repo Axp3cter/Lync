@@ -35,6 +35,7 @@ require (script.core["Middleware.test"])
 
 require (script.event["Signal.test"])
 require (script.event["Group.test"])
+require (script.event["Namespace.test"])
 
 -- Transport --------------------------------------------------------------
 

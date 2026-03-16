@@ -88,7 +88,7 @@ describe ("Gate table NaN", function (): ()
         local p = fakePlayer ()
         Gate.onPlayerAdded (p)
         local deep: any = { val = 1 }
-        for _ = 1, 10 do
+        for _ = 1, 18 do
             deep = { inner = deep }
         end
         expect (Gate.check (deep, reg (), p)):toBe (false)

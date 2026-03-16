@@ -588,21 +588,27 @@ describe ("Pipeline: query frame with status byte", function (): ()
         local raw = buffer.create (ch.cursor)
         buffer.copy (raw, 0, ch.buff, 0, ch.cursor)
 
-        -- Parse: id(1) + correlation(1) + status(1) + u32(4) = 7
-        expect (ch.cursor):toBe (7)
+        -- Parse: id(1) + correlation(2) + status(1) + u32(4) = 8
+        expect (ch.cursor):toBe (8)
         expect (buffer.readu8 (raw, 0)):toBe (1)
-        expect (buffer.readu8 (raw, 1)):toBe (42)
-        expect (buffer.readu8 (raw, 2)):toBe (0)
-        expect (buffer.readu32 (raw, 3)):toBe (12345)
+        expect (buffer.readu16 (raw, 1)):toBe (42)
+        expect (buffer.readu8 (raw, 3)):toBe (0)
+        expect (buffer.readu32 (raw, 4)):toBe (12345)
     end)
-    it ("status 1 (nil) is exactly 3 bytes", function (): ()
+    it ("status 1 (nil) is exactly 4 bytes", function (): ()
         local ch = Channel.create ()
         Channel.writeQuery (ch, 5, 99, nil, nil)
 
-        expect (ch.cursor):toBe (3)
+        expect (ch.cursor):toBe (4)
         expect (buffer.readu8 (ch.buff, 0)):toBe (5)
-        expect (buffer.readu8 (ch.buff, 1)):toBe (99)
-        expect (buffer.readu8 (ch.buff, 2)):toBe (1)
+        expect (buffer.readu16 (ch.buff, 1)):toBe (99)
+        expect (buffer.readu8 (ch.buff, 3)):toBe (1)
+    end)
+    it ("large correlationId round-trips", function (): ()
+        local ch = Channel.create ()
+        Channel.writeQuery (ch, 1, 60000, nil, nil)
+
+        expect (buffer.readu16 (ch.buff, 1)):toBe (60000)
     end)
     it ("mixed batch + query + nil query in one channel", function (): ()
         local ch = Channel.create ()
@@ -612,14 +618,14 @@ describe ("Pipeline: query frame with status byte", function (): ()
         Channel.sealAndDump (ch)
         local afterBatch = ch.cursor
 
-        -- Query with payload
+        -- Query with payload: id(1) + corr(2) + status(1) + u8(1) = 5
         Channel.writeQuery (ch, 2, 10, Lync.u8, 99)
         local afterQuery = ch.cursor
-        expect (afterQuery - afterBatch):toBe (4) -- id + corr + status + u8
+        expect (afterQuery - afterBatch):toBe (5)
 
-        -- Nil query
+        -- Nil query: id(1) + corr(2) + status(1) = 4
         Channel.writeQuery (ch, 3, 20, nil, nil)
-        expect (ch.cursor - afterQuery):toBe (3) -- id + corr + status
+        expect (ch.cursor - afterQuery):toBe (4)
     end)
 end)
 

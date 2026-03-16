@@ -9,7 +9,7 @@ type RateLimitConfig = Types.RateLimitConfig
 
 -- Constants --------------------------------------------------------------
 
-local MAX_DEPTH = 8
+local DEFAULT_MAX_DEPTH = 16
 
 local isfinite = math.isfinite
 local min = math.min
@@ -22,13 +22,14 @@ type Bucket = {
     lastRef: number,
 }
 
+local _maxDepth = DEFAULT_MAX_DEPTH
 local _buckets = {} :: { [Player]: { [number]: Bucket } }
 local _callback = nil :: ((player: Player, reason: string, packetName: string, data: any?) -> ())?
 
 -- Private ----------------------------------------------------------------
 
 local function isClean (value: any, depth: number): boolean
-    if depth > MAX_DEPTH then
+    if depth > _maxDepth then
         return false
     end
 
@@ -123,6 +124,21 @@ end
 -- Public -----------------------------------------------------------------
 
 local Gate = {}
+
+--[[
+    Override the maximum recursion depth for NaN/inf scanning. Default is 16.
+    Range: 4–32.
+]]
+function Gate.setMaxDepth (depth: number): ()
+    if depth < 4 or depth > 32 then
+        error (`[Lync] Gate max depth must be 4–32, got {depth}`)
+    end
+    _maxDepth = depth
+end
+
+function Gate.getMaxDepth (): number
+    return _maxDepth
+end
 
 function Gate.check (value: any, reg: Registration, player: Player): boolean
     if not checkRate (player, reg) then

@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.0.0"
+Lync = "axp3cter/lync@1.0.1"
 ```
 
 **npm (roblox-ts)**
@@ -35,7 +35,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | Function | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
-| `Lync.version` | `"1.0.0"` |
+| `Lync.version` | `"1.0.1"` |
 
 ## Packets
 

@@ -10,7 +10,7 @@
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.6.0-alpha"
+Lync = "axpecter/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7f1306111c3f4f5149514f521e130f171e">[email&#160;protected]</a>"
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
@@ -23,7 +23,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | Function | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all your definitions. |
-| `Lync.version` | `"0.6.0-alpha"` |
+| `Lync.version` | `"0.7.0-alpha"` |
 
 ## Packets
 
@@ -188,14 +188,59 @@ Global intercept on all packets. Handlers run in the order you registered them. 
 
 ## Benchmarks
 
+### Lync Tests
+
 1,000 packets/frame, 10 seconds, one player.
 
 | Scenario | Without Lync | With Lync | FPS |
 |:---------|------------:|---------:|----:|
-| Static booleans (1B) | 480 Kbps | **2.25 Kbps** | 59.99 |
-| Static entities (34B) | 16,320 Kbps | **2.51 Kbps** | 60.00 |
-| Moving entities | 16,320 Kbps | **3.31 Kbps** | 59.99 |
-| Chaotic entities | 16,320 Kbps | **4.66 Kbps** | 60.01 |
+| Static booleans (1B) | 480 Kbps | **2.24 Kbps** | 59.99 |
+| Static entities (34B) | 16,320 Kbps | **2.50 Kbps** | 60.00 |
+| Moving entities | 16,320 Kbps | **3.35 Kbps** | 59.99 |
+| Chaotic entities | 16,320 Kbps | **4.63 Kbps** | 59.99 |
+
+### Cross-Library Comparison
+
+Same data shapes and methodology as [Blink's benchmark suite](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md). 1,000 fires/frame, 10 seconds, same data every frame. Kbps scaled by 60/FPS.
+
+**Entities** (100x struct of 6x u8, fired 1000 times/frame)
+
+| Tool (FPS) | Median | P0 | P80 | P90 | P95 | P100 |
+|:-----------|-------:|---:|----:|----:|----:|-----:|
+| roblox | 16.00 | 16.00 | 15.00 | 15.00 | 15.00 | 15.00 |
+| blink | 42.00 | 45.00 | 42.00 | 42.00 | 42.00 | 42.00 |
+| zap | 39.00 | 40.00 | 38.00 | 38.00 | 38.00 | 38.00 |
+| bytenet | 32.00 | 34.00 | 32.00 | 32.00 | 32.00 | 31.00 |
+| **lync** | 29.00 | 30.00 | 29.00 | 29.00 | 29.00 | 29.00 |
+
+| Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
+|:------------|-------:|---:|----:|----:|----:|-----:|
+| roblox | 559,364 | 559,364 | 676,715 | 676,715 | 676,715 | 784,081 |
+| blink | 41.81 | 26.30 | 42.40 | 42.48 | 42.48 | 42.62 |
+| zap | 41.71 | 25.46 | 42.19 | 42.32 | 42.32 | 42.93 |
+| bytenet | 41.64 | 22.84 | 42.36 | 42.82 | 42.82 | 43.24 |
+| **lync** | 3.96 | 3.81 | 4.18 | 5.45 | 5.45 | 10.40 |
+
+**Booleans** (1000x bool, fired 1000 times/frame)
+
+| Tool (FPS) | Median | P0 | P80 | P90 | P95 | P100 |
+|:-----------|-------:|---:|----:|----:|----:|-----:|
+| roblox | 21.00 | 22.00 | 20.00 | 19.00 | 19.00 | 19.00 |
+| blink | 97.00 | 98.00 | 97.00 | 96.00 | 96.00 | 96.00 |
+| zap | 52.00 | 53.00 | 51.00 | 51.00 | 51.00 | 49.00 |
+| bytenet | 35.00 | 37.00 | 35.00 | 35.00 | 35.00 | 34.00 |
+| **lync** | 23.00 | 24.00 | 22.00 | 22.00 | 22.00 | 22.00 |
+
+| Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
+|:------------|-------:|---:|----:|----:|----:|-----:|
+| roblox | 353,107 | 196,826 | 690,747 | 842,240 | 842,240 | 1,124,176 |
+| blink | 7.91 | 7.41 | 7.93 | 7.99 | 7.99 | 8.00 |
+| zap | 8.10 | 5.75 | 8.17 | 8.22 | 8.22 | 8.27 |
+| bytenet | 8.11 | 5.07 | 8.35 | 8.46 | 8.46 | 8.47 |
+| **lync** | 4.90 | 4.67 | 5.04 | 5.25 | 5.25 | 5.66 |
+
+> [!NOTE]
+> Other tool numbers are from [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (v0.17.1, Ryzen 9 7900X, 34GB DDR5-4800). Lync was run on different hardware so FPS numbers arent directly comparable but bandwidth numbers are since Kbps is scaled by 60/FPS.
 
 ## Limits & Configuration
 
@@ -208,9 +253,4 @@ Call these before `Lync.start()`.
 | Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. |
 | NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
 | Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
-| Namespaces | 64 | Cant change | |
-| Delta + unreliable | Nope | Cant change | Errors at define time. |
-
-## License
-
-MIT
+| N

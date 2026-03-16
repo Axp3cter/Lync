@@ -10,6 +10,7 @@ local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
 local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
 local Lync = require (LyncFolder)
 
+Lync.setChannelMaxSize (1048576) -- 1 MB, needed for Blink entities bench (100x6B x 1000 fires)
 Lync.start ()
 
 -- Config -----------------------------------------------------------------
@@ -17,6 +18,7 @@ Lync.start ()
 local FIRES_PER_FRAME = 1000
 local DURATION = 10
 local SETTLE = 3
+local MAX_FRAMERATE = 60
 
 local floor = math.floor
 local sort = table.sort
@@ -38,6 +40,8 @@ end
 local function fmt (value: number): string
     return `{floor (value * 100 + 0.5) / 100}`
 end
+
+-- Lync-style bench -------------------------------------------------------
 
 type TestConfig = {
     name: string,
@@ -100,15 +104,98 @@ local function runTest (config: TestConfig): ()
     print (`      FPS med={fMed}  Kbps med={kMed}  p95={kP95}  raw={raw}  ({n} samples)`)
 end
 
+-- Blink-style bench ------------------------------------------------------
+
+type BlinkTestConfig = {
+    name: string,
+    player: Player,
+    packet: any,
+    data: any,
+}
+
+local function runBlinkTest (config: BlinkTestConfig): ()
+    task.wait (SETTLE)
+
+    -- Wait for any leftover traffic to drain
+    while Stats.DataSendKbps > 0.5 do
+        RunService.Heartbeat:Wait ()
+    end
+    task.wait (2)
+
+    local packet = config.packet
+    local data = config.data
+    local target = config.player
+
+    local fpsData = {} :: { number }
+    local kbpsData = {} :: { number }
+    local frames = 0
+    local elapsed = 0
+    local sent = 0
+
+    local conn: RBXScriptConnection
+    conn = RunService.Heartbeat:Connect (function (dt: number): ()
+        frames += 1
+        elapsed += dt
+
+        for _ = 1, FIRES_PER_FRAME do
+            packet:sendTo (data, target)
+            sent += 1
+        end
+
+        if elapsed >= 1 then
+            local scale = MAX_FRAMERATE / frames
+            table.insert (kbpsData, Stats.DataSendKbps * scale)
+            table.insert (fpsData, frames)
+            frames = 0
+            elapsed -= 1
+        end
+    end)
+
+    task.wait (DURATION)
+    conn:Disconnect ()
+
+    sort (kbpsData)
+    sort (fpsData, function (a: number, b: number): boolean
+        return a > b
+    end)
+
+    local n = #fpsData
+    if n == 0 then
+        print (`    {config.name}: no samples`)
+        return
+    end
+
+    -- Blink-format output: Median, P0, P80, P90, P95, P100
+    local function p (samples: { number }, pct: number): string
+        local idx = max (1, min (floor (#samples * pct / 100), #samples))
+        return fmt (samples[idx])
+    end
+
+    -- FPS is sorted descending so P0 = best, P100 = worst
+    print (`    {config.name}`)
+    print (
+        `      FPS    | Median={p (fpsData, 50)} | P0={p (fpsData, 0)} | P80={p (fpsData, 80)} | P90={p (
+            fpsData,
+            90
+        )} | P95={p (fpsData, 95)} | P100={p (fpsData, 100)}`
+    )
+    print (
+        `      Kbps   | Median={p (kbpsData, 50)} | P0={p (kbpsData, 0)} | P80={p (kbpsData, 80)} | P90={p (
+            kbpsData,
+            90
+        )} | P95={p (kbpsData, 95)} | P100={p (kbpsData, 100)}`
+    )
+    print (`      Sent={sent}  Samples={n}`)
+end
+
 -- Main -------------------------------------------------------------------
 
 local player = getPlayer ()
 Definitions.Ready:wait ()
 
+-- Section 1: Lync-specific benchmarks
 print (`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
 
--- Static booleans: same value every frame.
--- XOR zeros everything. Baseline batching overhead.
 runTest ({
     name = "Static booleans",
     player = player,
@@ -121,8 +208,6 @@ runTest ({
 
 print ("")
 
--- Static entities: 34 bytes, same data every frame.
--- XOR produces all zeros, Roblox deflate compresses to near nothing.
 runTest ({
     name = "Static entities",
     player = player,
@@ -135,9 +220,6 @@ runTest ({
 
 print ("")
 
--- Moving entities: only position changes each frame.
--- XOR produces 12 non-zero bytes (vec3) + 22 zero bytes.
--- Typical gameplay pattern.
 local moveFrame = 0
 
 runTest ({
@@ -160,9 +242,6 @@ runTest ({
 
 print ("")
 
--- Chaotic entities: every field random every frame.
--- XOR produces entirely non-zero bytes. Minimal compression benefit.
--- Worst case.
 local random = Random.new (42)
 
 runTest ({
@@ -188,6 +267,26 @@ runTest ({
         }
     end,
     bytes = 34,
+})
+
+-- Section 2: Blink-compatible benchmarks
+print (`\n\n  Blink-Compatible Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test`)
+print ("  Same data shapes as github.com/1Axen/blink/benchmark\n")
+
+runBlinkTest ({
+    name = "Entities (100x struct, 6x u8)",
+    player = player,
+    packet = Definitions.BlinkEntities,
+    data = Definitions.BLINK_ENTITIES,
+})
+
+print ("")
+
+runBlinkTest ({
+    name = "Booleans (1000x bool)",
+    player = player,
+    packet = Definitions.BlinkBooleans,
+    data = Definitions.BLINK_BOOLEANS,
 })
 
 print ("\n  Done\n")

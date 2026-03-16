@@ -10,7 +10,7 @@
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.7.0-alpha"
+Lync = "axpecter/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5c3025323f1c6c726b726c713d302c343d">[email&#160;protected]</a>"
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
@@ -253,4 +253,9 @@ Call these before `Lync.start()`.
 | Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. |
 | NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
 | Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
-| N
+| Namespaces | 64 | Cant change | |
+| Delta + unreliable | Nope | Cant change | Errors at define time. |
+
+## License
+
+MIT

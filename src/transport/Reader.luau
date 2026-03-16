@@ -97,35 +97,39 @@ function Reader.process (
                 break
             end
 
+            local queryCodec = reg.codec
+            local querySignal = reg.signal
+            local queryName = reg.baseName
+
             local correlationId = buffer.readu8 (incoming, pos)
             local status = buffer.readu8 (incoming, pos + 1)
             pos += 2
 
             if status == 1 then
                 if kind == KIND_REQUEST then
-                    reg.signal:fire (nil, player, correlationId)
+                    querySignal:fire (nil, player, correlationId)
                 else
-                    reg.signal:fire (nil, correlationId)
+                    querySignal:fire (nil, correlationId)
                 end
                 continue
             end
 
-            local value, consumed = reg.codec.read (incoming, pos, refs)
+            local value, consumed = queryCodec.read (incoming, pos, refs)
             pos += consumed
 
             if player and not Gate.check (value, reg, player) then
                 return
             end
 
-            local final = Middleware.runReceive (value, reg.baseName, player)
+            local final = Middleware.runReceive (value, queryName, player)
             if final == nil then
                 continue
             end
 
             if kind == KIND_REQUEST then
-                reg.signal:fire (final, player, correlationId)
+                querySignal:fire (final, player, correlationId)
             else
-                reg.signal:fire (final, correlationId)
+                querySignal:fire (final, correlationId)
             end
         end
     end

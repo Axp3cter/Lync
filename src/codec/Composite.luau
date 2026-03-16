@@ -53,7 +53,7 @@ type DeltaCache = {
 }
 
 local function rangeEqual (a: buffer, offA: number, b: buffer, offB: number, len: number): boolean
-    local aligned = len - len % 4
+    local aligned = band (len, 0xFFFFFFFC)
     for i = 0, aligned - 4, 4 do
         if buffer.readu32 (a, offA + i) ~= buffer.readu32 (b, offB + i) then
             return false
@@ -173,6 +173,8 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
         end
     end
 
+    local hasBools = boolCount > 0
+
     return table.freeze ({
         _size = if isAllFixed then fixedSize else nil,
 
@@ -185,21 +187,25 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
                 dataCodecs[i].write (ch, value[dataKeys[i]])
             end
 
-            packBools (ch, boolKeys, boolCount, value)
+            if hasBools then
+                packBools (ch, boolKeys, boolCount, value)
+            end
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
             local result = {}
-            local total = 0
+            local absPos = pos
 
             for i = 1, dataCount do
-                local value, n = dataCodecs[i].read (src, pos + total, refs)
+                local value, n = dataCodecs[i].read (src, absPos, refs)
                 result[dataKeys[i]] = value
-                total += n
+                absPos += n
             end
 
-            total += unpackBools (src, pos + total, boolKeys, boolCount, result)
+            if hasBools then
+                absPos += unpackBools (src, absPos, boolKeys, boolCount, result)
+            end
 
-            return result, total
+            return result, absPos - pos
         end,
     })
 end
@@ -215,6 +221,10 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     local deltaId = _nextDeltaId
     _nextDeltaId += 1
 
+    -- Scratch bounds reused every frame (only cloned into cache)
+    local _scratchBounds = table.create (segCount + 1) :: { number }
+    _scratchBounds[1] = 0
+
     return table.freeze ({
         _isDelta = true,
 
@@ -222,7 +232,7 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             local cache = ch.deltas[deltaId] :: DeltaCache?
             local scratch = acquireScratch ()
 
-            local bounds = table.create (segCount + 1)
+            local bounds = _scratchBounds
             bounds[1] = 0
 
             for i = 1, dataCount do
@@ -338,10 +348,11 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             local rawBuf = buffer.create (scratchTotal)
             buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
 
-            table.freeze (bounds)
+            local cacheBounds = table.clone (bounds)
+            table.freeze (cacheBounds)
             ch.deltas[deltaId] = {
                 raw = rawBuf,
-                bounds = bounds,
+                bounds = cacheBounds,
                 total = scratchTotal,
             } :: DeltaCache
 
@@ -350,35 +361,35 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
 
         read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
             local flag = buffer.readu8 (src, pos)
-            local total = 1
+            local absPos = pos + 1
 
             if flag == FLAG_UNCHANGED then
                 local cache = Baseline.getCache (deltaId) :: any
-                return if cache then table.clone (cache) else {}, total
+                return if cache then table.clone (cache) else {}, 1
             end
 
             if flag == FLAG_FULL then
                 local result = {}
 
                 for i = 1, dataCount do
-                    local val, n = dataCodecs[i].read (src, pos + total, refs)
+                    local val, n = dataCodecs[i].read (src, absPos, refs)
                     result[dataKeys[i]] = val
-                    total += n
+                    absPos += n
                 end
 
                 if boolCount > 0 then
-                    total += unpackBools (src, pos + total, boolKeys, boolCount, result)
+                    absPos += unpackBools (src, absPos, boolKeys, boolCount, result)
                 end
 
                 Baseline.setCache (deltaId, result)
-                return result, total
+                return result, absPos - pos
             end
 
             local cache = Baseline.getCache (deltaId) :: any
             local result = if cache then table.clone (cache) else {}
 
-            local maskStart = pos + total
-            total += bitmaskBytes
+            local maskStart = absPos
+            absPos += bitmaskBytes
 
             for i = 1, segCount do
                 local bitIdx = i - 1
@@ -386,17 +397,17 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
 
                 if band (byte, lshift (1, bitIdx % 8)) ~= 0 then
                     if i <= dataCount then
-                        local val, n = dataCodecs[i].read (src, pos + total, refs)
+                        local val, n = dataCodecs[i].read (src, absPos, refs)
                         result[dataKeys[i]] = val
-                        total += n
+                        absPos += n
                     else
-                        total += unpackBools (src, pos + total, boolKeys, boolCount, result)
+                        absPos += unpackBools (src, absPos, boolKeys, boolCount, result)
                     end
                 end
             end
 
             Baseline.setCache (deltaId, result)
-            return result, total
+            return result, absPos - pos
         end,
     })
 end
@@ -487,45 +498,45 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
 
         read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
             local flag = buffer.readu8 (src, pos)
-            local total = 1
+            local absPos = pos + 1
 
             if flag == FLAG_UNCHANGED then
                 local cache = Baseline.getCache (deltaId)
-                return if cache then table.clone (cache) else {}, total
+                return if cache then table.clone (cache) else {}, 1
             end
 
             if flag == FLAG_FULL then
-                local len, lenBytes = Varint.read (src, pos + total)
-                total += lenBytes
+                local len, lenBytes = Varint.read (src, absPos)
+                absPos += lenBytes
 
                 local result = table.create (len)
                 for i = 1, len do
-                    local val, n = element.read (src, pos + total, refs)
+                    local val, n = element.read (src, absPos, refs)
                     result[i] = val
-                    total += n
+                    absPos += n
                 end
 
                 Baseline.setCache (deltaId, result)
-                return result, total
+                return result, absPos - pos
             end
 
             local cache = Baseline.getCache (deltaId) :: { any }?
             local result = if cache then table.clone (cache) else {}
 
-            local dirtyN, dnBytes = Varint.read (src, pos + total)
-            total += dnBytes
+            local dirtyN, dnBytes = Varint.read (src, absPos)
+            absPos += dnBytes
 
             for _ = 1, dirtyN do
-                local idx, idxBytes = Varint.read (src, pos + total)
-                total += idxBytes
+                local idx, idxBytes = Varint.read (src, absPos)
+                absPos += idxBytes
 
-                local val, n = element.read (src, pos + total, refs)
+                local val, n = element.read (src, absPos, refs)
                 result[idx + 1] = val
-                total += n
+                absPos += n
             end
 
             Baseline.setCache (deltaId, result)
-            return result, total
+            return result, absPos - pos
         end,
     })
 end
@@ -543,15 +554,15 @@ function Composite.array (element: Codec<any>): Codec<{ any }>
             local len, lenBytes = Varint.read (src, pos)
 
             local result = table.create (len)
-            local total = lenBytes
+            local absPos = pos + lenBytes
 
             for i = 1, len do
-                local value, n = element.read (src, pos + total, refs)
+                local value, n = element.read (src, absPos, refs)
                 result[i] = value
-                total += n
+                absPos += n
             end
 
-            return result, total
+            return result, absPos - pos
         end,
     })
 end
@@ -575,17 +586,17 @@ function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [
             local count, lenBytes = Varint.read (src, pos)
 
             local result = {}
-            local total = lenBytes
+            local absPos = pos + lenBytes
 
             for _ = 1, count do
-                local k, kn = keyCodec.read (src, pos + total, refs)
-                total += kn
-                local v, vn = valueCodec.read (src, pos + total, refs)
-                total += vn
+                local k, kn = keyCodec.read (src, absPos, refs)
+                absPos += kn
+                local v, vn = valueCodec.read (src, absPos, refs)
+                absPos += vn
                 result[k] = v
             end
 
-            return result, total
+            return result, absPos - pos
         end,
     })
 end

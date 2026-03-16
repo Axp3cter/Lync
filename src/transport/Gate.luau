@@ -36,7 +36,14 @@ local function isClean (value: any, depth: number): boolean
 
     if t == "number" then
         return isfinite (value)
-    elseif t == "table" then
+    end
+
+    -- String, boolean, nil are always clean — exit before table/vector/userdata checks
+    if t == "string" or t == "boolean" or t == "nil" then
+        return true
+    end
+
+    if t == "table" then
         local deeper = depth + 1
         for k, v in value do
             if not isClean (k, deeper) or not isClean (v, deeper) then
@@ -44,9 +51,13 @@ local function isClean (value: any, depth: number): boolean
             end
         end
         return true
-    elseif t == "vector" then
+    end
+
+    if t == "vector" then
         return isfinite (value.X) and isfinite (value.Y) and isfinite (value.Z)
-    elseif t == "userdata" then
+    end
+
+    if t == "userdata" then
         local ut = typeof (value)
 
         if ut == "Vector2" then

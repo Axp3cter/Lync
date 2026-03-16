@@ -29,7 +29,7 @@ Install via [Wally](https://wally.run):
 
 ```toml
 [dependencies]
-Lync = "axpecter/lync@0.4.0"
+Lync = "axpecter/lync@0.5.0"
 ```
 
 Or grab the `.rbxm` from the [latest release](https://github.com/Axp3cter/Lync/releases/latest).
@@ -87,16 +87,20 @@ Hit:disconnectAll()
 
 ## Queries
 
-Request-reply over RemoteEvents. No RemoteFunctions.
+Bidirectional request-reply over RemoteEvents. No RemoteFunctions. Returns `nil` on timeout or handler error.
 
 ```luau
 local GetInventory = Lync.defineQuery("GetInventory", {
-    request  = Lync.u32,
-    response = Lync.array(Lync.struct({
+    request   = Lync.u32,
+    response  = Lync.array(Lync.struct({
         itemId = Lync.u32,
         count  = Lync.u16,
     })),
-    timeout = 5,
+    timeout   = 5,
+    rateLimit = { maxPerSecond = 10 },
+    validate  = function(data, player)
+        return data > 0, "invalid id"
+    end,
 })
 ```
 
@@ -107,6 +111,9 @@ local GetInventory = Lync.defineQuery("GetInventory", {
 GetInventory:listen(function(playerId, player)
     return fetchInventory(playerId)
 end)
+
+-- query a client
+local response = GetInventory:invoke(request, player)
 ```
 </details>
 
@@ -115,7 +122,11 @@ end)
 
 ```luau
 local items = GetInventory:invoke(localPlayer.UserId)
--- yields, returns nil on timeout
+
+-- listen for server queries
+GetInventory:listen(function(request)
+    return computeResponse(request)
+end)
 ```
 </details>
 
@@ -184,7 +195,11 @@ Lync.deltaArray(codec)                   -- dirty elements only
 Lync.enum("idle", "walking", "running")
 Lync.quantizedFloat(min, max, precision)
 Lync.quantizedVec3(min, max, precision)
-Lync.bitfield({ alive = { type = "bool" }, level = { type = "uint", width = 5 } })
+Lync.bitfield({
+    alive = { type = "bool" },
+    level = { type = "uint", width = 5 },
+    delta = { type = "int",  width = 4 },
+})
 Lync.tagged("kind", { move = moveCodec, chat = chatCodec })
 ```
 
@@ -217,19 +232,18 @@ Lync.definePacket("Position", {
 | `rateLimit`  | Token bucket. `burstAllowance` defaults to `maxPerSecond`. |
 | `validate`   | Server-only. Return `false, "reason"` to drop.             |
 
-NaN/inf scanning, depth limiting, and rate limiting run on all incoming packets automatically.
-
 ---
 
 ## Groups
 
-Named player sets for targeted sends. Players are auto-removed on `PlayerRemoving`.
+Named player sets for targeted sends. Auto-removed on `PlayerRemoving`.
 
 ```luau
 Lync.createGroup("lobby")
 Lync.addToGroup("lobby", player)
 Lync.removeFromGroup("lobby", player)
 Lync.hasInGroup("lobby", player)
+Lync.groupCount("lobby")
 Lync.getGroupSet("lobby")
 Lync.forEachInGroup("lobby", fn)
 Lync.destroyGroup("lobby")
@@ -256,7 +270,7 @@ remove()
 <details>
 <summary><b>Drop handler</b></summary>
 
-Called when an incoming packet is rejected by the gate.
+Called when an incoming packet is rejected.
 
 ```luau
 Lync.onDrop(function(player, reason, name, data)
@@ -274,12 +288,10 @@ Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
 
 | Scenario         | What changes         | Raw Kbps | Kbps (med) | Kbps (p95) | Reduction |
 | :--------------- | :------------------- | -------: | ---------: | ---------: | --------: |
-| Static booleans  | Nothing              |      480 |       2.27 |       3.57 |     99.5% |
-| Static entities  | Nothing              |   16,320 |       2.53 |       2.62 |    99.98% |
-| Moving entities  | Position only        |   16,320 |       3.08 |       3.09 |    99.98% |
-| Chaotic entities | Every field, random  |   16,320 |       4.69 |       4.78 |    99.97% |
-
-All tests held 60 FPS. Roblox compresses buffer payloads transparently via deflate.
+| Static booleans  | Nothing              |      480 |       2.27 |       3.52 |     99.5% |
+| Static entities  | Nothing              |   16,320 |       2.59 |       2.66 |    99.98% |
+| Moving entities  | Position only        |   16,320 |       3.09 |       3.23 |    99.98% |
+| Chaotic entities | Every field, random  |   16,320 |       4.70 |       4.77 |    99.97% |
 
 <details>
 <summary><b>Run benchmarks</b></summary>
@@ -290,16 +302,6 @@ rojo build bench.project.json -o Lync-bench.rbxl
 
 Open in Studio, start a local server with one player.
 </details>
-
----
-
-## How It Works
-
-```
-write → batch → xor → fire → [roblox deflate] → unxor → read → gate → signal
-```
-
-XOR transforms unchanged bytes to zeros. Roblox compresses the buffer transparently before sending. Static data costs near-zero bandwidth. Changing data compresses proportionally to how much actually changed.
 
 ---
 

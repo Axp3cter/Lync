@@ -111,6 +111,12 @@ function SignalImpl.fire (self: any, ...: any): ()
         snapshot[i] = entries[i]
     end
 
+    -- Nil out stale tail from previous larger fires
+    local tail = count + 1
+    if snapshot[tail] ~= nil then
+        snapshot[tail] = nil
+    end
+
     for i = 1, count do
         local entry = snapshot[i]
         snapshot[i] = nil

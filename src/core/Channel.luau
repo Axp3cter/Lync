@@ -14,7 +14,7 @@ local MAX_BATCH = 65535
 
 local min = math.min
 local bxor = bit32.bxor
-local floor = math.floor
+local band32 = bit32.band
 local countlz = bit32.countlz
 local lshift = bit32.lshift
 
@@ -176,7 +176,7 @@ function Channel.xorApply (current: buffer, previous: buffer?): buffer
     local prev = previous :: buffer
 
     -- u32 fast path for aligned portion
-    local aligned = floor (overlap / 4) * 4
+    local aligned = band32 (overlap, 0xFFFFFFFC)
     for i = 0, aligned - 4, 4 do
         buffer.writeu32 (result, i, bxor (buffer.readu32 (current, i), buffer.readu32 (prev, i)))
     end

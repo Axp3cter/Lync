@@ -30,7 +30,8 @@ end
 
 local function run (chain: Chain, label: string, data: any, name: string, player: Player?): any?
     local handlers = chain.handlers
-    if #handlers == 0 then
+    local count = #handlers
+    if count == 0 then
         return data
     end
 
@@ -40,7 +41,15 @@ local function run (chain: Chain, label: string, data: any, name: string, player
         chain.snapshot = snapshot
     end
 
-    local ok, result = pcall (runChain, snapshot, data, name, player)
+    local ok: boolean
+    local result: any
+
+    if count == 1 then
+        ok, result = pcall (snapshot[1], data, name, player)
+    else
+        ok, result = pcall (runChain, snapshot, data, name, player)
+    end
+
     if not ok then
         warn (`[Lync] {label} middleware error on "{name}": {result}`)
         return nil

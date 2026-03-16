@@ -18,7 +18,9 @@ local function numeric (
     return table.freeze ({
         _size = bytes,
         write = function (ch: ChannelState, value: number): ()
-            Channel.alloc (ch, bytes)
+            if ch.cursor + bytes > ch.size then
+                Channel.alloc (ch, bytes)
+            end
             writeFn (ch.buff, ch.cursor, value)
             ch.cursor += bytes
         end,

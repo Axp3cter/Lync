@@ -145,26 +145,46 @@ local function broadcastTo (
     local snapLen, snapRefs = serializeBroadcast (codec, final)
     local scratchBuff = _broadScratch.buff
 
-    for key, value in targets do
-        local player: Player
-        local state: PlayerState?
+    -- Determine iteration mode from first key (once, not per entry)
+    local firstKey = next (targets)
+    if firstKey == nil then
+        return
+    end
 
-        if typeof (key) == "Instance" then
-            -- { [Player]: PlayerState } or { [Player]: true }
-            player = key :: any
-            state = if typeof (value) == "table" then value :: any else _players[player]
+    if type (firstKey) == "number" then
+        -- Array path: { Player } — numeric keys, values are players
+        for _, player in targets :: { any } do
+            local state = _players[player]
+            if not state or (except and player == except) then
+                continue
+            end
+            local ch = if isUnreliable then state.unreliable else state.reliable
+            Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+        end
+    else
+        -- Map path: { [Player]: PlayerState } or { [Player]: true }
+        local firstIsState = type (targets[firstKey]) == "table"
+
+        if firstIsState then
+            -- _players map: value IS the PlayerState
+            for player, state in targets :: { [any]: PlayerState } do
+                if except and player == except then
+                    continue
+                end
+                local ch = if isUnreliable then state.unreliable else state.reliable
+                Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+            end
         else
-            -- { Player } — numeric index
-            player = value :: any
-            state = _players[player]
+            -- Group set: { [Player]: true } — look up state from _players
+            for player in targets do
+                local state = _players[player]
+                if not state or (except and player == except) then
+                    continue
+                end
+                local ch = if isUnreliable then state.unreliable else state.reliable
+                Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+            end
         end
-
-        if not state or (except and player == except) then
-            continue
-        end
-
-        local ch = if isUnreliable then state.unreliable else state.reliable
-        Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
     end
 end
 

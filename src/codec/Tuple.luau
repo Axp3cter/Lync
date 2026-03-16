@@ -40,15 +40,15 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
             local result = table.create (count)
-            local total = 0
+            local absPos = pos
 
             for i = 1, count do
-                local value, n = codecs[i].read (src, pos + total, refs)
+                local value, n = codecs[i].read (src, absPos, refs)
                 result[i] = value
-                total += n
+                absPos += n
             end
 
-            return result, total
+            return result, absPos - pos
         end,
     })
 end

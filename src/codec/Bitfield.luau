@@ -35,39 +35,20 @@ local function selectIO (bytes: number): ((b: buffer, offset: number, v: number)
     return buffer.writeu32, buffer.readu32
 end
 
-local function sortByKey (a: { key: string }, b: { key: string }): boolean
-    return a.key < b.key
-end
-
 -- Public -----------------------------------------------------------------
 
 local Bitfield = {}
 
 function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
-    local raw = {} :: { { key: string, isBool: boolean, width: number } }
+    local sortedKeys = {} :: { string }
 
-    for key, spec in schema do
-        local isBool = spec.type == "bool"
-        local width: number
-
-        if isBool then
-            width = 1
-        else
-            if not spec.width then
-                error (`[Lync] Bitfield "{key}" requires a width`)
-            end
-            width = spec.width
-            if width < 1 or width > 32 then
-                error (`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
-            end
-        end
-
-        table.insert (raw, { key = key, isBool = isBool, width = width })
+    for key in schema do
+        table.insert (sortedKeys, key)
     end
 
-    table.sort (raw, sortByKey)
+    table.sort (sortedKeys)
 
-    local count = #raw
+    local count = #sortedKeys
     if count == 0 then
         error ("[Lync] Bitfield requires at least one field")
     end
@@ -80,12 +61,28 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
 
     local totalBits = 0
     for i = 1, count do
-        local field = raw[i]
-        keys[i] = field.key
-        isBool[i] = field.isBool
+        local key = sortedKeys[i]
+        local spec = schema[key]
+        local specIsBool = spec.type == "bool"
+        local width: number
+
+        if specIsBool then
+            width = 1
+        else
+            if not spec.width then
+                error (`[Lync] Bitfield "{key}" requires a width`)
+            end
+            width = spec.width
+            if width < 1 or width > 32 then
+                error (`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
+            end
+        end
+
+        keys[i] = key
+        isBool[i] = specIsBool
         offsets[i] = totalBits
-        masks[i] = lshift (1, field.width) - 1
-        totalBits += field.width
+        masks[i] = lshift (1, width) - 1
+        totalBits += width
     end
 
     if totalBits > 32 then

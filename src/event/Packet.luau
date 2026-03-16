@@ -86,7 +86,7 @@ function Packet.define (name: string, config: PacketConfig<any>): any
         error (`[Lync] Packet "{name}" requires a value codec`)
     end
 
-    local isUnreliable = config.unreliable == true
+    local isUnreliable = config.unreliable or false
 
     if (config.value :: any)._isDelta and isUnreliable then
         error (`[Lync] Packet "{name}" uses delta codec which requires reliable delivery`)
@@ -108,7 +108,7 @@ function Packet.define (name: string, config: PacketConfig<any>): any
         _name = reg.name,
         _codec = reg.codec,
         _isUnreliable = isUnreliable,
-        _signal = reg.signal,
+        _signal = signal,
     }, if IS_SERVER then ServerImpl else ClientImpl)
 end
 

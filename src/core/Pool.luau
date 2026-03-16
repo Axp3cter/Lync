@@ -28,7 +28,11 @@ function Pool.acquire (): ChannelState
 end
 
 function Pool.release (ch: ChannelState): ()
-    Channel.reset (ch)
+    ch.cursor = 0
+    ch.lastId = -1
+    ch.countPos = 0
+    ch.batchCount = 0
+    table.clear (ch.refs)
     table.clear (ch.deltas)
     ch.prevDump = nil
     _depth += 1

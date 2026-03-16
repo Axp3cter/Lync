@@ -44,8 +44,7 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
     local tagNames = table.create (count) :: { string }
     local tagSizes = table.create (count) :: { number? }
 
-    local uniformSize: number? = nil
-    local isUniform = true
+    local uniformSize: number? = (variants[names[1]] :: any)._size
 
     for i, name in names do
         nameToTag[name] = i
@@ -55,10 +54,8 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
         local size = (variants[name] :: any)._size
         tagSizes[i] = size
 
-        if i == 1 then
-            uniformSize = size
-        elseif size ~= uniformSize then
-            isUniform = false
+        if size ~= uniformSize then
+            uniformSize = nil
         end
     end
 
@@ -67,8 +64,7 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
     table.freeze (tagNames)
     table.freeze (tagSizes)
 
-    -- If all variants have the same fixed size, the tagged codec has a fixed size too
-    local fixedSize: number? = if isUniform and uniformSize then 1 + uniformSize else nil
+    local fixedSize: number? = if uniformSize then 1 + uniformSize else nil
 
     return table.freeze ({
         _size = fixedSize,

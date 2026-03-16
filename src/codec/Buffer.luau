@@ -16,11 +16,9 @@ Buffer.buff = table.freeze ({
     write = function (ch: ChannelState, value: buffer): ()
         local len = buffer.len (value)
         Varint.write (ch, len)
-        if len > 0 then
-            Channel.alloc (ch, len)
-            buffer.copy (ch.buff, ch.cursor, value, 0, len)
-            ch.cursor += len
-        end
+        Channel.alloc (ch, len)
+        buffer.copy (ch.buff, ch.cursor, value, 0, len)
+        ch.cursor += len
     end,
     read = function (src: buffer, pos: number, _refs: { Instance }?): (buffer, number)
         local len, lenBytes = Varint.read (src, pos)

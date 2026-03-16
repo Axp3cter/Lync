@@ -16,10 +16,11 @@ InstanceCodec.inst = table.freeze ({
     write = function (ch: ChannelState, value: Instance): ()
         local refs = ch.refs
         local idx = #refs + 1
-        refs[idx] = value
         if idx > 65535 then
             error (`[Lync] Instance ref overflow: {idx} exceeds u16 max`)
         end
+
+        refs[idx] = value
 
         Channel.alloc (ch, 2)
         buffer.writeu16 (ch.buff, ch.cursor, idx)

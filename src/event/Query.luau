@@ -22,8 +22,12 @@ local MAX_PENDING = 256
 
 -- State ------------------------------------------------------------------
 
-local _pending = {} :: { [number]: thread }
-local _timeouts = {} :: { [number]: thread }
+type PendingQuery = {
+    thread: thread,
+    timeout: thread?,
+}
+
+local _pending = {} :: { [number]: PendingQuery }
 
 -- Free-stack for O(1) correlation ID allocation
 local _freeStack = table.create (MAX_PENDING) :: { number }
@@ -52,37 +56,24 @@ local function freeCorrelation (id: number): ()
     _freeStack[_freeDepth] = id
 end
 
-local function resolveCorrelation (id: number, data: any): ()
-    local waiting = _pending[id]
-    if not waiting then
+local function completeQuery (id: number, data: any): ()
+    local entry = _pending[id]
+    if not entry then
         return
     end
 
     _pending[id] = nil
     freeCorrelation (id)
 
-    local timeout = _timeouts[id]
-    if timeout then
-        task.cancel (timeout)
-        _timeouts[id] = nil
+    if entry.timeout then
+        task.cancel (entry.timeout)
     end
 
-    coroutine.resume (waiting, data)
+    coroutine.resume (entry.thread, data)
 end
 
--- Shared timeout handler — avoids NEWCLOSURE per invoke.
--- Reads correlation ID from the thread's first argument.
 local function onTimeout (correlation: number): ()
-    local waiting = _pending[correlation]
-    if not waiting then
-        return
-    end
-
-    _pending[correlation] = nil
-    _timeouts[correlation] = nil
-    freeCorrelation (correlation)
-
-    coroutine.resume (waiting, nil)
+    completeQuery (correlation, nil)
 end
 
 -- Query class
@@ -122,10 +113,11 @@ function QueryImpl.invoke (self: any, request: any): any
     local correlation = allocCorrelation ()
     local thread = coroutine.running ()
 
-    _pending[correlation] = thread
+    local entry: PendingQuery = { thread = thread, timeout = nil }
+    _pending[correlation] = entry
     Client.writeQueryRequest (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
 
-    _timeouts[correlation] = task.delay (self._timeout, onTimeout, correlation)
+    entry.timeout = task.delay (self._timeout, onTimeout, correlation)
 
     return coroutine.yield ()
 end
@@ -150,7 +142,7 @@ function Query.define (name: string, config: QueryConfig<any, any>): any
 
     if not IS_SERVER then
         respSignal:connect (function (resp: any, correlation: number): ()
-            resolveCorrelation (correlation, resp)
+            completeQuery (correlation, resp)
         end)
     end
 

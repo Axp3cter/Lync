@@ -18,10 +18,6 @@ local Types = require (script.Parent.Parent.Types)
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- Constants --------------------------------------------------------------
-
-local MAX_INCOMING = 65536
-
 -- State ------------------------------------------------------------------
 
 type PlayerState = {
@@ -59,42 +55,24 @@ local function onPlayerRemoving (player: Player): ()
     Baseline.clearSource (player)
 end
 
-local function decodeIncoming (data: any): buffer?
-    if typeof (data) ~= "buffer" then
-        return nil
-    end
-    if buffer.len (data) > MAX_INCOMING then
-        return nil
-    end
-    return data
-end
-
-local function receiveReliable (player: Player, data: any, refs: any): ()
-    local buf = decodeIncoming (data)
+local function receive (player: Player, data: any, refs: any, applyXor: boolean): ()
+    local buf = Reader.decodeIncoming (data)
     if not buf then
         return
     end
 
-    local raw = Channel.xorApply (buf, _prevRecv[player])
-    _prevRecv[player] = raw
+    local raw: buffer
+    if applyXor then
+        raw = Channel.xorApply (buf, _prevRecv[player])
+        _prevRecv[player] = raw
+    else
+        raw = buf
+    end
 
     local safeRefs: { Instance }? = if typeof (refs) == "table" then refs else nil
     local ok, err = pcall (Reader.process, raw, safeRefs, player, 0)
     if not ok then
-        warn (`[Lync] Reliable read failed from {player.Name} ({player.UserId}): {err}`)
-    end
-end
-
-local function receiveUnreliable (player: Player, data: any, refs: any): ()
-    local buf = decodeIncoming (data)
-    if not buf then
-        return
-    end
-
-    local safeRefs: { Instance }? = if typeof (refs) == "table" then refs else nil
-    local ok, err = pcall (Reader.process, buf, safeRefs, player, 0)
-    if not ok then
-        warn (`[Lync] Unreliable read failed from {player.Name} ({player.UserId}): {err}`)
+        warn (`[Lync] Read failed from {player.Name} ({player.UserId}): {err}`)
     end
 end
 
@@ -103,9 +81,7 @@ local function flushChannel (remote: any, ch: ChannelState, target: Player, appl
         return
     end
 
-    Channel.seal (ch)
-
-    local raw, refs = Channel.dump (ch)
+    local raw, refs = Channel.sealAndDump (ch)
 
     if applyXor then
         local xored = Channel.xorApply (raw, ch.prevDump)
@@ -119,8 +95,8 @@ local function flushChannel (remote: any, ch: ChannelState, target: Player, appl
 end
 
 local function flush (): ()
-    local reliable = Bridge.reliable ()
-    local unreliable = Bridge.unreliable ()
+    local reliable = Bridge.reliable
+    local unreliable = Bridge.unreliable
 
     for player, state in _players do
         flushChannel (reliable, state.reliable, player, true)
@@ -137,6 +113,50 @@ local function serializeBroadcast (codec: Codec<any>, data: any): (number, { Ins
 
     local snapRefs = if #scratch.refs > 0 then table.clone (scratch.refs) else nil
     return scratch.cursor, snapRefs
+end
+
+--[[
+    Shared broadcast: middleware → serialize once → fan out to each player's
+    channel. Accepts _players, a { Player } list, or a group set.
+]]
+local function broadcastTo (
+    targets: { [any]: any },
+    id: number,
+    name: string,
+    codec: Codec<any>,
+    data: any,
+    isUnreliable: boolean,
+    except: Player?
+): ()
+    local final = Middleware.runSend (data, name, nil)
+    if final == nil then
+        return
+    end
+
+    local snapLen, snapRefs = serializeBroadcast (codec, final)
+    local scratchBuff = _broadScratch.buff
+
+    for key, value in targets do
+        local player: Player
+        local state: PlayerState?
+
+        if typeof (key) == "Instance" then
+            -- { [Player]: PlayerState } or { [Player]: true }
+            player = key :: any
+            state = if typeof (value) == "table" then value :: any else _players[player]
+        else
+            -- { Player } — numeric index
+            player = value :: any
+            state = _players[player]
+        end
+
+        if not state or (except and player == except) then
+            continue
+        end
+
+        local ch = if isUnreliable then state.unreliable else state.reliable
+        Channel.writeBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+    end
 end
 
 -- Public -----------------------------------------------------------------
@@ -157,8 +177,12 @@ function Server.start (): ()
         onPlayerAdded (player)
     end
 
-    Bridge.reliable ().OnServerEvent:Connect (receiveReliable)
-    Bridge.unreliable ().OnServerEvent:Connect (receiveUnreliable)
+    Bridge.reliable.OnServerEvent:Connect (function (player: Player, data: any, refs: any): ()
+        receive (player, data, refs, true)
+    end)
+    Bridge.unreliable.OnServerEvent:Connect (function (player: Player, data: any, refs: any): ()
+        receive (player, data, refs, false)
+    end)
     RunService.Heartbeat:Connect (flush)
 end
 
@@ -191,17 +215,7 @@ function Server.writeToAll (
     data: any,
     isUnreliable: boolean
 ): ()
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
-    end
-
-    local snapLen, snapRefs = serializeBroadcast (codec, final)
-
-    for player, state in _players do
-        local ch = if isUnreliable then state.unreliable else state.reliable
-        Channel.writeBatchRaw (ch, id, _broadScratch.buff, snapLen, snapRefs)
-    end
+    broadcastTo (_players, id, name, codec, data, isUnreliable, nil)
 end
 
 function Server.writeToList (
@@ -212,20 +226,7 @@ function Server.writeToList (
     data: any,
     isUnreliable: boolean
 ): ()
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
-    end
-
-    local snapLen, snapRefs = serializeBroadcast (codec, final)
-
-    for _, player in players do
-        local state = _players[player]
-        if state then
-            local ch = if isUnreliable then state.unreliable else state.reliable
-            Channel.writeBatchRaw (ch, id, _broadScratch.buff, snapLen, snapRefs)
-        end
-    end
+    broadcastTo (players :: any, id, name, codec, data, isUnreliable, nil)
 end
 
 function Server.writeToAllExcept (
@@ -236,21 +237,7 @@ function Server.writeToAllExcept (
     data: any,
     isUnreliable: boolean
 ): ()
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
-    end
-
-    local snapLen, snapRefs = serializeBroadcast (codec, final)
-
-    for player, state in _players do
-        if player == except then
-            continue
-        end
-
-        local ch = if isUnreliable then state.unreliable else state.reliable
-        Channel.writeBatchRaw (ch, id, _broadScratch.buff, snapLen, snapRefs)
-    end
+    broadcastTo (_players, id, name, codec, data, isUnreliable, except)
 end
 
 function Server.writeToGroup (
@@ -261,20 +248,7 @@ function Server.writeToGroup (
     data: any,
     isUnreliable: boolean
 ): ()
-    local final = Middleware.runSend (data, name, nil)
-    if final == nil then
-        return
-    end
-
-    local snapLen, snapRefs = serializeBroadcast (codec, final)
-
-    for player in Group.getSet (groupName) do
-        local state = _players[player]
-        if state then
-            local ch = if isUnreliable then state.unreliable else state.reliable
-            Channel.writeBatchRaw (ch, id, _broadScratch.buff, snapLen, snapRefs)
-        end
-    end
+    broadcastTo (Group.getSet (groupName) :: any, id, name, codec, data, isUnreliable, nil)
 end
 
 function Server.writeQueryResponse (
@@ -295,14 +269,7 @@ function Server.writeQueryResponse (
         return
     end
 
-    local ch = state.reliable
-    Channel.seal (ch)
-    Channel.alloc (ch, 2)
-    buffer.writeu8 (ch.buff, ch.cursor, id)
-    buffer.writeu8 (ch.buff, ch.cursor + 1, correlationId)
-    ch.cursor += 2
-    codec.write (ch, final)
-    ch.lastId = -1
+    Channel.writeQuery (state.reliable, id, correlationId, codec, final)
 end
 
 return table.freeze (Server)

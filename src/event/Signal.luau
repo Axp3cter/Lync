@@ -106,28 +106,14 @@ function SignalImpl.fire (self: any, ...: any): ()
         return
     end
 
-    if count == 1 then
-        local entry = entries[1]
-        if not entry.connected then
-            return
-        end
-
-        spawn (entry.fn, ...)
-
-        if entry.once then
-            entry:disconnect ()
-        end
-        return
-    end
-
-    -- Snapshot to protect against mutation during spawn
-    local snapshot = table.create (count)
+    local snapshot = self._snapshot
     for i = 1, count do
         snapshot[i] = entries[i]
     end
 
     for i = 1, count do
         local entry = snapshot[i]
+        snapshot[i] = nil
         if not entry.connected then
             continue
         end
@@ -144,11 +130,8 @@ function SignalImpl.disconnectAll (self: any): ()
     local entries = self._entries
 
     for i = 1, self._count do
-        local entry = entries[i]
-        if entry then
-            entry.connected = false
-            entries[i] = nil
-        end
+        entries[i].connected = false
+        entries[i] = nil
     end
 
     self._count = 0
@@ -159,7 +142,7 @@ end
 local Signal = {}
 
 function Signal.create (): any
-    return setmetatable ({ _entries = {}, _count = 0 }, SignalImpl)
+    return setmetatable ({ _entries = {}, _count = 0, _snapshot = {} }, SignalImpl)
 end
 
 return table.freeze (Signal)

@@ -249,12 +249,12 @@ end)
 
 1000 packets/frame to one player, 10 seconds per test, 60 FPS. Entity struct is 34 bytes (2× vec3, 2× f32, bool, u8).
 
-| Scenario | What changes | Raw Kbps | Actual Kbps | Reduction |
-| :------- | :----------- | -------: | ----------: | --------: |
-| Static booleans | Nothing | 480 | 2.33 | 99.5% |
-| Static entities | Nothing | 16,320 | 2.58 | 99.98% |
-| Moving entities | Position only | 16,320 | 3.12 | 99.98% |
-| Chaotic entities | Every field, random | 16,320 | 4.74 | 99.97% |
+| Scenario | What changes | Raw Kbps | Actual Kbps | p95 Kbps | Reduction |
+| :------- | :----------- | -------: | ----------: | -------: | --------: |
+| Static booleans | Nothing | 480 | 2.27 | 3.57 | 99.5% |
+| Static entities | Nothing | 16,320 | 2.53 | 2.62 | 99.98% |
+| Moving entities | Position only | 16,320 | 3.08 | 3.09 | 99.98% |
+| Chaotic entities | Every field, random | 16,320 | 4.69 | 4.78 | 99.97% |
 
 All tests held 60 FPS. Roblox handles buffer compression transparently via deflate.
 

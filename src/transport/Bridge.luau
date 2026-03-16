@@ -57,15 +57,10 @@ function Bridge.setup (): ()
         _reliable = reliable :: RemoteEvent
         _unreliable = unreliable :: UnreliableRemoteEvent
     end
+
+    Bridge.reliable = _reliable :: any
+    Bridge.unreliable = _unreliable :: any
+    table.freeze (Bridge)
 end
 
--- No guards — callers (Server.start / Client.start) guarantee setup() ran.
-function Bridge.reliable (): RemoteEvent
-    return _reliable
-end
-
-function Bridge.unreliable (): UnreliableRemoteEvent
-    return _unreliable
-end
-
-return table.freeze (Bridge)
+return Bridge

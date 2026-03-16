@@ -28,6 +28,14 @@ function Varint.write (ch: ChannelState, value: number): ()
         error (`[Lync] Varint value out of range: {value}`)
     end
 
+    -- Fast path: ~80%+ of real-world varints are single-byte (lengths, counts)
+    if value < CONT then
+        Channel.alloc (ch, 1)
+        buffer.writeu8 (ch.buff, ch.cursor, value)
+        ch.cursor += 1
+        return
+    end
+
     Channel.alloc (ch, MAX_BYTES)
     local b = ch.buff
     local c = ch.cursor
@@ -49,17 +57,14 @@ end
 ]]
 function Varint.read (src: buffer, pos: number): (number, number)
     local result = 0
-    local shift = 0
 
     for offset = 0, MAX_BYTES - 1 do
         local byte = buffer.readu8 (src, pos + offset)
-        result = bor (result, lshift (band (byte, MASK), shift))
+        result = bor (result, lshift (band (byte, MASK), offset * 7))
 
         if band (byte, CONT) == 0 then
             return result, offset + 1
         end
-
-        shift += 7
     end
 
     error (`[Lync] Varint exceeds {MAX_BYTES} bytes at position {pos}`)

@@ -6,8 +6,13 @@
 
 type Handler = (data: any, name: string, player: Player?) -> any?
 
-local _send = {} :: { Handler }
-local _receive = {} :: { Handler }
+type Chain = {
+    handlers: { Handler },
+    snapshot: { Handler }?,
+}
+
+local _send: Chain = { handlers = {}, snapshot = nil }
+local _receive: Chain = { handlers = {}, snapshot = nil }
 
 -- Private ----------------------------------------------------------------
 
@@ -23,30 +28,16 @@ local function runChain (chain: { Handler }, data: any, name: string, player: Pl
     return current
 end
 
-local function run (
-    chain: { Handler },
-    label: string,
-    data: any,
-    name: string,
-    player: Player?
-): any?
-    local count = #chain
-    if count == 0 then
+local function run (chain: Chain, label: string, data: any, name: string, player: Player?): any?
+    local handlers = chain.handlers
+    if #handlers == 0 then
         return data
     end
 
-    if count == 1 then
-        local ok, result = pcall (chain[1], data, name, player)
-        if not ok then
-            warn (`[Lync] {label} middleware error on "{name}": {result}`)
-            return nil
-        end
-        return result
-    end
-
-    local snapshot = table.create (count)
-    for i = 1, count do
-        snapshot[i] = chain[i]
+    local snapshot = chain.snapshot
+    if not snapshot then
+        snapshot = table.clone (handlers)
+        chain.snapshot = snapshot
     end
 
     local ok, result = pcall (runChain, snapshot, data, name, player)
@@ -58,13 +49,15 @@ local function run (
     return result
 end
 
-local function addTo (chain: { Handler }, fn: Handler): () -> ()
-    table.insert (chain, fn)
+local function addTo (chain: Chain, fn: Handler): () -> ()
+    table.insert (chain.handlers, fn)
+    chain.snapshot = nil
 
     return function (): ()
-        local pos = table.find (chain, fn)
+        local pos = table.find (chain.handlers, fn)
         if pos then
-            table.remove (chain, pos)
+            table.remove (chain.handlers, pos)
+            chain.snapshot = nil
         end
     end
 end

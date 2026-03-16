@@ -29,14 +29,7 @@ local Vector = require (script.codec.Vector)
 
 -- Public -----------------------------------------------------------------
 
-local _isStarted = false
-
 local function start (): ()
-    if _isStarted then
-        return
-    end
-    _isStarted = true
-
     if RunService:IsServer () then
         Server.start ()
     else
@@ -45,7 +38,7 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "0.3.1-alpha",
+    VERSION = "0.4.0-alpha",
 
     -- Lifecycle
     start = start,

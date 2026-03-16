@@ -47,7 +47,8 @@ end
 
 local Quantized = {}
 
-function Quantized.float (minVal: number, maxVal: number, precision: number): Codec<number>
+-- Shared validation and precomputation for both float and vec3 quantizers.
+local function setup (minVal: number, maxVal: number, precision: number)
     if minVal > maxVal then
         error (`[Lync] Quantized min > max: {minVal} > {maxVal}`)
     end
@@ -56,8 +57,22 @@ function Quantized.float (minVal: number, maxVal: number, precision: number): Co
     end
 
     local delta = maxVal - minVal
-
     if delta == 0 then
+        return nil
+    end
+
+    local maxInt = min (U32_MAX, max (1, ceil (delta / precision)))
+    local bytes = selectWidth (maxInt)
+    local wfn, rfn = selectIO (bytes)
+    local invDelta = 1 / delta
+    local invMaxInt = delta / maxInt
+
+    return delta, maxInt, bytes, wfn, rfn, invDelta, invMaxInt
+end
+
+function Quantized.float (minVal: number, maxVal: number, precision: number): Codec<number>
+    local delta, maxInt, bytes, wfn, rfn, invDelta, invMaxInt = setup (minVal, maxVal, precision)
+    if not delta then
         return table.freeze ({
             _size = 0,
             write = function (_ch: ChannelState, _value: number): () end,
@@ -66,17 +81,6 @@ function Quantized.float (minVal: number, maxVal: number, precision: number): Co
             end,
         })
     end
-
-    -- Clamp to u32 range to prevent overflow in round()
-    local maxInt = min (U32_MAX, max (1, ceil (delta / precision)))
-    local bytes = selectWidth (maxInt)
-    local wfn, rfn = selectIO (bytes)
-
-    -- Precompute encode/decode factors using identical formulas for round-trip consistency.
-    -- encode: round(normalize * maxInt)   where normalize = clamp((value - minVal) / delta, 0, 1)
-    -- decode: (raw / maxInt) * delta + minVal
-    local invDelta = 1 / delta
-    local invMaxInt = delta / maxInt
 
     return table.freeze ({
         _size = bytes,
@@ -92,16 +96,9 @@ function Quantized.float (minVal: number, maxVal: number, precision: number): Co
 end
 
 function Quantized.vec3 (minVal: number, maxVal: number, precision: number): Codec<Vector3>
-    if minVal > maxVal then
-        error (`[Lync] Quantized min > max: {minVal} > {maxVal}`)
-    end
-    if precision <= 0 then
-        error (`[Lync] Quantized precision must be positive: {precision}`)
-    end
-
-    local delta = maxVal - minVal
-
-    if delta == 0 then
+    local delta, maxInt, compBytes, wfn, rfn, invDelta, invMaxInt =
+        setup (minVal, maxVal, precision)
+    if not delta then
         local val = Vector3.new (minVal, minVal, minVal)
         return table.freeze ({
             _size = 0,
@@ -112,12 +109,7 @@ function Quantized.vec3 (minVal: number, maxVal: number, precision: number): Cod
         })
     end
 
-    local maxInt = min (U32_MAX, max (1, ceil (delta / precision)))
-    local compBytes = selectWidth (maxInt)
     local totalBytes = compBytes * 3
-    local wfn, rfn = selectIO (compBytes)
-    local invDelta = 1 / delta
-    local invMaxInt = delta / maxInt
     local stride = compBytes
     local stride2 = compBytes * 2
 

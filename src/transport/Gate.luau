@@ -11,7 +11,7 @@ type RateLimitConfig = Types.RateLimitConfig
 
 local MAX_DEPTH = 8
 
-local huge = math.huge
+local isfinite = math.isfinite
 local min = math.min
 local clock = os.clock
 
@@ -27,55 +27,46 @@ local _callback = nil :: ((player: Player, reason: string, packetName: string, d
 
 -- Private ----------------------------------------------------------------
 
-local function isFinite (value: number): boolean
-    return value == value and value ~= huge and value ~= -huge
-end
-
 local function isClean (value: any, depth: number): boolean
     if depth > MAX_DEPTH then
         return false
     end
 
-    -- type() is cheaper than typeof() for primitives and tables.
-    -- typeof() only needed for userdata (Vector2, Vector3, CFrame, Color3).
     local t = type (value)
 
     if t == "number" then
-        return isFinite (value)
+        return isfinite (value)
     elseif t == "table" then
         local deeper = depth + 1
         for k, v in value do
-            if not isClean (k, deeper) then
-                return false
-            end
-            if not isClean (v, deeper) then
+            if not isClean (k, deeper) or not isClean (v, deeper) then
                 return false
             end
         end
         return true
-    elseif t == "userdata" or t == "vector" then
+    elseif t == "vector" then
+        return isfinite (value.X) and isfinite (value.Y) and isfinite (value.Z)
+    elseif t == "userdata" then
         local ut = typeof (value)
 
         if ut == "Vector2" then
-            return isFinite (value.X) and isFinite (value.Y)
-        elseif ut == "Vector3" then
-            return isFinite (value.X) and isFinite (value.Y) and isFinite (value.Z)
+            return isfinite (value.X) and isfinite (value.Y)
+        elseif ut == "Color3" then
+            return isfinite (value.R) and isfinite (value.G) and isfinite (value.B)
         elseif ut == "CFrame" then
             local position = value.Position
             if
-                not isFinite (position.X)
-                or not isFinite (position.Y)
-                or not isFinite (position.Z)
+                not isfinite (position.X)
+                or not isfinite (position.Y)
+                or not isfinite (position.Z)
             then
                 return false
             end
             local axis, angle = value:ToAxisAngle ()
-            return isFinite (angle)
-                and isFinite (axis.X)
-                and isFinite (axis.Y)
-                and isFinite (axis.Z)
-        elseif ut == "Color3" then
-            return isFinite (value.R) and isFinite (value.G) and isFinite (value.B)
+            return isfinite (angle)
+                and isfinite (axis.X)
+                and isfinite (axis.Y)
+                and isfinite (axis.Z)
         end
     end
 
@@ -94,11 +85,11 @@ local function checkRate (player: Player, reg: Registration): boolean
     end
 
     local id = reg.id
-    local bucket = playerBuckets[id]
     local now = clock ()
+    local cap = cfg.burstAllowance or cfg.maxPerSecond
+    local bucket = playerBuckets[id]
 
     if not bucket then
-        local cap = cfg.burstAllowance or cfg.maxPerSecond
         playerBuckets[id] = {
             tokens = cap - 1,
             lastRef = now,
@@ -106,10 +97,8 @@ local function checkRate (player: Player, reg: Registration): boolean
         return true
     end
 
-    local cap = cfg.burstAllowance or cfg.maxPerSecond
-    local rate = cfg.maxPerSecond
     local elapsed = now - bucket.lastRef
-    bucket.tokens = min (cap, bucket.tokens + elapsed * rate)
+    bucket.tokens = min (cap, bucket.tokens + elapsed * cfg.maxPerSecond)
     bucket.lastRef = now
 
     if bucket.tokens >= 1 then
@@ -120,25 +109,22 @@ local function checkRate (player: Player, reg: Registration): boolean
     return false
 end
 
-local function drop (player: Player, reason: string, name: string, data: any?): ()
-    if _callback then
-        _callback (player, reason, name, data)
-    end
-end
-
 -- Public -----------------------------------------------------------------
 
 local Gate = {}
 
--- Rate limit first (cheapest), then NaN scan (recursive), then user validate.
 function Gate.check (value: any, reg: Registration, player: Player): boolean
     if not checkRate (player, reg) then
-        drop (player, "rate", reg.name, nil)
+        if _callback then
+            _callback (player, "rate", reg.name, nil)
+        end
         return false
     end
 
     if not isClean (value, 1) then
-        drop (player, "nan", reg.name, value)
+        if _callback then
+            _callback (player, "nan", reg.name, value)
+        end
         return false
     end
 
@@ -146,7 +132,9 @@ function Gate.check (value: any, reg: Registration, player: Player): boolean
     if validate then
         local ok, reason = validate (value, player)
         if not ok then
-            drop (player, reason or "validate", reg.name, value)
+            if _callback then
+                _callback (player, reason or "validate", reg.name, value)
+            end
             return false
         end
     end

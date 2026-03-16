@@ -46,11 +46,6 @@ local function releaseScratch (): ()
     _scratchDepth -= 1
 end
 
-type Field = {
-    key: string,
-    codec: Codec<any>,
-}
-
 type DeltaCache = {
     raw: buffer,
     bounds: { number },
@@ -58,10 +53,6 @@ type DeltaCache = {
 }
 
 local function rangeEqual (a: buffer, offA: number, b: buffer, offB: number, len: number): boolean
-    if len <= 0 then
-        return true
-    end
-
     local aligned = len - len % 4
     for i = 0, aligned - 4, 4 do
         if buffer.readu32 (a, offA + i) ~= buffer.readu32 (b, offB + i) then
@@ -78,32 +69,41 @@ local function rangeEqual (a: buffer, offA: number, b: buffer, offB: number, len
     return true
 end
 
--- Shared field extraction used by both struct and deltaStruct.
-local function extractFields (schema: { [string]: Codec<any> }): ({ Field }, { string })
-    local dataFields = {} :: { Field }
+--[[
+    Extract sorted data-field keys/codecs and sorted bool keys from a schema.
+    Returns parallel arrays (keys + codecs indexed together) and bool keys.
+]]
+local function extractFields (
+    schema: { [string]: Codec<any> }
+): ({ string }, { Codec<any> }, { string })
+    local dataKeys = {} :: { string }
+    local dataCodecs = {} :: { Codec<any> }
     local boolKeys = {} :: { string }
 
     for key, codec in schema do
         if (codec :: any)._isBool then
             table.insert (boolKeys, key)
         else
-            table.insert (dataFields, { key = key, codec = codec })
+            table.insert (dataKeys, key)
         end
     end
 
-    table.sort (dataFields, function (a: Field, b: Field): boolean
-        return a.key < b.key
-    end)
+    table.sort (dataKeys)
     table.sort (boolKeys)
 
-    if #dataFields == 0 and #boolKeys == 0 then
+    if #dataKeys == 0 and #boolKeys == 0 then
         error ("[Lync] Struct requires at least one field")
     end
 
-    table.freeze (dataFields)
+    for i = 1, #dataKeys do
+        dataCodecs[i] = schema[dataKeys[i]]
+    end
+
+    table.freeze (dataKeys)
+    table.freeze (dataCodecs)
     table.freeze (boolKeys)
 
-    return dataFields, boolKeys
+    return dataKeys, dataCodecs, boolKeys
 end
 
 local function packBools (ch: ChannelState, boolKeys: { string }, boolCount: number, value: any): ()
@@ -156,17 +156,16 @@ end
 local Composite = {}
 
 function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
-    local dataFields, boolKeys = extractFields (schema)
+    local dataKeys, dataCodecs, boolKeys = extractFields (schema)
 
-    local dataCount = #dataFields
+    local dataCount = #dataKeys
     local boolCount = #boolKeys
     local boolByteCount = ceil (boolCount / 8)
-    local totalFields = dataCount + boolCount
 
     local fixedSize = boolByteCount
     local isAllFixed = true
     for i = 1, dataCount do
-        local size = (dataFields[i].codec :: any)._size
+        local size = (dataCodecs[i] :: any)._size
         if size then
             fixedSize += size
         else
@@ -183,28 +182,22 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
             end
 
             for i = 1, dataCount do
-                local field = dataFields[i]
-                field.codec.write (ch, value[field.key])
+                dataCodecs[i].write (ch, value[dataKeys[i]])
             end
 
-            if boolCount > 0 then
-                packBools (ch, boolKeys, boolCount, value)
-            end
+            packBools (ch, boolKeys, boolCount, value)
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local result = table.create (totalFields)
+            local result = {}
             local total = 0
 
             for i = 1, dataCount do
-                local field = dataFields[i]
-                local value, n = field.codec.read (src, pos + total, refs)
-                result[field.key] = value
+                local value, n = dataCodecs[i].read (src, pos + total, refs)
+                result[dataKeys[i]] = value
                 total += n
             end
 
-            if boolCount > 0 then
-                total += unpackBools (src, pos + total, boolKeys, boolCount, result)
-            end
+            total += unpackBools (src, pos + total, boolKeys, boolCount, result)
 
             return result, total
         end,
@@ -212,15 +205,13 @@ function Composite.struct (schema: { [string]: Codec<any> }): Codec<any>
 end
 
 function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
-    local dataFields, boolKeys = extractFields (schema)
+    local dataKeys, dataCodecs, boolKeys = extractFields (schema)
 
-    local dataCount = #dataFields
+    local dataCount = #dataKeys
     local boolCount = #boolKeys
-    local hasBools = boolCount > 0
-    local boolByteCount = if hasBools then ceil (boolCount / 8) else 0
-    local segCount = dataCount + (if hasBools then 1 else 0)
+    local boolByteCount = ceil (boolCount / 8)
+    local segCount = dataCount + (if boolCount > 0 then 1 else 0)
     local bitmaskBytes = ceil (segCount / 8)
-    local totalFields = dataCount + boolCount
     local deltaId = _nextDeltaId
     _nextDeltaId += 1
 
@@ -235,17 +226,18 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             bounds[1] = 0
 
             for i = 1, dataCount do
-                dataFields[i].codec.write (scratch, value[dataFields[i].key])
+                dataCodecs[i].write (scratch, value[dataKeys[i]])
                 bounds[i + 1] = scratch.cursor
             end
 
-            if hasBools then
+            if boolCount > 0 then
                 packBools (scratch, boolKeys, boolCount, value)
                 bounds[segCount + 1] = scratch.cursor
             end
 
             local scratchTotal = scratch.cursor
 
+            -- FLAG_FULL: first frame, no cache exists yet
             if not cache then
                 Channel.alloc (ch, 1 + scratchTotal)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
@@ -253,73 +245,96 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                 buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                 ch.cursor += scratchTotal
 
-                local rawBuf = buffer.create (scratchTotal)
-                buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
-
-                -- Reuse bounds directly — already 0-based offsets
-                table.freeze (bounds)
-                ch.deltas[deltaId] = {
-                    raw = rawBuf,
-                    bounds = bounds,
-                    total = scratchTotal,
-                } :: DeltaCache
-
-                releaseScratch ()
-                return
-            end
-
-            local cacheRaw = cache.raw
-            local cacheBds = cache.bounds
-            local dirtyCount = 0
-            local maskBytes = table.create (bitmaskBytes, 0)
-
-            for i = 1, segCount do
-                local newOff = bounds[i]
-                local newLen = bounds[i + 1] - newOff
-                local oldOff = cacheBds[i]
-                local oldLen = cacheBds[i + 1] - oldOff
-
-                if
-                    newLen ~= oldLen
-                    or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
-                then
-                    dirtyCount += 1
-                    local bitIdx = i - 1
-                    local byteIdx = bitIdx // 8 + 1
-                    maskBytes[byteIdx] = bor (maskBytes[byteIdx], lshift (1, bitIdx % 8))
-                end
-            end
-
-            if dirtyCount == 0 then
+            -- FLAG_UNCHANGED: entire buffer is byte-identical to cache
+            elseif
+                scratchTotal == cache.total
+                and rangeEqual (scratch.buff, 0, cache.raw, 0, scratchTotal)
+            then
                 Channel.alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
                 ch.cursor += 1
                 releaseScratch ()
                 return
-            end
 
-            Channel.alloc (ch, 1 + bitmaskBytes)
-            buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
-            ch.cursor += 1
+            -- FLAG_DELTA: per-segment dirty mask + dirty payloads
+            elseif bitmaskBytes == 1 then
+                local mask = 0
+                local cacheRaw = cache.raw
+                local cacheBds = cache.bounds
 
-            local maskStart = ch.cursor
-            for byteIdx = 1, bitmaskBytes do
-                buffer.writeu8 (ch.buff, maskStart + byteIdx - 1, maskBytes[byteIdx])
-            end
-            ch.cursor = maskStart + bitmaskBytes
-
-            for i = 1, segCount do
-                local bitIdx = i - 1
-                local byteIdx = bitIdx // 8 + 1
-                if band (maskBytes[byteIdx], lshift (1, bitIdx % 8)) ~= 0 then
+                for i = 1, segCount do
                     local newOff = bounds[i]
                     local newLen = bounds[i + 1] - newOff
-                    Channel.alloc (ch, newLen)
-                    buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
-                    ch.cursor += newLen
+                    local oldOff = cacheBds[i]
+                    local oldLen = cacheBds[i + 1] - oldOff
+
+                    if
+                        newLen ~= oldLen
+                        or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
+                    then
+                        mask = bor (mask, lshift (1, i - 1))
+                    end
+                end
+
+                Channel.alloc (ch, 2)
+                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                buffer.writeu8 (ch.buff, ch.cursor + 1, mask)
+                ch.cursor += 2
+
+                for i = 1, segCount do
+                    if band (mask, lshift (1, i - 1)) ~= 0 then
+                        local newOff = bounds[i]
+                        local newLen = bounds[i + 1] - newOff
+                        Channel.alloc (ch, newLen)
+                        buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
+                        ch.cursor += newLen
+                    end
+                end
+            else
+                local maskBuf = table.create (bitmaskBytes, 0)
+                local cacheRaw = cache.raw
+                local cacheBds = cache.bounds
+
+                for i = 1, segCount do
+                    local newOff = bounds[i]
+                    local newLen = bounds[i + 1] - newOff
+                    local oldOff = cacheBds[i]
+                    local oldLen = cacheBds[i + 1] - oldOff
+
+                    if
+                        newLen ~= oldLen
+                        or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
+                    then
+                        local bitIdx = i - 1
+                        local byteIdx = bitIdx // 8 + 1
+                        maskBuf[byteIdx] = bor (maskBuf[byteIdx], lshift (1, bitIdx % 8))
+                    end
+                end
+
+                Channel.alloc (ch, 1 + bitmaskBytes)
+                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                ch.cursor += 1
+
+                local maskStart = ch.cursor
+                for byteIdx = 1, bitmaskBytes do
+                    buffer.writeu8 (ch.buff, maskStart + byteIdx - 1, maskBuf[byteIdx])
+                end
+                ch.cursor = maskStart + bitmaskBytes
+
+                for i = 1, segCount do
+                    local bitIdx = i - 1
+                    local byteIdx = bitIdx // 8 + 1
+                    if band (maskBuf[byteIdx], lshift (1, bitIdx % 8)) ~= 0 then
+                        local newOff = bounds[i]
+                        local newLen = bounds[i + 1] - newOff
+                        Channel.alloc (ch, newLen)
+                        buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
+                        ch.cursor += newLen
+                    end
                 end
             end
 
+            -- Cache update (shared by FLAG_FULL and FLAG_DELTA)
             local rawBuf = buffer.create (scratchTotal)
             buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
 
@@ -343,15 +358,15 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             end
 
             if flag == FLAG_FULL then
-                local result = table.create (totalFields)
+                local result = {}
 
                 for i = 1, dataCount do
-                    local val, n = dataFields[i].codec.read (src, pos + total, refs)
-                    result[dataFields[i].key] = val
+                    local val, n = dataCodecs[i].read (src, pos + total, refs)
+                    result[dataKeys[i]] = val
                     total += n
                 end
 
-                if hasBools then
+                if boolCount > 0 then
                     total += unpackBools (src, pos + total, boolKeys, boolCount, result)
                 end
 
@@ -371,8 +386,8 @@ function Composite.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
 
                 if band (byte, lshift (1, bitIdx % 8)) ~= 0 then
                     if i <= dataCount then
-                        local val, n = dataFields[i].codec.read (src, pos + total, refs)
-                        result[dataFields[i].key] = val
+                        local val, n = dataCodecs[i].read (src, pos + total, refs)
+                        result[dataKeys[i]] = val
                         total += n
                     else
                         total += unpackBools (src, pos + total, boolKeys, boolCount, result)
@@ -415,61 +430,53 @@ function Composite.deltaArray (element: Codec<any>): Codec<{ any }>
                 Channel.alloc (ch, scratchTotal)
                 buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                 ch.cursor += scratchTotal
+            else
+                local cacheRaw = cache.raw
+                local cacheBds = cache.bounds
+                local dirty = table.create (len)
+                local dirtyN = 0
 
-                local rawBuf = buffer.create (scratchTotal)
-                buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
+                for i = 1, len do
+                    local newOff = bounds[i]
+                    local newLen = bounds[i + 1] - newOff
+                    local oldOff = cacheBds[i]
+                    local oldLen = cacheBds[i + 1] - oldOff
 
-                table.freeze (bounds)
-                ch.deltas[deltaId] = { raw = rawBuf, bounds = bounds, len = len }
+                    if
+                        newLen ~= oldLen
+                        or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
+                    then
+                        dirtyN += 1
+                        dirty[dirtyN] = i
+                    end
+                end
 
-                releaseScratch ()
-                return
-            end
+                if dirtyN == 0 then
+                    Channel.alloc (ch, 1)
+                    buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
+                    ch.cursor += 1
+                    releaseScratch ()
+                    return
+                end
 
-            local cacheRaw = cache.raw
-            local cacheBds = cache.bounds
-            local dirty = table.create (len)
-            local dirtyN = 0
+                Channel.alloc (ch, 1)
+                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                ch.cursor += 1
+                Varint.write (ch, dirtyN)
 
-            for i = 1, len do
-                local newOff = bounds[i]
-                local newLen = bounds[i + 1] - newOff
-                local oldOff = cacheBds[i]
-                local oldLen = cacheBds[i + 1] - oldOff
+                for j = 1, dirtyN do
+                    local i = dirty[j]
+                    local newOff = bounds[i]
+                    local newLen = bounds[i + 1] - newOff
 
-                if
-                    newLen ~= oldLen
-                    or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
-                then
-                    dirtyN += 1
-                    dirty[dirtyN] = i
+                    Varint.write (ch, i - 1)
+                    Channel.alloc (ch, newLen)
+                    buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
+                    ch.cursor += newLen
                 end
             end
 
-            if dirtyN == 0 then
-                Channel.alloc (ch, 1)
-                buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
-                ch.cursor += 1
-                releaseScratch ()
-                return
-            end
-
-            Channel.alloc (ch, 1)
-            buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
-            ch.cursor += 1
-            Varint.write (ch, dirtyN)
-
-            for j = 1, dirtyN do
-                local i = dirty[j]
-                local newOff = bounds[i]
-                local newLen = bounds[i + 1] - newOff
-
-                Varint.write (ch, i - 1)
-                Channel.alloc (ch, newLen)
-                buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
-                ch.cursor += newLen
-            end
-
+            -- Cache update (shared by FLAG_FULL and FLAG_DELTA)
             local rawBuf = buffer.create (scratchTotal)
             buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
 
@@ -551,28 +558,18 @@ end
 
 function Composite.map (keyCodec: Codec<any>, valueCodec: Codec<any>): Codec<{ [any]: any }>
     return table.freeze ({
-        -- Single traversal: serialize KV pairs to scratch counting as we go,
-        -- then write count + copy scratch bytes to channel.
         write = function (ch: ChannelState, value: { [any]: any }): ()
-            local scratch = acquireScratch ()
             local count = 0
-
-            for k, v in value do
+            for _ in value do
                 count += 1
-                keyCodec.write (scratch, k)
-                valueCodec.write (scratch, v)
             end
 
             Varint.write (ch, count)
 
-            local scratchLen = scratch.cursor
-            if scratchLen > 0 then
-                Channel.alloc (ch, scratchLen)
-                buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchLen)
-                ch.cursor += scratchLen
+            for k, v in value do
+                keyCodec.write (ch, k)
+                valueCodec.write (ch, v)
             end
-
-            releaseScratch ()
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
             local count, lenBytes = Varint.read (src, pos)
@@ -597,13 +594,10 @@ function Composite.optional (inner: Codec<any>): Codec<any>
     return table.freeze ({
         write = function (ch: ChannelState, value: any): ()
             Channel.alloc (ch, 1)
+            buffer.writeu8 (ch.buff, ch.cursor, if value ~= nil then 1 else 0)
+            ch.cursor += 1
             if value ~= nil then
-                buffer.writeu8 (ch.buff, ch.cursor, 1)
-                ch.cursor += 1
                 inner.write (ch, value)
-            else
-                buffer.writeu8 (ch.buff, ch.cursor, 0)
-                ch.cursor += 1
             end
         end,
         read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)

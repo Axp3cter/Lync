@@ -80,8 +80,12 @@ function Group.add (name: string, player: Player): boolean
     return true
 end
 
-function Group.remove (name: string, player: Player): ()
+function Group.remove (name: string, player: Player): boolean
     local set = getSetOrError (name)
+
+    if not set[player] then
+        return false
+    end
 
     set[player] = nil
 
@@ -89,6 +93,8 @@ function Group.remove (name: string, player: Player): ()
     if memberships then
         memberships[name] = nil
     end
+
+    return true
 end
 
 function Group.has (name: string, player: Player): boolean

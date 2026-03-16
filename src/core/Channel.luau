@@ -11,11 +11,12 @@ type ChannelState = Types.ChannelState
 local INITIAL_SIZE = 1024
 local MAX_SIZE = 65536
 local MAX_BATCH = 65535
-local GROWTH = 2
 
 local min = math.min
 local bxor = bit32.bxor
 local floor = math.floor
+local countlz = bit32.countlz
+local lshift = bit32.lshift
 
 -- Public -----------------------------------------------------------------
 
@@ -44,10 +45,7 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
         error (`[Lync] Channel buffer overflow: {needed} > {MAX_SIZE}`)
     end
 
-    local newSize = ch.size
-    while needed > newSize do
-        newSize *= GROWTH
-    end
+    local newSize = lshift (1, 32 - countlz (needed - 1))
 
     local newBuff = buffer.create (newSize)
     buffer.copy (newBuff, 0, ch.buff, 0, ch.cursor)
@@ -55,15 +53,20 @@ function Channel.alloc (ch: ChannelState, bytes: number): ()
     ch.size = newSize
 end
 
-function Channel.seal (ch: ChannelState): ()
-    if ch.lastId < 0 then
-        return
+function Channel.sealAndDump (ch: ChannelState): (buffer, { Instance }?)
+    if ch.lastId >= 0 then
+        buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
+        ch.lastId = -1
+        ch.countPos = 0
+        ch.batchCount = 0
     end
 
-    buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
-    ch.lastId = -1
-    ch.countPos = 0
-    ch.batchCount = 0
+    local cur = ch.cursor
+    local out = buffer.create (cur)
+    buffer.copy (out, 0, ch.buff, 0, cur)
+
+    local refs = ch.refs
+    return out, if #refs > 0 then table.clone (refs) else nil
 end
 
 local function openBatch (ch: ChannelState, id: number): ()
@@ -114,17 +117,30 @@ function Channel.writeBatchRaw (
     end
 end
 
-function Channel.dump (ch: ChannelState): (buffer, { Instance }?)
-    local cur = ch.cursor
-    local out = buffer.create (cur)
-    buffer.copy (out, 0, ch.buff, 0, cur)
-
-    local refs = ch.refs
-    if #refs == 0 then
-        return out, nil
+--[[
+    Write a query frame (request or response). Seals any open batch,
+    writes the id + correlationId header, serializes the payload,
+    then marks the batch state as closed.
+]]
+function Channel.writeQuery (
+    ch: ChannelState,
+    id: number,
+    correlationId: number,
+    codec: any,
+    data: any
+): ()
+    if ch.lastId >= 0 then
+        buffer.writeu16 (ch.buff, ch.countPos, ch.batchCount)
+        ch.lastId = -1
+        ch.countPos = 0
+        ch.batchCount = 0
     end
 
-    return out, table.clone (refs)
+    Channel.alloc (ch, 2)
+    buffer.writeu8 (ch.buff, ch.cursor, id)
+    buffer.writeu8 (ch.buff, ch.cursor + 1, correlationId)
+    ch.cursor += 2
+    codec.write (ch, data)
 end
 
 --[[

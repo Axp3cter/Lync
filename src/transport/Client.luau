@@ -13,10 +13,6 @@ local Types = require (script.Parent.Parent.Types)
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- Constants --------------------------------------------------------------
-
-local MAX_INCOMING = 65536
-
 -- State ------------------------------------------------------------------
 
 local _reliable = nil :: ChannelState?
@@ -26,18 +22,8 @@ local _isStarted = false
 
 -- Private ----------------------------------------------------------------
 
-local function decodeIncoming (data: any): buffer?
-    if typeof (data) ~= "buffer" then
-        return nil
-    end
-    if buffer.len (data) > MAX_INCOMING then
-        return nil
-    end
-    return data
-end
-
 local function receive (data: any, refs: any, applyXor: boolean): ()
-    local buf = decodeIncoming (data)
+    local buf = Reader.decodeIncoming (data)
     if not buf then
         return
     end
@@ -62,9 +48,7 @@ local function flushChannel (remote: any, ch: ChannelState, applyXor: boolean): 
         return
     end
 
-    Channel.seal (ch)
-
-    local raw, refs = Channel.dump (ch)
+    local raw, refs = Channel.sealAndDump (ch)
 
     if applyXor then
         local xored = Channel.xorApply (raw, ch.prevDump)
@@ -78,8 +62,8 @@ local function flushChannel (remote: any, ch: ChannelState, applyXor: boolean): 
 end
 
 local function flush (): ()
-    flushChannel (Bridge.reliable (), _reliable :: ChannelState, true)
-    flushChannel (Bridge.unreliable (), _unreliable :: ChannelState, false)
+    flushChannel (Bridge.reliable, _reliable :: ChannelState, true)
+    flushChannel (Bridge.unreliable, _unreliable :: ChannelState, false)
 end
 
 -- Public -----------------------------------------------------------------
@@ -97,10 +81,10 @@ function Client.start (): ()
     _reliable = Channel.create ()
     _unreliable = Channel.create ()
 
-    Bridge.reliable ().OnClientEvent:Connect (function (data: any, refs: any): ()
+    Bridge.reliable.OnClientEvent:Connect (function (data: any, refs: any): ()
         receive (data, refs, true)
     end)
-    Bridge.unreliable ().OnClientEvent:Connect (function (data: any, refs: any): ()
+    Bridge.unreliable.OnClientEvent:Connect (function (data: any, refs: any): ()
         receive (data, refs, false)
     end)
     RunService.Heartbeat:Connect (flush)
@@ -135,14 +119,7 @@ function Client.writeQueryRequest (
         return
     end
 
-    local ch = _reliable :: ChannelState
-    Channel.seal (ch)
-    Channel.alloc (ch, 2)
-    buffer.writeu8 (ch.buff, ch.cursor, id)
-    buffer.writeu8 (ch.buff, ch.cursor + 1, correlationId)
-    ch.cursor += 2
-    codec.write (ch, final)
-    ch.lastId = -1
+    Channel.writeQuery (_reliable :: ChannelState, id, correlationId, codec, final)
 end
 
 return table.freeze (Client)

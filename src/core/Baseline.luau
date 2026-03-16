@@ -17,7 +17,7 @@ end
 
 function Baseline.getCache (deltaId: number): any
     local map = _readCaches[_readKey]
-    return if map then map[deltaId] else nil
+    return map and map[deltaId]
 end
 
 function Baseline.setCache (deltaId: number, data: any): ()

@@ -12,9 +12,22 @@ local Registry = require (script.Parent.Parent.core.Registry)
 local KIND_PACKET = Registry.KIND_PACKET
 local KIND_REQUEST = Registry.KIND_REQUEST
 
+local MAX_INCOMING = 65536
+
 -- Public -----------------------------------------------------------------
 
 local Reader = {}
+
+-- Shared incoming-data validation used by both Client and Server receive.
+function Reader.decodeIncoming (data: any): buffer?
+    if typeof (data) ~= "buffer" then
+        return nil
+    end
+    if buffer.len (data) > MAX_INCOMING then
+        return nil
+    end
+    return data
+end
 
 --[[
     Callers (Server/Client receive) already wrap this in pcall.
@@ -91,7 +104,7 @@ function Reader.process (
             pos += consumed
 
             if player and not Gate.check (value, reg, player) then
-                break
+                return
             end
 
             local final = Middleware.runReceive (value, reg.baseName, player)

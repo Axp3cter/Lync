@@ -9,6 +9,7 @@ local Color = require (script.Parent.Color)
 local Primitive = require (script.Parent.Primitive)
 local String = require (script.Parent.String)
 local Types = require (script.Parent.Parent.Types)
+local Varint = require (script.Parent.Varint)
 local Vector = require (script.Parent.Vector)
 
 type ChannelState = Types.ChannelState
@@ -63,16 +64,16 @@ local TYPE_DISPATCH = table.freeze ({
     buffer = { tag = TAG_BUFFER, codec = Buffer.buff, size = nil },
 })
 
--- Size of the wire encoding for each numeric tag (excludes the 1-byte tag)
-local NUM_SIZE = table.freeze ({
-    [TAG_U8] = 1,
-    [TAG_U16] = 2,
-    [TAG_U32] = 4,
-    [TAG_I8] = 1,
-    [TAG_I16] = 2,
-    [TAG_I32] = 4,
-    [TAG_F32] = 4,
-    [TAG_F64] = 8,
+-- Numeric write dispatch: one lookup for both codec and payload size.
+local NUM_DISPATCH = table.freeze ({
+    [TAG_U8] = { codec = Primitive.u8, size = 1 },
+    [TAG_U16] = { codec = Primitive.u16, size = 2 },
+    [TAG_U32] = { codec = Primitive.u32, size = 4 },
+    [TAG_I8] = { codec = Primitive.i8, size = 1 },
+    [TAG_I16] = { codec = Primitive.i16, size = 2 },
+    [TAG_I32] = { codec = Primitive.i32, size = 4 },
+    [TAG_F32] = { codec = Primitive.f32, size = 4 },
+    [TAG_F64] = { codec = Primitive.f64, size = 8 },
 })
 
 -- Private ----------------------------------------------------------------
@@ -162,52 +163,46 @@ Special.auto = table.freeze ({
             return
         end
 
-        -- type() is cheaper than typeof() for primitives/tables.
-        -- typeof() only needed for userdata (Vector2, Vector3, etc).
         local t = type (value)
 
         if t == "number" then
             local tag = selectNumberTag (value)
-            local size = NUM_SIZE[tag]
+            local entry = NUM_DISPATCH[tag]
 
-            -- Single alloc: 1 byte tag + N bytes payload
-            Channel.alloc (ch, 1 + size)
+            Channel.alloc (ch, 1 + entry.size)
             buffer.writeu8 (ch.buff, ch.cursor, tag)
             ch.cursor += 1
-            READ_DISPATCH[tag].write (ch, value)
+            entry.codec.write (ch, value)
             return
         end
 
         if t == "string" then
-            Channel.alloc (ch, 1)
+            local len = #value
+            Channel.alloc (ch, 6 + len)
             buffer.writeu8 (ch.buff, ch.cursor, TAG_STRING)
             ch.cursor += 1
-            String.string.write (ch, value)
+            Varint.write (ch, len)
+            buffer.writestring (ch.buff, ch.cursor, value)
+            ch.cursor += len
             return
         end
 
         if t == "boolean" then
             Channel.alloc (ch, 2)
-            buffer.writeu8 (ch.buff, ch.cursor, TAG_BOOL)
-            ch.cursor += 1
-            Primitive.bool.write (ch, value)
+            local b, c = ch.buff, ch.cursor
+            buffer.writeu8 (b, c, TAG_BOOL)
+            buffer.writeu8 (b, c + 1, if value then 1 else 0)
+            ch.cursor = c + 2
             return
         end
 
-        -- Userdata / vector types — need typeof()
         local ut = typeof (value)
         local entry = TYPE_DISPATCH[ut]
         if not entry then
             error (`[Lync] Auto unsupported type: {ut}`)
         end
 
-        local size = entry.size
-        if size then
-            Channel.alloc (ch, 1 + size)
-        else
-            Channel.alloc (ch, 1)
-        end
-
+        Channel.alloc (ch, 1)
         buffer.writeu8 (ch.buff, ch.cursor, entry.tag)
         ch.cursor += 1
         entry.codec.write (ch, value)

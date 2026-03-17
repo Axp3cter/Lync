@@ -4,54 +4,35 @@ local Lync = require (script.Parent.Parent.Parent)
 local Runner = require (script.Parent.Parent.Runner)
 local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
 
-describe ("Custom", function (): ()
-    local codec = Lync.custom (4, function (b: buffer, offset: number, value: number): ()
-        buffer.writef32 (b, offset, value)
-    end, function (b: buffer, offset: number): number
-        return buffer.readf32 (b, offset)
-    end)
-
-    it ("round-trips positive", function (): ()
-        local r = roundTrip (codec, 3.14)
-        expect (r):toBeCloseTo (3.14)
-    end)
-    it ("round-trips zero", function (): ()
-        local r = roundTrip (codec, 0)
-        expect (r):toBe (0)
-    end)
-    it ("round-trips negative", function (): ()
-        local r = roundTrip (codec, -999.5)
-        expect (r):toBeCloseTo (-999.5)
-    end)
-    it ("uses 4 bytes", function (): ()
-        local _, w = roundTrip (codec, 1)
-        expect (w):toBe (4)
-    end)
-    it ("_size is 4", function (): ()
-        expect ((codec :: any)._size):toBe (4)
-    end)
-    it ("has _directWrite and _directRead", function (): ()
-        expect ((codec :: any)._directWrite ~= nil):toBe (true)
-        expect ((codec :: any)._directRead ~= nil):toBe (true)
-    end)
-
-    describe ("zero-size", function (): ()
-        local zeroCodec = Lync.custom (
-            0,
-            function (_b: buffer, _offset: number, _v: any): () end,
-            function (_b: buffer, _offset: number): any
-                return nil
-            end
-        )
-
-        it ("_size is 0", function (): ()
-            expect ((zeroCodec :: any)._size):toBe (0)
+describe ("custom", function (): ()
+    it ("round-trips u24", function (): ()
+        local c = Lync.custom (3, function (b: buffer, offset: number, value: number): ()
+            buffer.writeu8 (b, offset, bit32.band (value, 0xFF))
+            buffer.writeu8 (b, offset + 1, bit32.band (bit32.rshift (value, 8), 0xFF))
+            buffer.writeu8 (b, offset + 2, bit32.band (bit32.rshift (value, 16), 0xFF))
+        end, function (b: buffer, offset: number): number
+            return buffer.readu8 (b, offset)
+                + buffer.readu8 (b, offset + 1) * 256
+                + buffer.readu8 (b, offset + 2) * 65536
         end)
-        it ("round-trips as nil", function (): ()
-            local r, w = roundTrip (zeroCodec, nil)
-            expect (r):toBe (nil)
-            expect (w):toBe (0)
+        expect (roundTrip (c, 0)):toBe (0)
+        expect (roundTrip (c, 16777215)):toBe (16777215)
+        expect (roundTrip (c, 123456)):toBe (123456)
+    end)
+    it ("3 bytes", function (): ()
+        local c = Lync.custom (3, function (b: buffer, o: number, v: number): ()
+            buffer.writeu8 (b, o, v)
+        end, function (b: buffer, o: number): number
+            return buffer.readu8 (b, o)
         end)
+        local _, w = roundTrip (c, 1)
+        expect (w):toBe (3)
+    end)
+    it ("_size matches", function (): ()
+        local c = Lync.custom (7, function () end, function ()
+            return nil
+        end)
+        expect ((c :: any)._size):toBe (7)
     end)
 end)
 

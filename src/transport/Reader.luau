@@ -2,12 +2,14 @@
 --!optimize 2
 -- Deserializes incoming buffers and routes by registration kind.
 
-local Baseline = require (script.Parent.Parent.core.Baseline)
+local Baseline = require (script.Parent.Parent.internal.Baseline)
 local Gate = require (script.Parent.Gate)
-local Middleware = require (script.Parent.Parent.core.Middleware)
-local Registry = require (script.Parent.Parent.core.Registry)
+local Middleware = require (script.Parent.Parent.internal.Middleware)
+local Registry = require (script.Parent.Parent.internal.Registry)
 
 local registryGet = Registry.get
+local gateCheck = Gate.check
+local gateReportDrop = Gate.reportDrop
 
 -- Constants --------------------------------------------------------------
 
@@ -46,7 +48,7 @@ function Reader.process (
         Baseline.setReadKey (player or false)
     end
 
-    -- Cache middleware flag once per frame-buffer, not per packet
+    -- Cache flags once per frame-buffer, not per packet
     local hasReceiveMiddleware = Middleware.hasReceive
     local isServer = player ~= nil
 
@@ -76,9 +78,11 @@ function Reader.process (
 
             local codec = reg.codec
             local signal = reg.signal
+            local batchStart = pos
+            local maxBytes = reg.maxPayloadBytes
 
-            -- Hot path: no gate, no middleware . Straight decode then fire
-            if not (isServer and reg.needsGate) and not hasReceiveMiddleware then
+            -- Hot path: no gate, no middleware, no byte budget
+            if not (isServer and reg.needsGate) and not hasReceiveMiddleware and not maxBytes then
                 for _ = 1, count do
                     if pos >= length then
                         break
@@ -89,7 +93,7 @@ function Reader.process (
                     signal:fire (value, player)
                 end
             else
-                -- Cold path: gate and/or middleware active
+                -- Cold path: gate and/or middleware and/or byte budget active
                 local baseName = reg.baseName
                 local needsGate = isServer and reg.needsGate
 
@@ -98,11 +102,16 @@ function Reader.process (
                         break
                     end
 
+                    if maxBytes and (pos - batchStart) > maxBytes then
+                        gateReportDrop (player, "size", reg.name, nil)
+                        break
+                    end
+
                     local value, consumed = codec.read (incoming, pos, refs)
                     pos += consumed
 
-                    if needsGate and not Gate.check (value, reg, player :: Player) then
-                        return
+                    if needsGate and not gateCheck (value, reg, player :: Player) then
+                        continue
                     end
 
                     if hasReceiveMiddleware then
@@ -141,8 +150,8 @@ function Reader.process (
             local value, consumed = queryCodec.read (incoming, pos, refs)
             pos += consumed
 
-            if isServer and reg.needsGate and not Gate.check (value, reg, player :: Player) then
-                return
+            if isServer and reg.needsGate and not gateCheck (value, reg, player :: Player) then
+                continue
             end
 
             local final: any

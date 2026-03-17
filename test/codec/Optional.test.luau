@@ -1,0 +1,37 @@
+--!strict
+--!optimize 2
+local Lync = require (script.Parent.Parent.Parent)
+local Runner = require (script.Parent.Parent.Runner)
+local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
+
+describe ("optional", function (): ()
+    it ("nil", function (): ()
+        local c = Lync.optional (Lync.u8)
+        expect (roundTrip (c, nil)):toBeNil ()
+    end)
+    it ("present u8", function (): ()
+        local c = Lync.optional (Lync.u8)
+        expect (roundTrip (c, 42)):toBe (42)
+    end)
+    it ("present string", function (): ()
+        local c = Lync.optional (Lync.string)
+        expect (roundTrip (c, "hello")):toBe ("hello")
+    end)
+    it ("nil is 1 byte", function (): ()
+        local c = Lync.optional (Lync.u32)
+        local _, w = roundTrip (c, nil)
+        expect (w):toBe (1)
+    end)
+    it ("present is 1 + inner bytes", function (): ()
+        local c = Lync.optional (Lync.u32)
+        local _, w = roundTrip (c, 42)
+        expect (w):toBe (5)
+    end)
+    it ("nested optional", function (): ()
+        local c = Lync.optional (Lync.optional (Lync.u8))
+        expect (roundTrip (c, nil)):toBeNil ()
+        expect (roundTrip (c, 99)):toBe (99)
+    end)
+end)
+
+return nil

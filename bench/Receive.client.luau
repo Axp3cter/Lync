@@ -1,21 +1,15 @@
 --!strict
--- Client-side bench receiver.
-
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
-local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
 local Lync = require (LyncFolder)
+local Scenarios = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Scenarios"))
 
 Lync.start ()
 
--- Lync-specific
-Definitions.Booleans:listen (function (): () end)
-Definitions.Entities:listen (function (): () end)
-
--- Blink-compatible
-Definitions.BlinkEntities:listen (function (): () end)
-Definitions.BlinkBooleans:listen (function (): () end)
+for name, packet in Scenarios.allPackets do
+    packet:listen (function (): () end)
+end
 
 task.wait (1)
-Definitions.Ready:send (true)
+Scenarios.Ready:send (true)

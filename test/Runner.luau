@@ -2,11 +2,7 @@
 --!optimize 2
 -- Test framework.
 
-local Channel = require (script.Parent.Parent.core.Channel)
-local Types = require (script.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
+local Channel = require (script.Parent.Parent.internal.Channel)
 
 -- State ------------------------------------------------------------------
 
@@ -16,12 +12,19 @@ type Expectation = {
     toBeNil: (self: Expectation) -> (),
     toBeCloseTo: (self: Expectation, expected: number, tolerance: number?) -> (),
     toThrow: (self: Expectation, pattern: string?) -> (),
+    toBeTruthy: (self: Expectation) -> (),
+    toBeFalsy: (self: Expectation) -> (),
+    toBeGreaterThan: (self: Expectation, n: number) -> (),
+    toBeLessThan: (self: Expectation, n: number) -> (),
+    toHaveLength: (self: Expectation, n: number) -> (),
+    toBeType: (self: Expectation, t: string) -> (),
     never: Expectation,
 }
 
 type TestEntry = {
     name: string,
-    fn: () -> (),
+    fn: (() -> ())?,
+    skipped: boolean,
 }
 
 type Suite = {
@@ -33,6 +36,7 @@ local _suites = {} :: { Suite }
 local _current = nil :: Suite?
 local _passed = 0
 local _failed = 0
+local _skipped = 0
 local _errors = {} :: { string }
 
 -- Private ----------------------------------------------------------------
@@ -98,7 +102,6 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
         if isNegated then
             isMatch = not isMatch
         end
-
         if not isMatch then
             local prefix = if isNegated then "not " else ""
             error (`Expected {formatValue (actual)} {prefix}to be {formatValue (expected)}`)
@@ -110,7 +113,6 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
         if isNegated then
             isMatch = not isMatch
         end
-
         if not isMatch then
             local prefix = if isNegated then "not " else ""
             error (`Expected {prefix}deep equality`)
@@ -122,7 +124,6 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
         if isNegated then
             isMatch = not isMatch
         end
-
         if not isMatch then
             local prefix = if isNegated then "not " else ""
             error (`Expected {formatValue (actual)} {prefix}to be nil`)
@@ -136,7 +137,6 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
         if isNegated then
             isMatch = not isMatch
         end
-
         if not isMatch then
             local prefix = if isNegated then "not " else ""
             error (`Expected {actual} {prefix}to be within {tol} of {expected} (diff={diff})`)
@@ -149,13 +149,8 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
         end
 
         local ok, err = pcall (actual :: () -> ())
-        local didThrow = not ok
         if isNegated then
-            didThrow = not didThrow
-        end
-
-        if isNegated then
-            if not didThrow then
+            if not ok then
                 error (`Expected function not to throw, but it threw: {err}`)
             end
         else
@@ -165,6 +160,74 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
             if pattern and not string.find (tostring (err), pattern) then
                 error (`Expected error matching "{pattern}", got: {err}`)
             end
+        end
+    end
+
+    expectation.toBeTruthy = function (_self: Expectation): ()
+        local isMatch = actual ~= nil and actual ~= false
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected {formatValue (actual)} {prefix}to be truthy`)
+        end
+    end
+
+    expectation.toBeFalsy = function (_self: Expectation): ()
+        local isMatch = actual == nil or actual == false
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected {formatValue (actual)} {prefix}to be falsy`)
+        end
+    end
+
+    expectation.toBeGreaterThan = function (_self: Expectation, n: number): ()
+        local isMatch = (actual :: number) > n
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected {actual} {prefix}to be greater than {n}`)
+        end
+    end
+
+    expectation.toBeLessThan = function (_self: Expectation, n: number): ()
+        local isMatch = (actual :: number) < n
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected {actual} {prefix}to be less than {n}`)
+        end
+    end
+
+    expectation.toHaveLength = function (_self: Expectation, n: number): ()
+        local len = #(actual :: any)
+        local isMatch = len == n
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected length {len} {prefix}to be {n}`)
+        end
+    end
+
+    expectation.toBeType = function (_self: Expectation, t: string): ()
+        local actualType = typeof (actual)
+        local isMatch = actualType == t
+        if isNegated then
+            isMatch = not isMatch
+        end
+        if not isMatch then
+            local prefix = if isNegated then "not " else ""
+            error (`Expected type {actualType} {prefix}to be {t}`)
         end
     end
 
@@ -192,7 +255,14 @@ function Runner.it (name: string, fn: () -> ()): ()
     if not _current then
         error ("[Lync] Test it() must be called inside describe()")
     end
-    table.insert (_current.tests, { name = name, fn = fn })
+    table.insert (_current.tests, { name = name, fn = fn, skipped = false })
+end
+
+function Runner.skip (name: string, _fn: (() -> ())?): ()
+    if not _current then
+        error ("[Lync] Test skip() must be called inside describe()")
+    end
+    table.insert (_current.tests, { name = name, fn = nil, skipped = true })
 end
 
 function Runner.expect (actual: any): Expectation
@@ -202,7 +272,10 @@ end
 function Runner.run (): boolean
     _passed = 0
     _failed = 0
+    _skipped = 0
     table.clear (_errors)
+
+    local totalStart = os.clock ()
 
     print (
         "\n══════════════════════════════════════════════════════════════"
@@ -213,22 +286,37 @@ function Runner.run (): boolean
     )
 
     for _, suite in _suites do
+        local suiteStart = os.clock ()
         print (`  {suite.name}`)
         for _, entry in suite.tests do
-            local ok, err = pcall (entry.fn)
-            if ok then
-                pass (entry.name)
+            if entry.skipped then
+                _skipped += 1
+                print (`    ○ skipped: {entry.name}`)
             else
-                fail (entry.name, tostring (err))
+                local ok, err = pcall (entry.fn :: () -> ())
+                if ok then
+                    pass (entry.name)
+                else
+                    fail (entry.name, tostring (err))
+                end
             end
+        end
+        local suiteMs = math.floor ((os.clock () - suiteStart) * 1000 + 0.5)
+        if suiteMs > 0 then
+            print (`    ({suiteMs}ms)`)
         end
         print ("")
     end
 
+    local totalMs = math.floor ((os.clock () - totalStart) * 1000 + 0.5)
+
     print (
         "──────────────────────────────────────────────────────────────"
     )
-    print (`  {_passed} passed, {_failed} failed, {_passed + _failed} total`)
+    local skipStr = if _skipped > 0 then `, {_skipped} skipped` else ""
+    print (
+        `  {_passed} passed, {_failed} failed{skipStr}, {_passed + _failed + _skipped} total ({totalMs}ms)`
+    )
     if _failed > 0 then
         print ("\n  Failures:")
         for _, msg in _errors do
@@ -243,12 +331,9 @@ function Runner.run (): boolean
     return _failed == 0
 end
 
---[[
-    Writes a value through a codec then reads it back.
-    Returns (decoded, bytesWritten, bytesConsumed).
-    Callers that only need the value discard the trailing returns.
-]]
-function Runner.roundTrip (codec: Codec<any>, value: any): (any, number, number)
+-- Writes a value through a codec then reads it back.
+-- Returns (decoded, bytesWritten, bytesConsumed).
+function Runner.roundTrip (codec: any, value: any): (any, number, number)
     local ch = Channel.create ()
     codec.write (ch, value)
 

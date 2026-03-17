@@ -24,9 +24,16 @@ type Bucket = {
 
 local _maxDepth = DEFAULT_MAX_DEPTH
 local _buckets = {} :: { [Player]: { [number]: Bucket } }
-local _callback = nil :: ((player: Player, reason: string, packetName: string, data: any?) -> ())?
+local _dropHandlers =
+    {} :: { (player: Player, reason: string, packetName: string, data: any?) -> () }
 
 -- Private ----------------------------------------------------------------
+
+local function fireDrop (player: Player, reason: string, packetName: string, data: any?): ()
+    for _, handler in _dropHandlers do
+        handler (player, reason, packetName, data)
+    end
+end
 
 @native
 local function isClean (value: any, depth: number): boolean
@@ -80,6 +87,29 @@ local function isClean (value: any, depth: number): boolean
                 and isfinite (axis.X)
                 and isfinite (axis.Y)
                 and isfinite (axis.Z)
+        elseif ut == "UDim" then
+            return isfinite (value.Scale)
+        elseif ut == "UDim2" then
+            return isfinite (value.X.Scale) and isfinite (value.Y.Scale)
+        elseif ut == "NumberRange" then
+            return isfinite (value.Min) and isfinite (value.Max)
+        elseif ut == "Rect" then
+            return isfinite (value.Min.X)
+                and isfinite (value.Min.Y)
+                and isfinite (value.Max.X)
+                and isfinite (value.Max.Y)
+        elseif ut == "Ray" then
+            local origin = value.Origin
+            local direction = value.Direction
+            return isfinite (origin.X)
+                and isfinite (origin.Y)
+                and isfinite (origin.Z)
+                and isfinite (direction.X)
+                and isfinite (direction.Y)
+                and isfinite (direction.Z)
+        elseif ut == "Region3" then
+            local position = value.CFrame.Position
+            return isfinite (position.X) and isfinite (position.Y) and isfinite (position.Z)
         end
     end
 
@@ -140,16 +170,12 @@ end
 
 function Gate.check (value: any, reg: Registration, player: Player): boolean
     if not checkRate (player, reg) then
-        if _callback then
-            _callback (player, "rate", reg.name, nil)
-        end
+        fireDrop (player, "rate", reg.name, nil)
         return false
     end
 
     if not isClean (value, 1) then
-        if _callback then
-            _callback (player, "nan", reg.name, value)
-        end
+        fireDrop (player, "nan", reg.name, value)
         return false
     end
 
@@ -157,9 +183,7 @@ function Gate.check (value: any, reg: Registration, player: Player): boolean
     if validate then
         local ok, reason = validate (value, player)
         if not ok then
-            if _callback then
-                _callback (player, reason or "validate", reg.name, value)
-            end
+            fireDrop (player, reason or "validate", reg.name, value)
             return false
         end
     end
@@ -169,8 +193,23 @@ end
 
 function Gate.onDrop (
     callback: (player: Player, reason: string, packetName: string, data: any?) -> ()
-): ()
-    _callback = callback
+): () -> ()
+    table.insert (_dropHandlers, callback)
+
+    return function (): ()
+        local idx = table.find (_dropHandlers, callback)
+        if idx then
+            table.remove (_dropHandlers, idx)
+        end
+    end
+end
+
+-- Fires drop handlers without running any validation checks.
+-- Used by Reader for byte-budget violations.
+function Gate.reportDrop (player: Player?, reason: string, packetName: string, data: any?): ()
+    if player and #_dropHandlers > 0 then
+        fireDrop (player, reason, packetName, data)
+    end
 end
 
 function Gate.onPlayerAdded (player: Player): ()

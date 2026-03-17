@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.1.0"
+Lync = "axp3cter/lync@1.3.0"
 ```
 
 **npm (roblox-ts)**
@@ -35,8 +35,8 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.version` | `"1.1.0"` |
-| `Lync.VERSION` | `"1.1.0"` |
+| `Lync.version` | `"1.3.0"` |
+| `Lync.VERSION` | `"1.3.0"` |
 
 ## Packets
 
@@ -48,6 +48,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | `unreliable` | boolean | No | Sends over UnreliableRemoteEvent. Default `false`. Cant use with delta codecs. |
 | `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket. Burst defaults to maxPerSecond if you dont set it. |
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side. Return `false, "reason"` to drop. Runs after NaN scan. |
+| `maxPayloadBytes` | number | No | Server-side. Max bytes a single batch of this packet can consume. Fires `onDrop` with reason `"size"` if exceeded. |
 
 **Server methods:**
 
@@ -146,7 +147,7 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | `Lync.vec3` | 12 | 3x f32. |
 | `Lync.cframe` | 24 | Position as 3x f32, rotation as axis-angle 3x f32. |
 | `Lync.color3` | 3 | RGB 0-255 per channel, clamped. |
-| `Lync.inst` | 2 | Instance ref through sidecar array. |
+| `Lync.inst` | 2 | Instance ref through sidecar array. Requires refs on read, throws without them. |
 | `Lync.buff` | varint + N | Varint length prefix then raw bytes. |
 | `Lync.udim` | 8 | Scale f32 + Offset i32. |
 | `Lync.udim2` | 16 | 2x UDim (X then Y). |
@@ -165,10 +166,11 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | Constructor | What it does |
 |:------------|:------------|
 | `Lync.struct({ key = codec })` | Named fields. Bools get packed into bitfields automatically. |
-| `Lync.array(codec)` | Variable length list with varint count. |
-| `Lync.map(keyCodec, valueCodec)` | Key-value pairs with varint count. |
+| `Lync.array(codec, maxCount?)` | Variable length list with varint count. Optional `maxCount` rejects on read if exceeded. |
+| `Lync.map(keyCodec, valueCodec, maxCount?)` | Key-value pairs with varint count. Optional `maxCount` rejects on read if exceeded. |
 | `Lync.optional(codec)` | 1 byte flag, value only if present. |
 | `Lync.tuple(codec, codec, ...)` | Ordered positional values, no keys. |
+| `Lync.boundedString(maxLength)` | Same wire format as `Lync.string` but rejects on read if length exceeds `maxLength`. |
 
 ### Delta
 
@@ -177,8 +179,8 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | Constructor | What it does |
 |:------------|:------------|
 | `Lync.deltaStruct({ key = codec })` | First frame sends everything. After that only dirty fields get sent via bitmask. If nothing changed it costs 1 byte. |
-| `Lync.deltaArray(codec)` | Same idea but for arrays. Dirty elements get sent with varint indices. |
-| `Lync.deltaMap(keyCodec, valueCodec)` | Delta compression for key-value maps. Sends only upserted and removed entries after the first frame. |
+| `Lync.deltaArray(codec, maxCount?)` | Same idea but for arrays. Dirty elements get sent with varint indices. Optional `maxCount` rejects on read if exceeded. |
+| `Lync.deltaMap(keyCodec, valueCodec, maxCount?)` | Delta compression for key-value maps. Sends only upserted and removed entries after the first frame. Optional `maxCount` rejects on read if exceeded. |
 
 ### Specialized
 
@@ -191,8 +193,8 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | `Lync.tagged(tagField, { name = codec })` | Discriminated union with a u8 variant tag. Puts `tagField` into the decoded table so you know which variant it is. |
 | `Lync.custom(size, write, read)` | User-defined fixed-size codec. `write` is `(b, offset, value) → ()`, `read` is `(b, offset) → value`. Plugs into struct/array/delta specialization automatically. |
 | `Lync.nothing` | Zero bytes. Reads nil. Good for fire-and-forget signals. |
-| `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Use when you dont have a codec for the value. |
-| `Lync.auto` | Self-describing. Writes a u8 type tag then the value. Handles nil, bool, all number types, string, vec2, vec3, color3, cframe, buffer. |
+| `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Requires refs array on read (same as `Lync.inst`). Use when you dont have a codec for the value. |
+| `Lync.auto` | Self-describing. Writes a u8 type tag then the value. Handles nil, bool, all number types, string, vec2, vec3, color3, cframe, buffer, udim, udim2, numberRange, rect, vec2int16, vec3int16, region3, region3int16, ray, numberSequence, colorSequence. |
 
 ## Groups
 
@@ -219,7 +221,9 @@ Global intercept on all packets. Handlers run in the order you registered them. 
 |:---------|:------------|
 | `Lync.onSend(fn(data, name, player) → data?)` | Runs before a packet goes out. Returns a remover function. |
 | `Lync.onReceive(fn(data, name, player) → data?)` | Runs when a packet comes in. Returns a remover function. |
-| `Lync.onDrop(fn(player, reason, name, data))` | Fires when a packet gets rejected. Reason is `"nan"`, `"rate"`, `"validate"`, or whatever string your validate function returned. |
+| `Lync.onDrop(fn(player, reason, name, data))` | Fires when a packet gets rejected. Returns a remover function. Supports multiple handlers. Reason is `"nan"`, `"rate"`, `"validate"`, `"size"`, or whatever string your validate function returned. |
+
+Packets that fail validation are dropped individually. Other packets in the same frame from the same player are unaffected.
 
 ## Benchmarks
 

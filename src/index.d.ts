@@ -84,6 +84,7 @@ export interface PacketConfig<T> {
     unreliable?: boolean;
     rateLimit?: RateLimitConfig;
     validate?: (data: T, player: Player) => LuaTuple<[boolean, string?]>;
+    maxPayloadBytes?: number;
 }
 
 // All methods on one type. Server methods throw on client and vice versa,
@@ -234,10 +235,10 @@ declare namespace Lync {
     // Composites
     export function struct<S extends Record<string, Codec<unknown>>>(schema: S): Codec<InferSchema<S>>;
     export function deltaStruct<S extends Record<string, Codec<unknown>>>(schema: S): Codec<InferSchema<S>>;
-    export function array<T>(element: Codec<T>): Codec<T[]>;
-    export function deltaArray<T>(element: Codec<T>): Codec<T[]>;
-    export function map<K extends defined, V>(key: Codec<K>, value: Codec<V>): Codec<Map<K, V>>;
-    export function deltaMap<K extends defined, V>(key: Codec<K>, value: Codec<V>): Codec<Map<K, V>>;
+    export function array<T>(element: Codec<T>, maxCount?: number): Codec<T[]>;
+    export function deltaArray<T>(element: Codec<T>, maxCount?: number): Codec<T[]>;
+    export function map<K extends defined, V>(key: Codec<K>, value: Codec<V>, maxCount?: number): Codec<Map<K, V>>;
+    export function deltaMap<K extends defined, V>(key: Codec<K>, value: Codec<V>, maxCount?: number): Codec<Map<K, V>>;
     export function optional<T>(inner: Codec<T>): Codec<T | undefined>;
 
     // Specialized
@@ -256,6 +257,7 @@ declare namespace Lync {
         write: (b: buffer, offset: number, value: T) => void,
         read: (b: buffer, offset: number) => T,
     ): Codec<T>;
+    export function boundedString(maxLength: number): Codec<string>;
 
     // Special
     export const nothing: Codec<undefined>;
@@ -265,7 +267,7 @@ declare namespace Lync {
     // Hooks
     export function onDrop(
         callback: (player: Player, reason: string, packetName: string, data: unknown) => void,
-    ): void;
+    ): () => void;
     export function onSend(
         handler: (data: unknown, name: string, player: Player | undefined) => unknown | undefined,
     ): () => void;

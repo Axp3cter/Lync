@@ -4,39 +4,58 @@
 
 local RunService = game:GetService ("RunService")
 
-local Bitfield = require (script.codec.Bitfield)
-local Buffer = require (script.codec.Buffer)
-local CFrameCodec = require (script.codec.CFrame)
-local Channel = require (script.core.Channel)
-local Client = require (script.transport.Client)
-local Color = require (script.codec.Color)
-local Composite = require (script.codec.Composite)
-local Custom = require (script.codec.Custom)
-local EnumCodec = require (script.codec.Enum)
-local Float16 = require (script.codec.Float16)
+-- Codec: primitive
+local BoolCodec = require (script.codec.primitive.Bool)
+local Float16 = require (script.codec.primitive.Float16)
+local Number = require (script.codec.primitive.Number)
+
+-- Codec: datatype
+local Buffer = require (script.codec.datatype.Buffer)
+local CFrameCodec = require (script.codec.datatype.CFrame)
+local Color = require (script.codec.datatype.Color)
+local InstanceCodec = require (script.codec.datatype.Instance)
+local IntVector = require (script.codec.datatype.IntVector)
+local NumberRangeCodec = require (script.codec.datatype.NumberRange)
+local RayCodec = require (script.codec.datatype.Ray)
+local RectCodec = require (script.codec.datatype.Rect)
+local Region = require (script.codec.datatype.Region)
+local Sequence = require (script.codec.datatype.Sequence)
+local String = require (script.codec.datatype.String)
+local UDimCodec = require (script.codec.datatype.UDim)
+local Vector = require (script.codec.datatype.Vector)
+
+-- Codec: composite
+local Array = require (script.codec.composite.Array)
+local Map = require (script.codec.composite.Map)
+local Optional = require (script.codec.composite.Optional)
+local Struct = require (script.codec.composite.Struct)
+local Tagged = require (script.codec.composite.Tagged)
+local Tuple = require (script.codec.composite.Tuple)
+
+-- Codec: meta
+local Auto = require (script.codec.meta.Auto)
+local Bitfield = require (script.codec.meta.Bitfield)
+local Custom = require (script.codec.meta.Custom)
+local EnumCodec = require (script.codec.meta.Enum)
+local Nothing = require (script.codec.meta.Nothing)
+local Quantized = require (script.codec.meta.Quantized)
+local Unknown = require (script.codec.meta.Unknown)
+
+-- Internal
+local Channel = require (script.internal.Channel)
 local Gate = require (script.transport.Gate)
-local Group = require (script.event.Group)
-local InstanceCodec = require (script.codec.Instance)
-local IntVector = require (script.codec.IntVector)
-local Middleware = require (script.core.Middleware)
-local Namespace = require (script.event.Namespace)
-local NumberRangeCodec = require (script.codec.NumberRange)
-local Packet = require (script.event.Packet)
-local Pool = require (script.core.Pool)
-local Primitive = require (script.codec.Primitive)
-local Quantized = require (script.codec.Quantized)
-local Query = require (script.event.Query)
-local RayCodec = require (script.codec.Ray)
-local RectCodec = require (script.codec.Rect)
-local Region = require (script.codec.Region)
-local Sequence = require (script.codec.Sequence)
+local Middleware = require (script.internal.Middleware)
+local Pool = require (script.internal.Pool)
+
+-- API
+local Group = require (script.api.Group)
+local Namespace = require (script.api.Namespace)
+local Packet = require (script.api.Packet)
+local Query = require (script.api.Query)
+
+-- Transport
+local Client = require (script.transport.Client)
 local Server = require (script.transport.Server)
-local Special = require (script.codec.Special)
-local String = require (script.codec.String)
-local Tagged = require (script.codec.Tagged)
-local Tuple = require (script.codec.Tuple)
-local UDimCodec = require (script.codec.UDim)
-local Vector = require (script.codec.Vector)
 
 -- Public -----------------------------------------------------------------
 
@@ -49,8 +68,8 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "1.1.0",
-    version = "1.1.0",
+    VERSION = "1.3.0",
+    version = "1.3.0",
 
     -- Lifecycle
     start = start,
@@ -61,19 +80,20 @@ local Lync = {
     defineNamespace = Namespace.define,
 
     -- Primitives
-    u8 = Primitive.u8,
-    u16 = Primitive.u16,
-    u32 = Primitive.u32,
-    i8 = Primitive.i8,
-    i16 = Primitive.i16,
-    i32 = Primitive.i32,
-    f32 = Primitive.f32,
-    f64 = Primitive.f64,
-    bool = Primitive.bool,
+    u8 = Number.u8,
+    u16 = Number.u16,
+    u32 = Number.u32,
+    i8 = Number.i8,
+    i16 = Number.i16,
+    i32 = Number.i32,
+    f32 = Number.f32,
+    f64 = Number.f64,
+    bool = BoolCodec.bool,
     f16 = Float16.f16,
 
     -- Complex types
     string = String.string,
+    boundedString = String.bounded,
     vec2 = Vector.vec2,
     vec3 = Vector.vec3,
     cframe = CFrameCodec.cframe,
@@ -93,27 +113,27 @@ local Lync = {
     colorSequence = Sequence.colorSequence,
 
     -- Composites
-    struct = Composite.struct,
-    deltaStruct = Composite.deltaStruct,
-    deltaArray = Composite.deltaArray,
-    deltaMap = Composite.deltaMap,
-    array = Composite.array,
-    map = Composite.map,
-    optional = Composite.optional,
+    struct = Struct.struct,
+    deltaStruct = Struct.deltaStruct,
+    deltaArray = Array.deltaArray,
+    deltaMap = Map.deltaMap,
+    array = Array.array,
+    map = Map.map,
+    optional = Optional.optional,
+    tuple = Tuple.define,
+    tagged = Tagged.define,
 
     -- Specialized
     enum = EnumCodec.define,
     quantizedFloat = Quantized.float,
     quantizedVec3 = Quantized.vec3,
     bitfield = Bitfield.define,
-    tagged = Tagged.define,
-    tuple = Tuple.define,
     custom = Custom.define,
 
     -- Special
-    nothing = Special.nothing,
-    unknown = Special.unknown,
-    auto = Special.auto,
+    nothing = Nothing.nothing,
+    unknown = Unknown.unknown,
+    auto = Auto.auto,
 
     -- Hooks
     onDrop = Gate.onDrop,

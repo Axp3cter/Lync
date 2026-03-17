@@ -7,8 +7,8 @@ local RunService = game:GetService ("RunService")
 local Stats = game:GetService ("Stats")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
-local Definitions = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Definitions"))
 local Lync = require (LyncFolder)
+local Scenarios = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Scenarios"))
 
 Lync.setChannelMaxSize (1048576) -- 1 MB, needed for Blink entities bench (100x6B x 1000 fires)
 Lync.start ()
@@ -191,7 +191,7 @@ end
 -- Main -------------------------------------------------------------------
 
 local player = getPlayer ()
-Definitions.Ready:wait ()
+Scenarios.Ready:wait ()
 
 -- Section 1: Lync-specific benchmarks
 print (`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
@@ -199,7 +199,7 @@ print (`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
 runTest ({
     name = "Static booleans",
     player = player,
-    packet = Definitions.Booleans,
+    packet = Scenarios.Booleans,
     data = function (): any
         return true
     end,
@@ -211,9 +211,9 @@ print ("")
 runTest ({
     name = "Static entities",
     player = player,
-    packet = Definitions.Entities,
+    packet = Scenarios.Entities,
     data = function (): any
-        return Definitions.STATIC_ENTITY
+        return Scenarios.STATIC_ENTITY
     end,
     bytes = 34,
 })
@@ -225,7 +225,7 @@ local moveFrame = 0
 runTest ({
     name = "Moving entities",
     player = player,
-    packet = Definitions.Entities,
+    packet = Scenarios.Entities,
     data = function (): any
         moveFrame += 1
         return {
@@ -247,7 +247,7 @@ local random = Random.new (42)
 runTest ({
     name = "Chaotic entities",
     player = player,
-    packet = Definitions.Entities,
+    packet = Scenarios.Entities,
     data = function (): any
         return {
             position = Vector3.new (
@@ -276,8 +276,8 @@ print ("  Same data shapes as github.com/1Axen/blink/benchmark\n")
 runBlinkTest ({
     name = "Entities (100x struct, 6x u8)",
     player = player,
-    packet = Definitions.BlinkEntities,
-    data = Definitions.BLINK_ENTITIES,
+    packet = Scenarios.BlinkEntities,
+    data = Scenarios.BLINK_ENTITIES,
 })
 
 print ("")
@@ -285,8 +285,8 @@ print ("")
 runBlinkTest ({
     name = "Booleans (1000x bool)",
     player = player,
-    packet = Definitions.BlinkBooleans,
-    data = Definitions.BLINK_BOOLEANS,
+    packet = Scenarios.BlinkBooleans,
+    data = Scenarios.BLINK_BOOLEANS,
 })
 
 print ("\n  Done\n")

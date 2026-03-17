@@ -5,8 +5,8 @@
 local RunService = game:GetService ("RunService")
 
 local Bridge = require (script.Parent.Bridge)
-local Channel = require (script.Parent.Parent.core.Channel)
-local Middleware = require (script.Parent.Parent.core.Middleware)
+local Channel = require (script.Parent.Parent.internal.Channel)
+local Middleware = require (script.Parent.Parent.internal.Middleware)
 local Reader = require (script.Parent.Reader)
 local Types = require (script.Parent.Parent.Types)
 

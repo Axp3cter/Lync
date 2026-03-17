@@ -8,7 +8,7 @@ export type ChannelState = {
     refs: { Instance },
     lastId: number,
     countPos: number,
-    batchCount: number,
+    itemCount: number,
     deltas: { [number]: any },
     prevDump: buffer?,
 }
@@ -28,6 +28,7 @@ export type PacketConfig<T> = {
     unreliable: boolean?,
     rateLimit: RateLimitConfig?,
     validate: ((data: T, player: Player) -> (boolean, string?))?,
+    maxPayloadBytes: number?,
 }
 
 export type QueryConfig<Req, Resp> = {
@@ -50,6 +51,7 @@ export type Registration = {
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
     needsGate: boolean,
+    maxPayloadBytes: number?,
 }
 
 export type Connection = {

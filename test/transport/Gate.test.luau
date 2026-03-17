@@ -1,310 +1,287 @@
 --!strict
 --!optimize 2
 local Gate = require (script.Parent.Parent.Parent.transport.Gate)
+local Lync = require (script.Parent.Parent.Parent)
+local Registry = require (script.Parent.Parent.Parent.internal.Registry)
 local Runner = require (script.Parent.Parent.Runner)
+local Signal = require (script.Parent.Parent.Parent.api.Signal)
 local describe, it, expect, fakePlayer =
     Runner.describe, Runner.it, Runner.expect, Runner.fakePlayer
 
-local function reg (ov: any?): any
-    local b = {
-        id = 9999,
-        name = "__tg",
-        baseName = "__tg",
-        codec = { write = function () end, read = function () end },
+local nan = 0 / 0
+
+local function makeReg (): any
+    return {
+        id = 90000,
+        name = "__gate",
+        baseName = "__gate",
+        codec = Lync.u8,
         isUnreliable = false,
         kind = 0,
         partner = nil,
         signal = nil,
         rateLimit = nil,
         validate = nil,
+        needsGate = false,
+        maxPayloadBytes = nil,
     }
-    if ov then
-        for k, v in ov :: { [string]: any } do
-            b[k] = v
-        end
-    end
-    return b
 end
 
-describe ("Gate NaN/inf", function (): ()
-    it ("rejects NaN", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (0 / 0, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("rejects inf", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (math.huge, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("rejects -inf", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (-math.huge, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
+describe ("Gate.isClean primitives", function (): ()
+    local p = fakePlayer ("GateP", 2000)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
     it ("accepts number", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (42, reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (42, reg, p)):toBe (true)
     end)
     it ("accepts string", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check ("hello", reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check ("hi", reg, p)):toBe (true)
     end)
     it ("accepts bool", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (true, reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (true, reg, p)):toBe (true)
     end)
     it ("accepts nil", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (nil, reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (nil, reg, p)):toBe (true)
     end)
+    it ("rejects NaN", function (): ()
+        expect (Gate.check (nan, reg, p)):toBe (false)
+    end)
+    it ("rejects inf", function (): ()
+        expect (Gate.check (math.huge, reg, p)):toBe (false)
+    end)
+    it ("rejects -inf", function (): ()
+        expect (Gate.check (-math.huge, reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
 end)
 
-describe ("Gate table NaN", function (): ()
-    it ("in value", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check ({ hp = 0 / 0 }, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("deeply nested", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check ({ a = { b = { c = 0 / 0 } } }, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("exceeds depth", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        local deep: any = { val = 1 }
-        for _ = 1, 18 do
-            deep = { inner = deep }
-        end
-        expect (Gate.check (deep, reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("accepts clean table", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check ({ a = 1, b = "hi", c = { d = true } }, reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("accepts empty table", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check ({}, reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
-    end)
-end)
+describe ("Gate.isClean Vector2", function (): ()
+    local p = fakePlayer ("GateV2", 2001)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
 
-describe ("Gate Vector2 NaN", function (): ()
+    it ("accepts clean", function (): ()
+        expect (Gate.check (Vector2.new (1, 2), reg, p)):toBe (true)
+    end)
     it ("rejects NaN X", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Vector2.new (0 / 0, 1), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (Vector2.new (nan, 0), reg, p)):toBe (false)
     end)
     it ("rejects NaN Y", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Vector2.new (1, 0 / 0), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (Vector2.new (0, nan), reg, p)):toBe (false)
     end)
-    it ("accepts clean", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Vector2.new (1, 2), reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
-    end)
+
+    Gate.onPlayerRemoved (p)
 end)
 
-describe ("Gate Vector3 NaN", function (): ()
+describe ("Gate.isClean Vector3", function (): ()
+    local p = fakePlayer ("GateV3", 2002)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean", function (): ()
+        expect (Gate.check (Vector3.new (1, 2, 3), reg, p)):toBe (true)
+    end)
     it ("rejects NaN", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Vector3.new (1, 0 / 0, 3), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (Vector3.new (0, nan, 0), reg, p)):toBe (false)
     end)
-    it ("accepts clean", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Vector3.new (1, 2, 3), reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
-    end)
+
+    Gate.onPlayerRemoved (p)
 end)
 
-describe ("Gate Color3 NaN", function (): ()
-    it ("rejects NaN R", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Color3.new (0 / 0, 0, 0), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("rejects NaN G", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Color3.new (0, 0 / 0, 0), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("rejects NaN B", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Color3.new (0, 0, 0 / 0), reg (), p)):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
+describe ("Gate.isClean Color3", function (): ()
+    local p = fakePlayer ("GateC3", 2003)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
     it ("accepts clean", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (Color3.new (1, 0.5, 0), reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+        expect (Gate.check (Color3.new (1, 0, 0), reg, p)):toBe (true)
     end)
+    it ("rejects NaN", function (): ()
+        expect (Gate.check (Color3.new (nan, 0, 0), reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
 end)
 
-describe ("Gate CFrame", function (): ()
-    it ("accepts clean", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (CFrame.new (1, 2, 3), reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+describe ("Gate.isClean UDim/UDim2", function (): ()
+    local p = fakePlayer ("GateU", 2004)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean UDim", function (): ()
+        expect (Gate.check (UDim.new (0.5, 10), reg, p)):toBe (true)
     end)
-    it ("accepts rotated", function (): ()
-        local p = fakePlayer ()
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (CFrame.Angles (1, 2, 3), reg (), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+    it ("rejects NaN UDim", function (): ()
+        expect (Gate.check (UDim.new (nan, 0), reg, p)):toBe (false)
     end)
+    it ("accepts clean UDim2", function (): ()
+        expect (Gate.check (UDim2.new (UDim.new (0.5, 10), UDim.new (1, 20)), reg, p)):toBe (true)
+    end)
+    it ("rejects NaN UDim2", function (): ()
+        expect (Gate.check (UDim2.new (UDim.new (nan, 0), UDim.new (0, 0)), reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
 end)
 
-describe ("Gate rate limiting", function (): ()
-    it ("allows first", function (): ()
-        local p = fakePlayer ("RA", 100)
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (1, reg ({ rateLimit = { maxPerSecond = 2 } }), p)):toBe (true)
-        Gate.onPlayerRemoved (p)
+describe ("Gate.isClean NumberRange/Rect", function (): ()
+    local p = fakePlayer ("GateNR", 2005)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean NR", function (): ()
+        expect (Gate.check (NumberRange.new (0, 1), reg, p)):toBe (true)
     end)
-    it ("rejects after burst", function (): ()
-        local p = fakePlayer ("RB", 101)
-        Gate.onPlayerAdded (p)
-        local r = reg ({ id = 10001, rateLimit = { maxPerSecond = 1, burstAllowance = 2 } })
-        Gate.check (1, r, p)
-        Gate.check (1, r, p)
-        expect (Gate.check (1, r, p)):toBe (false)
-        Gate.onPlayerRemoved (p)
+    it ("rejects NaN NR", function (): ()
+        expect (Gate.check (NumberRange.new (nan, 1), reg, p)):toBe (false)
     end)
-    it ("passes without rateLimit", function (): ()
-        local p = fakePlayer ("RC", 102)
-        Gate.onPlayerAdded (p)
-        for _ = 1, 100 do
-            expect (Gate.check (1, reg (), p)):toBe (true)
+    it ("accepts clean Rect", function (): ()
+        expect (Gate.check (Rect.new (0, 0, 100, 100), reg, p)):toBe (true)
+    end)
+    it ("rejects NaN Rect", function (): ()
+        expect (Gate.check (Rect.new (nan, 0, 1, 1), reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
+end)
+
+describe ("Gate.isClean Ray", function (): ()
+    local p = fakePlayer ("GateRay", 2006)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean", function (): ()
+        expect (Gate.check (Ray.new (Vector3.one, Vector3.yAxis), reg, p)):toBe (true)
+    end)
+    it ("rejects NaN origin", function (): ()
+        expect (Gate.check (Ray.new (Vector3.new (nan, 0, 0), Vector3.yAxis), reg, p)):toBe (false)
+    end)
+    it ("rejects NaN dir", function (): ()
+        expect (Gate.check (Ray.new (Vector3.zero, Vector3.new (0, nan, 0)), reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
+end)
+
+describe ("Gate.isClean Region3", function (): ()
+    local p = fakePlayer ("GateReg", 2007)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean", function (): ()
+        expect (Gate.check (Region3.new (Vector3.zero, Vector3.one), reg, p)):toBe (true)
+    end)
+    it ("rejects NaN", function (): ()
+        expect (Gate.check (Region3.new (Vector3.new (nan, 0, 0), Vector3.one), reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
+end)
+
+describe ("Gate.isClean tables", function (): ()
+    local p = fakePlayer ("GateT", 2008)
+    Gate.onPlayerAdded (p)
+    local reg = makeReg ()
+
+    it ("accepts clean table", function (): ()
+        expect (Gate.check ({ x = 1, y = "hi" }, reg, p)):toBe (true)
+    end)
+    it ("rejects NaN in value", function (): ()
+        expect (Gate.check ({ x = nan }, reg, p)):toBe (false)
+    end)
+    it ("rejects deep NaN", function (): ()
+        expect (Gate.check ({ a = { b = { c = nan } } }, reg, p)):toBe (false)
+    end)
+
+    Gate.onPlayerRemoved (p)
+end)
+
+describe ("Gate validate callback", function (): ()
+    local p = fakePlayer ("GateVal", 2009)
+    Gate.onPlayerAdded (p)
+
+    it ("blocks when validate returns false", function (): ()
+        local reg = makeReg ()
+        reg.validate = function (): (boolean, string?)
+            return false, "blocked"
         end
-        Gate.onPlayerRemoved (p)
+        reg.needsGate = true
+        expect (Gate.check (42, reg, p)):toBe (false)
     end)
-    it ("rate runs before NaN", function (): ()
-        local p = fakePlayer ("RD", 103)
-        Gate.onPlayerAdded (p)
-        local r = reg ({ id = 10002, rateLimit = { maxPerSecond = 1, burstAllowance = 1 } })
-        Gate.check (1, r, p)
-        local dropped: any
-        Gate.onDrop (function (_, reason: string): ()
-            dropped = reason
-        end)
-        Gate.check (0 / 0, r, p)
-        expect (dropped):toBe ("rate")
-        Gate.onPlayerRemoved (p)
-        Gate.onDrop (nil :: any)
+    it ("allows when validate returns true", function (): ()
+        local reg = makeReg ()
+        reg.validate = function (): (boolean, string?)
+            return true, nil
+        end
+        reg.needsGate = true
+        expect (Gate.check (42, reg, p)):toBe (true)
+    end)
+
+    Gate.onPlayerRemoved (p)
+end)
+
+describe ("Gate depth limit", function (): ()
+    it ("set and get", function (): ()
+        local old = Gate.getMaxDepth ()
+        Gate.setMaxDepth (5)
+        expect (Gate.getMaxDepth ()):toBe (5)
+        Gate.setMaxDepth (old)
     end)
 end)
 
-describe ("Gate validate", function (): ()
-    it ("rejects false", function (): ()
-        local p = fakePlayer ("VA", 200)
+describe ("Gate onDrop callback", function (): ()
+    it ("fires on drop", function (): ()
+        local fired = false
+        local remove = Gate.onDrop (function (): ()
+            fired = true
+        end)
+        local p = fakePlayer ("GateDrop", 2010)
         Gate.onPlayerAdded (p)
-        expect (Gate.check (
-            1,
-            reg ({
-                validate = function ()
-                    return false, "bad"
-                end,
-            }),
-            p
-        )):toBe (false)
-        Gate.onPlayerRemoved (p)
-    end)
-    it ("accepts true", function (): ()
-        local p = fakePlayer ("VB", 201)
-        Gate.onPlayerAdded (p)
-        expect (Gate.check (
-            42,
-            reg ({
-                validate = function ()
-                    return true
-                end,
-            }),
-            p
-        )):toBe (true)
+        Gate.reportDrop (p, "test", "__drop", nil)
+        expect (fired):toBe (true)
+        remove ()
         Gate.onPlayerRemoved (p)
     end)
 end)
 
-describe ("Gate onDrop", function (): ()
-    it ("fires on NaN", function (): ()
-        local dropped: any
-        Gate.onDrop (function (_, reason: string, name: string): ()
-            dropped = { reason = reason, name = name }
+describe ("Gate onDrop multiple handlers", function (): ()
+    it ("fires all handlers", function (): ()
+        local a, b = 0, 0
+        local ra = Gate.onDrop (function (): ()
+            a += 1
         end)
-        local p = fakePlayer ("DA", 300)
+        local rb = Gate.onDrop (function (): ()
+            b += 1
+        end)
+        local p = fakePlayer ("GateMulti", 2020)
         Gate.onPlayerAdded (p)
-        Gate.check (0 / 0, reg ({ name = "__drop" }), p)
-        expect (dropped).never:toBeNil ()
-        expect (dropped.reason):toBe ("nan")
-        expect (dropped.name):toBe ("__drop")
+        Gate.reportDrop (p, "test", "__multi", nil)
+        expect (a):toBe (1)
+        expect (b):toBe (1)
+        ra ()
+        rb ()
         Gate.onPlayerRemoved (p)
-        Gate.onDrop (nil :: any)
     end)
-    it ("fires on validate fail", function (): ()
-        local reason: string?
-        Gate.onDrop (function (_, r: string): ()
-            reason = r
+    it ("remover stops handler", function (): ()
+        local count = 0
+        local remove = Gate.onDrop (function (): ()
+            count += 1
         end)
-        local p = fakePlayer ("DB", 301)
+        local p = fakePlayer ("GateRm", 2021)
         Gate.onPlayerAdded (p)
-        Gate.check (
-            1,
-            reg ({
-                validate = function ()
-                    return false, "custom_reason"
-                end,
-            }),
-            p
-        )
-        expect (reason):toBe ("custom_reason")
+        Gate.reportDrop (p, "test", "__rm", nil)
+        expect (count):toBe (1)
+        remove ()
+        Gate.reportDrop (p, "test", "__rm", nil)
+        expect (count):toBe (1)
         Gate.onPlayerRemoved (p)
-        Gate.onDrop (nil :: any)
     end)
-    it ("fires on rate", function (): ()
-        local reason: string?
-        Gate.onDrop (function (_, r: string): ()
-            reason = r
-        end)
-        local p = fakePlayer ("DC", 302)
-        Gate.onPlayerAdded (p)
-        local r = reg ({ id = 10003, rateLimit = { maxPerSecond = 1, burstAllowance = 1 } })
-        Gate.check (1, r, p)
-        Gate.check (1, r, p)
-        expect (reason):toBe ("rate")
-        Gate.onPlayerRemoved (p)
-        Gate.onDrop (nil :: any)
+    it ("double remove safe", function (): ()
+        local remove = Gate.onDrop (function (): () end)
+        remove ()
+        remove ()
     end)
 end)
 

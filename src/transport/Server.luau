@@ -5,18 +5,18 @@
 local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
 
-local Baseline = require (script.Parent.Parent.core.Baseline)
+local Baseline = require (script.Parent.Parent.internal.Baseline)
 local Bridge = require (script.Parent.Bridge)
-local Channel = require (script.Parent.Parent.core.Channel)
+local Channel = require (script.Parent.Parent.internal.Channel)
 
 local channelWriteBatch = Channel.writeBatch
 local channelWriteBatchRaw = Channel.writeBatchRaw
 local channelSetPacket = Channel.setCurrentPacket
 
 local Gate = require (script.Parent.Gate)
-local Group = require (script.Parent.Parent.event.Group)
-local Middleware = require (script.Parent.Parent.core.Middleware)
-local Pool = require (script.Parent.Parent.core.Pool)
+local Group = require (script.Parent.Parent.api.Group)
+local Middleware = require (script.Parent.Parent.internal.Middleware)
+local Pool = require (script.Parent.Parent.internal.Pool)
 local Reader = require (script.Parent.Reader)
 local Types = require (script.Parent.Parent.Types)
 
@@ -134,9 +134,28 @@ local function serializeBroadcast (
     return scratch.cursor, snapRefs
 end
 
--- Shared broadcast: run middleware, serialize once, fan out to each player's channel.
-local function broadcastTo (
-    targets: { [any]: any },
+-- Run middleware and serialize once. Returns nil if middleware dropped.
+local function prepareBroadcast (
+    name: string,
+    codec: Codec<any>,
+    data: any
+): (any, number, { Instance }?)
+    local final: any
+    if Middleware.hasSend then
+        final = Middleware.runSend (data, name, nil)
+        if final == nil then
+            return nil, 0, nil
+        end
+    else
+        final = data
+    end
+
+    local snapLen, snapRefs = serializeBroadcast (name, codec, final)
+    return final, snapLen, snapRefs
+end
+
+-- Fan out to all connected players via _players map.
+local function broadcastToAll (
     id: number,
     name: string,
     codec: Codec<any>,
@@ -144,59 +163,68 @@ local function broadcastTo (
     isUnreliable: boolean,
     except: Player?
 ): ()
-    local final: any
-    if Middleware.hasSend then
-        final = Middleware.runSend (data, name, nil)
-        if final == nil then
-            return
-        end
-    else
-        final = data
-    end
-
-    local snapLen, snapRefs = serializeBroadcast (name, codec, final)
-    local scratchBuff = _broadScratch.buff
-
-    -- Determine iteration mode from first key (once, not per entry)
-    local firstKey = next (targets)
-    if firstKey == nil then
+    local final, snapLen, snapRefs = prepareBroadcast (name, codec, data)
+    if final == nil and data ~= nil then
         return
     end
 
-    if type (firstKey) == "number" then
-        -- Array path: { Player } . Numeric keys, values are players
-        for _, player in targets :: { any } do
-            local state = _players[player]
-            if not state or (except and player == except) then
-                continue
-            end
-            local ch = if isUnreliable then state.unreliable else state.reliable
-            channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+    local scratchBuff = _broadScratch.buff
+    for player, state in _players do
+        if except and player == except then
+            continue
         end
-    else
-        -- Map path: { [Player]: PlayerState } or { [Player]: true }
-        local firstIsState = type (targets[firstKey]) == "table"
+        local ch = if isUnreliable then state.unreliable else state.reliable
+        channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+    end
+end
 
-        if firstIsState then
-            -- _players map: value IS the PlayerState
-            for player, state in targets :: { [any]: PlayerState } do
-                if except and player == except then
-                    continue
-                end
-                local ch = if isUnreliable then state.unreliable else state.reliable
-                channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
-            end
-        else
-            -- Group set: { [Player]: true } . Look up state from _players
-            for player in targets do
-                local state = _players[player]
-                if not state or (except and player == except) then
-                    continue
-                end
-                local ch = if isUnreliable then state.unreliable else state.reliable
-                channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
-            end
+-- Fan out to a specific player list.
+local function broadcastToList (
+    players: { Player },
+    id: number,
+    name: string,
+    codec: Codec<any>,
+    data: any,
+    isUnreliable: boolean
+): ()
+    local final, snapLen, snapRefs = prepareBroadcast (name, codec, data)
+    if final == nil and data ~= nil then
+        return
+    end
+
+    local scratchBuff = _broadScratch.buff
+    for _, player in players do
+        local state = _players[player]
+        if not state then
+            continue
         end
+        local ch = if isUnreliable then state.unreliable else state.reliable
+        channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
+    end
+end
+
+-- Fan out to a group set { [Player]: true }.
+local function broadcastToSet (
+    set: { [Player]: true },
+    id: number,
+    name: string,
+    codec: Codec<any>,
+    data: any,
+    isUnreliable: boolean
+): ()
+    local final, snapLen, snapRefs = prepareBroadcast (name, codec, data)
+    if final == nil and data ~= nil then
+        return
+    end
+
+    local scratchBuff = _broadScratch.buff
+    for player in set do
+        local state = _players[player]
+        if not state then
+            continue
+        end
+        local ch = if isUnreliable then state.unreliable else state.reliable
+        channelWriteBatchRaw (ch, id, scratchBuff, snapLen, snapRefs)
     end
 end
 
@@ -261,7 +289,7 @@ function Server.writeToAll (
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastTo (_players, id, name, codec, data, isUnreliable, nil)
+    broadcastToAll (id, name, codec, data, isUnreliable, nil)
 end
 
 function Server.writeToList (
@@ -272,7 +300,7 @@ function Server.writeToList (
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastTo (players :: any, id, name, codec, data, isUnreliable, nil)
+    broadcastToList (players, id, name, codec, data, isUnreliable)
 end
 
 function Server.writeToAllExcept (
@@ -283,7 +311,7 @@ function Server.writeToAllExcept (
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastTo (_players, id, name, codec, data, isUnreliable, except)
+    broadcastToAll (id, name, codec, data, isUnreliable, except)
 end
 
 function Server.writeToGroup (
@@ -294,7 +322,7 @@ function Server.writeToGroup (
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastTo (Group.getSet (groupName) :: any, id, name, codec, data, isUnreliable, nil)
+    broadcastToSet (Group.getSet (groupName), id, name, codec, data, isUnreliable)
 end
 
 -- Shared for both query requests and responses (identical wire format).

@@ -6,25 +6,19 @@ local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expec
 
 describe ("tagged", function (): ()
     it ("variant A", function (): ()
-        local c = Lync.tagged (
-            "type",
-            {
-                Move = Lync.struct ({ x = Lync.f32, y = Lync.f32 }),
-                Chat = Lync.struct ({ msg = Lync.string }),
-            }
-        )
+        local c = Lync.tagged ("type", {
+            Move = Lync.struct ({ x = Lync.f32, y = Lync.f32 }),
+            Chat = Lync.struct ({ msg = Lync.string }),
+        })
         local r = roundTrip (c, { type = "Move", x = 1.5, y = 2.5 })
         expect (r.type):toBe ("Move")
         expect (r.x):toBeCloseTo (1.5)
     end)
     it ("variant B", function (): ()
-        local c = Lync.tagged (
-            "type",
-            {
-                Move = Lync.struct ({ x = Lync.f32, y = Lync.f32 }),
-                Chat = Lync.struct ({ msg = Lync.string }),
-            }
-        )
+        local c = Lync.tagged ("type", {
+            Move = Lync.struct ({ x = Lync.f32, y = Lync.f32 }),
+            Chat = Lync.struct ({ msg = Lync.string }),
+        })
         local r = roundTrip (c, { type = "Chat", msg = "hi" })
         expect (r.type):toBe ("Chat")
         expect (r.msg):toBe ("hi")

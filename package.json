@@ -28,7 +28,8 @@
         "luau"
     ],
     "files": [
-        "src"
+        "src",
+        "README.md"
     ],
     "devDependencies": {
         "@rbxts/compiler-types": "^3.0.0-types.0",

@@ -3,13 +3,14 @@
 -- Raw buffer codec with varint length prefix.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 local Varint = require (script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 
--- Public -----------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Public -------------------------------------------------------------
 
 local Buffer = {}
 

@@ -2,29 +2,32 @@
 --!native
 -- Auto (self-describing) codec. Writes a u8 type tag then the value.
 
-local Buffer = require (script.Parent.Parent.datatype.Buffer)
+local BoolCodec = require (script.Parent.Parent.primitive.Bool)
+local BufferCodec = require (script.Parent.Parent.datatype.Buffer)
 local CFrameCodec = require (script.Parent.Parent.datatype.CFrame)
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
-local BoolCodec = require (script.Parent.Parent.primitive.Bool)
-local Color = require (script.Parent.Parent.datatype.Color)
-local IntVector = require (script.Parent.Parent.datatype.IntVector)
-local Number = require (script.Parent.Parent.primitive.Number)
+local ColorCodec = require (script.Parent.Parent.datatype.Color)
+local IntVectorCodec = require (script.Parent.Parent.datatype.IntVector)
+local NumberCodec = require (script.Parent.Parent.primitive.Number)
 local NumberRangeCodec = require (script.Parent.Parent.datatype.NumberRange)
 local RayCodec = require (script.Parent.Parent.datatype.Ray)
 local RectCodec = require (script.Parent.Parent.datatype.Rect)
-local Region = require (script.Parent.Parent.datatype.Region)
-local Sequence = require (script.Parent.Parent.datatype.Sequence)
-local String = require (script.Parent.Parent.datatype.String)
+local RegionCodec = require (script.Parent.Parent.datatype.Region)
+local SequenceCodec = require (script.Parent.Parent.datatype.Sequence)
+local StringCodec = require (script.Parent.Parent.datatype.String)
 local Types = require (script.Parent.Parent.Parent.Types)
 local UDimCodec = require (script.Parent.Parent.datatype.UDim)
 local Varint = require (script.Parent.Parent.primitive.Varint)
-local Vector = require (script.Parent.Parent.datatype.Vector)
+local VectorCodec = require (script.Parent.Parent.datatype.Vector)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
+type InternalCodec<T> = Types.InternalCodec<T>
 
--- Constants --------------------------------------------------------------
+local alloc = Channel.alloc
+local floor = math.floor
+
+-- Constants ----------------------------------------------------------
 
 local TAG_NIL = 0
 local TAG_BOOL = 1
@@ -54,128 +57,130 @@ local TAG_RAY = 24
 local TAG_NUMBERSEQUENCE = 25
 local TAG_COLORSEQUENCE = 26
 
-local floor = math.floor
-
 local READ_DISPATCH = table.freeze ({
     [TAG_BOOL] = BoolCodec.bool,
-    [TAG_U8] = Number.u8,
-    [TAG_U16] = Number.u16,
-    [TAG_U32] = Number.u32,
-    [TAG_I8] = Number.i8,
-    [TAG_I16] = Number.i16,
-    [TAG_I32] = Number.i32,
-    [TAG_F32] = Number.f32,
-    [TAG_F64] = Number.f64,
-    [TAG_STRING] = String.string,
-    [TAG_VEC2] = Vector.vec2,
-    [TAG_VEC3] = Vector.vec3,
-    [TAG_COLOR3] = Color.color3,
+    [TAG_U8] = NumberCodec.u8,
+    [TAG_U16] = NumberCodec.u16,
+    [TAG_U32] = NumberCodec.u32,
+    [TAG_I8] = NumberCodec.i8,
+    [TAG_I16] = NumberCodec.i16,
+    [TAG_I32] = NumberCodec.i32,
+    [TAG_F32] = NumberCodec.f32,
+    [TAG_F64] = NumberCodec.f64,
+    [TAG_STRING] = StringCodec.string,
+    [TAG_VEC2] = VectorCodec.vec2,
+    [TAG_VEC3] = VectorCodec.vec3,
+    [TAG_COLOR3] = ColorCodec.color3,
     [TAG_CFRAME] = CFrameCodec.cframe,
-    [TAG_BUFFER] = Buffer.buff,
+    [TAG_BUFFER] = BufferCodec.buff,
     [TAG_UDIM] = UDimCodec.udim,
     [TAG_UDIM2] = UDimCodec.udim2,
     [TAG_NUMBERRANGE] = NumberRangeCodec.numberRange,
     [TAG_RECT] = RectCodec.rect,
-    [TAG_VEC2INT16] = IntVector.vec2int16,
-    [TAG_VEC3INT16] = IntVector.vec3int16,
-    [TAG_REGION3] = Region.region3,
-    [TAG_REGION3INT16] = Region.region3int16,
+    [TAG_VEC2INT16] = IntVectorCodec.vec2int16,
+    [TAG_VEC3INT16] = IntVectorCodec.vec3int16,
+    [TAG_REGION3] = RegionCodec.region3,
+    [TAG_REGION3INT16] = RegionCodec.region3int16,
     [TAG_RAY] = RayCodec.ray,
-    [TAG_NUMBERSEQUENCE] = Sequence.numberSequence,
-    [TAG_COLORSEQUENCE] = Sequence.colorSequence,
+    [TAG_NUMBERSEQUENCE] = SequenceCodec.numberSequence,
+    [TAG_COLORSEQUENCE] = SequenceCodec.colorSequence,
 })
+
+local function extractDw (codec: any): any
+    return (codec :: InternalCodec<any>)._directWrite
+end
 
 local TYPE_DISPATCH = table.freeze ({
     boolean = { tag = TAG_BOOL, codec = BoolCodec.bool, size = 1, dw = nil },
-    string = { tag = TAG_STRING, codec = String.string, size = nil, dw = nil },
+    string = { tag = TAG_STRING, codec = StringCodec.string, size = nil, dw = nil },
+    buffer = { tag = TAG_BUFFER, codec = BufferCodec.buff, size = nil, dw = nil },
     Vector2 = {
         tag = TAG_VEC2,
-        codec = Vector.vec2,
+        codec = VectorCodec.vec2,
         size = 8,
-        dw = (Vector.vec2 :: any)._directWrite,
+        dw = extractDw (VectorCodec.vec2),
     },
     Vector3 = {
         tag = TAG_VEC3,
-        codec = Vector.vec3,
+        codec = VectorCodec.vec3,
         size = 12,
-        dw = (Vector.vec3 :: any)._directWrite,
+        dw = extractDw (VectorCodec.vec3),
     },
     Color3 = {
         tag = TAG_COLOR3,
-        codec = Color.color3,
+        codec = ColorCodec.color3,
         size = 3,
-        dw = (Color.color3 :: any)._directWrite,
+        dw = extractDw (ColorCodec.color3),
     },
     CFrame = {
         tag = TAG_CFRAME,
         codec = CFrameCodec.cframe,
         size = 24,
-        dw = (CFrameCodec.cframe :: any)._directWrite,
+        dw = extractDw (CFrameCodec.cframe),
     },
-    buffer = { tag = TAG_BUFFER, codec = Buffer.buff, size = nil, dw = nil },
     UDim = {
         tag = TAG_UDIM,
         codec = UDimCodec.udim,
         size = 8,
-        dw = (UDimCodec.udim :: any)._directWrite,
+        dw = extractDw (UDimCodec.udim),
     },
     UDim2 = {
         tag = TAG_UDIM2,
         codec = UDimCodec.udim2,
         size = 16,
-        dw = (UDimCodec.udim2 :: any)._directWrite,
+        dw = extractDw (UDimCodec.udim2),
     },
     NumberRange = {
         tag = TAG_NUMBERRANGE,
         codec = NumberRangeCodec.numberRange,
         size = 8,
-        dw = (NumberRangeCodec.numberRange :: any)._directWrite,
+        dw = extractDw (NumberRangeCodec.numberRange),
     },
     Rect = {
         tag = TAG_RECT,
         codec = RectCodec.rect,
         size = 16,
-        dw = (RectCodec.rect :: any)._directWrite,
+        dw = extractDw (RectCodec.rect),
     },
     Vector2int16 = {
         tag = TAG_VEC2INT16,
-        codec = IntVector.vec2int16,
+        codec = IntVectorCodec.vec2int16,
         size = 4,
-        dw = (IntVector.vec2int16 :: any)._directWrite,
+        dw = extractDw (IntVectorCodec.vec2int16),
     },
     Vector3int16 = {
         tag = TAG_VEC3INT16,
-        codec = IntVector.vec3int16,
+        codec = IntVectorCodec.vec3int16,
         size = 6,
-        dw = (IntVector.vec3int16 :: any)._directWrite,
+        dw = extractDw (IntVectorCodec.vec3int16),
     },
     Region3 = {
         tag = TAG_REGION3,
-        codec = Region.region3,
+        codec = RegionCodec.region3,
         size = 24,
-        dw = (Region.region3 :: any)._directWrite,
+        dw = extractDw (RegionCodec.region3),
     },
     Region3int16 = {
         tag = TAG_REGION3INT16,
-        codec = Region.region3int16,
+        codec = RegionCodec.region3int16,
         size = 12,
-        dw = (Region.region3int16 :: any)._directWrite,
+        dw = extractDw (RegionCodec.region3int16),
     },
     Ray = {
         tag = TAG_RAY,
         codec = RayCodec.ray,
         size = 24,
-        dw = (RayCodec.ray :: any)._directWrite,
+        dw = extractDw (RayCodec.ray),
     },
     NumberSequence = {
         tag = TAG_NUMBERSEQUENCE,
-        codec = Sequence.numberSequence,
+        codec = SequenceCodec.numberSequence,
         size = nil,
         dw = nil,
     },
     ColorSequence = {
         tag = TAG_COLORSEQUENCE,
-        codec = Sequence.colorSequence,
+        codec = SequenceCodec.colorSequence,
         size = nil,
         dw = nil,
     },
@@ -187,24 +192,24 @@ local NUM_DWRITES = {} :: { [number]: any }
 
 for _, pair in
     {
-        { TAG_U8, Number.u8, 1 },
-        { TAG_U16, Number.u16, 2 },
-        { TAG_U32, Number.u32, 4 },
-        { TAG_I8, Number.i8, 1 },
-        { TAG_I16, Number.i16, 2 },
-        { TAG_I32, Number.i32, 4 },
-        { TAG_F32, Number.f32, 4 },
-        { TAG_F64, Number.f64, 8 },
+        { TAG_U8, NumberCodec.u8, 1 },
+        { TAG_U16, NumberCodec.u16, 2 },
+        { TAG_U32, NumberCodec.u32, 4 },
+        { TAG_I8, NumberCodec.i8, 1 },
+        { TAG_I16, NumberCodec.i16, 2 },
+        { TAG_I32, NumberCodec.i32, 4 },
+        { TAG_F32, NumberCodec.f32, 4 },
+        { TAG_F64, NumberCodec.f64, 8 },
     }
 do
     NUM_SIZES[pair[1]] = pair[3]
-    NUM_DWRITES[pair[1]] = (pair[2] :: any)._directWrite
+    NUM_DWRITES[pair[1]] = (pair[2] :: InternalCodec<number>)._directWrite
 end
 
 table.freeze (NUM_SIZES)
 table.freeze (NUM_DWRITES)
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local _f32Temp = buffer.create (4)
 
@@ -246,7 +251,7 @@ local function selectNumberTag (value: number): number
     return TAG_F64
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local auto = table.freeze ({
     write = function (ch: ChannelState, value: any): ()
@@ -312,17 +317,17 @@ local auto = table.freeze ({
             error (`[Lync] Auto unsupported type: {valueType}`)
         end
 
-        local dw = entry.dw
-        local size = entry.size
-        if dw and size then
-            local totalSize = 1 + size
+        local entryDw = entry.dw
+        local entrySize = entry.size
+        if entryDw and entrySize then
+            local totalSize = 1 + entrySize
             local c = ch.cursor
             if c + totalSize > ch.size then
                 alloc (ch, totalSize)
             end
             local b = ch.buff
             buffer.writeu8 (b, c, entry.tag)
-            dw (b, c + 1, value)
+            entryDw (b, c + 1, value)
             ch.cursor = c + totalSize
         else
             local c = ch.cursor

@@ -91,7 +91,7 @@ describe ("Middleware DROP sentinel", function (): ()
         expect (Middleware.runSend (42, "t", nil)):toBeNil ()
         r ()
     end)
-    it ("nil still drops (backward compat)", function (): ()
+    it ("nil still drops(backward compat)", function (): ()
         local r = Middleware.addSend (function (): any
             return nil
         end)

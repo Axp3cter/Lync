@@ -7,7 +7,7 @@ local Types = require (script.Parent.Parent.Types)
 type Registration = Types.Registration
 type RateLimitConfig = Types.RateLimitConfig
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local DEFAULT_MAX_DEPTH = 16
 
@@ -15,7 +15,7 @@ local isfinite = math.isfinite
 local min = math.min
 local clock = os.clock
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 type Bucket = {
     tokens: number,
@@ -27,7 +27,7 @@ local _buckets = {} :: { [Player]: { [number]: Bucket } }
 local _dropHandlers =
     {} :: { (player: Player, reason: string, packetName: string, data: any?) -> () }
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function fireDrop (player: Player, reason: string, packetName: string, data: any?): ()
     for _, handler in _dropHandlers do
@@ -47,7 +47,7 @@ local function isClean (value: any, depth: number): boolean
         return isfinite (value)
     end
 
-    -- String, boolean, nil are always clean . Exit before table/vector/userdata checks
+    -- String, boolean, nil are always clean. Exit before table/vector/userdata checks.
     if t == "string" or t == "boolean" or t == "nil" then
         return true
     end
@@ -152,7 +152,7 @@ local function checkRate (player: Player, reg: Registration): boolean
     return false
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Gate = {}
 

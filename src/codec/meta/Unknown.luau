@@ -3,11 +3,15 @@
 -- Sidecar codec. Bypasses buffer serialization, uses Roblox remote refs.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
+local Types = require (script.Parent.Parent.Parent.Types)
+
+type ChannelState = Types.ChannelState
+
 local alloc = Channel.alloc
 
 return table.freeze ({
     unknown = table.freeze ({
-        write = function (ch: any, value: any): ()
+        write = function (ch: ChannelState, value: any): ()
             local refs = ch.refs
             local idx = #refs + 1
             if idx > 65535 then

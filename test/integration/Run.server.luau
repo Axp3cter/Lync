@@ -13,7 +13,7 @@ local Scenarios = require (
 task.wait (3)
 Lync.start ()
 
--- Helpers ----------------------------------------------------------------
+-- Helpers -------------------------------------------------------------
 
 local passed = 0
 local failed = 0
@@ -45,7 +45,7 @@ local function getPlayer (): Player
     return if #players > 0 then players[1] else Players.PlayerAdded:Wait ()
 end
 
--- Main -------------------------------------------------------------------
+-- Main ----------------------------------------------------------------
 
 local player = getPlayer ()
 Scenarios.Ready:wait ()
@@ -116,7 +116,7 @@ test ("send to group", function (): ()
     g:destroy ()
 end)
 
--- Results ----------------------------------------------------------------
+-- Results -------------------------------------------------------------
 
 task.wait (1)
 print (

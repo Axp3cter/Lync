@@ -2,8 +2,6 @@
 --!optimize 2
 -- Ordered intercept chains for send and receive.
 
--- State ------------------------------------------------------------------
-
 type Handler = (data: any, name: string, player: Player?) -> any?
 
 type Chain = {
@@ -11,14 +9,16 @@ type Chain = {
     snapshot: { Handler }?,
 }
 
-local _send: Chain = { handlers = {}, snapshot = nil }
-local _receive: Chain = { handlers = {}, snapshot = nil }
-
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local DROP = table.freeze ({ _tag = "drop" })
 
--- Private ----------------------------------------------------------------
+-- State --------------------------------------------------------------
+
+local _send: Chain = { handlers = {}, snapshot = nil }
+local _receive: Chain = { handlers = {}, snapshot = nil }
+
+-- Private ------------------------------------------------------------
 
 local function runChain (chain: { Handler }, data: any, name: string, player: Player?): any?
     local current = data
@@ -79,9 +79,13 @@ local function addTo (chain: Chain, fn: Handler): () -> ()
     end
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Middleware = {}
+
+Middleware.hasSend = false
+Middleware.hasReceive = false
+Middleware.DROP = DROP
 
 function Middleware.addSend (fn: Handler): () -> ()
     local remover = addTo (_send, fn)
@@ -111,8 +115,5 @@ function Middleware.runReceive (data: any, name: string, player: Player?): any?
     return run (_receive, data, name, player)
 end
 
-Middleware.hasSend = false
-Middleware.hasReceive = false
-Middleware.DROP = DROP
-
+-- Not frozen: hasSend and hasReceive are mutated at runtime.
 return Middleware

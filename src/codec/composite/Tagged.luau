@@ -3,13 +3,15 @@
 -- Discriminated union codec. u8 variant tag + variant payload.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
+type InternalCodec<T> = Types.InternalCodec<T>
 
--- Public -----------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Public -------------------------------------------------------------
 
 local Tagged = {}
 
@@ -42,12 +44,12 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
     local tagSizes = table.create (count) :: { number? }
 
     local allDirect = true
-    local uniformSize: number? = (variants[names[1]] :: any)._size
+    local uniformSize: number? = (variants[names[1]] :: InternalCodec<any>)._size
     local directWrites = table.create (count) :: { any }
     local directReads = table.create (count) :: { any }
 
     for i, name in names do
-        local codec = variants[name] :: any
+        local codec = variants[name] :: InternalCodec<any>
         nameToTag[name] = i
         tagCodecs[i] = codec
         tagNames[i] = name
@@ -82,8 +84,6 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
 
         -- If uniform size, expose _directWrite/_directRead for parent struct/array
         if fixedSize then
-            local variantBytes = uniformSize :: number
-
             return table.freeze ({
                 _size = fixedSize,
                 _directWrite = function (b: buffer, offset: number, value: any): ()

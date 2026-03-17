@@ -3,15 +3,14 @@
 -- NumberSequence and ColorSequence codecs with varint length prefix.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 local Varint = require (script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 
-type ChannelState = Types.ChannelState
+local alloc = Channel.alloc
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local NS_STRIDE = 12
 local CS_STRIDE = 7
@@ -19,7 +18,7 @@ local CS_STRIDE = 7
 local round = math.round
 local clamp = math.clamp
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Sequence = {}
 

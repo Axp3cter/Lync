@@ -3,20 +3,21 @@
 -- Pack booleans, unsigned and signed integers at the bit level.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- Constants --------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Constants ----------------------------------------------------------
 
 local band = bit32.band
 local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 type FieldSpec = {
     type: "bool" | "uint" | "int",
@@ -36,7 +37,7 @@ local function selectIO (bytes: number): ((b: buffer, offset: number, v: number)
     return buffer.writeu32, buffer.readu32
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Bitfield = {}
 

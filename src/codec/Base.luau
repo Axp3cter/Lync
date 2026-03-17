@@ -3,9 +3,13 @@
 -- Fixed-size codec factory. Every fixed-size codec calls Base.define once.
 
 local Channel = require (script.Parent.Parent.internal.Channel)
+local Types = require (script.Parent.Parent.Types)
+
+type ChannelState = Types.ChannelState
+
 local alloc = Channel.alloc
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Base = {}
 
@@ -18,7 +22,7 @@ function Base.define <T>(
         _size = size,
         _directWrite = directWrite,
         _directRead = directRead,
-        write = function (ch: any, value: T): ()
+        write = function (ch: ChannelState, value: T): ()
             local c = ch.cursor
             if c + size > ch.size then
                 alloc (ch, size)
@@ -39,7 +43,7 @@ function Base.zero (): any
         _directRead = function (_b: buffer, _offset: number): any
             return nil
         end,
-        write = function (_ch: any, _value: any): () end,
+        write = function (_ch: ChannelState, _value: any): () end,
         read = function (_src: buffer, _pos: number, _refs: { Instance }?): (any, number)
             return nil, 0
         end,

@@ -11,16 +11,16 @@ type Connection = Types.Connection
 type PacketConfig<T> = Types.PacketConfig<T>
 type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local MAX_NAMESPACES = 64
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _registered = {} :: { [string]: true }
 local _count = 0
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 type NamespaceConfig = {
     packets: { [string]: PacketConfig<any> }?,
@@ -46,8 +46,6 @@ local function scopedHandler (
         return handler (data, name, player)
     end
 end
-
--- Namespace --------------------------------------------------------------
 
 local NamespaceImpl = {}
 NamespaceImpl.__index = NamespaceImpl
@@ -173,7 +171,9 @@ function NamespaceImpl.queryNames (self: any): { string }
     return result
 end
 
--- Public -----------------------------------------------------------------
+table.freeze (NamespaceImpl)
+
+-- Public -------------------------------------------------------------
 
 local Namespace = {}
 

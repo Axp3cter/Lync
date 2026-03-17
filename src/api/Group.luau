@@ -4,13 +4,13 @@
 
 local Players = game:GetService ("Players")
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _groups = {} :: { [string]: { [Player]: true } }
 local _counts = {} :: { [string]: number }
 local _playerGroups = {} :: { [Player]: { [string]: true } }
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function onPlayerRemoving (player: Player): ()
     local memberships = _playerGroups[player]
@@ -30,8 +30,6 @@ local function onPlayerRemoving (player: Player): ()
 end
 
 Players.PlayerRemoving:Connect (onPlayerRemoving)
-
--- GroupImpl ---------------------------------------------------------------
 
 local GroupImpl = {}
 GroupImpl.__index = GroupImpl
@@ -139,7 +137,7 @@ end
 
 table.freeze (GroupImpl)
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Group = {}
 

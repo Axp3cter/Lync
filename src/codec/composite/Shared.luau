@@ -3,11 +3,13 @@
 -- Shared helpers for composite codecs: delta flags, scratch pool, struct field extraction, bool packing.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
+local Types = require (script.Parent.Parent.Parent.Types)
+
+type ChannelState = Types.ChannelState
+
 local alloc = Channel.alloc
 
-type ChannelState = any
-
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local band = bit32.band
 local bor = bit32.bor
@@ -19,13 +21,13 @@ local FLAG_DELTA = 0
 local FLAG_FULL = 1
 local FLAG_UNCHANGED = 2
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _nextDeltaId = 1
 local _scratchStack = {} :: { ChannelState }
 local _scratchDepth = 0
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Shared = {
     FLAG_DELTA = FLAG_DELTA,

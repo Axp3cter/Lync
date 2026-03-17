@@ -4,14 +4,15 @@
 
 local Baseline = require (script.Parent.Parent.Parent.internal.Baseline)
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Shared = require (script.Parent.Shared)
 local Types = require (script.Parent.Parent.Parent.Types)
+local Varint = require (script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
-local Varint = require (script.Parent.Parent.primitive.Varint)
+type InternalCodec<T> = Types.InternalCodec<T>
 
+local alloc = Channel.alloc
 local rangeEqual = Shared.rangeEqual
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
@@ -20,7 +21,7 @@ local FLAG_DELTA = Shared.FLAG_DELTA
 local FLAG_FULL = Shared.FLAG_FULL
 local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Map = {}
 
@@ -29,12 +30,15 @@ function Map.map (
     valueCodec: Codec<any>,
     maxCount: number?
 ): Codec<{ [any]: any }>
-    local keySize = (keyCodec :: any)._size :: number?
-    local valSize = (valueCodec :: any)._size :: number?
-    local keyDWrite = (keyCodec :: any)._directWrite
-    local valDWrite = (valueCodec :: any)._directWrite
-    local keyDRead = (keyCodec :: any)._directRead
-    local valDRead = (valueCodec :: any)._directRead
+    local keyInternal = keyCodec :: InternalCodec<any>
+    local valInternal = valueCodec :: InternalCodec<any>
+
+    local keySize = keyInternal._size
+    local valSize = valInternal._size
+    local keyDWrite = keyInternal._directWrite
+    local valDWrite = valInternal._directWrite
+    local keyDRead = keyInternal._directRead
+    local valDRead = valInternal._directRead
 
     if keySize and valSize and keyDWrite and valDWrite and keyDRead and valDRead then
         local entrySize = keySize + valSize
@@ -132,12 +136,14 @@ function Map.map (
     })
 end
 
--- Delta map: tracks per-key changes. First frame is full, then upserts + removes only.
---
--- Wire format:
---   FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
---   FLAG_UNCHANGED: u8(2)
---   FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
+--[[
+    Delta map: tracks per-key changes. First frame is full, then upserts + removes only.
+
+    Wire format:
+      FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
+      FLAG_UNCHANGED: u8(2)
+      FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
+]]
 function Map.deltaMap (
     keyCodec: Codec<any>,
     valueCodec: Codec<any>,
@@ -150,22 +156,38 @@ function Map.deltaMap (
     local readKey = keyCodec.read
     local readVal = valueCodec.read
 
-    local keySize = (keyCodec :: any)._size :: number?
-    local valSize = (valueCodec :: any)._size :: number?
-    local keyDWrite = (keyCodec :: any)._directWrite
-    local valDWrite = (valueCodec :: any)._directWrite
-    local keyDRead = (keyCodec :: any)._directRead
-    local valDRead = (valueCodec :: any)._directRead
+    local keyInternal = keyCodec :: InternalCodec<any>
+    local valInternal = valueCodec :: InternalCodec<any>
+
+    local keySize = keyInternal._size
+    local valSize = valInternal._size
+    local keyDWrite = keyInternal._directWrite
+    local valDWrite = valInternal._directWrite
+    local keyDRead = keyInternal._directRead
+    local valDRead = valInternal._directRead
+
     local scratchDirect = keySize and valSize and keyDWrite and valDWrite
     local entrySize = if keySize and valSize then keySize + valSize else nil
+
+    type EntryBounds = {
+        keyOff: number,
+        keyLen: number,
+        valOff: number,
+        valLen: number,
+    }
+
+    type DeltaMapCache = {
+        raw: buffer,
+        entries: { EntryBounds },
+        keyLookup: { [string]: number },
+        count: number,
+    }
 
     return table.freeze ({
         _isDelta = true,
 
         write = function (ch: ChannelState, value: { [any]: any }): ()
             local scratch = acquireScratch ()
-
-            type EntryBounds = { keyOff: number, keyLen: number, valOff: number, valLen: number }
 
             local entries = {} :: { EntryBounds }
             local keyLookup = {} :: { [string]: number }
@@ -213,14 +235,6 @@ function Map.deltaMap (
             end
 
             local scratchTotal = scratch.cursor
-
-            type DeltaMapCache = {
-                raw: buffer,
-                entries: { EntryBounds },
-                keyLookup: { [string]: number },
-                count: number,
-            }
-
             local cache = ch.deltas[deltaId] :: DeltaMapCache?
 
             if not cache then

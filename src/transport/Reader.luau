@@ -11,14 +11,14 @@ local registryGet = Registry.get
 local gateCheck = Gate.check
 local gateReportDrop = Gate.reportDrop
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local KIND_PACKET = Registry.KIND_PACKET
 local KIND_REQUEST = Registry.KIND_REQUEST
 
 local MAX_INCOMING = 65536
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Reader = {}
 
@@ -126,7 +126,7 @@ function Reader.process (
             end
         else
             -- Query frame: id(u8, already read) + correlationId(u16) + status(u8) = 3 more bytes
-            if pos + 2 >= length then
+            if pos + 3 > length then
                 break
             end
 

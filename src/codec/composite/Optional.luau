@@ -3,13 +3,14 @@
 -- Optional codec. 1 byte flag, value only if present.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- Public -----------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Public -------------------------------------------------------------
 
 local Optional = {}
 

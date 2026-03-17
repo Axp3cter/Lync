@@ -4,9 +4,10 @@
 
 local Base = require (script.Parent.Parent.Base)
 
+local sqrt = math.sqrt
+
 -- f32 machine epsilon * 2 to absorb round-trip noise.
 local EPSILON = 2.4e-7
-local sqrt = math.sqrt
 
 local function writeCFrame (b: buffer, c: number, value: CFrame): ()
     local position = value.Position

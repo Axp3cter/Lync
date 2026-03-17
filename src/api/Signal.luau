@@ -6,12 +6,13 @@ local Types = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 
--- Listener state: single numeric field for both connected and once checks.
+-- Constants ----------------------------------------------------------
+
 local STATE_DISCONNECTED = 0
 local STATE_CONNECTED = 1
 local STATE_ONCE = 2
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local _freeThread: thread? = nil
 
@@ -36,7 +37,9 @@ local function spawn (fn: (...any) -> (), ...: any): ()
     task.spawn (_freeThread :: thread, fn, ...)
 end
 
--- Entry doubles as the Connection handle , 1 alloc per listener instead of 2.
+-- Entry doubles as the Connection handle: 1 alloc per listener instead of 2.
+-- self: any — metatable typing via typeof(setmetatable) is not practical here
+-- because Entry and Signal reference each other circularly.
 local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 
@@ -213,7 +216,10 @@ function SignalImpl.disconnectAll (self: any): ()
     self._count = 0
 end
 
--- Public -----------------------------------------------------------------
+table.freeze (EntryImpl)
+table.freeze (SignalImpl)
+
+-- Public -------------------------------------------------------------
 
 local Signal = {}
 

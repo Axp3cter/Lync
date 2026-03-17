@@ -2,7 +2,7 @@
 --!optimize 2
 -- Batched connection lifecycle management.
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local ScopeImpl = {}
 ScopeImpl.__index = ScopeImpl
@@ -62,7 +62,7 @@ end
 
 table.freeze (ScopeImpl)
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Scope = {}
 

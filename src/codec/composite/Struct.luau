@@ -4,13 +4,14 @@
 
 local Baseline = require (script.Parent.Parent.Parent.internal.Baseline)
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Shared = require (script.Parent.Shared)
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
+type InternalCodec<T> = Types.InternalCodec<T>
 
+local alloc = Channel.alloc
 local extractFields = Shared.extractFields
 local packBools = Shared.packBools
 local unpackBools = Shared.unpackBools
@@ -34,7 +35,7 @@ type DeltaCache = {
     total: number,
 }
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Struct = {}
 
@@ -55,7 +56,7 @@ function Struct.struct (schema: { [string]: Codec<any> }): Codec<any>
     local fieldSizes = table.create (dataCount) :: { number }
 
     for i = 1, dataCount do
-        local codec = dataCodecs[i] :: any
+        local codec = dataCodecs[i] :: InternalCodec<any>
         local size = codec._size
         local dw = codec._directWrite
         local dr = codec._directRead
@@ -183,6 +184,7 @@ function Struct.struct (schema: { [string]: Codec<any> }): Codec<any>
         end,
     })
 end
+
 function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     local dataKeys, dataCodecs, boolKeys = extractFields (schema)
 
@@ -213,7 +215,7 @@ function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     local scratchDataTotal = 0
 
     for i = 1, dataCount do
-        local codec = dataCodecs[i] :: any
+        local codec = dataCodecs[i] :: InternalCodec<any>
         local size = codec._size
         local dw = codec._directWrite
         if size and dw then

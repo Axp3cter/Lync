@@ -2,15 +2,18 @@
 --!optimize 2
 -- Read-side baseline cache keyed by source (player or client sentinel).
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _readKey = false :: any
 local _readCaches = {} :: { [any]: { [number]: any } }
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Baseline = {}
 
+-- One-way latch: set to true on first delta write, never reset. This
+-- avoids a setReadKey call on every non-delta frame at the cost of a
+-- cheap branch once deltas are first used in the session.
 Baseline.hasDelta = false
 
 function Baseline.setReadKey (key: any): ()
@@ -38,4 +41,5 @@ function Baseline.clearSource (key: any): ()
     _readCaches[key] = nil
 end
 
+-- Not frozen: hasDelta is mutated at runtime by setCache.
 return Baseline

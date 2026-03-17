@@ -4,7 +4,7 @@
 
 local Channel = require (script.Parent.Parent.internal.Channel)
 
--- State ------------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 type Expectation = {
     toBe: (self: Expectation, expected: any) -> (),
@@ -39,7 +39,7 @@ local _failed = 0
 local _skipped = 0
 local _errors = {} :: { string }
 
--- Private ----------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
 local function deepEqual (a: any, b: any): boolean
     if a == b then
@@ -238,7 +238,7 @@ local function createExpectation (actual: any, isNegated: boolean): Expectation
     return expectation :: any
 end
 
--- Public -----------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Runner = {}
 
@@ -315,7 +315,7 @@ function Runner.run (): boolean
     )
     local skipStr = if _skipped > 0 then `, {_skipped} skipped` else ""
     print (
-        `  {_passed} passed, {_failed} failed{skipStr}, {_passed + _failed + _skipped} total ({totalMs}ms)`
+        `  {_passed} passed, {_failed} failed{skipStr}, {_passed + _failed + _skipped} total({totalMs}ms)`
     )
     if _failed > 0 then
         print ("\n  Failures:")
@@ -332,7 +332,7 @@ function Runner.run (): boolean
 end
 
 -- Writes a value through a codec then reads it back.
--- Returns (decoded, bytesWritten, bytesConsumed).
+-- Returns(decoded, bytesWritten, bytesConsumed).
 function Runner.roundTrip (codec: any, value: any): (any, number, number)
     local ch = Channel.create ()
     codec.write (ch, value)

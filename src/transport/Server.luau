@@ -8,11 +8,6 @@ local RunService = game:GetService ("RunService")
 local Baseline = require (script.Parent.Parent.internal.Baseline)
 local Bridge = require (script.Parent.Bridge)
 local Channel = require (script.Parent.Parent.internal.Channel)
-
-local channelWriteBatch = Channel.writeBatch
-local channelWriteBatchRaw = Channel.writeBatchRaw
-local channelSetPacket = Channel.setCurrentPacket
-
 local Gate = require (script.Parent.Gate)
 local Middleware = require (script.Parent.Parent.internal.Middleware)
 local Pool = require (script.Parent.Parent.internal.Pool)
@@ -22,7 +17,11 @@ local Types = require (script.Parent.Parent.Types)
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- State ------------------------------------------------------------------
+local channelWriteBatch = Channel.writeBatch
+local channelWriteBatchRaw = Channel.writeBatchRaw
+local channelSetPacket = Channel.setCurrentPacket
+
+-- State --------------------------------------------------------------
 
 type PlayerState = {
     reliable: ChannelState,
@@ -34,7 +33,7 @@ local _prevRecv = {} :: { [Player]: buffer }
 local _isStarted = false
 local _broadScratch = Channel.create ()
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function onPlayerAdded (player: Player): ()
     _players[player] = {
@@ -227,7 +226,7 @@ local function broadcastToSet (
     end
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Server = {}
 

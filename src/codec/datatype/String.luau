@@ -3,17 +3,14 @@
 -- Variable-length string codec with varint length prefix.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 local Varint = require (script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 
--- Constants --------------------------------------------------------------
+local alloc = Channel.alloc
 
-local floor = math.floor
-
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local String = {}
 
@@ -59,7 +56,7 @@ String.string = table.freeze ({
 })
 
 function String.bounded (maxLength: number): any
-    if maxLength <= 0 or maxLength ~= floor (maxLength) then
+    if maxLength <= 0 or maxLength ~= math.floor (maxLength) then
         error (`[Lync] boundedString maxLength must be a positive integer, got {maxLength}`)
     end
 

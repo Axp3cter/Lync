@@ -13,15 +13,16 @@ local Types = require (script.Parent.Parent.Types)
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local NOT_STARTED = "[Lync] Client not started. Call Lync.start() before sending"
+
 local _reliable = nil :: ChannelState?
 local _unreliable = nil :: ChannelState?
 local _prevRecv = nil :: buffer?
 local _isStarted = false
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function receive (data: any, refs: any, applyXor: boolean): ()
     local buf = Reader.decodeIncoming (data)
@@ -67,7 +68,7 @@ local function flush (): ()
     flushChannel (Bridge.unreliable, _unreliable :: ChannelState, false)
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Client = {}
 

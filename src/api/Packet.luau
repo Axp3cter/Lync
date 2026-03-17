@@ -11,9 +11,10 @@ local Signal = require (script.Parent.Signal)
 local Types = require (script.Parent.Parent.Types)
 
 type Connection = Types.Connection
+type InternalCodec<T> = Types.InternalCodec<T>
 type PacketConfig<T> = Types.PacketConfig<T>
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer ()
 
@@ -24,7 +25,10 @@ local serverWriteToAllExcept = Server.writeToAllExcept
 local serverWriteToSet = Server.writeToSet
 local clientWrite = Client.write
 
--- Private ----------------------------------------------------------------
+local DELTA_TARGETED = 1
+local DELTA_BROADCAST = 2
+
+-- Private ------------------------------------------------------------
 
 -- Shared methods (both contexts)
 local SharedImpl = {}
@@ -48,9 +52,6 @@ end
 -- Server-only metatable. Single send() dispatches on target type.
 local ServerImpl = setmetatable ({}, { __index = SharedImpl })
 ServerImpl.__index = ServerImpl
-
-local DELTA_TARGETED = 1
-local DELTA_BROADCAST = 2
 
 local function checkDeltaMode (self: any, mode: number): ()
     if not self._isDelta then
@@ -122,7 +123,7 @@ end
 
 table.freeze (ClientImpl)
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Packet = {}
 
@@ -136,7 +137,7 @@ function Packet.define (name: string, config: PacketConfig<any>): any
 
     local isUnreliable = config.unreliable or false
 
-    if (config.value :: any)._isDelta and isUnreliable then
+    if (config.value :: InternalCodec<any>)._isDelta and isUnreliable then
         error (`[Lync] Delta codec requires reliable delivery: "{name}"`)
     end
 
@@ -152,7 +153,7 @@ function Packet.define (name: string, config: PacketConfig<any>): any
         config.maxPayloadBytes
     )
 
-    local isDelta = (config.value :: any)._isDelta == true
+    local isDelta = (config.value :: InternalCodec<any>)._isDelta == true
 
     return setmetatable ({
         _id = reg.id,

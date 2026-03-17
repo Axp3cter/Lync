@@ -3,13 +3,14 @@
 -- Fixed-point compression. Maps float ranges to integer ranges.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- Constants --------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Constants ----------------------------------------------------------
 
 local clamp = math.clamp
 local round = math.round
@@ -19,7 +20,7 @@ local max = math.max
 
 local U32_MAX = 4294967295
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function selectIO (bytes: number): ((b: buffer, offset: number, v: number) -> (), (
     b: buffer,
@@ -44,7 +45,7 @@ local function selectWidth (maxInt: number): number
     return 4
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Quantized = {}
 

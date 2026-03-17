@@ -8,20 +8,20 @@ type Codec<T> = Types.Codec<T>
 type Registration = Types.Registration
 type RateLimitConfig = Types.RateLimitConfig
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local KIND_PACKET = 0
 local KIND_REQUEST = 1
 local KIND_RESPONSE = 2
 local MAX_PACKETS = 255
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _entries = {} :: { Registration }
 local _names = {} :: { [string]: number }
 local _nextId = 1
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function assign (
     name: string,
@@ -77,7 +77,7 @@ local function assign (
     return reg
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Registry = {
     KIND_PACKET = KIND_PACKET,

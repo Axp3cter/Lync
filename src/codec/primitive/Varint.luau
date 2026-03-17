@@ -9,7 +9,7 @@ type ChannelState = Types.ChannelState
 
 local alloc = Channel.alloc
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local CONT = 0x80
 local MASK = 0x7F
@@ -21,7 +21,7 @@ local bor = bit32.bor
 local rshift = bit32.rshift
 local lshift = bit32.lshift
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Varint = {}
 

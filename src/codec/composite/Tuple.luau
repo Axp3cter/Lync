@@ -3,13 +3,15 @@
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
+type InternalCodec<T> = Types.InternalCodec<T>
 
--- Public -----------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Public -------------------------------------------------------------
 
 local Tuple = {}
 
@@ -29,10 +31,10 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
     local fieldSizes = table.create (count) :: { number }
 
     for i = 1, count do
-        local codec = codecs[i] :: any
-        local size = codec._size
-        local dw = codec._directWrite
-        local dr = codec._directRead
+        local internal = codecs[i] :: InternalCodec<any>
+        local size = internal._size
+        local dw = internal._directWrite
+        local dr = internal._directRead
 
         if size and dw and dr then
             fieldSizes[i] = size
@@ -54,7 +56,7 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
     if not canDirect then
         totalSize = 0 :: any
         for i = 1, count do
-            local size = (codecs[i] :: any)._size
+            local size = (codecs[i] :: InternalCodec<any>)._size
             if size then
                 totalSize = (totalSize :: number) + size
             else

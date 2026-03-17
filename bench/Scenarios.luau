@@ -4,7 +4,7 @@
 
 local Lync = require (script.Parent.Parent)
 
--- Packets ----------------------------------------------------------------
+-- Packets -------------------------------------------------------------
 
 local Scenarios = {}
 
@@ -12,7 +12,7 @@ Scenarios.Ready = Lync.definePacket ("BenchReady", {
     value = Lync.bool,
 })
 
--- Lync -------------------------------------------------------------------
+-- Lync ----------------------------------------------------------------
 
 Scenarios.Booleans = Lync.definePacket ("BenchBool", {
     value = Lync.bool,

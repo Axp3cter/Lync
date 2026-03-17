@@ -7,24 +7,24 @@ local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local DEFAULT_MAX = 16
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _stack = {} :: { ChannelState }
 local _depth = 0
 local _maxSize = DEFAULT_MAX
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Pool = {}
 
--- Override the max idle ChannelStates in the pool. Default 16. Range: 2–128.
+-- Override the max idle ChannelStates in the pool. Default 16. Range: 2-128.
 function Pool.setMaxSize (count: number): ()
     if count < 2 or count > 128 then
-        error (`[Lync] Pool max size must be 2–128, got {count}`)
+        error (`[Lync] Pool max size must be 2-128, got {count}`)
     end
     _maxSize = count
 end

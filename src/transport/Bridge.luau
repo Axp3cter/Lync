@@ -5,19 +5,19 @@
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 local RunService = game:GetService ("RunService")
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local FOLDER = "_lync"
 local RELIABLE = "R"
 local UNRELIABLE = "U"
 local TIMEOUT = 10
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _reliable: RemoteEvent
 local _unreliable: UnreliableRemoteEvent
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Bridge = {}
 
@@ -63,4 +63,5 @@ function Bridge.setup (): ()
     table.freeze (Bridge)
 end
 
+-- Not frozen at module level: setup() populates reliable/unreliable then freezes.
 return Bridge

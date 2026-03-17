@@ -11,10 +11,10 @@ local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
 local Lync = require (LyncFolder)
 local Scenarios = require (LyncFolder:WaitForChild ("bench"):WaitForChild ("Scenarios"))
 
-Lync.setChannelMaxSize (1048576) -- 1 MB, needed for Blink entities bench (100x6B x 1000 fires)
+Lync.setChannelMaxSize (1048576) -- 1 MB, needed for Blink entities bench(100x6B x 1000 fires)
 Lync.start ()
 
--- Config -----------------------------------------------------------------
+-- Config --------------------------------------------------------------
 
 local FIRES_PER_FRAME = 1000
 local DURATION = 10
@@ -26,7 +26,7 @@ local sort = table.sort
 local max = math.max
 local min = math.min
 
--- Helpers ----------------------------------------------------------------
+-- Helpers -------------------------------------------------------------
 
 local function getPlayer (): Player
     local players = Players:GetPlayers ()
@@ -189,7 +189,7 @@ local function runBlinkTest (config: BlinkTestConfig): ()
     print (`      Sent={sent}  Samples={n}`)
 end
 
--- Main -------------------------------------------------------------------
+-- Main ----------------------------------------------------------------
 
 local player = getPlayer ()
 Scenarios.Ready:wait ()
@@ -275,7 +275,7 @@ print (`\n\n  Blink-Compatible Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per t
 print ("  Same data shapes as github.com/1Axen/blink/benchmark\n")
 
 runBlinkTest ({
-    name = "Entities (100x struct, 6x u8)",
+    name = "Entities(100x struct, 6x u8)",
     player = player,
     packet = Scenarios.BlinkEntities,
     data = Scenarios.BLINK_ENTITIES,
@@ -284,7 +284,7 @@ runBlinkTest ({
 print ("")
 
 runBlinkTest ({
-    name = "Booleans (1000x bool)",
+    name = "Booleans(1000x bool)",
     player = player,
     packet = Scenarios.BlinkBooleans,
     data = Scenarios.BLINK_BOOLEANS,

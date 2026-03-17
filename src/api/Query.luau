@@ -14,14 +14,14 @@ local Types = require (script.Parent.Parent.Types)
 type Connection = Types.Connection
 type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer ()
 
 -- Wire ceiling: correlationId is u16 in Channel.writeQuery / Reader.process.
 local POOL_SIZE = 65536
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 type PendingQuery = {
     thread: thread?,
@@ -33,7 +33,7 @@ local _pending = {} :: { [number]: PendingQuery }
 local _nextId = 0
 local _activeCount = 0
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function allocCorrelation (): number
     if _activeCount >= POOL_SIZE then
@@ -53,7 +53,9 @@ local function allocCorrelation (): number
     return id
 end
 
-local function freeCorrelation (): ()
+-- Decrements the active correlation counter. Does not free a specific slot;
+-- that is handled by nil-ing _pending[id] at the call site.
+local function releaseCorrelation (): ()
     _activeCount -= 1
 end
 
@@ -64,7 +66,7 @@ local function completeQuery (id: number, data: any): ()
     end
 
     _pending[id] = nil
-    freeCorrelation ()
+    releaseCorrelation ()
 
     if entry.timeout then
         task.cancel (entry.timeout)
@@ -158,7 +160,7 @@ local function requestMulti (self: any, players: { Player }, data: any): { [Play
             local entry = _pending[cid]
             if entry then
                 _pending[cid] = nil
-                freeCorrelation ()
+                releaseCorrelation ()
             end
         end
 
@@ -175,8 +177,6 @@ local function requestMulti (self: any, players: { Player }, data: any): { [Play
 
     return coroutine.yield ()
 end
-
--- Query ------------------------------------------------------------------
 
 local QueryImpl = {}
 QueryImpl.__index = QueryImpl
@@ -274,7 +274,9 @@ function QueryImpl.requestGroup (self: any, group: any, data: any): { [Player]: 
     return requestMulti (self, players, data)
 end
 
--- Public -----------------------------------------------------------------
+table.freeze (QueryImpl)
+
+-- Public -------------------------------------------------------------
 
 local Query = {}
 

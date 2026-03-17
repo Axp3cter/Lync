@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Shared type definitions.
+-- Shared type definitions for the Lync networking library.
 
 export type ChannelState = {
     buff: buffer,
@@ -10,13 +10,24 @@ export type ChannelState = {
     lastId: number,
     countPos: number,
     itemCount: number,
-    deltas: { [number]: any },
+    deltas: { [number]: any }, -- per-codec delta caches; shape varies by codec kind
     prevDump: buffer?,
 }
 
 export type Codec<T> = {
     write: (ch: ChannelState, value: T) -> (),
     read: (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
+}
+
+-- Extended codec exposing internal fast-path metadata used by composite codecs.
+export type InternalCodec<T> = {
+    write: (ch: ChannelState, value: T) -> (),
+    read: (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
+    _size: number?,
+    _directWrite: ((b: buffer, offset: number, value: T) -> ())?,
+    _directRead: ((b: buffer, offset: number) -> T)?,
+    _isDelta: boolean?,
+    _isBool: boolean?,
 }
 
 export type RateLimitConfig = {

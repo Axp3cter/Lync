@@ -3,12 +3,13 @@
 -- Instance codec via sidecar reference array.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
--- Public -----------------------------------------------------------------
+local alloc = Channel.alloc
+
+-- Public -------------------------------------------------------------
 
 local InstanceCodec = {}
 

@@ -3,12 +3,13 @@
 -- Half-precision float codec. 2 bytes, ±65504, ~3 decimal digits.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Types = require (script.Parent.Parent.Parent.Types)
+
+local alloc = Channel.alloc
 
 type ChannelState = Types.ChannelState
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local MAX_HALF = 65504
 local BIAS = 15
@@ -28,7 +29,7 @@ local ldexp = math.ldexp
 local round = math.round
 local huge = math.huge
 
--- Private ----------------------------------------------------------------
+-- Private ------------------------------------------------------------
 
 local function encode (value: number): number
     if value ~= value then
@@ -83,7 +84,7 @@ local function decode (packed: number): number
     return if band (packed, SIGN_BIT) ~= 0 then -result else result
 end
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Float16 = {}
 

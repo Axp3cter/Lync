@@ -6,7 +6,7 @@ local Types = require (script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
--- Constants --------------------------------------------------------------
+-- Constants ----------------------------------------------------------
 
 local INITIAL_SIZE = 1024
 local MAX_SIZE = 262144
@@ -18,12 +18,15 @@ local band32 = bit32.band
 local countlz = bit32.countlz
 local lshift = bit32.lshift
 
--- State ------------------------------------------------------------------
+-- State --------------------------------------------------------------
 
 local _maxSize = MAX_SIZE
+
+-- Packet name for overflow diagnostics. Not coroutine-safe: concurrent
+-- serializers may overwrite before the error fires.
 local _currentPacket = ""
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Channel = {}
 
@@ -163,9 +166,11 @@ local function sealOpen (ch: ChannelState): ()
     end
 end
 
--- Writes a query frame. Seals any open batch, then writes:
---     id (u8) + correlationId (u16) + status (u8)
--- Status 0 = payload follows. Status 1 = nil response.
+--[[
+    Writes a query frame. Seals any open batch, then writes:
+        id (u8) + correlationId (u16) + status (u8)
+    Status 0 = payload follows. Status 1 = nil response.
+]]
 function Channel.writeQuery (
     ch: ChannelState,
     id: number,

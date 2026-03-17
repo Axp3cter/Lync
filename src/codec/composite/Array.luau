@@ -4,14 +4,15 @@
 
 local Baseline = require (script.Parent.Parent.Parent.internal.Baseline)
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local alloc = Channel.alloc
 local Shared = require (script.Parent.Shared)
 local Types = require (script.Parent.Parent.Parent.Types)
+local Varint = require (script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
-local Varint = require (script.Parent.Parent.primitive.Varint)
+type InternalCodec<T> = Types.InternalCodec<T>
 
+local alloc = Channel.alloc
 local rangeEqual = Shared.rangeEqual
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
@@ -20,7 +21,7 @@ local FLAG_DELTA = Shared.FLAG_DELTA
 local FLAG_FULL = Shared.FLAG_FULL
 local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
 
--- Public -----------------------------------------------------------------
+-- Public -------------------------------------------------------------
 
 local Array = {}
 
@@ -30,9 +31,10 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
     local writeElement = element.write
     local readElement = element.read
 
-    local elemSize = (element :: any)._size :: number?
-    local elemDirect = (element :: any)._directWrite
-    local elemDRead = (element :: any)._directRead
+    local internal = element :: InternalCodec<any>
+    local elemSize = internal._size
+    local elemWrite = internal._directWrite
+    local elemRead = internal._directRead
 
     return table.freeze ({
         _isDelta = true,
@@ -45,13 +47,13 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
             local bounds = table.create (len + 1)
             bounds[1] = 0
 
-            if elemDirect and elemSize then
+            if elemWrite and elemSize then
                 local totalBytes = len * elemSize
                 alloc (scratch, totalBytes)
                 local b = scratch.buff
                 local c = 0
                 for i = 1, len do
-                    elemDirect (b, c, value[i])
+                    elemWrite (b, c, value[i])
                     c += elemSize
                     bounds[i + 1] = c
                 end
@@ -147,9 +149,9 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
 
                 local result = table.create (len)
 
-                if elemDRead and elemSize then
+                if elemRead and elemSize then
                     for i = 1, len do
-                        result[i] = elemDRead (src, absPos)
+                        result[i] = elemRead (src, absPos)
                         absPos += elemSize
                     end
                 else
@@ -174,8 +176,8 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
                 local idx, idxBytes = Varint.read (src, absPos)
                 absPos += idxBytes
 
-                if elemDRead and elemSize then
-                    result[idx + 1] = elemDRead (src, absPos)
+                if elemRead and elemSize then
+                    result[idx + 1] = elemRead (src, absPos)
                     absPos += elemSize
                 else
                     local val, n = readElement (src, absPos, refs)
@@ -191,9 +193,10 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
 end
 
 function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
-    local elementSize = (element :: any)._size :: number?
-    local directWrite = (element :: any)._directWrite
-    local directRead = (element :: any)._directRead
+    local internal = element :: InternalCodec<any>
+    local elementSize = internal._size
+    local directWrite = internal._directWrite
+    local directRead = internal._directRead
 
     if elementSize and directWrite and directRead then
         return table.freeze ({

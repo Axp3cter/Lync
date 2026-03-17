@@ -84,7 +84,7 @@ end
 -- Public -------------------------------------------------------------
 
 local Lync = {
-    VERSION = "1.4.0",
+    VERSION = "1.4.1",
 
     -- Lifecycle
     start = start,

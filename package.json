@@ -1,5 +1,5 @@
 {
-    "name": "@rbxts/lync",
+    "name": "@axpecter/lync",
     "version": "1.3.0",
     "description": "Buffer networking for Roblox. Delta compression, XOR framing, built-in security.",
     "main": "src/init.luau",
@@ -24,7 +24,8 @@
         "buffer",
         "delta",
         "compression",
-        "roblox-ts"
+        "roblox-ts",
+        "luau"
     ],
     "files": [
         "src"

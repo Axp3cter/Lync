@@ -13,7 +13,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.4.1"
+Lync = "axp3cter/lync@1.4.2"
 ```
 
 **npm (roblox-ts)**
@@ -163,7 +163,7 @@ end
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.VERSION` | `"1.4.1"` |
+| `Lync.VERSION` | `"1.4.2"` |
 
 ## Packets
 

@@ -33,8 +33,6 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 
 ## Example
 
-A combat system with delta-compressed entity state, hit registration with validation, a ping query, groups, middleware logging, and scoped cleanup.
-
 **Shared** (ReplicatedStorage, required by both)
 
 ```luau
@@ -81,31 +79,27 @@ return table.freeze(Net)
 **Server**
 
 ```luau
-local Lync   = require(game.ReplicatedStorage.Lync)
-local Net    = require(game.ReplicatedStorage.Net)
+local Lync    = require(game.ReplicatedStorage.Lync)
+local Net     = require(game.ReplicatedStorage.Net)
 local Players = game:GetService("Players")
 
 local alive = Lync.createGroup("alive")
 
--- Log every outbound packet
 Lync.onSend(function(data, name)
     print("[out]", name)
     return data
 end)
 
--- Drop rejected hits
 Lync.onDrop(function(player, reason, name)
     warn(player.Name, "dropped", name, reason)
 end)
 
--- Define everything, then start
 Lync.start()
 
 Players.PlayerAdded:Connect(function(player)
     alive:add(player)
 end)
 
--- Broadcast entity state to everyone alive, 60 times per second
 game:GetService("RunService").Heartbeat:Connect(function()
     Net.State:send({
         position = Vector3.new(0, 5, 0),
@@ -116,7 +110,6 @@ game:GetService("RunService").Heartbeat:Connect(function()
     }, alive)
 end)
 
--- Listen for hits, relay kill to everyone except the dead player
 Net.Hit:listen(function(data, player)
     local target = Players:GetPlayerByUserId(data.targetId)
     if not target then return end
@@ -132,8 +125,7 @@ Net.Hit:listen(function(data, player)
     }, Lync.except(target))
 end)
 
--- Respond to ping queries
-Net.Ping:listen(function(_, player)
+Net.Ping:listen(function()
     return os.clock()
 end)
 ```
@@ -142,15 +134,13 @@ end)
 
 ```luau
 local Lync = require(game.ReplicatedStorage.Lync)
-local Net   = require(game.ReplicatedStorage.Net)
+local Net  = require(game.ReplicatedStorage.Net)
 
 Lync.start()
 
--- Scoped cleanup: everything disconnects when scope:destroy() is called
 local scope = Lync.scope()
 
 scope:add(Net.State:listen(function(state)
-    -- Apply delta-compressed state: only changed fields arrive after frame 1
     local character = game.Players.LocalPlayer.Character
     if not character then return end
     character:PivotTo(CFrame.new(state.position))
@@ -160,10 +150,8 @@ scope:add(Net.Chat:listen(function(data)
     print("[chat]", data.msg)
 end))
 
--- Fire a hit
 Net.Hit:send({ targetId = 123, damage = 45.5, headshot = true })
 
--- Measure round-trip latency
 local serverTime = Net.Ping:request(nil)
 if serverTime then
     print("server clock:", serverTime)
@@ -189,7 +177,7 @@ end
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side. Return `false, "reason"` to drop. Runs after NaN scan. |
 | `maxPayloadBytes` | number | No | Server-side. Max bytes a single batch of this packet can consume. Fires `onDrop` with reason `"size"` if exceeded. |
 
-**Server — single `send` with targets:**
+**Server, single `send` with targets:**
 
 ```luau
 packet:send(data, player)              -- one player

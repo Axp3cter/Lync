@@ -26,7 +26,7 @@ end
 
 local function fail (name: string, reason: string): ()
     failed += 1
-    local msg = `    ✗ {name} — {reason}`
+    local msg = `    ✗ {name} - {reason}`
     print (msg)
     table.insert (errors, msg)
 end

@@ -140,15 +140,15 @@ Lync.start()
 
 local scope = Lync.scope()
 
-scope:add(Net.State:listen(function(state)
+scope:listen(Net.State, function(state)
     local character = game.Players.LocalPlayer.Character
     if not character then return end
     character:PivotTo(CFrame.new(state.position))
-end))
+end)
 
-scope:add(Net.Chat:listen(function(data)
+scope:listen(Net.Chat, function(data)
     print("[chat]", data.msg)
-end))
+end)
 
 Net.Hit:send({ targetId = 123, damage = 45.5, headshot = true })
 
@@ -258,16 +258,19 @@ Batches connections for lifecycle-aligned cleanup.
 ```luau
 local scope = Lync.scope()
 
-scope:add(packetA:listen(fnA))
-scope:add(packetB:listen(fnB))
-scope:add(ns:listenAll(fnC))
+scope:listen(packetA, fnA)
+scope:listen(packetB, fnB)
+scope:listenAll(namespace, fnC)
 
 scope:destroy()  -- disconnects everything
 ```
 
 | Method | What it does |
 |:-------|:------------|
-| `scope:add(connection)` | Track a Connection or RBXScriptConnection. |
+| `scope:listen(source, fn)` | Calls source:listen(fn) and tracks the connection. |
+| `scope:once(source, fn)` | Calls source:once(fn) and tracks the connection. |
+| `scope:listenAll(namespace, fn)` | Calls namespace:listenAll(fn) and tracks the connection. |
+| `scope:add(connection)` | Track a raw Connection or RBXScriptConnection. |
 | `scope:destroy()` | Disconnects all tracked connections. Safe to call multiple times. |
 
 ## Groups

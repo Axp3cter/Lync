@@ -100,6 +100,9 @@ export type Target = Player | AllTarget | ExceptTarget | GroupObject | Player[];
 
 export interface Scope {
     add(this: Scope, conn: Connection | RBXScriptConnection): void;
+    listen<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined) => void): void;
+    once<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined) => void): void;
+    listenAll(this: Scope, namespace: Namespace, callback: (name: string, data: unknown, sender: Player | undefined) => void): void;
     destroy(this: Scope): void;
 }
 

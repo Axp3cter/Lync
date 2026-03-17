@@ -15,30 +15,6 @@ describe ("Scope add + destroy", function (): ()
     it ("disconnects lync connections", function (): ()
         local s = Lync.scope ()
         local disconnected = false
-        local mockConn = {
-            connected = true,
-            disconnect = function (self: any): ()
-                disconnected = true
-                self.connected = false
-            end,
-        }
-        s:add (mockConn)
-        s:destroy ()
-        expect (disconnected):toBe (true)
-    end)
-
-    it ("disconnects RBX-style connections", function (): ()
-        local s = Lync.scope ()
-        local disconnected = false
-        local mockConn = setmetatable ({}, {
-            __index = {
-                Disconnect = function (): ()
-                    disconnected = true
-                end,
-            },
-        })
-        -- Fake typeof to return "RBXScriptConnection" won't work in test env,
-        -- so this tests the .disconnect fallback path instead.
         s:add ({
             disconnect = function (): ()
                 disconnected = true
@@ -84,6 +60,75 @@ describe ("Scope add + destroy", function (): ()
             s:add (nil)
         end).never:toThrow ()
         s:destroy ()
+    end)
+end)
+
+describe ("Scope listen shortcut", function (): ()
+    it ("calls listen on source and tracks", function (): ()
+        local s = Lync.scope ()
+        local disconnected = false
+        local received = false
+
+        local mockPacket = {
+            listen = function (_self: any, fn: any): any
+                fn ("test")
+                return {
+                    disconnect = function (): ()
+                        disconnected = true
+                    end,
+                }
+            end,
+        }
+
+        s:listen (mockPacket, function (data: any): ()
+            received = true
+        end)
+
+        expect (received):toBe (true)
+        s:destroy ()
+        expect (disconnected):toBe (true)
+    end)
+end)
+
+describe ("Scope once shortcut", function (): ()
+    it ("calls once on source and tracks", function (): ()
+        local s = Lync.scope ()
+        local disconnected = false
+
+        local mockPacket = {
+            once = function (_self: any, fn: any): any
+                return {
+                    disconnect = function (): ()
+                        disconnected = true
+                    end,
+                }
+            end,
+        }
+
+        s:once (mockPacket, function (): () end)
+        s:destroy ()
+        expect (disconnected):toBe (true)
+    end)
+end)
+
+describe ("Scope listenAll shortcut", function (): ()
+    it ("calls listenAll on namespace and tracks", function (): ()
+        local s = Lync.scope ()
+        local disconnected = false
+
+        local mockNs = {
+            listenAll = function (_self: any, fn: any): any
+                return {
+                    disconnect = function (): ()
+                        disconnected = true
+                    end,
+                }
+            end,
+        }
+
+        s:listenAll (mockNs, function (): () end)
+        s:destroy ()
+        expect (disconnected):toBe (true)
     end)
 end)
 

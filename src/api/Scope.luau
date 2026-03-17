@@ -18,6 +18,30 @@ function ScopeImpl.add (self: any, conn: any): ()
     entries[count] = conn
 end
 
+function ScopeImpl.listen (self: any, source: any, callback: (...any) -> ()): ()
+    local conn = source:listen (callback)
+    local entries = self._entries
+    local count = self._count + 1
+    self._count = count
+    entries[count] = conn
+end
+
+function ScopeImpl.once (self: any, source: any, callback: (...any) -> ()): ()
+    local conn = source:once (callback)
+    local entries = self._entries
+    local count = self._count + 1
+    self._count = count
+    entries[count] = conn
+end
+
+function ScopeImpl.listenAll (self: any, namespace: any, callback: (...any) -> ()): ()
+    local conn = namespace:listenAll (callback)
+    local entries = self._entries
+    local count = self._count + 1
+    self._count = count
+    entries[count] = conn
+end
+
 function ScopeImpl.destroy (self: any): ()
     local entries = self._entries
     local count = self._count

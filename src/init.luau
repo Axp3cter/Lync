@@ -158,4 +158,5 @@ local Lync = {
     queryPendingCount = Query.pendingCount,
 }
 
+Lync.default = Lync
 return table.freeze (Lync)

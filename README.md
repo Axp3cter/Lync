@@ -33,7 +33,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 
 ## Example
 
-**Shared** (ReplicatedStorage, required by both)
+**Shared**
 
 ```luau
 local Lync = require(game.ReplicatedStorage.Lync)
@@ -198,9 +198,9 @@ packet:send(data)  -- send to server
 
 | Method | What it does |
 |:-------|:------------|
-| `packet:listen(fn(data, sender))` | Listen for incoming. Returns a Connection. Sender is `Player` on server, `nil` on client. |
-| `packet:once(fn(data, sender))` | Same as listen but auto-disconnects after one fire. |
-| `packet:wait()` | Yields until next fire. Returns `(data, sender)`. |
+| `packet:listen(fn(data, sender))` | Sender is `Player` on server, `nil` on client. Returns a Connection. |
+| `packet:once(fn(data, sender))` | Auto-disconnects after one fire. |
+| `packet:wait()` | Returns `(data, sender)`. |
 | `packet:disconnectAll()` | Kills all listeners on this packet. |
 
 ## Queries
@@ -248,7 +248,7 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 
 | | What it does |
 |:-------|:------------|
-| `connection.connected` | `true` if still connected, `false` after disconnect. |
+| `connection.connected` | `boolean` |
 | `connection:disconnect()` | Stops the listener. |
 
 ## Scope
@@ -267,11 +267,11 @@ scope:destroy()  -- disconnects everything
 
 | Method | What it does |
 |:-------|:------------|
-| `scope:listen(source, fn)` | Calls source:listen(fn) and tracks the connection. |
-| `scope:once(source, fn)` | Calls source:once(fn) and tracks the connection. |
-| `scope:listenAll(namespace, fn)` | Calls namespace:listenAll(fn) and tracks the connection. |
-| `scope:add(connection)` | Track a raw Connection or RBXScriptConnection. |
-| `scope:destroy()` | Disconnects all tracked connections. Safe to call multiple times. |
+| `scope:listen(source, fn)` | Calls `source:listen(fn)` and tracks the connection. |
+| `scope:once(source, fn)` | Calls `source:once(fn)` and tracks the connection. |
+| `scope:listenAll(namespace, fn)` | Calls `namespace:listenAll(fn)` and tracks the connection. |
+| `scope:add(connection)` | Also accepts RBXScriptConnection. |
+| `scope:destroy()` | Safe to call multiple times. |
 
 ## Groups
 

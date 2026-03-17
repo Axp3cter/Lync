@@ -68,8 +68,8 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "1.3.0",
-    version = "1.3.0",
+    VERSION = "1.3.1",
+    version = "1.3.1",
 
     -- Lifecycle
     start = start,

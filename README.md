@@ -18,11 +18,11 @@ Lync = "axp3cter/lync@1.3.1"
 **npm (roblox-ts)**
 
 ```bash
-npm install @rbxts/lync
+npm install @axpecter/lync
 ```
 
 ```typescript
-import Lync from "@rbxts/lync";
+import Lync from "@axpecter/lync";
 ```
 
 Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/latest) and drop it in `ReplicatedStorage`.
@@ -138,7 +138,7 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | `Lync.f64` | 8 | IEEE 754 double |
 | `Lync.bool` | 1 | true/false. Gets packed into bitfields when inside structs. |
 
-### Complex
+### Datatypes
 
 | Type | Bytes | What it is |
 |:-----|------:|:-----------|
@@ -160,6 +160,7 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | `Lync.ray` | 24 | Origin Vec3 + Direction Vec3 as 6x f32. |
 | `Lync.numberSequence` | varint + N×12 | Varint count then (time f32 + value f32 + envelope f32) per keypoint. |
 | `Lync.colorSequence` | varint + N×7 | Varint count then (time f32 + R u8 + G u8 + B u8) per keypoint. |
+| `Lync.boundedString(maxLength)` | varint + N | Same wire format as `Lync.string` but rejects on read if length exceeds `maxLength`. |
 
 ### Composites
 
@@ -170,7 +171,7 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 | `Lync.map(keyCodec, valueCodec, maxCount?)` | Key-value pairs with varint count. Optional `maxCount` rejects on read if exceeded. |
 | `Lync.optional(codec)` | 1 byte flag, value only if present. |
 | `Lync.tuple(codec, codec, ...)` | Ordered positional values, no keys. |
-| `Lync.boundedString(maxLength)` | Same wire format as `Lync.string` but rejects on read if length exceeds `maxLength`. |
+| `Lync.tagged(tagField, { name = codec })` | Discriminated union with a u8 variant tag. Puts `tagField` into the decoded table so you know which variant it is. |
 
 ### Delta
 
@@ -182,7 +183,7 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | `Lync.deltaArray(codec, maxCount?)` | Same idea but for arrays. Dirty elements get sent with varint indices. Optional `maxCount` rejects on read if exceeded. |
 | `Lync.deltaMap(keyCodec, valueCodec, maxCount?)` | Delta compression for key-value maps. Sends only upserted and removed entries after the first frame. Optional `maxCount` rejects on read if exceeded. |
 
-### Specialized
+### Meta
 
 | Constructor | What it does |
 |:------------|:------------|
@@ -190,7 +191,6 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | `Lync.quantizedFloat(min, max, precision)` | Fixed-point compression. Picks u8/u16/u32 based on your range and precision. |
 | `Lync.quantizedVec3(min, max, precision)` | Same thing but for all 3 components. |
 | `Lync.bitfield({ key = spec })` | Sub-byte packing, 1 to 32 bits total. Spec is `{ type = "bool" }` or `{ type = "uint", width = N }` or `{ type = "int", width = N }`. |
-| `Lync.tagged(tagField, { name = codec })` | Discriminated union with a u8 variant tag. Puts `tagField` into the decoded table so you know which variant it is. |
 | `Lync.custom(size, write, read)` | User-defined fixed-size codec. `write` is `(b, offset, value) → ()`, `read` is `(b, offset) → value`. Plugs into struct/array/delta specialization automatically. |
 | `Lync.nothing` | Zero bytes. Reads nil. Good for fire-and-forget signals. |
 | `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Requires refs array on read (same as `Lync.inst`). Use when you dont have a codec for the value. |

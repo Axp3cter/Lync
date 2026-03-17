@@ -14,7 +14,6 @@ local channelWriteBatchRaw = Channel.writeBatchRaw
 local channelSetPacket = Channel.setCurrentPacket
 
 local Gate = require (script.Parent.Gate)
-local Group = require (script.Parent.Parent.api.Group)
 local Middleware = require (script.Parent.Parent.internal.Middleware)
 local Pool = require (script.Parent.Parent.internal.Pool)
 local Reader = require (script.Parent.Reader)
@@ -314,15 +313,15 @@ function Server.writeToAllExcept (
     broadcastToAll (id, name, codec, data, isUnreliable, except)
 end
 
-function Server.writeToGroup (
-    groupName: string,
+function Server.writeToSet (
+    set: { [Player]: true },
     id: number,
     name: string,
     codec: Codec<any>,
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastToSet (Group.getSet (groupName), id, name, codec, data, isUnreliable)
+    broadcastToSet (set, id, name, codec, data, isUnreliable)
 end
 
 -- Shared for both query requests and responses (identical wire format).

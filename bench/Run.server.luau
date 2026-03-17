@@ -69,7 +69,7 @@ local function runTest (config: TestConfig): ()
         local frameData = getData ()
 
         for _ = 1, FIRES_PER_FRAME do
-            packet:sendTo (frameData, target)
+            packet:send (frameData, target)
         end
 
         frames += 1
@@ -139,7 +139,7 @@ local function runBlinkTest (config: BlinkTestConfig): ()
         elapsed += dt
 
         for _ = 1, FIRES_PER_FRAME do
-            packet:sendTo (data, target)
+            packet:send (data, target)
             sent += 1
         end
 

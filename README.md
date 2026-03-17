@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.3.1"
+Lync = "axp3cter/lync@1.4.0"
 ```
 
 **npm (roblox-ts)**
@@ -35,8 +35,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.version` | `"1.3.1"` |
-| `Lync.VERSION` | `"1.3.1"` |
+| `Lync.VERSION` | `"1.4.0"` |
 
 ## Packets
 
@@ -50,23 +49,23 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side. Return `false, "reason"` to drop. Runs after NaN scan. |
 | `maxPayloadBytes` | number | No | Server-side. Max bytes a single batch of this packet can consume. Fires `onDrop` with reason `"size"` if exceeded. |
 
-**Server methods:**
+**Server — single `send` with targets:**
 
-| Method | What it does |
-|:-------|:------------|
-| `packet:sendTo(data, player)` | Send to one player. |
-| `packet:sendToAll(data)` | Send to everyone. |
-| `packet:sendToAllExcept(data, except)` | Send to everyone except one. |
-| `packet:sendToList(data, players)` | Send to a list. |
-| `packet:sendToGroup(data, groupName)` | Send to a named group. |
+```luau
+packet:send(data, player)              -- one player
+packet:send(data, Lync.all)            -- everyone
+packet:send(data, Lync.except(player)) -- everyone except one
+packet:send(data, { p1, p2 })          -- list of players
+packet:send(data, group)               -- group object
+```
 
-**Client methods:**
+**Client:**
 
-| Method | What it does |
-|:-------|:------------|
-| `packet:send(data)` | Send to server. |
+```luau
+packet:send(data)  -- send to server
+```
 
-**Shared methods:**
+**Shared (both contexts):**
 
 | Method | What it does |
 |:-------|:------------|
@@ -90,17 +89,17 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 | Method | Where | What it does |
 |:-------|:------|:-------------|
 | `query:listen(fn)` | Both | Register a handler. Server gets `fn(request, player) → response`. Client gets `fn(request) → response`. |
-| `query:invoke(request)` | Client | Send request to server, yield until response comes back or timeout. |
-| `query:invoke(request, player)` | Server | Send request to a specific client, yield until response or timeout. |
-| `query:invokeAll(request)` | Server | Send request to all players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
-| `query:invokeList(request, players)` | Server | Send request to a list of players, yield until all respond or timeout. Returns `{ [Player]: response? }`. |
-| `query:invokeGroup(request, groupName)` | Server | Send request to all players in a named group. Returns `{ [Player]: response? }`. |
+| `query:request(data)` | Client | Send request to server, yield until response or timeout. |
+| `query:requestFrom(player, data)` | Server | Send request to a specific client, yield until response or timeout. |
+| `query:requestAll(data)` | Server | Send request to all players. Returns `{ [Player]: response? }`. |
+| `query:requestList(players, data)` | Server | Send request to a list of players. Returns `{ [Player]: response? }`. |
+| `query:requestGroup(group, data)` | Server | Send request to all players in a group. Returns `{ [Player]: response? }`. |
 
 ## Namespaces
 
 `Lync.defineNamespace(name, config)` returns a Namespace. Takes a `packets` table and/or a `queries` table. All names get auto-prefixed with `"YourNamespace."` so nothing collides.
 
-Access packets and queries by their short name on the returned object: `ns.PacketName`, `ns.QueryName`.
+Access packets and queries by their short name on the returned object: `ns.PacketName`, `ns.QueryName`. Or use the typed sub-tables: `ns.packets.PacketName`, `ns.queries.QueryName`.
 
 | Method | What it does |
 |:-------|:------------|
@@ -111,6 +110,8 @@ Access packets and queries by their short name on the returned object: `ns.Packe
 | `ns:destroy()` | Kills listeners and removes scoped middleware. Full cleanup. |
 | `ns:packetNames()` | Sorted list of packet short names. |
 | `ns:queryNames()` | Sorted list of query short names. |
+| `ns.packets` | Frozen table mapping short name → Packet object. |
+| `ns.queries` | Frozen table mapping short name → Query object. |
 
 ## Connection
 
@@ -120,6 +121,84 @@ Returned by `packet:listen()`, `packet:once()`, `query:listen()`, and `ns:listen
 |:-------|:------------|
 | `connection.connected` | `true` if still connected, `false` after disconnect. |
 | `connection:disconnect()` | Stops the listener. |
+
+## Scope
+
+Batches connections for lifecycle-aligned cleanup.
+
+```luau
+local scope = Lync.scope()
+
+scope:add(packetA:listen(fnA))
+scope:add(packetB:listen(fnB))
+scope:add(ns:listenAll(fnC))
+
+scope:destroy()  -- disconnects everything
+```
+
+| Method | What it does |
+|:-------|:------------|
+| `scope:add(connection)` | Track a Connection or RBXScriptConnection. |
+| `scope:destroy()` | Disconnects all tracked connections. Safe to call multiple times. |
+
+## Groups
+
+Named player sets. Members get removed automatically on `PlayerRemoving`. `Lync.createGroup(name)` returns a Group object.
+
+```luau
+local vips = Lync.createGroup("vips")
+
+vips:add(player)
+vips:remove(player)
+vips:has(player)
+
+packet:send(data, vips)
+```
+
+| Method | Returns | What it does |
+|:-------|:--------|:-------------|
+| `group:add(player)` | `boolean` | `true` if added, `false` if already in. |
+| `group:remove(player)` | `boolean` | `true` if removed, `false` if wasnt in there. |
+| `group:has(player)` | `boolean` | |
+| `group:count()` | `number` | |
+| `group:getSet()` | `{ [Player]: true }` | |
+| `group:forEach(fn)` | | Calls `fn(player)` for each member. |
+| `group:destroy()` | | Removes the group and all memberships. |
+
+## Middleware
+
+Global intercept on all packets. Handlers run in the order you registered them. Return `Lync.DROP` from a handler to drop the packet. Return the data to pass it through.
+
+```luau
+Lync.onSend(function(data, name, player)
+    if shouldDrop(data) then
+        return Lync.DROP
+    end
+    data.timestamp = os.clock()
+    return data
+end)
+```
+
+| Function | What it does |
+|:---------|:------------|
+| `Lync.onSend(fn(data, name, player) → data \| Lync.DROP)` | Runs before a packet goes out. Returns a remover function. |
+| `Lync.onReceive(fn(data, name, player) → data \| Lync.DROP)` | Runs when a packet comes in. Returns a remover function. |
+| `Lync.onDrop(fn(player, reason, name, data))` | Fires when a packet gets rejected. Returns a remover function. Supports multiple handlers. Reason is `"nan"`, `"rate"`, `"validate"`, `"size"`, or whatever string your validate function returned. |
+| `Lync.DROP` | Frozen sentinel. Return from middleware to drop the packet. |
+
+Packets that fail validation are dropped individually. Other packets in the same frame from the same player are unaffected.
+
+## Target Descriptors
+
+Used as the second argument to `packet:send()` on the server.
+
+| Target | What it does |
+|:-------|:------------|
+| `player` | Send to one player. |
+| `Lync.all` | Send to all connected players. |
+| `Lync.except(player)` | Send to everyone except one player. |
+| `{ p1, p2, ... }` | Send to a list of players. |
+| `group` | Send to all members of a Group object. |
 
 ## Types
 
@@ -195,35 +274,6 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 | `Lync.nothing` | Zero bytes. Reads nil. Good for fire-and-forget signals. |
 | `Lync.unknown` | Skips serialization entirely, goes through Roblox's sidecar. Requires refs array on read (same as `Lync.inst`). Use when you dont have a codec for the value. |
 | `Lync.auto` | Self-describing. Writes a u8 type tag then the value. Handles nil, bool, all number types, string, vec2, vec3, color3, cframe, buffer, udim, udim2, numberRange, rect, vec2int16, vec3int16, region3, region3int16, ray, numberSequence, colorSequence. |
-
-## Groups
-
-Named player sets. Members get removed automatically on `PlayerRemoving`.
-
-| Function | Returns | What it does |
-|:---------|:--------|:-------------|
-| `Lync.createGroup(name)` | | Makes a new group. Errors if it already exists. |
-| `Lync.destroyGroup(name)` | | Removes the group and all memberships. |
-| `Lync.addToGroup(name, player)` | `boolean` | `true` if added, `false` if already in. |
-| `Lync.removeFromGroup(name, player)` | `boolean` | `true` if removed, `false` if wasnt in there. |
-| `Lync.hasInGroup(name, player)` | `boolean` | |
-| `Lync.groupCount(name)` | `number` | |
-| `Lync.getGroupSet(name)` | `{ [Player]: true }` | |
-| `Lync.forEachInGroup(name, fn)` | | Calls `fn(player)` for each member. |
-
-Send to a group with `packet:sendToGroup(data, groupName)`.
-
-## Middleware
-
-Global intercept on all packets. Handlers run in the order you registered them. Return `nil` from a handler to drop the packet.
-
-| Function | What it does |
-|:---------|:------------|
-| `Lync.onSend(fn(data, name, player) → data?)` | Runs before a packet goes out. Returns a remover function. |
-| `Lync.onReceive(fn(data, name, player) → data?)` | Runs when a packet comes in. Returns a remover function. |
-| `Lync.onDrop(fn(player, reason, name, data))` | Fires when a packet gets rejected. Returns a remover function. Supports multiple handlers. Reason is `"nan"`, `"rate"`, `"validate"`, `"size"`, or whatever string your validate function returned. |
-
-Packets that fail validation are dropped individually. Other packets in the same frame from the same player are unaffected.
 
 ## Benchmarks
 

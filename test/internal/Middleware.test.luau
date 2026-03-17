@@ -80,4 +80,38 @@ describe ("Middleware flags", function (): ()
     end)
 end)
 
+describe ("Middleware DROP sentinel", function (): ()
+    it ("DROP is frozen", function (): ()
+        expect (table.isfrozen (Middleware.DROP)):toBe (true)
+    end)
+    it ("DROP drops packet", function (): ()
+        local r = Middleware.addSend (function (): any
+            return Middleware.DROP
+        end)
+        expect (Middleware.runSend (42, "t", nil)):toBeNil ()
+        r ()
+    end)
+    it ("nil still drops (backward compat)", function (): ()
+        local r = Middleware.addSend (function (): any
+            return nil
+        end)
+        expect (Middleware.runSend (42, "t", nil)):toBeNil ()
+        r ()
+    end)
+    it ("DROP stops chain early", function (): ()
+        local reached = false
+        local r1 = Middleware.addSend (function (): any
+            return Middleware.DROP
+        end)
+        local r2 = Middleware.addSend (function (d: any): any
+            reached = true
+            return d
+        end)
+        Middleware.runSend (42, "t", nil)
+        expect (reached):toBe (false)
+        r1 ()
+        r2 ()
+    end)
+end)
+
 return nil

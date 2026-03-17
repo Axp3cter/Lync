@@ -31,42 +31,17 @@ end
 
 Players.PlayerRemoving:Connect (onPlayerRemoving)
 
-local function getSetOrError (name: string): { [Player]: true }
+-- GroupImpl ---------------------------------------------------------------
+
+local GroupImpl = {}
+GroupImpl.__index = GroupImpl
+
+function GroupImpl.add (self: any, player: Player): boolean
+    local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group does not exist: \"{name}\"`)
+        error (`[Lync] Group has been destroyed: "{name}"`)
     end
-    return set
-end
-
--- Public -----------------------------------------------------------------
-
-local Group = {}
-
-function Group.create (name: string): ()
-    if _groups[name] then
-        error (`[Lync] Group already exists: \"{name}\"`)
-    end
-    _groups[name] = {}
-    _counts[name] = 0
-end
-
-function Group.destroy (name: string): ()
-    local set = getSetOrError (name)
-
-    for player in set do
-        local memberships = _playerGroups[player]
-        if memberships then
-            memberships[name] = nil
-        end
-    end
-
-    _groups[name] = nil
-    _counts[name] = nil
-end
-
-function Group.add (name: string, player: Player): boolean
-    local set = getSetOrError (name)
 
     if set[player] then
         return false
@@ -85,8 +60,12 @@ function Group.add (name: string, player: Player): boolean
     return true
 end
 
-function Group.remove (name: string, player: Player): boolean
-    local set = getSetOrError (name)
+function GroupImpl.remove (self: any, player: Player): boolean
+    local name = self._name
+    local set = _groups[name]
+    if not set then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
 
     if not set[player] then
         return false
@@ -103,24 +82,78 @@ function Group.remove (name: string, player: Player): boolean
     return true
 end
 
-function Group.has (name: string, player: Player): boolean
-    local set = getSetOrError (name)
+function GroupImpl.has (self: any, player: Player): boolean
+    local name = self._name
+    local set = _groups[name]
+    if not set then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
     return set[player] == true
 end
 
-function Group.count (name: string): number
-    getSetOrError (name)
+function GroupImpl.count (self: any): number
+    local name = self._name
+    if not _groups[name] then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
     return _counts[name]
 end
 
-function Group.getSet (name: string): { [Player]: true }
-    return getSetOrError (name)
-end
-
-function Group.forEach (name: string, fn: (player: Player) -> ()): ()
-    for player in getSetOrError (name) do
+function GroupImpl.forEach (self: any, fn: (player: Player) -> ()): ()
+    local name = self._name
+    local set = _groups[name]
+    if not set then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
+    for player in set do
         fn (player)
     end
+end
+
+function GroupImpl.getSet (self: any): { [Player]: true }
+    local name = self._name
+    local set = _groups[name]
+    if not set then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
+    return set
+end
+
+function GroupImpl.destroy (self: any): ()
+    local name = self._name
+    local set = _groups[name]
+    if not set then
+        error (`[Lync] Group has been destroyed: "{name}"`)
+    end
+
+    for player in set do
+        local memberships = _playerGroups[player]
+        if memberships then
+            memberships[name] = nil
+        end
+    end
+
+    _groups[name] = nil
+    _counts[name] = nil
+end
+
+table.freeze (GroupImpl)
+
+-- Public -----------------------------------------------------------------
+
+local Group = {}
+
+function Group.create (name: string): any
+    if _groups[name] then
+        error (`[Lync] Group already exists: "{name}"`)
+    end
+    _groups[name] = {}
+    _counts[name] = 0
+
+    return setmetatable ({
+        _tag = "group",
+        _name = name,
+    }, GroupImpl)
 end
 
 return table.freeze (Group)

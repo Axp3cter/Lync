@@ -52,10 +52,19 @@ local Group = require (script.api.Group)
 local Namespace = require (script.api.Namespace)
 local Packet = require (script.api.Packet)
 local Query = require (script.api.Query)
+local Scope = require (script.api.Scope)
 
 -- Transport
 local Client = require (script.transport.Client)
 local Server = require (script.transport.Server)
+
+-- Sentinels --------------------------------------------------------------
+
+local ALL = table.freeze ({ _tag = "all" })
+
+local function except (player: Player): any
+    return { _tag = "except", player = player }
+end
 
 -- Public -----------------------------------------------------------------
 
@@ -68,8 +77,7 @@ local function start (): ()
 end
 
 local Lync = {
-    VERSION = "1.3.1",
-    version = "1.3.1",
+    VERSION = "1.4.0",
 
     -- Lifecycle
     start = start,
@@ -139,15 +147,18 @@ local Lync = {
     onSend = Middleware.addSend,
     onReceive = Middleware.addReceive,
 
+    -- Target descriptors
+    all = ALL,
+    except = except,
+
+    -- Middleware sentinel
+    DROP = Middleware.DROP,
+
     -- Groups
     createGroup = Group.create,
-    destroyGroup = Group.destroy,
-    addToGroup = Group.add,
-    removeFromGroup = Group.remove,
-    hasInGroup = Group.has,
-    getGroupSet = Group.getSet,
-    groupCount = Group.count,
-    forEachInGroup = Group.forEach,
+
+    -- Scope
+    scope = Scope.create,
 
     -- Configuration (call before start)
     setChannelMaxSize = Channel.setMaxSize,

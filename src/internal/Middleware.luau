@@ -14,13 +14,17 @@ type Chain = {
 local _send: Chain = { handlers = {}, snapshot = nil }
 local _receive: Chain = { handlers = {}, snapshot = nil }
 
+-- Constants --------------------------------------------------------------
+
+local DROP = table.freeze ({ _tag = "drop" })
+
 -- Private ----------------------------------------------------------------
 
 local function runChain (chain: { Handler }, data: any, name: string, player: Player?): any?
     local current = data
     for i = 1, #chain do
         local result = chain[i] (current, name, player)
-        if result == nil then
+        if result == nil or result == DROP then
             return nil
         end
         current = result
@@ -52,6 +56,10 @@ local function run (chain: Chain, data: any, name: string, player: Player?): any
 
     if not ok then
         warn (`[Lync] Middleware error on "{name}": {result}`)
+        return nil
+    end
+
+    if result == DROP then
         return nil
     end
 
@@ -105,5 +113,6 @@ end
 
 Middleware.hasSend = false
 Middleware.hasReceive = false
+Middleware.DROP = DROP
 
 return Middleware

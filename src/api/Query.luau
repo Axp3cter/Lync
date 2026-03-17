@@ -6,7 +6,6 @@ local Players = game:GetService ("Players")
 local RunService = game:GetService ("RunService")
 
 local Client = require (script.Parent.Parent.transport.Client)
-local Group = require (script.Parent.Group)
 local Registry = require (script.Parent.Parent.internal.Registry)
 local Server = require (script.Parent.Parent.transport.Server)
 local Signal = require (script.Parent.Signal)
@@ -82,6 +81,101 @@ local function onTimeout (correlation: number): ()
     completeQuery (correlation, nil)
 end
 
+-- Send a query to multiple players and yield. Returns { [Player]: response? }.
+local function requestMulti (self: any, players: { Player }, data: any): { [Player]: any? }
+    if not IS_SERVER then
+        error ("[Lync] Multi-request is server-only")
+    end
+
+    local count = #players
+    if count == 0 then
+        return {}
+    end
+
+    if count == 1 then
+        -- Delegate to single-player path
+        local correlation = allocCorrelation ()
+        local thread = coroutine.running ()
+        local entry: PendingQuery = { thread = thread, timeout = nil }
+        _pending[correlation] = entry
+
+        Server.writeQuery (
+            players[1],
+            self._reqReg.id,
+            self._name,
+            correlation,
+            self._reqReg.codec,
+            data
+        )
+
+        entry.timeout = task.delay (self._timeout, onTimeout, correlation)
+        local result = coroutine.yield ()
+        return { [players[1]] = result }
+    end
+
+    local thread = coroutine.running ()
+    local results = {} :: { [Player]: any? }
+    local remaining = count
+    local correlations = table.create (count) :: { number }
+    local finished = false
+
+    local reqId = self._reqReg.id
+    local reqName = self._name
+    local reqCodec = self._reqReg.codec
+    local timeout = self._timeout
+
+    for i = 1, count do
+        local player = players[i]
+        local correlation = allocCorrelation ()
+        correlations[i] = correlation
+
+        local entry: PendingQuery = {
+            thread = nil,
+            callback = function (resp: any): ()
+                results[player] = resp
+                remaining -= 1
+                if remaining == 0 and not finished then
+                    finished = true
+                    task.spawn (thread, results)
+                end
+            end,
+            timeout = nil,
+        }
+
+        _pending[correlation] = entry
+
+        Server.writeQuery (player, reqId, reqName, correlation, reqCodec, data)
+    end
+
+    local timeoutThread = task.delay (timeout, function (): ()
+        if finished then
+            return
+        end
+        finished = true
+
+        for i = 1, count do
+            local cid = correlations[i]
+            local entry = _pending[cid]
+            if entry then
+                _pending[cid] = nil
+                freeCorrelation ()
+            end
+        end
+
+        task.spawn (thread, results)
+    end)
+
+    for i = 1, count do
+        local cid = correlations[i]
+        local entry = _pending[cid]
+        if entry then
+            entry.timeout = timeoutThread
+        end
+    end
+
+    return coroutine.yield ()
+end
+
 -- Query ------------------------------------------------------------------
 
 local QueryImpl = {}
@@ -125,129 +219,59 @@ function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
     end
 end
 
-function QueryImpl.invoke (self: any, request: any, player: Player?): any
-    if IS_SERVER and not player then
-        error ("[Lync] Query:invoke on server requires a player argument")
+-- Client: send request to server, yield until response.
+function QueryImpl.request (self: any, data: any): any
+    if IS_SERVER then
+        error ("[Lync] query:request is client-only. Use query:requestFrom on server")
     end
 
     local correlation = allocCorrelation ()
     local thread = coroutine.running ()
-
     local entry: PendingQuery = { thread = thread, timeout = nil }
     _pending[correlation] = entry
 
-    if IS_SERVER then
-        Server.writeQuery (
-            player :: Player,
-            self._reqReg.id,
-            self._name,
-            correlation,
-            self._reqReg.codec,
-            request
-        )
-    else
-        Client.writeQuery (self._reqReg.id, self._name, correlation, self._reqReg.codec, request)
-    end
+    Client.writeQuery (self._reqReg.id, self._name, correlation, self._reqReg.codec, data)
 
     entry.timeout = task.delay (self._timeout, onTimeout, correlation)
     return coroutine.yield ()
 end
 
--- Send a query to multiple players and yield. Returns { [Player]: response? }.
-local function invokeMulti (self: any, players: { Player }, request: any): { [Player]: any? }
+-- Server: send request to one player, yield until response.
+function QueryImpl.requestFrom (self: any, player: Player, data: any): any
     if not IS_SERVER then
-        error ("[Lync] Multi-invoke is server-only")
+        error ("[Lync] query:requestFrom is server-only. Use query:request on client")
     end
 
-    local count = #players
-    if count == 0 then
-        return {}
-    end
-
-    if count == 1 then
-        local result = QueryImpl.invoke (self, request, players[1])
-        return { [players[1]] = result }
-    end
-
+    local correlation = allocCorrelation ()
     local thread = coroutine.running ()
-    local results = {} :: { [Player]: any? }
-    local remaining = count
-    local correlations = table.create (count) :: { number }
-    local finished = false
+    local entry: PendingQuery = { thread = thread, timeout = nil }
+    _pending[correlation] = entry
 
-    local reqId = self._reqReg.id
-    local reqName = self._name
-    local reqCodec = self._reqReg.codec
-    local timeout = self._timeout
+    Server.writeQuery (player, self._reqReg.id, self._name, correlation, self._reqReg.codec, data)
 
-    for i = 1, count do
-        local player = players[i]
-        local correlation = allocCorrelation ()
-        correlations[i] = correlation
-
-        local entry: PendingQuery = {
-            thread = nil,
-            callback = function (data: any): ()
-                results[player] = data
-                remaining -= 1
-                if remaining == 0 and not finished then
-                    finished = true
-                    task.spawn (thread, results)
-                end
-            end,
-            timeout = nil,
-        }
-
-        _pending[correlation] = entry
-
-        Server.writeQuery (player, reqId, reqName, correlation, reqCodec, request)
-    end
-
-    local timeoutThread = task.delay (timeout, function (): ()
-        if finished then
-            return
-        end
-        finished = true
-
-        for i = 1, count do
-            local cid = correlations[i]
-            local entry = _pending[cid]
-            if entry then
-                _pending[cid] = nil
-                freeCorrelation ()
-            end
-        end
-
-        task.spawn (thread, results)
-    end)
-
-    for i = 1, count do
-        local cid = correlations[i]
-        local entry = _pending[cid]
-        if entry then
-            entry.timeout = timeoutThread
-        end
-    end
-
+    entry.timeout = task.delay (self._timeout, onTimeout, correlation)
     return coroutine.yield ()
 end
 
-function QueryImpl.invokeAll (self: any, request: any): { [Player]: any? }
+-- Server: send request to all players, yield until all respond or timeout.
+function QueryImpl.requestAll (self: any, data: any): { [Player]: any? }
     local players = Players:GetPlayers ()
-    return invokeMulti (self, players, request)
+    return requestMulti (self, players, data)
 end
 
-function QueryImpl.invokeList (self: any, request: any, players: { Player }): { [Player]: any? }
-    return invokeMulti (self, players, request)
+-- Server: send request to a list of players.
+function QueryImpl.requestList (self: any, players: { Player }, data: any): { [Player]: any? }
+    return requestMulti (self, players, data)
 end
 
-function QueryImpl.invokeGroup (self: any, request: any, groupName: string): { [Player]: any? }
-    local set = Group.getSet (groupName)
+-- Server: send request to all players in a group.
+function QueryImpl.requestGroup (self: any, group: any, data: any): { [Player]: any? }
+    local set = group:getSet ()
     local players = {} :: { Player }
     for player in set do
         table.insert (players, player)
     end
-    return invokeMulti (self, players, request)
+    return requestMulti (self, players, data)
 end
 
 -- Public -----------------------------------------------------------------

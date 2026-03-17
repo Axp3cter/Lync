@@ -21,7 +21,7 @@ local serverWriteTo = Server.writeTo
 local serverWriteToAll = Server.writeToAll
 local serverWriteToList = Server.writeToList
 local serverWriteToAllExcept = Server.writeToAllExcept
-local serverWriteToGroup = Server.writeToGroup
+local serverWriteToSet = Server.writeToSet
 local clientWrite = Client.write
 
 -- Private ----------------------------------------------------------------
@@ -45,7 +45,7 @@ function SharedImpl.disconnectAll (self: any): ()
     self._signal:disconnectAll ()
 end
 
--- Server-only metatable . Has sendTo/sendToAll, no send().
+-- Server-only metatable. Single send() dispatches on target type.
 local ServerImpl = setmetatable ({}, { __index = SharedImpl })
 ServerImpl.__index = ServerImpl
 
@@ -64,34 +64,55 @@ local function checkDeltaMode (self: any, mode: number): ()
     end
 end
 
-function ServerImpl.sendTo (self: any, data: any, player: Player): ()
+function ServerImpl.send (self: any, data: any, target: any?): ()
+    if target == nil then
+        error ("[Lync] Server packet:send requires a target")
+    end
+
+    local id = self._id
+    local name = self._name
+    local codec = self._codec
+    local isUnreliable = self._isUnreliable
+
+    -- Single player
+    if typeof (target) == "Instance" then
+        checkDeltaMode (self, DELTA_TARGETED)
+        serverWriteTo (target :: Player, id, name, codec, data, isUnreliable)
+        return
+    end
+
+    -- Must be a table from here
+    local tag = target._tag
+
+    -- Lync.all sentinel
+    if tag == "all" then
+        checkDeltaMode (self, DELTA_BROADCAST)
+        serverWriteToAll (id, name, codec, data, isUnreliable)
+        return
+    end
+
+    -- Lync.except(player) descriptor
+    if tag == "except" then
+        checkDeltaMode (self, DELTA_BROADCAST)
+        serverWriteToAllExcept (target.player, id, name, codec, data, isUnreliable)
+        return
+    end
+
+    -- Group object
+    if tag == "group" then
+        checkDeltaMode (self, DELTA_BROADCAST)
+        serverWriteToSet (target:getSet (), id, name, codec, data, isUnreliable)
+        return
+    end
+
+    -- Player list (array)
     checkDeltaMode (self, DELTA_TARGETED)
-    serverWriteTo (player, self._id, self._name, self._codec, data, self._isUnreliable)
-end
-
-function ServerImpl.sendToAll (self: any, data: any): ()
-    checkDeltaMode (self, DELTA_BROADCAST)
-    serverWriteToAll (self._id, self._name, self._codec, data, self._isUnreliable)
-end
-
-function ServerImpl.sendToList (self: any, data: any, players: { Player }): ()
-    checkDeltaMode (self, DELTA_TARGETED)
-    serverWriteToList (players, self._id, self._name, self._codec, data, self._isUnreliable)
-end
-
-function ServerImpl.sendToAllExcept (self: any, data: any, except: Player): ()
-    checkDeltaMode (self, DELTA_BROADCAST)
-    serverWriteToAllExcept (except, self._id, self._name, self._codec, data, self._isUnreliable)
-end
-
-function ServerImpl.sendToGroup (self: any, data: any, groupName: string): ()
-    checkDeltaMode (self, DELTA_BROADCAST)
-    serverWriteToGroup (groupName, self._id, self._name, self._codec, data, self._isUnreliable)
+    serverWriteToList (target :: { Player }, id, name, codec, data, isUnreliable)
 end
 
 table.freeze (ServerImpl)
 
--- Client-only metatable . Has send(), no sendTo/sendToAll
+-- Client-only metatable. Has send(), no target needed.
 local ClientImpl = setmetatable ({}, { __index = SharedImpl })
 ClientImpl.__index = ClientImpl
 

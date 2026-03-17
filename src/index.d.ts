@@ -72,6 +72,43 @@ type InferBitfield<S extends Record<string, FieldSpec>> = Prettify<{
     [K in keyof S]: InferFieldSpec<S[K]>;
 }>;
 
+// -- Target descriptors ------------------------------------------------
+
+export interface AllTarget {
+    readonly _tag: "all";
+}
+
+export interface ExceptTarget {
+    readonly _tag: "except";
+    readonly player: Player;
+}
+
+export interface GroupObject {
+    readonly _tag: "group";
+    add(this: GroupObject, player: Player): boolean;
+    remove(this: GroupObject, player: Player): boolean;
+    has(this: GroupObject, player: Player): boolean;
+    count(this: GroupObject): number;
+    forEach(this: GroupObject, fn: (player: Player) => void): void;
+    getSet(this: GroupObject): ReadonlyMap<Player, true>;
+    destroy(this: GroupObject): void;
+}
+
+export type Target = Player | AllTarget | ExceptTarget | GroupObject | Player[];
+
+// -- Scope -------------------------------------------------------------
+
+export interface Scope {
+    add(this: Scope, conn: Connection | RBXScriptConnection): void;
+    destroy(this: Scope): void;
+}
+
+// -- DROP sentinel -----------------------------------------------------
+
+export interface DropSentinel {
+    readonly _tag: "drop";
+}
+
 // -- Packet ------------------------------------------------------------
 
 export interface PacketConfig<T> {
@@ -82,14 +119,8 @@ export interface PacketConfig<T> {
     maxPayloadBytes?: number;
 }
 
-// Server methods throw on client and vice versa.
 export interface Packet<T> {
-    sendTo(this: Packet<T>, data: T, player: Player): void;
-    sendToAll(this: Packet<T>, data: T): void;
-    sendToAllExcept(this: Packet<T>, data: T, except: Player): void;
-    sendToList(this: Packet<T>, data: T, players: Player[]): void;
-    sendToGroup(this: Packet<T>, data: T, groupName: string): void;
-    send(this: Packet<T>, data: T): void;
+    send(this: Packet<T>, data: T, target?: Target): void;
     listen(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
     once(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
     wait(this: Packet<T>): LuaTuple<[T, Player | undefined]>;
@@ -111,17 +142,18 @@ export interface Query<Req, Resp> {
         this: Query<Req, Resp>,
         callback: (request: Req, player: Player) => Resp | undefined,
     ): Connection;
-    invoke(this: Query<Req, Resp>, request: Req, player?: Player): Resp | undefined;
-    invokeAll(this: Query<Req, Resp>, request: Req): Map<Player, Resp | undefined>;
-    invokeList(
+    request(this: Query<Req, Resp>, data: Req): Resp | undefined;
+    requestFrom(this: Query<Req, Resp>, player: Player, data: Req): Resp | undefined;
+    requestAll(this: Query<Req, Resp>, data: Req): Map<Player, Resp | undefined>;
+    requestList(
         this: Query<Req, Resp>,
-        request: Req,
         players: Player[],
+        data: Req,
     ): Map<Player, Resp | undefined>;
-    invokeGroup(
+    requestGroup(
         this: Query<Req, Resp>,
-        request: Req,
-        groupName: string,
+        group: GroupObject,
+        data: Req,
     ): Map<Player, Resp | undefined>;
 }
 
@@ -143,6 +175,8 @@ type InferQueries<Q extends Record<string, QueryConfig<unknown, unknown>>> = {
 };
 
 export interface Namespace {
+    readonly packets: Record<string, Packet<unknown>>;
+    readonly queries: Record<string, Query<unknown, unknown>>;
     listenAll(
         this: Namespace,
         callback: (name: string, data: unknown, sender: Player | undefined) => void,
@@ -166,7 +200,6 @@ export interface Namespace {
 declare namespace Lync {
     // Lifecycle
     export const VERSION: string;
-    export const version: string;
     export function start(): void;
 
     // Definition
@@ -251,21 +284,24 @@ declare namespace Lync {
         callback: (player: Player, reason: string, packetName: string, data: unknown) => void,
     ): () => void;
     export function onSend(
-        handler: (data: unknown, name: string, player: Player | undefined) => unknown | undefined,
+        handler: (data: unknown, name: string, player: Player | undefined) => unknown | DropSentinel | undefined,
     ): () => void;
     export function onReceive(
-        handler: (data: unknown, name: string, player: Player | undefined) => unknown | undefined,
+        handler: (data: unknown, name: string, player: Player | undefined) => unknown | DropSentinel | undefined,
     ): () => void;
 
+    // Target descriptors
+    export const all: AllTarget;
+    export function except(player: Player): ExceptTarget;
+
+    // Middleware sentinel
+    export const DROP: DropSentinel;
+
     // Groups
-    export function createGroup(name: string): void;
-    export function destroyGroup(name: string): void;
-    export function addToGroup(name: string, player: Player): boolean;
-    export function removeFromGroup(name: string, player: Player): boolean;
-    export function hasInGroup(name: string, player: Player): boolean;
-    export function getGroupSet(name: string): ReadonlyMap<Player, true>;
-    export function groupCount(name: string): number;
-    export function forEachInGroup(name: string, fn: (player: Player) => void): void;
+    export function createGroup(name: string): GroupObject;
+
+    // Scope
+    export function scope(): Scope;
 
     // Configuration
     export function setChannelMaxSize(bytes: number): void;

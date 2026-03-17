@@ -194,6 +194,8 @@ function Namespace.define (name: string, config: NamespaceConfig): any
 
     local packets = {} :: { [string]: any }
     local queries = {} :: { [string]: any }
+    local packetsByShort = {} :: { [string]: any }
+    local queriesByShort = {} :: { [string]: any }
     local fields = {} :: { [string]: any }
 
     fields._name = name
@@ -207,6 +209,7 @@ function Namespace.define (name: string, config: NamespaceConfig): any
             local fullName = prefixName (name, shortName)
             local packet = Packet.define (fullName, packetConfig)
             packets[fullName] = packet
+            packetsByShort[shortName] = packet
             fields[shortName] = packet
         end
     end
@@ -216,9 +219,13 @@ function Namespace.define (name: string, config: NamespaceConfig): any
             local fullName = prefixName (name, shortName)
             local query = Query.define (fullName, queryConfig)
             queries[fullName] = query
+            queriesByShort[shortName] = query
             fields[shortName] = query
         end
     end
+
+    fields.packets = table.freeze (packetsByShort)
+    fields.queries = table.freeze (queriesByShort)
 
     return setmetatable (fields, NamespaceImpl)
 end

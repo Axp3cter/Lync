@@ -59,46 +59,46 @@ print (
 )
 
 print ("  Server → Client")
-test ("sendTo u8", function (): ()
-    Scenarios.SimpleU8:sendTo (255, player)
+test ("send to player", function (): ()
+    Scenarios.SimpleU8:send (255, player)
 end)
 
-test ("sendTo struct", function (): ()
-    Scenarios.Struct:sendTo ({ hp = 100, name = "hero", alive = true }, player)
+test ("send struct", function (): ()
+    Scenarios.Struct:send ({ hp = 100, name = "hero", alive = true }, player)
 end)
 
-test ("sendTo big array", function (): ()
+test ("send big array", function (): ()
     local data = table.create (500)
     for i = 1, 500 do
         data[i] = i
     end
-    Scenarios.BigArray:sendTo (data, player)
+    Scenarios.BigArray:send (data, player)
 end)
 
-test ("sendTo unreliable vec3", function (): ()
-    Scenarios.Unreliable:sendTo (Vector3.new (1, 2, 3), player)
+test ("send unreliable vec3", function (): ()
+    Scenarios.Unreliable:send (Vector3.new (1, 2, 3), player)
 end)
 
-test ("sendToAll", function (): ()
-    Scenarios.SimpleU8:sendToAll (42)
+test ("send to all", function (): ()
+    Scenarios.SimpleU8:send (42, Lync.all)
 end)
 
-test ("sendToList", function (): ()
-    Scenarios.SimpleU8:sendToList (42, { player })
+test ("send to list", function (): ()
+    Scenarios.SimpleU8:send (42, { player })
 end)
 
-test ("sendToAllExcept", function (): ()
-    Scenarios.SimpleU8:sendToAllExcept (42, player)
+test ("send to all except", function (): ()
+    Scenarios.SimpleU8:send (42, Lync.except (player))
 end)
 
 print ("\n  Query round-trip")
 test ("echo query", function (): ()
-    local result = Scenarios.Echo:invoke ("hello", player)
+    local result = Scenarios.Echo:requestFrom (player, "hello")
     assert (result == "echo:hello", `Expected "echo:hello", got "{result}"`)
 end)
 
 test ("math query", function (): ()
-    local result = Scenarios.MathQuery:invoke ({ a = 10, b = 20 }, player)
+    local result = Scenarios.MathQuery:requestFrom (player, { a = 10, b = 20 })
     assert (math.abs (result - 30) < 0.01, `Expected 30, got {result}`)
 end)
 
@@ -109,11 +109,11 @@ test ("client send u8", function (): ()
 end)
 
 print ("\n  Groups")
-test ("sendToGroup", function (): ()
-    Lync.createGroup ("__intGroup")
-    Lync.addToGroup ("__intGroup", player)
-    Scenarios.SimpleU8:sendToGroup (99, "__intGroup")
-    Lync.destroyGroup ("__intGroup")
+test ("send to group", function (): ()
+    local g = Lync.createGroup ("__intGroup")
+    g:add (player)
+    Scenarios.SimpleU8:send (99, g)
+    g:destroy ()
 end)
 
 -- Results ----------------------------------------------------------------

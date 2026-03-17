@@ -88,10 +88,19 @@ describe ("Target descriptors", function (): ()
     it ("Lync.all has tag", function (): ()
         expect ((Lync.all :: any)._tag):toBe ("all")
     end)
-    it ("Lync.except returns descriptor", function (): ()
-        local desc = Lync.except (Runner.fakePlayer ("X", 1) :: any)
+    it ("Lync.except single player", function (): ()
+        local p = Runner.fakePlayer ("X", 1) :: any
+        local desc = Lync.except (p)
         expect (desc._tag):toBe ("except")
-        expect (desc.player):toBeTruthy ()
+        expect (desc._set[p]):toBe (true)
+    end)
+    it ("Lync.except multiple players", function (): ()
+        local p1 = Runner.fakePlayer ("A", 1) :: any
+        local p2 = Runner.fakePlayer ("B", 2) :: any
+        local desc = Lync.except (p1, p2)
+        expect (desc._tag):toBe ("except")
+        expect (desc._set[p1]):toBe (true)
+        expect (desc._set[p2]):toBe (true)
     end)
 end)
 

@@ -160,7 +160,7 @@ local function broadcastToAll (
     codec: Codec<any>,
     data: any,
     isUnreliable: boolean,
-    except: Player?
+    exceptSet: { [Player]: true }?
 ): ()
     local final, snapLen, snapRefs = prepareBroadcast (name, codec, data)
     if final == nil and data ~= nil then
@@ -169,7 +169,7 @@ local function broadcastToAll (
 
     local scratchBuff = _broadScratch.buff
     for player, state in _players do
-        if except and player == except then
+        if exceptSet and exceptSet[player] then
             continue
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
@@ -303,14 +303,14 @@ function Server.writeToList (
 end
 
 function Server.writeToAllExcept (
-    except: Player,
+    exceptSet: { [Player]: true },
     id: number,
     name: string,
     codec: Codec<any>,
     data: any,
     isUnreliable: boolean
 ): ()
-    broadcastToAll (id, name, codec, data, isUnreliable, except)
+    broadcastToAll (id, name, codec, data, isUnreliable, exceptSet)
 end
 
 function Server.writeToSet (

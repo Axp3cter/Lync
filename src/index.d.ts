@@ -80,7 +80,7 @@ export interface AllTarget {
 
 export interface ExceptTarget {
     readonly _tag: "except";
-    readonly player: Player;
+    readonly _set: ReadonlyMap<Player, true>;
 }
 
 export interface GroupObject {
@@ -292,7 +292,7 @@ declare namespace Lync {
 
     // Target descriptors
     export const all: AllTarget;
-    export function except(player: Player): ExceptTarget;
+    export function except(...players: Player[]): ExceptTarget;
 
     // Middleware sentinel
     export const DROP: DropSentinel;

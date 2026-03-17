@@ -62,8 +62,13 @@ local Server = require (script.transport.Server)
 
 local ALL = table.freeze ({ _tag = "all" })
 
-local function except (player: Player): any
-    return { _tag = "except", player = player }
+local function except (...: any): any
+    local count = select ("#", ...)
+    local set = {} :: { [Player]: true }
+    for i = 1, count do
+        set[select (i, ...)] = true
+    end
+    return { _tag = "except", _set = set }
 end
 
 -- Public -----------------------------------------------------------------

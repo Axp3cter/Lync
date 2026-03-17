@@ -91,10 +91,10 @@ function ServerImpl.send (self: any, data: any, target: any?): ()
         return
     end
 
-    -- Lync.except(player) descriptor
+    -- Lync.except(player, ...) descriptor
     if tag == "except" then
         checkDeltaMode (self, DELTA_BROADCAST)
-        serverWriteToAllExcept (target.player, id, name, codec, data, isUnreliable)
+        serverWriteToAllExcept (target._set, id, name, codec, data, isUnreliable)
         return
     end
 

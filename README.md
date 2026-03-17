@@ -2,6 +2,7 @@
 <p align="center">Buffer networking for Roblox. Delta compression, XOR framing, built-in security.</p>
 <p align="center">
   <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> ·
+  <a href="#example">Example</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="#limits--configuration">Limits</a>
 </p>
@@ -30,6 +31,145 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 > [!IMPORTANT]
 > Define everything before calling `Lync.start()`. Packets, queries, namespaces, all of it.
 
+## Example
+
+A combat system with delta-compressed entity state, hit registration with validation, a ping query, groups, middleware logging, and scoped cleanup.
+
+**Shared** (ReplicatedStorage, required by both)
+
+```luau
+local Lync = require(game.ReplicatedStorage.Lync)
+
+local Net = {}
+
+Net.State = Lync.definePacket("State", {
+    value = Lync.deltaStruct({
+        position = Lync.vec3,
+        health   = Lync.quantizedFloat(0, 100, 0.5),
+        shield   = Lync.quantizedFloat(0, 100, 0.5),
+        status   = Lync.enum("idle", "moving", "attacking", "dead"),
+        alive    = Lync.bool,
+    }),
+})
+
+Net.Hit = Lync.definePacket("Hit", {
+    value = Lync.struct({
+        targetId = Lync.u16,
+        damage   = Lync.quantizedFloat(0, 200, 0.1),
+        headshot = Lync.bool,
+    }),
+    rateLimit = { maxPerSecond = 30, burstAllowance = 5 },
+    validate = function(data, player)
+        if data.damage > 200 then return false, "damage" end
+        return true
+    end,
+})
+
+Net.Chat = Lync.definePacket("Chat", {
+    value = Lync.struct({ msg = Lync.boundedString(200), channel = Lync.u8 }),
+})
+
+Net.Ping = Lync.defineQuery("Ping", {
+    request  = Lync.nothing,
+    response = Lync.f64,
+    timeout  = 3,
+})
+
+return table.freeze(Net)
+```
+
+**Server**
+
+```luau
+local Lync   = require(game.ReplicatedStorage.Lync)
+local Net    = require(game.ReplicatedStorage.Net)
+local Players = game:GetService("Players")
+
+local alive = Lync.createGroup("alive")
+
+-- Log every outbound packet
+Lync.onSend(function(data, name)
+    print("[out]", name)
+    return data
+end)
+
+-- Drop rejected hits
+Lync.onDrop(function(player, reason, name)
+    warn(player.Name, "dropped", name, reason)
+end)
+
+-- Define everything, then start
+Lync.start()
+
+Players.PlayerAdded:Connect(function(player)
+    alive:add(player)
+end)
+
+-- Broadcast entity state to everyone alive, 60 times per second
+game:GetService("RunService").Heartbeat:Connect(function()
+    Net.State:send({
+        position = Vector3.new(0, 5, 0),
+        health   = 100,
+        shield   = 50,
+        status   = "idle",
+        alive    = true,
+    }, alive)
+end)
+
+-- Listen for hits, relay kill to everyone except the dead player
+Net.Hit:listen(function(data, player)
+    local target = Players:GetPlayerByUserId(data.targetId)
+    if not target then return end
+
+    alive:remove(target)
+    Net.Chat:send({ msg = player.Name .. " eliminated " .. target.Name, channel = 0 }, Lync.all)
+    Net.State:send({
+        position = Vector3.zero,
+        health   = 0,
+        shield   = 0,
+        status   = "dead",
+        alive    = false,
+    }, Lync.except(target))
+end)
+
+-- Respond to ping queries
+Net.Ping:listen(function(_, player)
+    return os.clock()
+end)
+```
+
+**Client**
+
+```luau
+local Lync = require(game.ReplicatedStorage.Lync)
+local Net   = require(game.ReplicatedStorage.Net)
+
+Lync.start()
+
+-- Scoped cleanup: everything disconnects when scope:destroy() is called
+local scope = Lync.scope()
+
+scope:add(Net.State:listen(function(state)
+    -- Apply delta-compressed state: only changed fields arrive after frame 1
+    local character = game.Players.LocalPlayer.Character
+    if not character then return end
+    character:PivotTo(CFrame.new(state.position))
+end))
+
+scope:add(Net.Chat:listen(function(data)
+    print("[chat]", data.msg)
+end))
+
+-- Fire a hit
+Net.Hit:send({ targetId = 123, damage = 45.5, headshot = true })
+
+-- Measure round-trip latency
+local serverTime = Net.Ping:request(nil)
+if serverTime then
+    print("server clock:", serverTime)
+end
+```
+
 ## Lifecycle
 
 | | What it does |
@@ -55,6 +195,7 @@ Or grab the `.rbxm` from [releases](https://github.com/Axp3cter/Lync/releases/la
 packet:send(data, player)              -- one player
 packet:send(data, Lync.all)            -- everyone
 packet:send(data, Lync.except(player)) -- everyone except one
+packet:send(data, Lync.except(p1, p2)) -- everyone except multiple
 packet:send(data, { p1, p2 })          -- list of players
 packet:send(data, group)               -- group object
 ```
@@ -196,7 +337,7 @@ Used as the second argument to `packet:send()` on the server.
 |:-------|:------------|
 | `player` | Send to one player. |
 | `Lync.all` | Send to all connected players. |
-| `Lync.except(player)` | Send to everyone except one player. |
+| `Lync.except(player, ...)` | Send to everyone except the specified players. |
 | `{ p1, p2, ... }` | Send to a list of players. |
 | `group` | Send to all members of a Group object. |
 

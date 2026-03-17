@@ -3,7 +3,9 @@ local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
 local Lync = require (LyncFolder)
-local Scenarios = require (LyncFolder:WaitForChild ("integration"):WaitForChild ("Scenarios"))
+local Scenarios = require (
+    LyncFolder:WaitForChild ("test"):WaitForChild ("integration"):WaitForChild ("Scenarios")
+)
 
 Lync.start ()
 

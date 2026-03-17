@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
-local Lync = require (script.Parent.Parent)
+local Lync = require (script.Parent.Parent.Parent)
 
 local Scenarios = {}
 

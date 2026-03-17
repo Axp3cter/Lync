@@ -4,8 +4,12 @@ local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")
 local Lync = require (LyncFolder)
-local Scenarios = require (LyncFolder:WaitForChild ("integration"):WaitForChild ("Scenarios"))
+local Scenarios = require (
+    LyncFolder:WaitForChild ("test"):WaitForChild ("integration"):WaitForChild ("Scenarios")
+)
 
+-- Wait for unit tests to finish defining packets, then start transport.
+task.wait (3)
 Lync.start ()
 
 -- Helpers ----------------------------------------------------------------
@@ -53,18 +57,15 @@ print (
     "══════════════════════════════════════════════════════════════\n"
 )
 
--- Server → Client: simple u8
 print ("  Server → Client")
 test ("sendTo u8", function (): ()
     Scenarios.SimpleU8:sendTo (255, player)
 end)
 
--- Server → Client: struct
 test ("sendTo struct", function (): ()
     Scenarios.Struct:sendTo ({ hp = 100, name = "hero", alive = true }, player)
 end)
 
--- Server → Client: big array
 test ("sendTo big array", function (): ()
     local data = table.create (500)
     for i = 1, 500 do
@@ -73,47 +74,39 @@ test ("sendTo big array", function (): ()
     Scenarios.BigArray:sendTo (data, player)
 end)
 
--- Server → Client: unreliable
 test ("sendTo unreliable vec3", function (): ()
     Scenarios.Unreliable:sendTo (Vector3.new (1, 2, 3), player)
 end)
 
--- Server → Client: sendToAll
 test ("sendToAll", function (): ()
     Scenarios.SimpleU8:sendToAll (42)
 end)
 
--- Server → Client: sendToList
 test ("sendToList", function (): ()
     Scenarios.SimpleU8:sendToList (42, { player })
 end)
 
--- Server → Client: sendToAllExcept
 test ("sendToAllExcept", function (): ()
     Scenarios.SimpleU8:sendToAllExcept (42, player)
 end)
 
--- Query: server → client → server (echo)
 print ("\n  Query round-trip")
 test ("echo query", function (): ()
     local result = Scenarios.Echo:invoke ("hello", player)
     assert (result == "echo:hello", `Expected "echo:hello", got "{result}"`)
 end)
 
--- Query: server → client → server (math)
 test ("math query", function (): ()
     local result = Scenarios.MathQuery:invoke ({ a = 10, b = 20 }, player)
     assert (math.abs (result - 30) < 0.01, `Expected 30, got {result}`)
 end)
 
--- Client → Server
 print ("\n  Client → Server")
 test ("client send u8", function (): ()
     local value = Scenarios.ClientToServer:wait ()
     assert (value == 42, `Expected 42, got {value}`)
 end)
 
--- Groups
 print ("\n  Groups")
 test ("sendToGroup", function (): ()
     Lync.createGroup ("__intGroup")

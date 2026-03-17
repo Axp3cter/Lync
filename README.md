@@ -291,9 +291,9 @@ packet:send(data, vips)
 |:-------|:--------|:-------------|
 | `group:add(player)` | `boolean` | `true` if added, `false` if already in. |
 | `group:remove(player)` | `boolean` | `true` if removed, `false` if wasnt in there. |
-| `group:has(player)` | `boolean` | |
-| `group:count()` | `number` | |
-| `group:getSet()` | `{ [Player]: true }` | |
+| `group:has(player)` | `boolean` | Whether the player is in the group. |
+| `group:count()` | `number` | Number of members. |
+| `group:getSet()` | `{ [Player]: true }` | Snapshot of the internal set. |
 | `group:forEach(fn)` | | Calls `fn(player)` for each member. |
 | `group:destroy()` | | Removes the group and all memberships. |
 

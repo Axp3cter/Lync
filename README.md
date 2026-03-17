@@ -294,8 +294,8 @@ packet:send(data, vips)
 | `group:has(player)` | `boolean` | Whether the player is in the group. |
 | `group:count()` | `number` | Number of members. |
 | `group:getSet()` | `{ [Player]: true }` | Snapshot of the internal set. |
-| `group:forEach(fn)` | | Calls `fn(player)` for each member. |
-| `group:destroy()` | | Removes the group and all memberships. |
+| `group:forEach(fn)` | `()` | Calls `fn(player)` for each member. |
+| `group:destroy()` | `()` | Removes the group and all memberships. |
 
 ## Middleware
 

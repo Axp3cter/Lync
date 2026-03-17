@@ -39,4 +39,4 @@ jobs:
             Lync.rbxm
             Lync-dev.rbxl
             Lync-bench.rbxl
-          generate_release_notes: true
+          generate_release_notes: false

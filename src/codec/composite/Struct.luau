@@ -46,8 +46,6 @@ function Struct.struct (schema: { [string]: Codec<any> }): Codec<any>
     local boolByteCount = ceil (boolCount / 8)
     local hasBools = boolCount > 0
 
-    -- Check if all data fields support direct buffer writes.
-
     local canDirect = true
     local fixedSize = boolByteCount
     local isAllFixed = true
@@ -78,7 +76,6 @@ function Struct.struct (schema: { [string]: Codec<any> }): Codec<any>
         end
     end
 
-    -- Specialized path: all fields have known size and direct buffer access.
     if canDirect and isAllFixed then
         table.freeze (directWrites)
         table.freeze (directReads)
@@ -143,8 +140,6 @@ function Struct.struct (schema: { [string]: Codec<any> }): Codec<any>
         })
     end
 
-    -- Generic fallback: variable-size fields or missing _directWrite.
-    -- Extract write/read functions into parallel arrays at define time.
     local writeFns = table.create (dataCount) :: { any }
     local readFns = table.create (dataCount) :: { any }
     for i = 1, dataCount do
@@ -202,7 +197,6 @@ function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     local _scratchBounds = table.create (segCount + 1) :: { number }
     _scratchBounds[1] = 0
 
-    -- Extract write/read functions at define time.
     local writeFns = table.create (dataCount) :: { any }
     local readFns = table.create (dataCount) :: { any }
     for i = 1, dataCount do
@@ -212,7 +206,6 @@ function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
     table.freeze (writeFns)
     table.freeze (readFns)
 
-    -- Check if all fields support direct buffer writes into scratch.
     local scratchDirect = true
     local scratchDirectWrites = table.create (dataCount) :: { any }
     local scratchFieldSizes = table.create (dataCount) :: { number }
@@ -250,7 +243,6 @@ function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
             local bounds = _scratchBounds
             bounds[1] = 0
 
-            -- Scratch write: direct path when all fields support it
             if scratchDirect then
                 if not scratchSkipAlloc then
                     alloc (scratch, scratchTotalFixed)
@@ -378,7 +370,6 @@ function Struct.deltaStruct (schema: { [string]: Codec<any> }): Codec<any>
                 end
             end
 
-            -- Cache update (shared by FLAG_FULL and FLAG_DELTA)
             local rawBuf = buffer.create (scratchTotal)
             buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
 

@@ -204,8 +204,7 @@ function Gate.onDrop (
     end
 end
 
--- Fires drop handlers without running any validation checks.
--- Used by Reader for byte-budget violations.
+-- Fires drop handlers without validation. Used by Reader for byte-budget violations.
 function Gate.reportDrop (player: Player?, reason: string, packetName: string, data: any?): ()
     if player and #_dropHandlers > 0 then
         fireDrop (player, reason, packetName, data)

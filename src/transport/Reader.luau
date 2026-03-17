@@ -33,8 +33,7 @@ function Reader.decodeIncoming (data: any): buffer?
     return data
 end
 
--- Callers wrap this in pcall. Any codec.read throw aborts the entire
--- buffer from this source, which is the correct security behavior.
+-- Callers wrap this in pcall. Any throw aborts the entire buffer from this source.
 function Reader.process (
     incoming: buffer,
     refs: { Instance }?,

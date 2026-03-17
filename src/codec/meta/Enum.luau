@@ -28,7 +28,7 @@ function EnumCodec.define (...: string): Codec<string>
 
     for i, value in values do
         if toIndex[value] ~= nil then
-            error (`[Lync] Duplicate enum value: {value}`)
+            error (`[Lync] Duplicate enum value: \"{value}\"`)
         end
         toIndex[value] = i - 1
         toValue[i] = value
@@ -42,7 +42,7 @@ function EnumCodec.define (...: string): Codec<string>
         _directWrite = function (b: buffer, offset: number, value: string): ()
             local idx = toIndex[value]
             if idx == nil then
-                error (`[Lync] Invalid enum value: {value}`)
+                error (`[Lync] Invalid enum value: \"{value}\"`)
             end
             buffer.writeu8 (b, offset, idx)
         end,
@@ -57,7 +57,7 @@ function EnumCodec.define (...: string): Codec<string>
         write = function (ch: ChannelState, value: string): ()
             local idx = toIndex[value]
             if idx == nil then
-                error (`[Lync] Invalid enum value: {value}`)
+                error (`[Lync] Invalid enum value: \"{value}\"`)
             end
             local c = ch.cursor
             if c + 1 > ch.size then

@@ -306,10 +306,10 @@ local auto = table.freeze ({
             return
         end
 
-        local ut = typeof (value)
-        local entry = TYPE_DISPATCH[ut]
+        local valueType = typeof (value)
+        local entry = TYPE_DISPATCH[valueType]
         if not entry then
-            error (`[Lync] Auto unsupported type: {ut}`)
+            error (`[Lync] Auto unsupported type: {valueType}`)
         end
 
         local dw = entry.dw

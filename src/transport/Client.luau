@@ -15,6 +15,7 @@ type Codec<T> = Types.Codec<T>
 
 -- State ------------------------------------------------------------------
 
+local NOT_STARTED = "[Lync] Client not started. Call Lync.start() before sending"
 local _reliable = nil :: ChannelState?
 local _unreliable = nil :: ChannelState?
 local _prevRecv = nil :: buffer?
@@ -98,7 +99,7 @@ function Client.write (
     isUnreliable: boolean
 ): ()
     if not _isStarted then
-        error ("[Lync] Client not started. Call Lync.start() before sending")
+        error (NOT_STARTED)
     end
 
     local final: any
@@ -124,7 +125,7 @@ function Client.writeQuery (
     data: any
 ): ()
     if not _isStarted then
-        error ("[Lync] Client not started. Call Lync.start() before sending")
+        error (NOT_STARTED)
     end
 
     local final: any
@@ -142,7 +143,7 @@ end
 
 function Client.writeQueryNil (id: number, name: string, correlationId: number): ()
     if not _isStarted then
-        error ("[Lync] Client not started. Call Lync.start() before sending")
+        error (NOT_STARTED)
     end
     Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, nil, nil)
 end

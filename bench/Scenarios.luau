@@ -12,7 +12,7 @@ Scenarios.Ready = Lync.definePacket ("BenchReady", {
     value = Lync.bool,
 })
 
--- Lync --------------------------------------------------------------------
+-- Lync -------------------------------------------------------------------
 
 Scenarios.Booleans = Lync.definePacket ("BenchBool", {
     value = Lync.bool,
@@ -29,7 +29,7 @@ Scenarios.Entities = Lync.definePacket ("BenchEntity", {
     }),
 })
 
--- Blink-compatible ----------------------------------------------------------
+-- Blink-compatible -------------------------------------------------------
 
 Scenarios.BlinkEntities = Lync.definePacket ("BlinkEntities", {
     value = Lync.array (Lync.struct ({
@@ -46,7 +46,7 @@ Scenarios.BlinkBooleans = Lync.definePacket ("BlinkBooleans", {
     value = Lync.array (Lync.bool),
 })
 
--- Static data --------------------------------------------------------------
+-- Static data ------------------------------------------------------------
 
 Scenarios.STATIC_ENTITY = {
     position = Vector3.new (100.5, 50.25, -200.75),
@@ -57,7 +57,7 @@ Scenarios.STATIC_ENTITY = {
     team = 2,
 }
 
--- Blink-compatible static data (same seed as Blink: math.randomseed(0))
+-- Blink static data ------------------------------------------------------
 do
     math.randomseed (0)
     local array = table.create (100)

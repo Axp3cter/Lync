@@ -1,4 +1,5 @@
 --!strict
+--!optimize 2
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")

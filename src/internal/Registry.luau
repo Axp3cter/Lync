@@ -43,15 +43,15 @@ local function assign (
 
     if rateLimit then
         if rateLimit.maxPerSecond <= 0 then
-            error (`[Lync] "{name}" maxPerSecond must be positive`)
+            error (`[Lync] maxPerSecond must be positive: "{name}"`)
         end
         if rateLimit.burstAllowance and rateLimit.burstAllowance <= 0 then
-            error (`[Lync] "{name}" burstAllowance must be positive`)
+            error (`[Lync] burstAllowance must be positive: "{name}"`)
         end
     end
 
     if maxPayloadBytes and maxPayloadBytes <= 0 then
-        error (`[Lync] "{name}" maxPayloadBytes must be positive`)
+        error (`[Lync] maxPayloadBytes must be positive: "{name}"`)
     end
 
     local id = _nextId

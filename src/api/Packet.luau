@@ -60,7 +60,7 @@ local function checkDeltaMode (self: any, mode: number): ()
     if current == 0 then
         self._deltaMode = mode
     elseif current ~= mode then
-        error (`[Lync] Delta packet "{self._name}" cannot mix targeted and broadcast sends`)
+        error (`[Lync] Delta packet cannot mix targeted and broadcast: "{self._name}"`)
     end
 end
 
@@ -110,13 +110,13 @@ function Packet.define (name: string, config: PacketConfig<any>): any
         error ("[Lync] Packet name must not be empty")
     end
     if not config.value then
-        error (`[Lync] Packet "{name}" requires a value codec`)
+        error (`[Lync] Packet requires a value codec: "{name}"`)
     end
 
     local isUnreliable = config.unreliable or false
 
     if (config.value :: any)._isDelta and isUnreliable then
-        error (`[Lync] Packet "{name}" uses delta codec which requires reliable delivery`)
+        error (`[Lync] Delta codec requires reliable delivery: "{name}"`)
     end
 
     local signal = Signal.create ()

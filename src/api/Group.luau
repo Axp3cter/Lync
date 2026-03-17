@@ -34,7 +34,7 @@ Players.PlayerRemoving:Connect (onPlayerRemoving)
 local function getSetOrError (name: string): { [Player]: true }
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group does not exist: {name}`)
+        error (`[Lync] Group does not exist: \"{name}\"`)
     end
     return set
 end
@@ -45,7 +45,7 @@ local Group = {}
 
 function Group.create (name: string): ()
     if _groups[name] then
-        error (`[Lync] Group already exists: {name}`)
+        error (`[Lync] Group already exists: \"{name}\"`)
     end
     _groups[name] = {}
     _counts[name] = 0

@@ -113,7 +113,6 @@ function SignalImpl.fire (self: any, ...: any): ()
         return
     end
 
-    -- Single listener: skip snapshot entirely.
     if count == 1 then
         local entry = entries[1]
         local state = entry._state
@@ -154,8 +153,7 @@ function SignalImpl.fire (self: any, ...: any): ()
     end
 end
 
--- Dispatches to all listeners synchronously without task.spawn.
--- Only safe when all listeners are guaranteed non-yielding.
+-- Synchronous dispatch. Only safe when all listeners are non-yielding.
 function SignalImpl.fireSync (self: any, ...: any): ()
     local entries = self._entries
     local count = self._count

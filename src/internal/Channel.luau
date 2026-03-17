@@ -27,8 +27,7 @@ local _currentPacket = ""
 
 local Channel = {}
 
--- Override the maximum buffer size (in bytes). Must be called before
--- start(). Affects all channels. Range: 4096–1048576 (1 MB).
+-- Override the maximum buffer size. Call before start(). Range: 4096–1048576.
 function Channel.setMaxSize (bytes: number): ()
     if bytes < 4096 or bytes > 1048576 then
         error (`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
@@ -98,8 +97,7 @@ function Channel.setCurrentPacket (name: string): ()
     _currentPacket = name
 end
 
--- Writes a single value into the batch for the given packet ID.
--- Opens a new batch header when the ID changes or count overflows.
+-- Writes a single value into the batch. Opens a new header on ID change or overflow.
 function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: any, data: any): ()
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
         if ch.lastId >= 0 then
@@ -120,8 +118,7 @@ function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: 
     codec.write (ch, data)
 end
 
--- Appends pre-serialized bytes into a batch. Used by broadcast fan-out
--- to avoid re-encoding the same payload for each player.
+-- Appends pre-serialized bytes into a batch. Used by broadcast fan-out.
 function Channel.writeBatchRaw (
     ch: ChannelState,
     id: number,
@@ -195,8 +192,7 @@ function Channel.writeQuery (
     end
 end
 
--- XOR current frame against the previous frame. Produces zero-heavy
--- output when content is similar, feeding Roblox's deflate compressor.
+-- XOR current frame against previous. Produces zero-heavy output for deflate.
 function Channel.xorApply (current: buffer, previous: buffer?): buffer
     local curLen = buffer.len (current)
     if not previous then

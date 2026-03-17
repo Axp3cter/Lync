@@ -1,4 +1,5 @@
 --!strict
+--!optimize 2
 -- Shared type definitions.
 
 export type ChannelState = {

@@ -22,7 +22,6 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
 
     table.freeze (codecs)
 
-    -- Probe for direct specialization
     local canDirect = true
     local totalSize: number = 0
     local directWrites = table.create (count) :: { any }
@@ -65,7 +64,6 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
         end
     end
 
-    -- Specialized path: all codecs have _size + _directWrite + _directRead
     if canDirect then
         table.freeze (directWrites)
         table.freeze (directReads)
@@ -106,7 +104,6 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
         })
     end
 
-    -- Generic fallback: extract write/read into locals
     local writeFns = table.create (count) :: { any }
     local readFns = table.create (count) :: { any }
     for i = 1, count do

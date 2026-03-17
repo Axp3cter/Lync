@@ -82,7 +82,7 @@ local function onTimeout (correlation: number): ()
     completeQuery (correlation, nil)
 end
 
--- Query class ------------------------------------------------------------
+-- Query ------------------------------------------------------------------
 
 local QueryImpl = {}
 QueryImpl.__index = QueryImpl
@@ -97,7 +97,7 @@ function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
             function (request: any, player: Player, correlation: number): ()
                 local ok, response = pcall (callback, request, player)
                 if not ok then
-                    warn (`[Lync] Query "{respName}" handler error: {response}`)
+                    warn (`[Lync] Query handler error on "{respName}": {response}`)
                 end
 
                 if ok and response ~= nil then
@@ -112,7 +112,7 @@ function QueryImpl.listen (self: any, callback: (...any) -> any): Connection
             function (request: any, _player: Player?, correlation: number): ()
                 local ok, response = pcall (callback, request)
                 if not ok then
-                    warn (`[Lync] Query "{respName}" handler error: {response}`)
+                    warn (`[Lync] Query handler error on "{respName}": {response}`)
                 end
 
                 if ok and response ~= nil then
@@ -153,8 +153,7 @@ function QueryImpl.invoke (self: any, request: any, player: Player?): any
     return coroutine.yield ()
 end
 
--- Send a query to multiple players and yield until all respond or time out.
--- Returns { [Player]: response? } where nil means timeout or nil response.
+-- Send a query to multiple players and yield. Returns { [Player]: response? }.
 local function invokeMulti (self: any, players: { Player }, request: any): { [Player]: any? }
     if not IS_SERVER then
         error ("[Lync] Multi-invoke is server-only")
@@ -257,10 +256,10 @@ local Query = {}
 
 function Query.define (name: string, config: QueryConfig<any, any>): any
     if not config.request then
-        error (`[Lync] Query "{name}" requires a request codec`)
+        error (`[Lync] Query requires a request codec: "{name}"`)
     end
     if not config.response then
-        error (`[Lync] Query "{name}" requires a response codec`)
+        error (`[Lync] Query requires a response codec: "{name}"`)
     end
 
     local reqSignal = Signal.create ()

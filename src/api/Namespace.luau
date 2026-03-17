@@ -47,13 +47,12 @@ local function scopedHandler (
     end
 end
 
--- Namespace class --------------------------------------------------------
+-- Namespace --------------------------------------------------------------
 
 local NamespaceImpl = {}
 NamespaceImpl.__index = NamespaceImpl
 
--- Listens on every packet in this namespace. Callback gets the short name,
--- deserialized data, and sender. Returns a Connection that kills all of them.
+-- Listens on every packet in this namespace. Returns a Connection.
 function NamespaceImpl.listenAll (
     self: any,
     callback: (name: string, data: any, sender: Player?) -> ()
@@ -90,8 +89,7 @@ function NamespaceImpl.listenAll (
     return bundle :: any
 end
 
--- Disconnects every connection created through listenAll or tracked listeners.
--- Does not remove namespace-scoped middleware.
+-- Disconnects every listenAll connection. Does not remove scoped middleware.
 function NamespaceImpl.disconnectAll (self: any): ()
     for _, conn in self._tracked do
         if conn.connected then
@@ -179,8 +177,7 @@ end
 
 local Namespace = {}
 
--- Defines a namespace. Names are auto-prefixed with "Namespace." to prevent
--- collisions. Access packets and queries by short name on the returned table.
+-- Defines a namespace. Names are auto-prefixed to prevent collisions.
 function Namespace.define (name: string, config: NamespaceConfig): any
     if #name == 0 then
         error ("[Lync] Namespace name must not be empty")

@@ -28,7 +28,7 @@ local function runChain (chain: { Handler }, data: any, name: string, player: Pl
     return current
 end
 
-local function run (chain: Chain, label: string, data: any, name: string, player: Player?): any?
+local function run (chain: Chain, data: any, name: string, player: Player?): any?
     local handlers = chain.handlers
     local count = #handlers
     if count == 0 then
@@ -51,7 +51,7 @@ local function run (chain: Chain, label: string, data: any, name: string, player
     end
 
     if not ok then
-        warn (`[Lync] {label} middleware error on "{name}": {result}`)
+        warn (`[Lync] Middleware error on "{name}": {result}`)
         return nil
     end
 
@@ -96,11 +96,11 @@ function Middleware.addReceive (fn: Handler): () -> ()
 end
 
 function Middleware.runSend (data: any, name: string, player: Player?): any?
-    return run (_send, "Send", data, name, player)
+    return run (_send, data, name, player)
 end
 
 function Middleware.runReceive (data: any, name: string, player: Player?): any?
-    return run (_receive, "Receive", data, name, player)
+    return run (_receive, data, name, player)
 end
 
 Middleware.hasSend = false

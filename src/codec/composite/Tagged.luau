@@ -13,8 +13,7 @@ type Codec<T> = Types.Codec<T>
 
 local Tagged = {}
 
--- Read injects data[tagField] = variantName into the decoded table.
--- Variant codecs must return a mutable table (not frozen).
+-- Read injects tagField into the decoded table. Variant codecs must return mutable tables.
 function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): Codec<any>
     if #tagField == 0 then
         error ("[Lync] Tagged union tagField must not be empty")
@@ -42,7 +41,6 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
     local tagNames = table.create (count) :: { string }
     local tagSizes = table.create (count) :: { number? }
 
-    -- Probe for direct dispatch
     local allDirect = true
     local uniformSize: number? = (variants[names[1]] :: any)._size
     local directWrites = table.create (count) :: { any }
@@ -78,7 +76,6 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
 
     local fixedSize: number? = if uniformSize then 1 + uniformSize else nil
 
-    -- Specialized path: all variants have direct + known size
     if allDirect then
         table.freeze (directWrites)
         table.freeze (directReads)
@@ -175,7 +172,6 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
         })
     end
 
-    -- Generic fallback: extract write/read into parallel arrays
     local writeFns = table.create (count) :: { any }
     local readFns = table.create (count) :: { any }
     for i = 1, count do

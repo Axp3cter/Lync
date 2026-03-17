@@ -1,4 +1,7 @@
 --!strict
+--!optimize 2
+-- Client-side bench receiver.
+
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")
 
 local LyncFolder = ReplicatedStorage:WaitForChild ("Lync")

@@ -1,5 +1,6 @@
 --!strict
--- Server-side bench runner.
+--!optimize 2
+-- Server-side benchmark runner.
 
 local Players = game:GetService ("Players")
 local ReplicatedStorage = game:GetService ("ReplicatedStorage")

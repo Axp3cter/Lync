@@ -27,11 +27,9 @@ local Array = {}
 function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any }>
     local deltaId = Shared.allocDeltaId ()
 
-    -- Extract write/read functions at define time.
     local writeElement = element.write
     local readElement = element.read
 
-    -- Check if element supports direct buffer writes into scratch.
     local elemSize = (element :: any)._size :: number?
     local elemDirect = (element :: any)._directWrite
     local elemDRead = (element :: any)._directRead
@@ -47,7 +45,6 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
             local bounds = table.create (len + 1)
             bounds[1] = 0
 
-            -- Scratch write: direct path when element supports it
             if elemDirect and elemSize then
                 local totalBytes = len * elemSize
                 alloc (scratch, totalBytes)
@@ -123,7 +120,6 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
                 end
             end
 
-            -- Cache update (shared by FLAG_FULL and FLAG_DELTA)
             local rawBuf = buffer.create (scratchTotal)
             buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
 
@@ -151,7 +147,6 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
 
                 local result = table.create (len)
 
-                -- Direct read path
                 if elemDRead and elemSize then
                     for i = 1, len do
                         result[i] = elemDRead (src, absPos)
@@ -200,8 +195,6 @@ function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
     local directWrite = (element :: any)._directWrite
     local directRead = (element :: any)._directRead
 
-    -- Specialized path: element has known size + direct buffer access.
-    -- Writes the entire array with a single alloc and cursor update.
     if elementSize and directWrite and directRead then
         return table.freeze ({
             write = function (ch: ChannelState, value: { any }): ()
@@ -244,7 +237,6 @@ function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
         })
     end
 
-    -- Generic fallback: variable-size or no direct access.
     local writeElement = element.write
     local readElement = element.read
 

@@ -1,7 +1,6 @@
 --!strict
 --!native
 -- Fixed-size codec factory. Every fixed-size codec calls Base.define once.
--- Generates write (alloc + cursor bump) and read (return + size) automatically.
 
 local Channel = require (script.Parent.Parent.internal.Channel)
 local alloc = Channel.alloc

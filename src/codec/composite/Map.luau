@@ -36,7 +36,6 @@ function Map.map (
     local keyDRead = (keyCodec :: any)._directRead
     local valDRead = (valueCodec :: any)._directRead
 
-    -- Specialized path: both key and value have fixed size + direct access
     if keySize and valSize and keyDWrite and valDWrite and keyDRead and valDRead then
         local entrySize = keySize + valSize
 
@@ -91,7 +90,6 @@ function Map.map (
         })
     end
 
-    -- Extract write/read functions at define time.
     local writeKey = keyCodec.write
     local writeVal = valueCodec.write
     local readKey = keyCodec.read
@@ -134,8 +132,7 @@ function Map.map (
     })
 end
 
--- Delta map: tracks per-key changes between frames. First frame sends everything.
--- After that, only upserts and removes. Unchanged maps cost 1 byte.
+-- Delta map: tracks per-key changes. First frame is full, then upserts + removes only.
 --
 -- Wire format:
 --   FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
@@ -148,13 +145,11 @@ function Map.deltaMap (
 ): Codec<{ [any]: any }>
     local deltaId = Shared.allocDeltaId ()
 
-    -- Extract write/read functions at define time.
     local writeKey = keyCodec.write
     local writeVal = valueCodec.write
     local readKey = keyCodec.read
     local readVal = valueCodec.read
 
-    -- Check if key/value support direct buffer writes into scratch.
     local keySize = (keyCodec :: any)._size :: number?
     local valSize = (valueCodec :: any)._size :: number?
     local keyDWrite = (keyCodec :: any)._directWrite
@@ -177,7 +172,6 @@ function Map.deltaMap (
             local entryCount = 0
 
             if scratchDirect then
-                -- Direct scratch write: write key+value straight to buffer
                 for k, v in value do
                     entryCount += 1
                     local c = scratch.cursor
@@ -229,7 +223,6 @@ function Map.deltaMap (
 
             local cache = ch.deltas[deltaId] :: DeltaMapCache?
 
-            -- FLAG_FULL: no cache yet
             if not cache then
                 alloc (ch, 1)
                 buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
@@ -242,7 +235,6 @@ function Map.deltaMap (
                     ch.cursor += scratchTotal
                 end
             else
-                -- Diff against cache
                 local cacheRaw = cache.raw
                 local cacheEntries = cache.entries
                 local cacheLookup = cache.keyLookup

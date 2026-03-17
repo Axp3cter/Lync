@@ -1,7 +1,6 @@
 --!strict
 --!native
--- Passes value through the Roblox remote argument sidecar instead of
--- binary-serializing it. Use when no typed codec exists for the value.
+-- Sidecar codec. Bypasses buffer serialization, uses Roblox remote refs.
 
 local Channel = require (script.Parent.Parent.Parent.internal.Channel)
 local alloc = Channel.alloc

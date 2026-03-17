@@ -91,7 +91,7 @@ local Lync = {
     bool = BoolCodec.bool,
     f16 = Float16.f16,
 
-    -- Complex types
+    -- Datatypes
     string = String.string,
     boundedString = String.bounded,
     vec2 = Vector.vec2,
@@ -123,14 +123,13 @@ local Lync = {
     tuple = Tuple.define,
     tagged = Tagged.define,
 
-    -- Specialized
+    -- Meta
     enum = EnumCodec.define,
     quantizedFloat = Quantized.float,
     quantizedVec3 = Quantized.vec3,
     bitfield = Bitfield.define,
     custom = Custom.define,
 
-    -- Special
     nothing = Nothing.nothing,
     unknown = Unknown.unknown,
     auto = Auto.auto,

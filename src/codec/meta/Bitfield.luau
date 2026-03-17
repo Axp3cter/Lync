@@ -75,11 +75,11 @@ function Bitfield.define (schema: { [string]: FieldSpec }): Codec<any>
             width = 1
         else
             if not spec.width then
-                error (`[Lync] Bitfield "{key}" requires a width`)
+                error (`[Lync] Bitfield field requires a width: "{key}"`)
             end
             width = spec.width
             if width < 1 or width > 32 then
-                error (`[Lync] Bitfield "{key}" width must be 1-32, got {width}`)
+                error (`[Lync] Bitfield width must be 1-32: "{key}" got {width}`)
             end
         end
 

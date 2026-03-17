@@ -1,20 +1,15 @@
 // Type declarations for Lync networking library.
 
-// -- Utility types --------------------------------------------------------
+// -- Utility types -----------------------------------------------------
 
-// Forces TypeScript to expand mapped types in hover tooltips
-// instead of showing the raw conditional/mapped expression.
+// Expands mapped types in hover tooltips.
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
-// -- Codec ----------------------------------------------------------------
+// -- Codec -------------------------------------------------------------
 
 // Opaque codec handle. Carries the serialized type at the type level.
-// Use Lync.u8, Lync.struct, etc. to create these.
 export interface Codec<T> {
-    /**
-     * @hidden
-     * @deprecated Do not use. Only for type metadata.
-     */
+    /** @hidden @deprecated Do not use. Only for type metadata. */
     readonly _nominal_Codec: T;
 }
 
@@ -39,14 +34,14 @@ type InferTagged<
     [K in keyof V & string]: Prettify<InferCodec<V[K]> & { [T in Tag]: K }>;
 }[keyof V & string];
 
-// -- Connection -----------------------------------------------------------
+// -- Connection --------------------------------------------------------
 
 export interface Connection {
     readonly connected: boolean;
     disconnect(this: Connection): void;
 }
 
-// -- Config types ---------------------------------------------------------
+// -- Config ------------------------------------------------------------
 
 export interface RateLimitConfig {
     maxPerSecond: number;
@@ -77,7 +72,7 @@ type InferBitfield<S extends Record<string, FieldSpec>> = Prettify<{
     [K in keyof S]: InferFieldSpec<S[K]>;
 }>;
 
-// -- Packet ---------------------------------------------------------------
+// -- Packet ------------------------------------------------------------
 
 export interface PacketConfig<T> {
     value: Codec<T>;
@@ -87,27 +82,21 @@ export interface PacketConfig<T> {
     maxPayloadBytes?: number;
 }
 
-// All methods on one type. Server methods throw on client and vice versa,
-// same as the Luau API. sender is Player on server, undefined on client.
+// Server methods throw on client and vice versa.
 export interface Packet<T> {
-    // Server only
     sendTo(this: Packet<T>, data: T, player: Player): void;
     sendToAll(this: Packet<T>, data: T): void;
     sendToAllExcept(this: Packet<T>, data: T, except: Player): void;
     sendToList(this: Packet<T>, data: T, players: Player[]): void;
     sendToGroup(this: Packet<T>, data: T, groupName: string): void;
-
-    // Client only
     send(this: Packet<T>, data: T): void;
-
-    // Shared
     listen(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
     once(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
     wait(this: Packet<T>): LuaTuple<[T, Player | undefined]>;
     disconnectAll(this: Packet<T>): void;
 }
 
-// -- Query ----------------------------------------------------------------
+// -- Query -------------------------------------------------------------
 
 export interface QueryConfig<Req, Resp> {
     request: Codec<Req>;
@@ -118,16 +107,11 @@ export interface QueryConfig<Req, Resp> {
 }
 
 export interface Query<Req, Resp> {
-    // Server handler gets (request, player). Client handler gets (request).
     listen(
         this: Query<Req, Resp>,
         callback: (request: Req, player: Player) => Resp | undefined,
     ): Connection;
-
-    // Client: invoke(request). Server: invoke(request, player).
     invoke(this: Query<Req, Resp>, request: Req, player?: Player): Resp | undefined;
-
-    // Server only. Yields until all respond or timeout.
     invokeAll(this: Query<Req, Resp>, request: Req): Map<Player, Resp | undefined>;
     invokeList(
         this: Query<Req, Resp>,
@@ -141,7 +125,7 @@ export interface Query<Req, Resp> {
     ): Map<Player, Resp | undefined>;
 }
 
-// -- Namespace ------------------------------------------------------------
+// -- Namespace ---------------------------------------------------------
 
 export interface NamespaceConfig {
     packets?: Record<string, PacketConfig<unknown>>;
@@ -177,7 +161,7 @@ export interface Namespace {
     queryNames(this: Namespace): string[];
 }
 
-// -- Lync -----------------------------------------------------------------
+// -- Lync --------------------------------------------------------------
 
 declare namespace Lync {
     // Lifecycle
@@ -211,7 +195,7 @@ declare namespace Lync {
     export const bool: Codec<boolean>;
     export const f16: Codec<number>;
 
-    // Complex
+    // Datatypes
     const string: Codec<string>;
     export { string };
     export const vec2: Codec<Vector2>;
@@ -241,7 +225,7 @@ declare namespace Lync {
     export function deltaMap<K extends defined, V>(key: Codec<K>, value: Codec<V>, maxCount?: number): Codec<Map<K, V>>;
     export function optional<T>(inner: Codec<T>): Codec<T | undefined>;
 
-    // Specialized
+    // Meta
     function _enum<T extends string>(...values: T[]): Codec<T>;
     export { _enum as enum };
     export function quantizedFloat(min: number, max: number, precision: number): Codec<number>;
@@ -258,8 +242,6 @@ declare namespace Lync {
         read: (b: buffer, offset: number) => T,
     ): Codec<T>;
     export function boundedString(maxLength: number): Codec<string>;
-
-    // Special
     export const nothing: Codec<undefined>;
     export const unknown: Codec<unknown>;
     export const auto: Codec<unknown>;
@@ -285,7 +267,7 @@ declare namespace Lync {
     export function groupCount(name: string): number;
     export function forEachInGroup(name: string, fn: (player: Player) => void): void;
 
-    // Configuration (call before start)
+    // Configuration
     export function setChannelMaxSize(bytes: number): void;
     export function setValidationDepth(depth: number): void;
     export function setPoolSize(count: number): void;

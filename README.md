@@ -415,10 +415,10 @@ Reliable only. Lync will error if you try to use these with `unreliable = true`.
 
 | Scenario | Without Lync | With Lync | FPS |
 |:---------|------------:|---------:|----:|
-| Static booleans (1B) | 480 Kbps | **2.45 Kbps** | 59.98 |
-| Static entities (34B) | 16,320 Kbps | **2.52 Kbps** | 60.00 |
-| Moving entities | 16,320 Kbps | **3.51 Kbps** | 59.99 |
-| Chaotic entities | 16,320 Kbps | **4.66 Kbps** | 59.99 |
+| Static booleans (1B) | 480 Kbps | **2.34 Kbps** | 60.00 |
+| Static entities (34B) | 16,320 Kbps | **2.62 Kbps** | 60.00 |
+| Moving entities | 16,320 Kbps | **3.14 Kbps** | 60.00 |
+| Chaotic entities | 16,320 Kbps | **4.76 Kbps** | 59.99 |
 
 ### Cross-Library Comparison
 
@@ -437,7 +437,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
 |:------------|-------:|---:|----:|----:|----:|-----:|
 | roblox | 559,364 | 559,364 | 676,715 | 676,715 | 676,715 | 784,081 |
-| **lync** | **3.59** | 3.50 | 3.61 | 3.62 | 3.62 | 4.86 |
+| **lync** | **3.61** | 3.53 | 3.63 | 3.64 | 3.64 | 4.64 |
 | blink | 41.81 | 26.30 | 42.40 | 42.48 | 42.48 | 42.62 |
 | zap | 41.71 | 25.46 | 42.19 | 42.32 | 42.32 | 42.93 |
 | bytenet | 41.64 | 22.84 | 42.36 | 42.82 | 42.82 | 43.24 |
@@ -447,7 +447,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | Tool (FPS) | Median | P0 | P80 | P90 | P95 | P100 |
 |:-----------|-------:|---:|----:|----:|----:|-----:|
 | roblox | 21.00 | 22.00 | 20.00 | 19.00 | 19.00 | 19.00 |
-| **lync** | **60.00** | 61.00 | 60.00 | 59.00 | 59.00 | 58.00 |
+| **lync** | **60.00** | 61.00 | 60.00 | 60.00 | 60.00 | 59.00 |
 | blink | 97.00 | 98.00 | 97.00 | 96.00 | 96.00 | 96.00 |
 | zap | 52.00 | 53.00 | 51.00 | 51.00 | 51.00 | 49.00 |
 | bytenet | 35.00 | 37.00 | 35.00 | 35.00 | 35.00 | 34.00 |
@@ -455,7 +455,7 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 | Tool (Kbps) | Median | P0 | P80 | P90 | P95 | P100 |
 |:------------|-------:|---:|----:|----:|----:|-----:|
 | roblox | 353,107 | 196,826 | 690,747 | 842,240 | 842,240 | 1,124,176 |
-| **lync** | **4.31** | 3.77 | 4.33 | 4.34 | 4.34 | 4.43 |
+| **lync** | **4.31** | 3.85 | 4.36 | 4.38 | 4.38 | 4.44 |
 | blink | 7.91 | 7.41 | 7.93 | 7.99 | 7.99 | 8.00 |
 | zap | 8.10 | 5.75 | 8.17 | 8.22 | 8.22 | 8.27 |
 | bytenet | 8.11 | 5.07 | 8.35 | 8.46 | 8.46 | 8.47 |

@@ -29,7 +29,7 @@ Scenarios.Entities = Lync.definePacket("BenchEntity", {
     }),
 })
 
--- Blink-compatible -------------------------------------------------------
+-- Blink-compatible ----------------------------------------------------
 
 Scenarios.BlinkEntities = Lync.definePacket("BlinkEntities", {
     value = Lync.array(Lync.struct({
@@ -48,14 +48,14 @@ Scenarios.BlinkBooleans = Lync.definePacket("BlinkBooleans", {
 
 -- Static data ---------------------------------------------------------
 
-Scenarios.STATIC_ENTITY = {
+Scenarios.STATIC_ENTITY = table.freeze({
     position = Vector3.new(100.5, 50.25, -200.75),
     velocity = Vector3.new(10.1, 0, -5.3),
     health = 87.5,
     shield = 42.0,
     alive = true,
     team = 2,
-}
+})
 
 -- Blink static data ---------------------------------------------------
 do

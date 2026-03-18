@@ -1,3 +1,6 @@
 sourcemap.json
 node_modules/
+out/
+*.rbxl
 *.rbxl.lock
+*.rbxm

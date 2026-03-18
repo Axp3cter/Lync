@@ -90,7 +90,7 @@ local function except(...: any): any
     for i = 1, count do
         set[select(i, ...)] = true
     end
-    return { _tag = "except", _set = set }
+    return table.freeze({ _tag = "except", _set = set })
 end
 
 local function start(): ()
@@ -187,7 +187,7 @@ local Lync = {
     -- Scope
     scope = ScopeModule.create,
 
-    -- Configuration(call before start)
+    -- Configuration (call before start)
     setChannelMaxSize = Channel.setMaxSize,
     setValidationDepth = Gate.setMaxDepth,
     setPoolSize = Pool.setMaxSize,

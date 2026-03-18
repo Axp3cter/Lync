@@ -186,11 +186,11 @@ export interface Namespace {
     ): Connection;
     onSend(
         this: Namespace,
-        handler: (data: unknown, name: string, player: Player | undefined) => unknown | undefined,
+        handler: (data: unknown, name: string, player: Player | undefined) => unknown | DropSentinel | undefined,
     ): () => void;
     onReceive(
         this: Namespace,
-        handler: (data: unknown, name: string, player: Player | undefined) => unknown | undefined,
+        handler: (data: unknown, name: string, player: Player | undefined) => unknown | DropSentinel | undefined,
     ): () => void;
     disconnectAll(this: Namespace): void;
     destroy(this: Namespace): void;

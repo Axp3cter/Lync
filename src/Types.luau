@@ -41,6 +41,7 @@ export type PacketConfig<T> = {
     rateLimit: RateLimitConfig?,
     validate: ((data: T, player: Player) -> (boolean, string?))?,
     maxPayloadBytes: number?,
+    timestamp: ("frame" | "offset" | "full")?,
 }
 
 export type QueryConfig<Req, Resp> = {
@@ -76,6 +77,14 @@ export type Registration = {
     validate: ((data: any, player: Player) -> (boolean, string?))?,
     needsGate: boolean,
     maxPayloadBytes: number?,
+    timestampMode: number,
+
+    -- Stats counters (mutable, incremented at runtime)
+    bytesSent: number,
+    bytesReceived: number,
+    fires: number,
+    recvFires: number,
+    drops: number,
 }
 
 export type Connection = {

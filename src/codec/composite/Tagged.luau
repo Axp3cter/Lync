@@ -71,6 +71,14 @@ function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Co
         end
     end
 
+    local hasUnknown = false
+    for i = 1, count do
+        if (tagCodecs[i] :: any)._hasUnknown then
+            hasUnknown = true
+            break
+        end
+    end
+
     table.freeze(nameToTag)
     table.freeze(tagCodecs)
     table.freeze(tagNames)
@@ -86,6 +94,7 @@ function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Co
         if fixedSize then
             return table.freeze({
                 _size = fixedSize,
+                _hasUnknown = hasUnknown or nil,
                 _directWrite = function(b: buffer, offset: number, value: any): ()
                     local tag = nameToTag[value[tagField]]
                     if not tag then
@@ -141,6 +150,7 @@ function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Co
 
         return table.freeze({
             _size = nil,
+            _hasUnknown = hasUnknown or nil,
             write = function(ch: ChannelState, value: any): ()
                 local tag = nameToTag[value[tagField]]
                 if not tag then
@@ -183,6 +193,7 @@ function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Co
 
     return table.freeze({
         _size = fixedSize,
+        _hasUnknown = hasUnknown or nil,
         write = function(ch: ChannelState, value: any): ()
             local tag = nameToTag[value[tagField]]
             if not tag then

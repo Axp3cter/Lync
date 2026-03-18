@@ -90,7 +90,7 @@ local function except(...: any): any
     for i = 1, count do
         set[select(i, ...)] = true
     end
-    return table.freeze({ _tag = "except", _set = set })
+    return table.freeze({ _tag = "except", _set = table.freeze(set) })
 end
 
 local function start(): ()
@@ -103,8 +103,38 @@ end
 
 -- Public --------------------------------------------------------------
 
+local IS_SERVER = RunService:IsServer()
+
+local function flush(): ()
+    if IS_SERVER then
+        Server.flush()
+    else
+        Client.flush()
+    end
+end
+
+local function setFlushRate(hz: number): ()
+    if IS_SERVER then
+        Server.setFlushRate(hz)
+    else
+        Client.setFlushRate(hz)
+    end
+end
+
+local function getPlayerStats(player: Player): any?
+    return Server.getPlayerStats(player)
+end
+
+local function resetStats(): ()
+    Server.resetStats()
+end
+
+local function setBandwidthLimit(softLimit: number, maxStrikes: number): ()
+    Server.setBandwidthLimit(softLimit, maxStrikes)
+end
+
 local Lync = {
-    VERSION = "1.5.2",
+    VERSION = "2.0.0",
 
     -- Lifecycle
     start = start,
@@ -191,6 +221,17 @@ local Lync = {
     setChannelMaxSize = Channel.setMaxSize,
     setValidationDepth = Gate.setMaxDepth,
     setPoolSize = Pool.setMaxSize,
+
+    -- Runtime configuration
+    flush = flush,
+    setFlushRate = setFlushRate,
+
+    -- Stats (server-only for per-player)
+    getPlayerStats = getPlayerStats,
+    resetStats = resetStats,
+
+    -- Security (server-only)
+    setBandwidthLimit = setBandwidthLimit,
 
     -- Introspection
     queryPendingCount = QueryModule.pendingCount,

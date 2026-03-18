@@ -19,6 +19,7 @@ function Optional.optional(inner: Codec<any>): Codec<any>
     local innerRead = inner.read
 
     return table.freeze({
+        _hasUnknown = (inner :: any)._hasUnknown or nil,
         write = function(ch: ChannelState, value: any): ()
             local c = ch.cursor
             if c + 1 > ch.size then

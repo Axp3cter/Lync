@@ -100,9 +100,9 @@ export type Target = Player | AllTarget | ExceptTarget | GroupObject | Player[];
 
 export interface Scope {
     add(this: Scope, conn: Connection | RBXScriptConnection): void;
-    listen<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined) => void): void;
-    once<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined) => void): void;
-    listenAll(this: Scope, namespace: Namespace, callback: (name: string, data: unknown, sender: Player | undefined) => void): void;
+    listen<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined, timestamp: number | undefined) => void): void;
+    once<T>(this: Scope, source: Packet<T>, callback: (data: T, sender: Player | undefined, timestamp: number | undefined) => void): void;
+    listenAll(this: Scope, namespace: Namespace, callback: (name: string, data: unknown, sender: Player | undefined, timestamp: number | undefined) => void): void;
     destroy(this: Scope): void;
 }
 
@@ -120,14 +120,26 @@ export interface PacketConfig<T> {
     rateLimit?: RateLimitConfig;
     validate?: (data: T, player: Player) => LuaTuple<[boolean, string?]>;
     maxPayloadBytes?: number;
+    timestamp?: "frame" | "offset" | "full";
+}
+
+export interface PlayerStats {
+    bytesSent: number;
+    bytesReceived: number;
 }
 
 export interface Packet<T> {
     send(this: Packet<T>, data: T, target?: Target): void;
-    listen(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
-    once(this: Packet<T>, callback: (data: T, sender: Player | undefined) => void): Connection;
+    listen(this: Packet<T>, callback: (data: T, sender: Player | undefined, timestamp: number | undefined) => void): Connection;
+    once(this: Packet<T>, callback: (data: T, sender: Player | undefined, timestamp: number | undefined) => void): Connection;
     wait(this: Packet<T>): LuaTuple<[T, Player | undefined]>;
     disconnectAll(this: Packet<T>): void;
+
+    readonly bytesSent: number;
+    readonly bytesReceived: number;
+    readonly fires: number;
+    readonly recvFires: number;
+    readonly drops: number;
 }
 
 // -- Query -------------------------------------------------------------
@@ -182,7 +194,7 @@ export interface Namespace {
     readonly queries: Record<string, Query<unknown, unknown>>;
     listenAll(
         this: Namespace,
-        callback: (name: string, data: unknown, sender: Player | undefined) => void,
+        callback: (name: string, data: unknown, sender: Player | undefined, timestamp: number | undefined) => void,
     ): Connection;
     onSend(
         this: Namespace,
@@ -306,10 +318,21 @@ declare namespace Lync {
     // Scope
     export function scope(): Scope;
 
-    // Configuration
+    // Configuration (call before start)
     export function setChannelMaxSize(bytes: number): void;
     export function setValidationDepth(depth: number): void;
     export function setPoolSize(count: number): void;
+
+    // Runtime configuration
+    export function flush(): void;
+    export function setFlushRate(hz: number): void;
+
+    // Stats (server-only for per-player)
+    export function getPlayerStats(player: Player): PlayerStats | undefined;
+    export function resetStats(): void;
+
+    // Security (server-only)
+    export function setBandwidthLimit(softLimit: number, maxStrikes: number): void;
 
     // Introspection
     export function queryPendingCount(): number;

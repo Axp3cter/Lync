@@ -11,6 +11,7 @@ local alloc = Channel.alloc
 
 return table.freeze({
     unknown = table.freeze({
+        _hasUnknown = true,
         write = function(ch: ChannelState, value: any): ()
             local refs = ch.refs
             local idx = #refs + 1

@@ -3,6 +3,7 @@
 -- Per-channel buffer state with batching, delta cache, frame XOR.
 
 local Types = require(script.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.codec.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 
@@ -10,13 +11,18 @@ type ChannelState = Types.ChannelState
 
 local INITIAL_SIZE = 1024
 local MAX_SIZE = 262144
-local MAX_BATCH = 65535
+local MAX_BATCH = 255
 
 local min = math.min
 local bxor = bit32.bxor
 local band32 = bit32.band
 local countlz = bit32.countlz
 local lshift = bit32.lshift
+
+local TS_NONE = 0
+local TS_FRAME = 1
+local TS_OFFSET = 2
+local TS_FULL = 3
 
 -- State ---------------------------------------------------------------
 
@@ -25,6 +31,11 @@ local _maxSize = MAX_SIZE
 -- Packet name for overflow diagnostics. Not coroutine-safe: concurrent
 -- serializers may overwrite before the error fires.
 local _currentPacket = ""
+
+-- Timestamp state updated once per flush via updateTimestamp().
+local _frameCounter: number = 0
+local _offsetMs: number = 0
+local _clockTime: number = 0
 
 -- Public --------------------------------------------------------------
 
@@ -81,7 +92,7 @@ local alloc = Channel.alloc
 -- Seals the open batch header and returns a snapshot of the buffer + refs.
 function Channel.sealAndDump(ch: ChannelState): (buffer, { Instance })
     if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
@@ -100,25 +111,49 @@ function Channel.setCurrentPacket(name: string): ()
     _currentPacket = name
 end
 
+-- Updates timestamp state once per flush. Called before any writes.
+function Channel.updateTimestamp(frameCounter: number, offsetMs: number, clockTime: number): ()
+    _frameCounter = frameCounter
+    _offsetMs = offsetMs
+    _clockTime = clockTime
+end
+
 -- Writes a single value into the batch. Opens a new header on ID change or overflow.
-function Channel.writeBatch(ch: ChannelState, id: number, name: string, codec: any, data: any): ()
+function Channel.writeBatch(ch: ChannelState, reg: any, data: any): ()
+    local id = reg.id
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
         if ch.lastId >= 0 then
-            buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+            buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
         end
 
-        _currentPacket = name
-        alloc(ch, 3)
+        _currentPacket = reg.name
+        alloc(ch, 2)
         local c = ch.cursor
         buffer.writeu8(ch.buff, c, id)
         ch.countPos = c + 1
-        ch.cursor = c + 3
+        ch.cursor = c + 2
         ch.lastId = id
         ch.itemCount = 0
     end
 
     ch.itemCount += 1
-    codec.write(ch, data)
+
+    local tsMode = reg.timestampMode
+    if tsMode == TS_FRAME then
+        alloc(ch, 1)
+        buffer.writeu8(ch.buff, ch.cursor, _frameCounter)
+        ch.cursor += 1
+    elseif tsMode == TS_OFFSET then
+        alloc(ch, 2)
+        buffer.writeu16(ch.buff, ch.cursor, _offsetMs)
+        ch.cursor += 2
+    elseif tsMode == TS_FULL then
+        alloc(ch, 8)
+        buffer.writef64(ch.buff, ch.cursor, _clockTime)
+        ch.cursor += 8
+    end
+
+    reg.codec.write(ch, data)
 end
 
 -- Appends pre-serialized bytes into a batch. Used by broadcast fan-out.
@@ -131,14 +166,14 @@ function Channel.writeBatchRaw(
 ): ()
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
         if ch.lastId >= 0 then
-            buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+            buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
         end
 
-        alloc(ch, 3)
+        alloc(ch, 2)
         local c = ch.cursor
         buffer.writeu8(ch.buff, c, id)
         ch.countPos = c + 1
-        ch.cursor = c + 3
+        ch.cursor = c + 2
         ch.lastId = id
         ch.itemCount = 0
     end
@@ -159,7 +194,7 @@ end
 
 local function sealOpen(ch: ChannelState): ()
     if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
@@ -168,7 +203,7 @@ end
 
 --[[
     Writes a query frame. Seals any open batch, then writes:
-        id(u8) + correlationId(u16) + status(u8)
+        id(u8) + correlationId(varint) + status(u8)
     Status 0 = payload follows. Status 1 = nil response.
 ]]
 function Channel.writeQuery(
@@ -182,18 +217,22 @@ function Channel.writeQuery(
     _currentPacket = name
     sealOpen(ch)
 
-    alloc(ch, 4)
+    alloc(ch, 2)
     local c = ch.cursor
     buffer.writeu8(ch.buff, c, id)
-    buffer.writeu16(ch.buff, c + 1, correlationId)
+    ch.cursor = c + 1
 
+    Varint.write(ch, correlationId)
+
+    local c2 = ch.cursor
+    alloc(ch, 1)
     if codec then
-        buffer.writeu8(ch.buff, c + 3, 0)
-        ch.cursor = c + 4
+        buffer.writeu8(ch.buff, c2, 0)
+        ch.cursor = c2 + 1
         codec.write(ch, data)
     else
-        buffer.writeu8(ch.buff, c + 3, 1)
-        ch.cursor = c + 4
+        buffer.writeu8(ch.buff, c2, 1)
+        ch.cursor = c2 + 1
     end
 end
 
@@ -236,5 +275,10 @@ function Channel.reset(ch: ChannelState): ()
     ch.itemCount = 0
     table.clear(ch.refs)
 end
+
+Channel.TS_NONE = TS_NONE
+Channel.TS_FRAME = TS_FRAME
+Channel.TS_OFFSET = TS_OFFSET
+Channel.TS_FULL = TS_FULL
 
 return table.freeze(Channel)

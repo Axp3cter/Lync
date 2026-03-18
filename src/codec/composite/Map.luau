@@ -44,6 +44,7 @@ function Map.map(
         local entrySize = keySize + valSize
 
         return table.freeze({
+            _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
             write = function(ch: ChannelState, value: { [any]: any }): ()
                 local count = 0
                 for _ in value do
@@ -100,6 +101,7 @@ function Map.map(
     local readVal = valueCodec.read
 
     return table.freeze({
+        _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
         write = function(ch: ChannelState, value: { [any]: any }): ()
             local count = 0
             for _ in value do
@@ -185,6 +187,7 @@ function Map.deltaMap(
 
     return table.freeze({
         _isDelta = true,
+        _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
 
         write = function(ch: ChannelState, value: { [any]: any }): ()
             local scratch = acquireScratch()
@@ -378,7 +381,10 @@ function Map.deltaMap(
             end
 
             local cache = Baseline.getCache(deltaId) :: { [any]: any }?
-            local result = if cache then table.clone(cache) else {}
+            if not cache then
+                error("[Lync] Delta frame without baseline")
+            end
+            local result = table.clone(cache)
 
             local upsertN, unBytes = Varint.read(src, absPos)
             absPos += unBytes

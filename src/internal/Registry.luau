@@ -32,7 +32,8 @@ local function assign(
     signal: any,
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
-    maxPayloadBytes: number?
+    maxPayloadBytes: number?,
+    timestampMode: number?
 ): Registration
     if _names[name] then
         error(`[Lync] Duplicate registration: "{name}"`)
@@ -70,6 +71,12 @@ local function assign(
         validate = validate,
         needsGate = rateLimit ~= nil or validate ~= nil,
         maxPayloadBytes = maxPayloadBytes,
+        timestampMode = timestampMode or 0,
+        bytesSent = 0,
+        bytesReceived = 0,
+        fires = 0,
+        recvFires = 0,
+        drops = 0,
     }
 
     _entries[id] = reg
@@ -92,7 +99,8 @@ function Registry.register(
     signal: any,
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
-    maxPayloadBytes: number?
+    maxPayloadBytes: number?,
+    timestampMode: number?
 ): Registration
     return assign(
         name,
@@ -103,7 +111,8 @@ function Registry.register(
         signal,
         rateLimit,
         validate,
-        maxPayloadBytes
+        maxPayloadBytes,
+        timestampMode
     )
 end
 
@@ -141,6 +150,12 @@ end
 function Registry.getByName(name: string): Registration?
     local id = _names[name]
     return if id then _entries[id] else nil
+end
+
+function Registry.forEach(fn: (reg: Registration) -> ()): ()
+    for _, reg in _entries do
+        fn(reg)
+    end
 end
 
 return table.freeze(Registry)

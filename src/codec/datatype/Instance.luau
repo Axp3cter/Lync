@@ -41,6 +41,9 @@ InstanceCodec.inst = table.freeze({
         if not inst then
             error(`[Lync] Instance ref index out of bounds: {idx}`)
         end
+        if typeof(inst) ~= "Instance" then
+            error("[Lync] Invalid ref: expected Instance")
+        end
 
         return inst, 2
     end,

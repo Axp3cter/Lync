@@ -47,6 +47,14 @@ function Struct.struct(schema: { [string]: Codec<any> }): Codec<any>
     local boolByteCount = ceil(boolCount / 8)
     local hasBools = boolCount > 0
 
+    local hasUnknown = false
+    for _, fieldCodec in schema do
+        if (fieldCodec :: any)._hasUnknown then
+            hasUnknown = true
+            break
+        end
+    end
+
     local canDirect = true
     local fixedSize = boolByteCount
     local isAllFixed = true
@@ -126,6 +134,7 @@ function Struct.struct(schema: { [string]: Codec<any> }): Codec<any>
             _size = fixedSize,
             _directWrite = directWriteBody,
             _directRead = directReadBody,
+            _hasUnknown = hasUnknown or nil,
 
             write = function(ch: ChannelState, value: any): ()
                 local c = ch.cursor
@@ -152,6 +161,7 @@ function Struct.struct(schema: { [string]: Codec<any> }): Codec<any>
 
     return table.freeze({
         _size = if isAllFixed then fixedSize else nil,
+        _hasUnknown = hasUnknown or nil,
 
         write = function(ch: ChannelState, value: any): ()
             if isAllFixed then
@@ -195,6 +205,14 @@ function Struct.deltaStruct(schema: { [string]: Codec<any> }): Codec<any>
     local bitmaskBytes = ceil(segCount / 8)
     local deltaId = Shared.allocDeltaId()
 
+    local hasUnknown = false
+    for _, fieldCodec in schema do
+        if (fieldCodec :: any)._hasUnknown then
+            hasUnknown = true
+            break
+        end
+    end
+
     -- Scratch bounds reused every frame(only cloned into cache)
     local _scratchBounds = table.create(segCount + 1) :: { number }
     _scratchBounds[1] = 0
@@ -237,6 +255,7 @@ function Struct.deltaStruct(schema: { [string]: Codec<any> }): Codec<any>
 
     return table.freeze({
         _isDelta = true,
+        _hasUnknown = hasUnknown or nil,
 
         write = function(ch: ChannelState, value: any): ()
             local cache = ch.deltas[deltaId] :: DeltaCache?
@@ -413,7 +432,10 @@ function Struct.deltaStruct(schema: { [string]: Codec<any> }): Codec<any>
             end
 
             local cache = Baseline.getCache(deltaId) :: any
-            local result = if cache then table.clone(cache) else {}
+            if not cache then
+                error("[Lync] Delta frame without baseline")
+            end
+            local result = table.clone(cache)
 
             local maskStart = absPos
             absPos += bitmaskBytes

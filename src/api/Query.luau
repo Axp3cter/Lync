@@ -316,13 +316,15 @@ function QueryModule.define(name: string, config: QueryConfig<any, any>): Query
     local reqSignal = Signal.create()
     local respSignal = Signal.create()
 
+    local rateLimit = config.rateLimit or { maxPerSecond = 30 }
+
     local reqReg, respReg = Registry.registerQueryPair(
         name,
         config.request,
         config.response,
         reqSignal,
         respSignal,
-        config.rateLimit,
+        rateLimit,
         config.validate
     )
 

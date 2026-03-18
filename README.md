@@ -13,7 +13,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.5.2"
+Lync = "axp3cter/lync@2.0.0"
 ```
 
 **npm (roblox-ts)**
@@ -163,7 +163,7 @@ end
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.VERSION` | `"1.5.2"` |
+| `Lync.VERSION` | `"2.0.0"` |
 
 ## Packets
 
@@ -176,6 +176,7 @@ end
 | `rateLimit` | `{ maxPerSecond, burstAllowance? }` | No | Server-side token bucket. Burst defaults to maxPerSecond if you dont set it. |
 | `validate` | `(data, player) → (bool, string?)` | No | Server-side. Return `false, "reason"` to drop. Runs after NaN scan. |
 | `maxPayloadBytes` | number | No | Server-side. Max bytes a single batch of this packet can consume. Fires `onDrop` with reason `"size"` if exceeded. |
+| `timestamp` | `"frame" \| "offset" \| "full"` | No | Prepends a timestamp to each item. `"frame"` = u8 wrapping counter (1B), `"offset"` = u16 ms (2B), `"full"` = f64 clock (8B). Listeners receive it as a third argument. |
 
 **Server, single `send` with targets:**
 
@@ -198,8 +199,8 @@ packet:send(data)  -- send to server
 
 | Method | What it does |
 |:-------|:------------|
-| `packet:listen(fn(data, sender))` | Sender is `Player` on server, `nil` on client. Returns a Connection. |
-| `packet:once(fn(data, sender))` | Auto-disconnects after one fire. |
+| `packet:listen(fn(data, sender, timestamp?))` | Sender is `Player` on server, `nil` on client. `timestamp` is present when the packet has a `timestamp` config. Returns a Connection. |
+| `packet:once(fn(data, sender, timestamp?))` | Auto-disconnects after one fire. |
 | `packet:wait()` | Returns `(data, sender)`. |
 | `packet:disconnectAll()` | Kills all listeners on this packet. |
 
@@ -271,7 +272,7 @@ Access packets and queries by their short name on the returned object: `ns.Packe
 
 | Method | What it does |
 |:-------|:------------|
-| `ns:listenAll(fn(name, data, sender))` | Listens to every packet in the namespace. `name` is the short name without prefix. Returns a Connection. |
+| `ns:listenAll(fn(name, data, sender, timestamp?))` | Listens to every packet in the namespace. `name` is the short name without prefix. Returns a Connection. |
 | `ns:onSend(fn(data, name, player) → data?)` | Send middleware that only runs for this namespace. Returns a remover. |
 | `ns:onReceive(fn(data, name, player) → data?)` | Receive middleware that only runs for this namespace. Returns a remover. |
 | `ns:disconnectAll()` | Kills all listeners made through `listenAll`. |
@@ -502,17 +503,74 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 > [!NOTE]
 > Lync benchmarks run on Ryzen 7 7800X3D, 32GB DDR5-4800. Other tool numbers are from [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (v0.17.1, Ryzen 9 7900X, 34GB DDR5-4800). Different CPUs so FPS numbers arent directly comparable but bandwidth numbers are since Kbps is scaled by 60/FPS. Lync hits the 60 FPS frame cap in both tests.
 
+## Stats
+
+Per-packet counters are available directly on the Packet object. Per-player counters are available via `Lync.getPlayerStats()`.
+
+```luau
+-- Per-packet (both sides)
+print(Net.State.bytesSent, Net.State.fires, Net.State.drops)
+
+-- Per-player (server only)
+local stats = Lync.getPlayerStats(player)
+if stats then
+    print(stats.bytesSent, stats.bytesReceived)
+end
+
+Lync.resetStats()  -- zeros everything in-place
+```
+
+| Field | What it counts |
+|:------|:---------------|
+| `packet.bytesSent` | Wire bytes produced (includes batch header overhead). |
+| `packet.bytesReceived` | Wire bytes consumed on receive. |
+| `packet.fires` | Send fire count. |
+| `packet.recvFires` | Receive fire count. |
+| `packet.drops` | Gate rejections (rate limit, NaN, validate). |
+
+## Flush Control
+
+By default Lync flushes at 60hz (every Heartbeat). You can change this at runtime.
+
+```luau
+Lync.setFlushRate(30)  -- flush every ~33ms instead of ~16ms
+Lync.flush()           -- force an immediate flush, resets the accumulator
+```
+
+| Function | What it does |
+|:---------|:------------|
+| `Lync.setFlushRate(hz)` | 1 to 60. Default 60. Callable at runtime. |
+| `Lync.flush()` | Immediate flush. Resets the timer so you dont double-send at frame end. |
+
+## Security
+
+### Bandwidth Throttle
+
+Server-side per-player bandwidth strike counter. Counts consecutive oversized frames with decay. Protects against clients flooding the server.
+
+```luau
+Lync.setBandwidthLimit(16384, 10)  -- 16KB soft limit, 10 strikes before drop
+```
+
+Fires `onDrop` with reason `"bandwidth"` when a player exceeds the threshold. Read failures (corrupted buffers, XOR desync) also count as strikes.
+
+### Unknown Codec Warning
+
+If a packet uses `Lync.unknown` anywhere in its codec tree without a `validate` callback, Lync prints a warning at define time. The `unknown` codec bypasses schema validation entirely; client data goes through Roblox's sidecar without type checking. Adding `validate` suppresses the warning.
+
 ## Limits & Configuration
 
-Call these before `Lync.start()`.
+Call these before `Lync.start()` unless noted otherwise.
 
 | What | Default | How to change | Notes |
 |:-----|--------:|:--------------|:------|
 | Packet types | 255 | Cant change | u8 on the wire. Each query eats 2 IDs. |
 | Buffer per channel per frame | 256 KB | `Lync.setChannelMaxSize(n)` | 4 KB to 1 MB. |
-| Concurrent queries | 65,536 | Cant change | u16 correlation IDs. Freed on response or timeout. `Lync.queryPendingCount()` returns in-flight count. |
+| Concurrent queries | 65,536 | Cant change | Varint correlation IDs. Freed on response or timeout. `Lync.queryPendingCount()` returns in-flight count. Queries default to 30/s rate limit. |
 | NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
 | Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
+| Flush rate | 60 hz | `Lync.setFlushRate(n)` | 1 to 60. Runtime-safe. |
+| Bandwidth limit | 16 KB / 10 strikes | `Lync.setBandwidthLimit(n, m)` | Server-only. Per-player. |
 | Namespaces | 64 | Cant change | |
 | Delta + unreliable | Nope | Cant change | Errors at define time. |
 

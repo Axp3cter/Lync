@@ -62,7 +62,12 @@ export type Namespace = typeof(setmetatable({} :: NamespaceFields, NamespaceImpl
 -- Listens on every packet in this namespace. Returns a Connection.
 function NamespaceImpl.listenAll(
     self: Namespace,
-    callback: (name: string, data: any, sender: Player?) -> ()
+    callback: (
+        name: string,
+        data: any,
+        sender: Player?,
+        timestamp: number?
+    ) -> ()
 ): Connection
     local connections = {} :: { Connection }
     local prefix = self._name .. "."
@@ -70,8 +75,8 @@ function NamespaceImpl.listenAll(
 
     for fullName, packet in self._packets do
         local shortName = string.sub(fullName, prefixLen + 1)
-        local conn = packet:listen(function(data: any, sender: Player?): ()
-            callback(shortName, data, sender)
+        local conn = packet:listen(function(data: any, sender: Player?, timestamp: number?): ()
+            callback(shortName, data, sender, timestamp)
         end)
         table.insert(connections, conn)
         table.insert(self._tracked, conn)

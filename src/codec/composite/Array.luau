@@ -38,6 +38,7 @@ function Array.deltaArray(element: Codec<any>, maxCount: number?): Codec<{ any }
 
     return table.freeze({
         _isDelta = true,
+        _hasUnknown = (element :: any)._hasUnknown or nil,
 
         write = function(ch: ChannelState, value: { any }): ()
             local len = #value
@@ -110,12 +111,14 @@ function Array.deltaArray(element: Codec<any>, maxCount: number?): Codec<{ any }
                 ch.cursor += 1
                 Varint.write(ch, dirtyN)
 
+                local prevIdx = 0
                 for j = 1, dirtyN do
                     local i = dirty[j]
                     local newOff = bounds[i]
                     local newLen = bounds[i + 1] - newOff
 
-                    Varint.write(ch, i - 1)
+                    Varint.write(ch, (i - 1) - prevIdx)
+                    prevIdx = i - 1
                     alloc(ch, newLen)
                     buffer.copy(ch.buff, ch.cursor, scratch.buff, newOff, newLen)
                     ch.cursor += newLen
@@ -167,21 +170,26 @@ function Array.deltaArray(element: Codec<any>, maxCount: number?): Codec<{ any }
             end
 
             local cache = Baseline.getCache(deltaId) :: { any }?
-            local result = if cache then table.clone(cache) else {}
+            if not cache then
+                error("[Lync] Delta frame without baseline")
+            end
+            local result = table.clone(cache)
 
             local dirtyN, dnBytes = Varint.read(src, absPos)
             absPos += dnBytes
 
+            local runningIdx = 0
             for _ = 1, dirtyN do
-                local idx, idxBytes = Varint.read(src, absPos)
-                absPos += idxBytes
+                local delta, deltaBytes = Varint.read(src, absPos)
+                absPos += deltaBytes
+                runningIdx += delta
 
                 if elemRead and elemSize then
-                    result[idx + 1] = elemRead(src, absPos)
+                    result[runningIdx + 1] = elemRead(src, absPos)
                     absPos += elemSize
                 else
                     local val, n = readElement(src, absPos, refs)
-                    result[idx + 1] = val
+                    result[runningIdx + 1] = val
                     absPos += n
                 end
             end
@@ -200,6 +208,7 @@ function Array.array(element: Codec<any>, maxCount: number?): Codec<{ any }>
 
     if elementSize and directWrite and directRead then
         return table.freeze({
+            _hasUnknown = (element :: any)._hasUnknown or nil,
             write = function(ch: ChannelState, value: { any }): ()
                 local len = #value
                 Varint.write(ch, len)
@@ -244,6 +253,7 @@ function Array.array(element: Codec<any>, maxCount: number?): Codec<{ any }>
     local readElement = element.read
 
     return table.freeze({
+        _hasUnknown = (element :: any)._hasUnknown or nil,
         write = function(ch: ChannelState, value: { any }): ()
             local len = #value
             Varint.write(ch, len)

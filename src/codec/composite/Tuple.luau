@@ -24,6 +24,14 @@ function Tuple.define(...: Codec<any>): Codec<{ any }>
 
     table.freeze(codecs)
 
+    local hasUnknown = false
+    for i = 1, count do
+        if (codecs[i] :: any)._hasUnknown then
+            hasUnknown = true
+            break
+        end
+    end
+
     local canDirect = true
     local totalSize: number = 0
     local directWrites = table.create(count) :: { any }
@@ -92,6 +100,7 @@ function Tuple.define(...: Codec<any>): Codec<{ any }>
             _size = totalSize,
             _directWrite = directWriteBody,
             _directRead = directReadBody,
+            _hasUnknown = hasUnknown or nil,
             write = function(ch: ChannelState, value: { any }): ()
                 local c = ch.cursor
                 if c + totalSize > ch.size then
@@ -119,6 +128,7 @@ function Tuple.define(...: Codec<any>): Codec<{ any }>
 
     return table.freeze({
         _size = totalSize,
+        _hasUnknown = hasUnknown or nil,
         write = function(ch: ChannelState, value: { any }): ()
             if hasFixedTotal then
                 alloc(ch, totalSize :: number)

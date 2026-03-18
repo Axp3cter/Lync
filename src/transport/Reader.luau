@@ -3,9 +3,11 @@
 -- Deserializes incoming buffers and routes by registration kind.
 
 local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.internal.Channel)
 local Gate = require(script.Parent.Gate)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
 local Registry = require(script.Parent.Parent.internal.Registry)
+local Varint = require(script.Parent.Parent.codec.primitive.Varint)
 
 local registryGet = Registry.get
 local gateCheck = Gate.check
@@ -16,7 +18,14 @@ local gateReportDrop = Gate.reportDrop
 local KIND_PACKET = Registry.KIND_PACKET
 local KIND_REQUEST = Registry.KIND_REQUEST
 
+local TS_NONE = Channel.TS_NONE
+local TS_FRAME = Channel.TS_FRAME
+local TS_OFFSET = Channel.TS_OFFSET
+local TS_FULL = Channel.TS_FULL
+
 local MAX_INCOMING = 65536
+
+local floor = math.floor
 
 -- Public --------------------------------------------------------------
 
@@ -64,12 +73,12 @@ function Reader.process(
         local kind = reg.kind
 
         if kind == KIND_PACKET then
-            if pos + 2 > length then
+            if pos + 1 > length then
                 break
             end
 
-            local count = buffer.readu16(incoming, pos)
-            pos += 2
+            local count = buffer.readu8(incoming, pos)
+            pos += 1
 
             if count == 0 then
                 continue
@@ -79,6 +88,16 @@ function Reader.process(
             local signal = reg.signal
             local batchStart = pos
             local maxBytes = reg.maxPayloadBytes
+            local tsMode = reg.timestampMode
+
+            -- Cap count for fixed-size codecs to prevent wasted iterations
+            local fixedSize = (codec :: any)._size
+            if fixedSize and fixedSize > 0 then
+                local maxItems = floor((length - pos) / fixedSize)
+                if count > maxItems then
+                    count = maxItems
+                end
+            end
 
             -- Hot path: no gate, no middleware, no byte budget
             if not (isServer and reg.needsGate) and not hasReceiveMiddleware and not maxBytes then
@@ -87,9 +106,23 @@ function Reader.process(
                         break
                     end
 
+                    local timestamp: number? = nil
+                    if tsMode == TS_FRAME then
+                        timestamp = buffer.readu8(incoming, pos)
+                        pos += 1
+                    elseif tsMode == TS_OFFSET then
+                        timestamp = buffer.readu16(incoming, pos)
+                        pos += 2
+                    elseif tsMode == TS_FULL then
+                        timestamp = buffer.readf64(incoming, pos)
+                        pos += 8
+                    end
+
                     local value, consumed = codec.read(incoming, pos, refs)
                     pos += consumed
-                    signal:fire(value, player)
+                    reg.bytesReceived += consumed
+                    reg.recvFires += 1
+                    signal:fire(value, player, timestamp)
                 end
             else
                 -- Cold path: gate and/or middleware and/or byte budget active
@@ -106,8 +139,22 @@ function Reader.process(
                         break
                     end
 
+                    local timestamp: number? = nil
+                    if tsMode == TS_FRAME then
+                        timestamp = buffer.readu8(incoming, pos)
+                        pos += 1
+                    elseif tsMode == TS_OFFSET then
+                        timestamp = buffer.readu16(incoming, pos)
+                        pos += 2
+                    elseif tsMode == TS_FULL then
+                        timestamp = buffer.readf64(incoming, pos)
+                        pos += 8
+                    end
+
                     local value, consumed = codec.read(incoming, pos, refs)
                     pos += consumed
+                    reg.bytesReceived += consumed
+                    reg.recvFires += 1
 
                     if needsGate and not gateCheck(value, reg, player :: Player) then
                         continue
@@ -118,24 +165,25 @@ function Reader.process(
                         if final == nil then
                             continue
                         end
-                        signal:fire(final, player)
+                        signal:fire(final, player, timestamp)
                     else
-                        signal:fire(value, player)
+                        signal:fire(value, player, timestamp)
                     end
                 end
             end
         else
-            -- Query frame: id(u8, already read) + correlationId(u16) + status(u8) = 3 more bytes
-            if pos + 3 > length then
+            -- Query frame: id(u8, already read) + correlationId(varint) + status(u8)
+            if pos + 2 > length then
                 break
             end
 
             local queryCodec = reg.codec
             local querySignal = reg.signal
 
-            local correlationId = buffer.readu16(incoming, pos)
-            local status = buffer.readu8(incoming, pos + 2)
-            pos += 3
+            local correlationId, corrBytes = Varint.read(incoming, pos)
+            pos += corrBytes
+            local status = buffer.readu8(incoming, pos)
+            pos += 1
 
             if status == 1 then
                 if kind == KIND_REQUEST then

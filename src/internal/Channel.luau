@@ -346,6 +346,22 @@ function Channel.reset(ch: ChannelState): ()
     end
 end
 
+-- Test helper: builds a minimal reg-like object for writeBatch.
+function Channel.mockReg(id: number, name: string, codec: any): any
+    return {
+        id = id,
+        name = name,
+        codec = codec,
+        timestampMode = 0,
+        _openFn = openBatchPlain,
+        drops = 0,
+        bytesSent = 0,
+        bytesReceived = 0,
+        fires = 0,
+        recvFires = 0,
+    }
+end
+
 Channel.TS_NONE = TS_NONE
 Channel.TS_FRAME = TS_FRAME
 Channel.TS_OFFSET = TS_OFFSET

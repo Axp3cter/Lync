@@ -107,7 +107,12 @@ describe("deltaStruct", function(): ()
         Baseline.setReadKey(false)
         local c = Lync.deltaStruct({ hp = Lync.u8, mp = Lync.u8 })
         local ch = Channel.create()
+        -- Write and read full frame to populate baseline
         c.write(ch, { hp = 100, mp = 50 })
+        local fullBuf = buffer.create(ch.cursor)
+        buffer.copy(fullBuf, 0, ch.buff, 0, ch.cursor)
+        c.read(fullBuf, 0, nil)
+        -- Write delta frame
         ch.cursor = 0
         c.write(ch, { hp = 80, mp = 50 })
         local buf = buffer.create(ch.cursor)

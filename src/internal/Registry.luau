@@ -2,6 +2,7 @@
 --!optimize 2
 -- Deterministic ID assignment for packets and queries.
 
+local Channel = require(script.Parent.Channel)
 local Types = require(script.Parent.Parent.Types)
 
 type Codec<T> = Types.Codec<T>
@@ -72,7 +73,7 @@ local function assign(
         needsGate = rateLimit ~= nil or validate ~= nil,
         maxPayloadBytes = maxPayloadBytes,
         timestampMode = timestampMode or 0,
-        _openFn = nil :: any, -- set by Packet.define via Channel.resolveOpenFn
+        _openFn = Channel.resolveOpenFn(timestampMode or 0),
         bytesSent = 0,
         bytesReceived = 0,
         fires = 0,

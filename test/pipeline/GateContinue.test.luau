@@ -31,8 +31,8 @@ describe("gate drop continues next packet", function(): ()
         Gate.onPlayerAdded(player)
 
         local ch = Channel.create()
-        Channel.writeBatch(ch, regA.id, "__gc_a", Lync.f32, 3.14)
-        Channel.writeBatch(ch, regB.id, "__gc_b", Lync.u8, 42)
+        Channel.writeBatch(ch, regA, 3.14)
+        Channel.writeBatch(ch, regB, 42)
         local raw, refs = Channel.sealAndDump(ch)
 
         local gotA: any = "NOT_FIRED"

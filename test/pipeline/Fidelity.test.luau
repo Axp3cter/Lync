@@ -16,7 +16,7 @@ describe("u8 batch write-seal-read", function(): ()
 
     it("write+seal+read recovers value", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, reg.id, reg.name, Lync.u8, 42)
+        Channel.writeBatch(ch, reg, 42)
         local raw, refs = Channel.sealAndDump(ch)
 
         local got: any
@@ -38,7 +38,7 @@ describe("struct batch write-seal-read", function(): ()
 
     it("round-trips struct", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, reg.id, reg.name, codec, { hp = 100, name = "hero" })
+        Channel.writeBatch(ch, reg, { hp = 100, name = "hero" })
         local raw, refs = Channel.sealAndDump(ch)
 
         local got: any
@@ -62,8 +62,8 @@ describe("multiple packets in one frame", function(): ()
 
     it("both values arrive", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, regA.id, regA.name, Lync.u8, 255)
-        Channel.writeBatch(ch, regB.id, regB.name, Lync.string, "hello")
+        Channel.writeBatch(ch, regA, 255)
+        Channel.writeBatch(ch, regB, "hello")
         local raw, refs = Channel.sealAndDump(ch)
 
         local gotA, gotB: any

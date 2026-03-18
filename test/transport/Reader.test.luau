@@ -41,7 +41,7 @@ describe("Reader.process single packet", function(): ()
 
     it("fires signal with decoded value", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, reg.id, reg.name, Lync.u8, 99)
+        Channel.writeBatch(ch, reg, 99)
         local raw, refs = Channel.sealAndDump(ch)
 
         local got: any
@@ -60,9 +60,9 @@ describe("Reader.process multiple same-id values", function(): ()
 
     it("fires once per value", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, reg.id, reg.name, Lync.u8, 10)
-        Channel.writeBatch(ch, reg.id, reg.name, Lync.u8, 20)
-        Channel.writeBatch(ch, reg.id, reg.name, Lync.u8, 30)
+        Channel.writeBatch(ch, reg, 10)
+        Channel.writeBatch(ch, reg, 20)
+        Channel.writeBatch(ch, reg, 30)
         local raw, refs = Channel.sealAndDump(ch)
 
         local values = {} :: { number }
@@ -85,7 +85,7 @@ describe("Reader.process struct", function(): ()
 
     it("decodes struct fields", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, reg.id, reg.name, codec, { hp = 100, name = "hero" })
+        Channel.writeBatch(ch, reg, { hp = 100, name = "hero" })
         local raw, refs = Channel.sealAndDump(ch)
 
         local got: any

@@ -162,13 +162,17 @@ end
 
 function Gate.check(value: any, reg: Registration, player: Player): boolean
     if not checkRate(player, reg) then
-        reg.drops += 1
+        if reg.drops then
+            reg.drops += 1
+        end
         fireDrop(player, "rate", reg.name, nil)
         return false
     end
 
     if not isClean(value, 1) then
-        reg.drops += 1
+        if reg.drops then
+            reg.drops += 1
+        end
         fireDrop(player, "nan", reg.name, value)
         return false
     end
@@ -177,7 +181,9 @@ function Gate.check(value: any, reg: Registration, player: Player): boolean
     if validate then
         local ok, reason = validate(value, player)
         if not ok then
-            reg.drops += 1
+            if reg.drops then
+                reg.drops += 1
+            end
             fireDrop(player, reason or "validate", reg.name, value)
             return false
         end

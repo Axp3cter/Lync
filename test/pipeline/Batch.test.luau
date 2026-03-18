@@ -15,7 +15,7 @@ describe("batch: 100 values same packet", function(): ()
     it("all 100 arrive in order", function(): ()
         local ch = Channel.create()
         for i = 1, 100 do
-            Channel.writeBatch(ch, reg.id, reg.name, Lync.u16, i)
+            Channel.writeBatch(ch, reg, i)
         end
         local raw, refs = Channel.sealAndDump(ch)
 
@@ -40,10 +40,10 @@ describe("batch: interleaved packets", function(): ()
 
     it("values arrive to correct signals", function(): ()
         local ch = Channel.create()
-        Channel.writeBatch(ch, regA.id, regA.name, Lync.u8, 1)
-        Channel.writeBatch(ch, regA.id, regA.name, Lync.u8, 2)
-        Channel.writeBatch(ch, regB.id, regB.name, Lync.string, "hello")
-        Channel.writeBatch(ch, regA.id, regA.name, Lync.u8, 3)
+        Channel.writeBatch(ch, regA, 1)
+        Channel.writeBatch(ch, regA, 2)
+        Channel.writeBatch(ch, regB, "hello")
+        Channel.writeBatch(ch, regA, 3)
         local raw, refs = Channel.sealAndDump(ch)
 
         local numsA = {} :: { number }

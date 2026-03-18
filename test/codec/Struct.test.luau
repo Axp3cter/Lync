@@ -79,7 +79,7 @@ describe("struct validation", function(): ()
     it("throws on empty schema", function(): ()
         expect(function(): ()
             Lync.struct({})
-        end):toThrow()
+        end):toThrow("at least one field")
     end)
 end)
 

@@ -138,7 +138,7 @@ describe("auto errors", function(): ()
         expect(function(): ()
             local ch = Channel.create()
             Lync.auto.write(ch, function() end)
-        end):toThrow()
+        end):toThrow("unsupported type")
     end)
 end)
 

@@ -21,7 +21,7 @@ describe("string truncation", function(): ()
             local buf = buffer.create(5)
             buffer.writeu8(buf, 0, 100) -- varint for 100 bytes
             Lync.string.read(buf, 0, nil)
-        end):toThrow()
+        end):toThrow("exceeds buffer")
     end)
 end)
 

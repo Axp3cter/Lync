@@ -24,7 +24,7 @@ describe("enum", function(): ()
             local Channel = require(script.Parent.Parent.Parent.internal.Channel)
             local ch = Channel.create()
             c.write(ch, "C")
-        end):toThrow()
+        end):toThrow("Invalid enum")
     end)
 end)
 

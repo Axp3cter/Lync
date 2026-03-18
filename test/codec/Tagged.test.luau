@@ -29,7 +29,7 @@ describe("tagged", function(): ()
             local Channel = require(script.Parent.Parent.Parent.internal.Channel)
             local ch = Channel.create()
             c.write(ch, { type = "B", v = 1 })
-        end):toThrow()
+        end):toThrow("Unknown variant")
     end)
 end)
 

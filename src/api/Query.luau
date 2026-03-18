@@ -28,6 +28,7 @@ type PendingQuery = {
     thread: thread?,
     callback: ((data: any) -> ())?,
     timeout: thread?,
+    source: Player?,
 }
 
 local _pending = {} :: { [number]: PendingQuery }
@@ -60,9 +61,14 @@ local function releaseCorrelation(): ()
     _activeCount -= 1
 end
 
-local function completeQuery(id: number, data: any): ()
+local function completeQuery(id: number, data: any, source: Player?): ()
     local entry = _pending[id]
     if not entry then
+        return
+    end
+
+    -- Reject responses from wrong player (prevents correlation spoofing)
+    if source ~= nil and entry.source ~= nil and source ~= entry.source then
         return
     end
 
@@ -110,7 +116,7 @@ local function requestMulti(self: Query, players: { Player }, data: any): { [Pla
     if count == 1 then
         local correlation = allocCorrelation()
         local thread = coroutine.running()
-        local entry: PendingQuery = { thread = thread, timeout = nil }
+        local entry: PendingQuery = { thread = thread, timeout = nil, source = players[1] }
         _pending[correlation] = entry
 
         Server.writeQuery(
@@ -154,6 +160,7 @@ local function requestMulti(self: Query, players: { Player }, data: any): { [Pla
                 end
             end,
             timeout = nil,
+            source = player,
         }
 
         _pending[correlation] = entry
@@ -251,7 +258,7 @@ function QueryImpl.requestFrom(self: Query, player: Player, data: any): any
 
     local correlation = allocCorrelation()
     local thread = coroutine.running()
-    local entry: PendingQuery = { thread = thread, timeout = nil }
+    local entry: PendingQuery = { thread = thread, timeout = nil, source = player }
     _pending[correlation] = entry
 
     Server.writeQuery(player, self._reqReg.id, self._name, correlation, self._reqReg.codec, data)
@@ -307,8 +314,8 @@ function QueryModule.define(name: string, config: QueryConfig<any, any>): Query
         config.validate
     )
 
-    respSignal:connect(function(resp: any, correlation: number): ()
-        completeQuery(correlation, resp)
+    respSignal:connect(function(resp: any, source: Player?, correlation: number): ()
+        completeQuery(correlation, resp, source)
     end)
 
     return setmetatable({

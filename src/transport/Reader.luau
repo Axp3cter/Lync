@@ -141,7 +141,7 @@ function Reader.process(
                 if kind == KIND_REQUEST then
                     querySignal:fire(nil, player, correlationId)
                 else
-                    querySignal:fire(nil, correlationId)
+                    querySignal:fire(nil, player, correlationId)
                 end
                 continue
             end
@@ -166,7 +166,7 @@ function Reader.process(
             if kind == KIND_REQUEST then
                 querySignal:fire(final, player, correlationId)
             else
-                querySignal:fire(final, correlationId)
+                querySignal:fire(final, player, correlationId)
             end
         end
     end

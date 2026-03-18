@@ -85,12 +85,12 @@ local Players = game:GetService("Players")
 
 local alive = Lync.createGroup("alive")
 
-Lync.onSend(function(data, name)
+Lync.onSend(function(data, name, player)
     print("[out]", name)
     return data
 end)
 
-Lync.onDrop(function(player, reason, name)
+Lync.onDrop(function(player, reason, name, data)
     warn(player.Name, "dropped", name, reason)
 end)
 
@@ -125,7 +125,7 @@ Net.Hit:listen(function(data, player)
     }, Lync.except(target))
 end)
 
-Net.Ping:listen(function()
+Net.Ping:listen(function(request, player)
     return os.clock()
 end)
 ```

@@ -194,7 +194,8 @@ end
 local player = getPlayer()
 Scenarios.Ready:wait()
 
--- Capture helper: wraps a test with startCapture/stopCapture
+-- Capture toggle
+local CAPTURE_ENABLED = false
 local CAPTURE_FRAMES = 5
 local CAPTURE_FIRES = 100 -- keep frames under MAX_INCOMING (65536 bytes)
 
@@ -209,58 +210,54 @@ local function captureTest(label: string, packet: any, getData: () -> any, targe
     Lync.stopCapture()
 end
 
--- Section 1: Lync-specific benchmarks
+-- Full benchmarks
 print(`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
 
--- Capture a few frames of each test before the full run
-captureTest("Static booleans", Scenarios.Booleans, function(): any
-    return true
-end, player)
+if CAPTURE_ENABLED then
+    captureTest("Static booleans", Scenarios.Booleans, function(): any
+        return true
+    end, player)
 
-captureTest("Static entities", Scenarios.Entities, function(): any
-    return Scenarios.STATIC_ENTITY
-end, player)
+    captureTest("Static entities", Scenarios.Entities, function(): any
+        return Scenarios.STATIC_ENTITY
+    end, player)
 
-local capFrame = 0
-captureTest("Moving entities", Scenarios.Entities, function(): any
-    capFrame += 1
-    return {
-        position = Vector3.new(100.5 + capFrame * 0.1, 50.25, -200.75 + capFrame * 0.05),
-        velocity = Vector3.new(10.1, 0, -5.3),
-        health = 87.5,
-        shield = 42.0,
-        alive = true,
-        team = 2,
-    }
-end, player)
+    local capFrame = 0
+    captureTest("Moving entities", Scenarios.Entities, function(): any
+        capFrame += 1
+        return {
+            position = Vector3.new(100.5 + capFrame * 0.1, 50.25, -200.75 + capFrame * 0.05),
+            velocity = Vector3.new(10.1, 0, -5.3),
+            health = 87.5,
+            shield = 42.0,
+            alive = true,
+            team = 2,
+        }
+    end, player)
 
-local captureRandom = Random.new(42)
-captureTest("Chaotic entities", Scenarios.Entities, function(): any
-    return {
-        position = Vector3.new(
-            captureRandom:NextNumber(-500, 500),
-            captureRandom:NextNumber(0, 200),
-            captureRandom:NextNumber(-500, 500)
-        ),
-        velocity = Vector3.new(
-            captureRandom:NextNumber(-50, 50),
-            captureRandom:NextNumber(-10, 10),
-            captureRandom:NextNumber(-50, 50)
-        ),
-        health = captureRandom:NextNumber(0, 100),
-        shield = captureRandom:NextNumber(0, 100),
-        alive = captureRandom:NextNumber(0, 1) > 0.5,
-        team = captureRandom:NextInteger(1, 4),
-    }
-end, player)
+    local captureRandom = Random.new(42)
+    captureTest("Chaotic entities", Scenarios.Entities, function(): any
+        return {
+            position = Vector3.new(
+                captureRandom:NextNumber(-500, 500),
+                captureRandom:NextNumber(0, 200),
+                captureRandom:NextNumber(-500, 500)
+            ),
+            velocity = Vector3.new(
+                captureRandom:NextNumber(-50, 50),
+                captureRandom:NextNumber(-10, 10),
+                captureRandom:NextNumber(-50, 50)
+            ),
+            health = captureRandom:NextNumber(0, 100),
+            shield = captureRandom:NextNumber(0, 100),
+            alive = captureRandom:NextNumber(0, 1) > 0.5,
+            team = captureRandom:NextInteger(1, 4),
+        }
+    end, player)
 
--- Blink tests skipped from capture: 1000 fires produce ~600KB frames
--- which exceed MAX_INCOMING (65536) on the client and break XOR chain.
-
-Lync.dumpCaptures()
-print("  [Capture saved to ServerStorage.LyncCapture]\n")
-
--- Full benchmarks
+    Lync.dumpCaptures()
+    print("  [Capture saved to ServerStorage.LyncCapture]\n")
+end
 runTest({
     name = "Static booleans",
     player = player,

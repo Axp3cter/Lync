@@ -2,21 +2,22 @@
 --!optimize 2
 -- Packet definition and send/listen API.
 
-local RunService = game:GetService ("RunService")
+local RunService = game:GetService("RunService")
 
-local Client = require (script.Parent.Parent.transport.Client)
-local Registry = require (script.Parent.Parent.internal.Registry)
-local Server = require (script.Parent.Parent.transport.Server)
-local Signal = require (script.Parent.Signal)
-local Types = require (script.Parent.Parent.Types)
+local Client = require(script.Parent.Parent.transport.Client)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Server = require(script.Parent.Parent.transport.Server)
+local Signal = require(script.Parent.Signal)
+local Types = require(script.Parent.Parent.Types)
 
 type Connection = Types.Connection
+type Codec<T> = Types.Codec<T>
 type InternalCodec<T> = Types.InternalCodec<T>
 type PacketConfig<T> = Types.PacketConfig<T>
 
--- Constants ----------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
-local IS_SERVER = RunService:IsServer ()
+local IS_SERVER = RunService:IsServer()
 
 local serverWriteTo = Server.writeTo
 local serverWriteToAll = Server.writeToAll
@@ -28,32 +29,44 @@ local clientWrite = Client.write
 local DELTA_TARGETED = 1
 local DELTA_BROADCAST = 2
 
--- Private ------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
--- Shared methods (both contexts)
+type PacketFields = {
+    _id: number,
+    _name: string,
+    _codec: Codec<any>,
+    _isUnreliable: boolean,
+    _isDelta: boolean,
+    _deltaMode: number,
+    _signal: Signal.Signal,
+}
+
+-- Shared methods(both contexts)
 local SharedImpl = {}
 
-function SharedImpl.listen (self: any, callback: (...any) -> ()): Connection
-    return self._signal:connect (callback)
+function SharedImpl.listen(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:connect(callback)
 end
 
-function SharedImpl.once (self: any, callback: (...any) -> ()): Connection
-    return self._signal:once (callback)
+function SharedImpl.once(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:once(callback)
 end
 
-function SharedImpl.wait (self: any): ...any
-    return self._signal:wait ()
+function SharedImpl.wait(self: Packet): ...any
+    return self._signal:wait()
 end
 
-function SharedImpl.disconnectAll (self: any): ()
-    self._signal:disconnectAll ()
+function SharedImpl.disconnectAll(self: Packet): ()
+    self._signal:disconnectAll()
 end
 
 -- Server-only metatable. Single send() dispatches on target type.
-local ServerImpl = setmetatable ({}, { __index = SharedImpl })
+local ServerImpl = setmetatable({}, { __index = SharedImpl })
 ServerImpl.__index = ServerImpl
 
-local function checkDeltaMode (self: any, mode: number): ()
+export type Packet = typeof(setmetatable({} :: PacketFields, ServerImpl))
+
+local function checkDeltaMode(self: Packet, mode: number): ()
     if not self._isDelta then
         return
     end
@@ -61,13 +74,13 @@ local function checkDeltaMode (self: any, mode: number): ()
     if current == 0 then
         self._deltaMode = mode
     elseif current ~= mode then
-        error (`[Lync] Delta packet cannot mix targeted and broadcast: "{self._name}"`)
+        error(`[Lync] Delta packet cannot mix targeted and broadcast: "{self._name}"`)
     end
 end
 
-function ServerImpl.send (self: any, data: any, target: any?): ()
+function ServerImpl.send(self: Packet, data: any, target: any?): ()
     if target == nil then
-        error ("[Lync] Server packet:send requires a target")
+        error("[Lync] Server packet:send requires a target")
     end
 
     local id = self._id
@@ -76,9 +89,9 @@ function ServerImpl.send (self: any, data: any, target: any?): ()
     local isUnreliable = self._isUnreliable
 
     -- Single player
-    if typeof (target) == "Instance" then
-        checkDeltaMode (self, DELTA_TARGETED)
-        serverWriteTo (target :: Player, id, name, codec, data, isUnreliable)
+    if typeof(target) == "Instance" then
+        checkDeltaMode(self, DELTA_TARGETED)
+        serverWriteTo(target :: Player, id, name, codec, data, isUnreliable)
         return
     end
 
@@ -87,63 +100,63 @@ function ServerImpl.send (self: any, data: any, target: any?): ()
 
     -- Lync.all sentinel
     if tag == "all" then
-        checkDeltaMode (self, DELTA_BROADCAST)
-        serverWriteToAll (id, name, codec, data, isUnreliable)
+        checkDeltaMode(self, DELTA_BROADCAST)
+        serverWriteToAll(id, name, codec, data, isUnreliable)
         return
     end
 
     -- Lync.except(player, ...) descriptor
     if tag == "except" then
-        checkDeltaMode (self, DELTA_BROADCAST)
-        serverWriteToAllExcept (target._set, id, name, codec, data, isUnreliable)
+        checkDeltaMode(self, DELTA_BROADCAST)
+        serverWriteToAllExcept(target._set, id, name, codec, data, isUnreliable)
         return
     end
 
     -- Group object
     if tag == "group" then
-        checkDeltaMode (self, DELTA_BROADCAST)
-        serverWriteToSet (target:getSet (), id, name, codec, data, isUnreliable)
+        checkDeltaMode(self, DELTA_BROADCAST)
+        serverWriteToSet(target:getSet(), id, name, codec, data, isUnreliable)
         return
     end
 
-    -- Player list (array)
-    checkDeltaMode (self, DELTA_TARGETED)
-    serverWriteToList (target :: { Player }, id, name, codec, data, isUnreliable)
+    -- Player list(array)
+    checkDeltaMode(self, DELTA_TARGETED)
+    serverWriteToList(target :: { Player }, id, name, codec, data, isUnreliable)
 end
 
-table.freeze (ServerImpl)
+table.freeze(ServerImpl)
 
 -- Client-only metatable. Has send(), no target needed.
-local ClientImpl = setmetatable ({}, { __index = SharedImpl })
+local ClientImpl = setmetatable({}, { __index = SharedImpl })
 ClientImpl.__index = ClientImpl
 
-function ClientImpl.send (self: any, data: any): ()
-    clientWrite (self._id, self._name, self._codec, data, self._isUnreliable)
+function ClientImpl.send(self: Packet, data: any): ()
+    clientWrite(self._id, self._name, self._codec, data, self._isUnreliable)
 end
 
-table.freeze (ClientImpl)
+table.freeze(ClientImpl)
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local Packet = {}
+local PacketModule = {}
 
-function Packet.define (name: string, config: PacketConfig<any>): any
+function PacketModule.define(name: string, config: PacketConfig<any>): Packet
     if #name == 0 then
-        error ("[Lync] Packet name must not be empty")
+        error("[Lync] Packet name must not be empty")
     end
     if not config.value then
-        error (`[Lync] Packet requires a value codec: "{name}"`)
+        error(`[Lync] Packet requires a value codec: "{name}"`)
     end
 
     local isUnreliable = config.unreliable or false
 
     if (config.value :: InternalCodec<any>)._isDelta and isUnreliable then
-        error (`[Lync] Delta codec requires reliable delivery: "{name}"`)
+        error(`[Lync] Delta codec requires reliable delivery: "{name}"`)
     end
 
-    local signal = Signal.create ()
+    local signal = Signal.create()
 
-    local reg = Registry.register (
+    local reg = Registry.register(
         name,
         config.value,
         isUnreliable,
@@ -155,7 +168,7 @@ function Packet.define (name: string, config: PacketConfig<any>): any
 
     local isDelta = (config.value :: InternalCodec<any>)._isDelta == true
 
-    return setmetatable ({
+    local fields: PacketFields = {
         _id = reg.id,
         _name = reg.name,
         _codec = reg.codec,
@@ -163,7 +176,12 @@ function Packet.define (name: string, config: PacketConfig<any>): any
         _isDelta = isDelta,
         _deltaMode = 0,
         _signal = signal,
-    }, if IS_SERVER then ServerImpl else ClientImpl)
+    }
+
+    if IS_SERVER then
+        return setmetatable(fields, ServerImpl)
+    end
+    return setmetatable(fields, ClientImpl) :: Packet
 end
 
-return table.freeze (Packet)
+return table.freeze(PacketModule)

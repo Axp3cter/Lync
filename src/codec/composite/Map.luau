@@ -2,11 +2,11 @@
 --!native
 -- map and deltaMap codecs.
 
-local Baseline = require (script.Parent.Parent.Parent.internal.Baseline)
-local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local Shared = require (script.Parent.Shared)
-local Types = require (script.Parent.Parent.Parent.Types)
-local Varint = require (script.Parent.Parent.primitive.Varint)
+local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local Shared = require(script.Parent.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
@@ -21,11 +21,11 @@ local FLAG_DELTA = Shared.FLAG_DELTA
 local FLAG_FULL = Shared.FLAG_FULL
 local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Map = {}
 
-function Map.map (
+function Map.map(
     keyCodec: Codec<any>,
     valueCodec: Codec<any>,
     maxCount: number?
@@ -43,48 +43,48 @@ function Map.map (
     if keySize and valSize and keyDWrite and valDWrite and keyDRead and valDRead then
         local entrySize = keySize + valSize
 
-        return table.freeze ({
-            write = function (ch: ChannelState, value: { [any]: any }): ()
+        return table.freeze({
+            write = function(ch: ChannelState, value: { [any]: any }): ()
                 local count = 0
                 for _ in value do
                     count += 1
                 end
 
-                Varint.write (ch, count)
+                Varint.write(ch, count)
 
                 if count > 0 then
                     local totalBytes = count * entrySize
                     local c = ch.cursor
                     if c + totalBytes > ch.size then
-                        alloc (ch, totalBytes)
+                        alloc(ch, totalBytes)
                     end
 
                     local b = ch.buff
                     for k, v in value do
-                        keyDWrite (b, c, k)
-                        valDWrite (b, c + keySize, v)
+                        keyDWrite(b, c, k)
+                        valDWrite(b, c + keySize, v)
                         c += entrySize
                     end
                     ch.cursor = c
                 end
             end,
-            read = function (
+            read = function(
                 src: buffer,
                 pos: number,
                 _refs: { Instance }?
             ): ({ [any]: any }, number)
-                local count, lenBytes = Varint.read (src, pos)
+                local count, lenBytes = Varint.read(src, pos)
 
                 if maxCount and count > maxCount then
-                    error (`[Lync] Map count {count} exceeds max {maxCount}`)
+                    error(`[Lync] Map count {count} exceeds max {maxCount}`)
                 end
 
                 local result = {}
                 local c = pos + lenBytes
 
                 for _ = 1, count do
-                    local k = keyDRead (src, c)
-                    local v = valDRead (src, c + keySize)
+                    local k = keyDRead(src, c)
+                    local v = valDRead(src, c + keySize)
                     result[k] = v
                     c += entrySize
                 end
@@ -99,34 +99,34 @@ function Map.map (
     local readKey = keyCodec.read
     local readVal = valueCodec.read
 
-    return table.freeze ({
-        write = function (ch: ChannelState, value: { [any]: any }): ()
+    return table.freeze({
+        write = function(ch: ChannelState, value: { [any]: any }): ()
             local count = 0
             for _ in value do
                 count += 1
             end
 
-            Varint.write (ch, count)
+            Varint.write(ch, count)
 
             for k, v in value do
-                writeKey (ch, k)
-                writeVal (ch, v)
+                writeKey(ch, k)
+                writeVal(ch, v)
             end
         end,
-        read = function (src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
-            local count, lenBytes = Varint.read (src, pos)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
+            local count, lenBytes = Varint.read(src, pos)
 
             if maxCount and count > maxCount then
-                error (`[Lync] Map count {count} exceeds max {maxCount}`)
+                error(`[Lync] Map count {count} exceeds max {maxCount}`)
             end
 
             local result = {}
             local absPos = pos + lenBytes
 
             for _ = 1, count do
-                local k, kn = readKey (src, absPos, refs)
+                local k, kn = readKey(src, absPos, refs)
                 absPos += kn
-                local v, vn = readVal (src, absPos, refs)
+                local v, vn = readVal(src, absPos, refs)
                 absPos += vn
                 result[k] = v
             end
@@ -144,12 +144,12 @@ end
       FLAG_UNCHANGED: u8(2)
       FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
 ]]
-function Map.deltaMap (
+function Map.deltaMap(
     keyCodec: Codec<any>,
     valueCodec: Codec<any>,
     maxCount: number?
 ): Codec<{ [any]: any }>
-    local deltaId = Shared.allocDeltaId ()
+    local deltaId = Shared.allocDeltaId()
 
     local writeKey = keyCodec.write
     local writeVal = valueCodec.write
@@ -183,11 +183,11 @@ function Map.deltaMap (
         count: number,
     }
 
-    return table.freeze ({
+    return table.freeze({
         _isDelta = true,
 
-        write = function (ch: ChannelState, value: { [any]: any }): ()
-            local scratch = acquireScratch ()
+        write = function(ch: ChannelState, value: { [any]: any }): ()
+            local scratch = acquireScratch()
 
             local entries = {} :: { EntryBounds }
             local keyLookup = {} :: { [string]: number }
@@ -197,10 +197,10 @@ function Map.deltaMap (
                 for k, v in value do
                     entryCount += 1
                     local c = scratch.cursor
-                    alloc (scratch, entrySize :: number)
+                    alloc(scratch, entrySize :: number)
                     local b = scratch.buff
-                    keyDWrite (b, c, k)
-                    valDWrite (b, c + (keySize :: number), v)
+                    keyDWrite(b, c, k)
+                    valDWrite(b, c + (keySize :: number), v)
                     scratch.cursor = c + (entrySize :: number)
 
                     entries[entryCount] = {
@@ -210,16 +210,16 @@ function Map.deltaMap (
                         valLen = valSize :: number,
                     }
 
-                    local keyId = buffer.readstring (b, c, keySize :: number)
+                    local keyId = buffer.readstring(b, c, keySize :: number)
                     keyLookup[keyId] = entryCount
                 end
             else
                 for k, v in value do
                     entryCount += 1
                     local keyStart = scratch.cursor
-                    writeKey (scratch, k)
+                    writeKey(scratch, k)
                     local keyEnd = scratch.cursor
-                    writeVal (scratch, v)
+                    writeVal(scratch, v)
                     local valEnd = scratch.cursor
 
                     entries[entryCount] = {
@@ -229,7 +229,7 @@ function Map.deltaMap (
                         valLen = valEnd - keyEnd,
                     }
 
-                    local keyId = buffer.readstring (scratch.buff, keyStart, keyEnd - keyStart)
+                    local keyId = buffer.readstring(scratch.buff, keyStart, keyEnd - keyStart)
                     keyLookup[keyId] = entryCount
                 end
             end
@@ -238,14 +238,14 @@ function Map.deltaMap (
             local cache = ch.deltas[deltaId] :: DeltaMapCache?
 
             if not cache then
-                alloc (ch, 1)
-                buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
+                alloc(ch, 1)
+                buffer.writeu8(ch.buff, ch.cursor, FLAG_FULL)
                 ch.cursor += 1
-                Varint.write (ch, entryCount)
+                Varint.write(ch, entryCount)
 
                 if scratchTotal > 0 then
-                    alloc (ch, scratchTotal)
-                    buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
+                    alloc(ch, scratchTotal)
+                    buffer.copy(ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                     ch.cursor += scratchTotal
                 end
             else
@@ -266,7 +266,7 @@ function Map.deltaMap (
                         local oldE = cacheEntries[oldIdx]
                         if
                             newE.valLen ~= oldE.valLen
-                            or not rangeEqual (
+                            or not rangeEqual(
                                 scratch.buff,
                                 newE.valOff,
                                 cacheRaw,
@@ -291,40 +291,40 @@ function Map.deltaMap (
                 end
 
                 if upsertN == 0 and removeN == 0 then
-                    alloc (ch, 1)
-                    buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
+                    alloc(ch, 1)
+                    buffer.writeu8(ch.buff, ch.cursor, FLAG_UNCHANGED)
                     ch.cursor += 1
-                    releaseScratch ()
+                    releaseScratch()
                     return
                 end
 
-                alloc (ch, 1)
-                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                alloc(ch, 1)
+                buffer.writeu8(ch.buff, ch.cursor, FLAG_DELTA)
                 ch.cursor += 1
 
-                Varint.write (ch, upsertN)
+                Varint.write(ch, upsertN)
                 for i = 1, upsertN do
                     local e = entries[upsertKeys[i]]
                     local totalLen = e.keyLen + e.valLen
-                    alloc (ch, totalLen)
-                    buffer.copy (ch.buff, ch.cursor, scratch.buff, e.keyOff, totalLen)
+                    alloc(ch, totalLen)
+                    buffer.copy(ch.buff, ch.cursor, scratch.buff, e.keyOff, totalLen)
                     ch.cursor += totalLen
                 end
 
-                Varint.write (ch, removeN)
+                Varint.write(ch, removeN)
                 for i = 1, removeN do
                     local keyId = removeKeyIds[i]
                     local oldIdx = cacheLookup[keyId]
                     local oldE = cacheEntries[oldIdx]
-                    alloc (ch, oldE.keyLen)
-                    buffer.copy (ch.buff, ch.cursor, cacheRaw, oldE.keyOff, oldE.keyLen)
+                    alloc(ch, oldE.keyLen)
+                    buffer.copy(ch.buff, ch.cursor, cacheRaw, oldE.keyOff, oldE.keyLen)
                     ch.cursor += oldE.keyLen
                 end
             end
 
-            local rawBuf = buffer.create (scratchTotal)
+            local rawBuf = buffer.create(scratchTotal)
             if scratchTotal > 0 then
-                buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
+                buffer.copy(rawBuf, 0, scratch.buff, 0, scratchTotal)
             end
 
             ch.deltas[deltaId] = {
@@ -334,76 +334,76 @@ function Map.deltaMap (
                 count = entryCount,
             }
 
-            releaseScratch ()
+            releaseScratch()
         end,
 
-        read = function (src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
-            local flag = buffer.readu8 (src, pos)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
+            local flag = buffer.readu8(src, pos)
             local absPos = pos + 1
 
             if flag == FLAG_UNCHANGED then
-                local cache = Baseline.getCache (deltaId)
-                return if cache then table.clone (cache) else {}, 1
+                local cache = Baseline.getCache(deltaId)
+                return if cache then table.clone(cache) else {}, 1
             end
 
             if flag == FLAG_FULL then
-                local count, lenBytes = Varint.read (src, absPos)
+                local count, lenBytes = Varint.read(src, absPos)
                 absPos += lenBytes
 
                 if maxCount and count > maxCount then
-                    error (`[Lync] Map count {count} exceeds max {maxCount}`)
+                    error(`[Lync] Map count {count} exceeds max {maxCount}`)
                 end
 
                 local result = {}
 
                 if keyDRead and valDRead and keySize and valSize then
                     for _ = 1, count do
-                        local k = keyDRead (src, absPos)
-                        local v = valDRead (src, absPos + keySize)
+                        local k = keyDRead(src, absPos)
+                        local v = valDRead(src, absPos + keySize)
                         result[k] = v
                         absPos += entrySize :: number
                     end
                 else
                     for _ = 1, count do
-                        local k, kn = readKey (src, absPos, refs)
+                        local k, kn = readKey(src, absPos, refs)
                         absPos += kn
-                        local v, vn = readVal (src, absPos, refs)
+                        local v, vn = readVal(src, absPos, refs)
                         absPos += vn
                         result[k] = v
                     end
                 end
 
-                Baseline.setCache (deltaId, result)
+                Baseline.setCache(deltaId, result)
                 return result, absPos - pos
             end
 
-            local cache = Baseline.getCache (deltaId) :: { [any]: any }?
-            local result = if cache then table.clone (cache) else {}
+            local cache = Baseline.getCache(deltaId) :: { [any]: any }?
+            local result = if cache then table.clone(cache) else {}
 
-            local upsertN, unBytes = Varint.read (src, absPos)
+            local upsertN, unBytes = Varint.read(src, absPos)
             absPos += unBytes
 
             for _ = 1, upsertN do
-                local k, kn = readKey (src, absPos, refs)
+                local k, kn = readKey(src, absPos, refs)
                 absPos += kn
-                local v, vn = readVal (src, absPos, refs)
+                local v, vn = readVal(src, absPos, refs)
                 absPos += vn
                 result[k] = v
             end
 
-            local removeN, rmBytes = Varint.read (src, absPos)
+            local removeN, rmBytes = Varint.read(src, absPos)
             absPos += rmBytes
 
             for _ = 1, removeN do
-                local k, kn = readKey (src, absPos, refs)
+                local k, kn = readKey(src, absPos, refs)
                 absPos += kn
                 result[k] = nil
             end
 
-            Baseline.setCache (deltaId, result)
+            Baseline.setCache(deltaId, result)
             return result, absPos - pos
         end,
     })
 end
 
-return table.freeze (Map)
+return table.freeze(Map)

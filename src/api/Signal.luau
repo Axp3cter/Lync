@@ -2,48 +2,64 @@
 --!optimize 2
 -- O(1) disconnect listener system with thread reuse.
 
-local Types = require (script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
 type Connection = Types.Connection
 
--- Constants ----------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 local STATE_DISCONNECTED = 0
 local STATE_CONNECTED = 1
 local STATE_ONCE = 2
 
--- Private ------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
 local _freeThread: thread? = nil
 
-local function passer (fn: (...any) -> (), ...: any): ()
+local function passer(fn: (...any) -> (), ...: any): ()
     local acquired = _freeThread
     _freeThread = nil
-    fn (...)
+    fn(...)
     _freeThread = acquired
 end
 
-local function yielder (): ()
+local function yielder(): ()
     while true do
-        passer (coroutine.yield ())
+        passer(coroutine.yield())
     end
 end
 
-local function spawn (fn: (...any) -> (), ...: any): ()
+local function spawn(fn: (...any) -> (), ...: any): ()
     if not _freeThread then
-        _freeThread = coroutine.create (yielder)
-        coroutine.resume (_freeThread :: thread)
+        _freeThread = coroutine.create(yielder)
+        coroutine.resume(_freeThread :: thread)
     end
-    task.spawn (_freeThread :: thread, fn, ...)
+    task.spawn(_freeThread :: thread, fn, ...)
 end
 
--- Entry doubles as the Connection handle: 1 alloc per listener instead of 2.
--- self: any — metatable typing via typeof(setmetatable) is not practical here
--- because Entry and Signal reference each other circularly.
+-- Mutually recursive field types for Entry and Signal.
+-- Entry._signal references the signal's fields; Signal._entries holds entries.
+-- Luau resolves the cycle at type-check time.
+type EntryFields = {
+    fn: (...any) -> (),
+    _state: number,
+    connected: boolean,
+    _signal: SignalFields,
+    _index: number,
+}
+
+type SignalFields = {
+    _entries: { EntryFields },
+    _count: number,
+    _snapshot: { EntryFields },
+}
+
 local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 
-function EntryImpl.disconnect (self: any): ()
+type EntrySelf = typeof(setmetatable({} :: EntryFields, EntryImpl))
+
+function EntryImpl.disconnect(self: EntrySelf): ()
     if self._state == STATE_DISCONNECTED then
         return
     end
@@ -65,51 +81,53 @@ function EntryImpl.disconnect (self: any): ()
         last._index = index
     end
 
-    entries[count] = nil
+    entries[count] = nil :: any
     self._signal._count = count - 1
 end
 
 local SignalImpl = {}
 SignalImpl.__index = SignalImpl
 
-local function addEntry (self: any, callback: (...any) -> (), isOnce: boolean): Connection
+export type Signal = typeof(setmetatable({} :: SignalFields, SignalImpl))
+
+local function addEntry(self: Signal, callback: (...any) -> (), isOnce: boolean): Connection
     local count = self._count + 1
     self._count = count
 
-    local entry = setmetatable ({
+    local entry = setmetatable({
         fn = callback,
         _state = if isOnce then STATE_ONCE else STATE_CONNECTED,
         connected = true,
-        _signal = self,
+        _signal = self :: any,
         _index = count,
     }, EntryImpl)
 
-    self._entries[count] = entry
+    self._entries[count] = entry :: any
     return entry :: any
 end
 
-function SignalImpl.connect (self: any, callback: (...any) -> ()): Connection
-    return addEntry (self, callback, false)
+function SignalImpl.connect(self: Signal, callback: (...any) -> ()): Connection
+    return addEntry(self, callback, false)
 end
 
-function SignalImpl.once (self: any, callback: (...any) -> ()): Connection
-    return addEntry (self, callback, true)
+function SignalImpl.once(self: Signal, callback: (...any) -> ()): Connection
+    return addEntry(self, callback, true)
 end
 
-function SignalImpl.wait (self: any): ...any
-    local thread = coroutine.running ()
+function SignalImpl.wait(self: Signal): ...any
+    local thread = coroutine.running()
     local entry: any
 
-    entry = addEntry (self, function (...: any): ()
-        entry:disconnect ()
-        task.spawn (thread, ...)
+    entry = addEntry(self, function(...: any): ()
+        entry:disconnect()
+        task.spawn(thread, ...)
     end, true)
 
-    return coroutine.yield ()
+    return coroutine.yield()
 end
 
--- Dispatches to all listeners via task.spawn (safe for yielding handlers).
-function SignalImpl.fire (self: any, ...: any): ()
+-- Dispatches to all listeners via task.spawn(safe for yielding handlers).
+function SignalImpl.fire(self: Signal, ...: any): ()
     local entries = self._entries
     local count = self._count
     if count == 0 then
@@ -123,41 +141,41 @@ function SignalImpl.fire (self: any, ...: any): ()
             return
         end
 
-        spawn (entry.fn, ...)
+        spawn(entry.fn, ...)
 
         if state == STATE_ONCE then
-            entry:disconnect ()
+            (entry :: any):disconnect()
         end
         return
     end
 
     local snapshot = self._snapshot
-    table.move (entries, 1, count, 1, snapshot)
+    table.move(entries, 1, count, 1, snapshot)
 
     local tail = count + 1
     if snapshot[tail] ~= nil then
-        snapshot[tail] = nil
+        snapshot[tail] = nil :: any
     end
 
     for i = 1, count do
         local entry = snapshot[i]
-        snapshot[i] = nil
+        snapshot[i] = nil :: any
 
         local state = entry._state
         if state == STATE_DISCONNECTED then
             continue
         end
 
-        spawn (entry.fn, ...)
+        spawn(entry.fn, ...)
 
         if state == STATE_ONCE then
-            entry:disconnect ()
+            (entry :: any):disconnect()
         end
     end
 end
 
 -- Synchronous dispatch. Only safe when all listeners are non-yielding.
-function SignalImpl.fireSync (self: any, ...: any): ()
+function SignalImpl.fireSync(self: Signal, ...: any): ()
     local entries = self._entries
     local count = self._count
     if count == 0 then
@@ -171,60 +189,64 @@ function SignalImpl.fireSync (self: any, ...: any): ()
             return
         end
 
-        entry.fn (...)
+        entry.fn(...)
 
         if state == STATE_ONCE then
-            entry:disconnect ()
+            (entry :: any):disconnect()
         end
         return
     end
 
     local snapshot = self._snapshot
-    table.move (entries, 1, count, 1, snapshot)
+    table.move(entries, 1, count, 1, snapshot)
 
     local tail = count + 1
     if snapshot[tail] ~= nil then
-        snapshot[tail] = nil
+        snapshot[tail] = nil :: any
     end
 
     for i = 1, count do
         local entry = snapshot[i]
-        snapshot[i] = nil
+        snapshot[i] = nil :: any
 
         local state = entry._state
         if state == STATE_DISCONNECTED then
             continue
         end
 
-        entry.fn (...)
+        entry.fn(...)
 
         if state == STATE_ONCE then
-            entry:disconnect ()
+            (entry :: any):disconnect()
         end
     end
 end
 
-function SignalImpl.disconnectAll (self: any): ()
+function SignalImpl.disconnectAll(self: Signal): ()
     local entries = self._entries
 
     for i = 1, self._count do
         entries[i]._state = STATE_DISCONNECTED
         entries[i].connected = false
-        entries[i] = nil
+        entries[i] = nil :: any
     end
 
     self._count = 0
 end
 
-table.freeze (EntryImpl)
-table.freeze (SignalImpl)
+table.freeze(EntryImpl)
+table.freeze(SignalImpl)
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local Signal = {}
+local SignalModule = {}
 
-function Signal.create (): any
-    return setmetatable ({ _entries = {}, _count = 0, _snapshot = {} }, SignalImpl)
+function SignalModule.create(): Signal
+    return setmetatable({
+        _entries = {} :: { EntryFields },
+        _count = 0,
+        _snapshot = {} :: { EntryFields },
+    }, SignalImpl)
 end
 
-return table.freeze (Signal)
+return table.freeze(SignalModule)

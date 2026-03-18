@@ -2,17 +2,17 @@
 --!optimize 2
 -- Named player sets with auto-cleanup on PlayerRemoving.
 
-local Players = game:GetService ("Players")
+local Players = game:GetService("Players")
 
--- State --------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 local _groups = {} :: { [string]: { [Player]: true } }
 local _counts = {} :: { [string]: number }
 local _playerGroups = {} :: { [Player]: { [string]: true } }
 
--- Private ------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
-local function onPlayerRemoving (player: Player): ()
+local function onPlayerRemoving(player: Player): ()
     local memberships = _playerGroups[player]
     if not memberships then
         return
@@ -29,16 +29,23 @@ local function onPlayerRemoving (player: Player): ()
     _playerGroups[player] = nil
 end
 
-Players.PlayerRemoving:Connect (onPlayerRemoving)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+type GroupFields = {
+    _tag: "group",
+    _name: string,
+}
 
 local GroupImpl = {}
 GroupImpl.__index = GroupImpl
 
-function GroupImpl.add (self: any, player: Player): boolean
+export type Group = typeof(setmetatable({} :: GroupFields, GroupImpl))
+
+function GroupImpl.add(self: Group, player: Player): boolean
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
 
     if set[player] then
@@ -58,11 +65,11 @@ function GroupImpl.add (self: any, player: Player): boolean
     return true
 end
 
-function GroupImpl.remove (self: any, player: Player): boolean
+function GroupImpl.remove(self: Group, player: Player): boolean
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
 
     if not set[player] then
@@ -80,48 +87,48 @@ function GroupImpl.remove (self: any, player: Player): boolean
     return true
 end
 
-function GroupImpl.has (self: any, player: Player): boolean
+function GroupImpl.has(self: Group, player: Player): boolean
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
     return set[player] == true
 end
 
-function GroupImpl.count (self: any): number
+function GroupImpl.count(self: Group): number
     local name = self._name
     if not _groups[name] then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
     return _counts[name]
 end
 
-function GroupImpl.forEach (self: any, fn: (player: Player) -> ()): ()
+function GroupImpl.forEach(self: Group, fn: (player: Player) -> ()): ()
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
     for player in set do
-        fn (player)
+        fn(player)
     end
 end
 
-function GroupImpl.getSet (self: any): { [Player]: true }
+function GroupImpl.getSet(self: Group): { [Player]: true }
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
     return set
 end
 
-function GroupImpl.destroy (self: any): ()
+function GroupImpl.destroy(self: Group): ()
     local name = self._name
     local set = _groups[name]
     if not set then
-        error (`[Lync] Group has been destroyed: "{name}"`)
+        error(`[Lync] Group has been destroyed: "{name}"`)
     end
 
     for player in set do
@@ -135,23 +142,23 @@ function GroupImpl.destroy (self: any): ()
     _counts[name] = nil
 end
 
-table.freeze (GroupImpl)
+table.freeze(GroupImpl)
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local Group = {}
+local GroupModule = {}
 
-function Group.create (name: string): any
+function GroupModule.create(name: string): Group
     if _groups[name] then
-        error (`[Lync] Group already exists: "{name}"`)
+        error(`[Lync] Group already exists: "{name}"`)
     end
     _groups[name] = {}
     _counts[name] = 0
 
-    return setmetatable ({
-        _tag = "group",
+    return setmetatable({
+        _tag = "group" :: "group",
         _name = name,
     }, GroupImpl)
 end
 
-return table.freeze (Group)
+return table.freeze(GroupModule)

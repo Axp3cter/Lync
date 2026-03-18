@@ -2,8 +2,8 @@
 --!native
 -- Discriminated union codec. u8 variant tag + variant payload.
 
-local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local Types = require (script.Parent.Parent.Parent.Types)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
@@ -11,42 +11,42 @@ type InternalCodec<T> = Types.InternalCodec<T>
 
 local alloc = Channel.alloc
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Tagged = {}
 
 -- Read injects tagField into the decoded table. Variant codecs must return mutable tables.
-function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): Codec<any>
+function Tagged.define(tagField: string, variants: { [string]: Codec<any> }): Codec<any>
     if #tagField == 0 then
-        error ("[Lync] Tagged union tagField must not be empty")
+        error("[Lync] Tagged union tagField must not be empty")
     end
 
     local names = {} :: { string }
     for name in variants do
         if #name == 0 then
-            error ("[Lync] Tagged union variant name must not be empty")
+            error("[Lync] Tagged union variant name must not be empty")
         end
-        table.insert (names, name)
+        table.insert(names, name)
     end
-    table.sort (names)
+    table.sort(names)
 
     local count = #names
     if count == 0 then
-        error ("[Lync] Tagged union requires at least one variant")
+        error("[Lync] Tagged union requires at least one variant")
     end
     if count > 256 then
-        error (`[Lync] Tagged union exceeds 256 variants: {count}`)
+        error(`[Lync] Tagged union exceeds 256 variants: {count}`)
     end
 
     local nameToTag = {} :: { [string]: number }
-    local tagCodecs = table.create (count) :: { Codec<any> }
-    local tagNames = table.create (count) :: { string }
-    local tagSizes = table.create (count) :: { number? }
+    local tagCodecs = table.create(count) :: { Codec<any> }
+    local tagNames = table.create(count) :: { string }
+    local tagSizes = table.create(count) :: { number? }
 
     local allDirect = true
     local uniformSize: number? = (variants[names[1]] :: InternalCodec<any>)._size
-    local directWrites = table.create (count) :: { any }
-    local directReads = table.create (count) :: { any }
+    local directWrites = table.create(count) :: { any }
+    local directReads = table.create(count) :: { any }
 
     for i, name in names do
         local codec = variants[name] :: InternalCodec<any>
@@ -71,63 +71,63 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
         end
     end
 
-    table.freeze (nameToTag)
-    table.freeze (tagCodecs)
-    table.freeze (tagNames)
-    table.freeze (tagSizes)
+    table.freeze(nameToTag)
+    table.freeze(tagCodecs)
+    table.freeze(tagNames)
+    table.freeze(tagSizes)
 
     local fixedSize: number? = if uniformSize then 1 + uniformSize else nil
 
     if allDirect then
-        table.freeze (directWrites)
-        table.freeze (directReads)
+        table.freeze(directWrites)
+        table.freeze(directReads)
 
         -- If uniform size, expose _directWrite/_directRead for parent struct/array
         if fixedSize then
-            return table.freeze ({
+            return table.freeze({
                 _size = fixedSize,
-                _directWrite = function (b: buffer, offset: number, value: any): ()
+                _directWrite = function(b: buffer, offset: number, value: any): ()
                     local tag = nameToTag[value[tagField]]
                     if not tag then
-                        error (`[Lync] Unknown variant: {value[tagField]}`)
+                        error(`[Lync] Unknown variant: {value[tagField]}`)
                     end
-                    buffer.writeu8 (b, offset, tag - 1)
-                    directWrites[tag] (b, offset + 1, value)
+                    buffer.writeu8(b, offset, tag - 1)
+                    directWrites[tag](b, offset + 1, value)
                 end,
-                _directRead = function (b: buffer, offset: number): any
-                    local tag = buffer.readu8 (b, offset) + 1
+                _directRead = function(b: buffer, offset: number): any
+                    local tag = buffer.readu8(b, offset) + 1
                     local name = tagNames[tag]
                     if not name then
-                        error (`[Lync] Unknown variant index: {tag - 1}`)
+                        error(`[Lync] Unknown variant index: {tag - 1}`)
                     end
-                    local data = directReads[tag] (b, offset + 1)
-                    if type (data) == "table" then
+                    local data = directReads[tag](b, offset + 1)
+                    if type(data) == "table" then
                         data[tagField] = name
                     end
                     return data
                 end,
-                write = function (ch: ChannelState, value: any): ()
+                write = function(ch: ChannelState, value: any): ()
                     local tag = nameToTag[value[tagField]]
                     if not tag then
-                        error (`[Lync] Unknown variant: {value[tagField]}`)
+                        error(`[Lync] Unknown variant: {value[tagField]}`)
                     end
                     local c = ch.cursor
                     if c + (fixedSize :: number) > ch.size then
-                        alloc (ch, fixedSize :: number)
+                        alloc(ch, fixedSize :: number)
                     end
                     local b = ch.buff
-                    buffer.writeu8 (b, c, tag - 1)
-                    directWrites[tag] (b, c + 1, value)
+                    buffer.writeu8(b, c, tag - 1)
+                    directWrites[tag](b, c + 1, value)
                     ch.cursor = c + (fixedSize :: number)
                 end,
-                read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
-                    local tag = buffer.readu8 (src, pos) + 1
+                read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
+                    local tag = buffer.readu8(src, pos) + 1
                     local name = tagNames[tag]
                     if not name then
-                        error (`[Lync] Unknown variant index: {tag - 1}`)
+                        error(`[Lync] Unknown variant index: {tag - 1}`)
                     end
-                    local data = directReads[tag] (src, pos + 1)
-                    if type (data) == "table" then
+                    local data = directReads[tag](src, pos + 1)
+                    if type(data) == "table" then
                         data[tagField] = name
                     end
                     return data, fixedSize :: number
@@ -136,35 +136,35 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
         end
 
         -- Non-uniform sizes but all have direct: use direct dispatch internally
-        local fieldSizes = table.clone (tagSizes) :: { number }
-        table.freeze (fieldSizes)
+        local fieldSizes = table.clone(tagSizes) :: { number }
+        table.freeze(fieldSizes)
 
-        return table.freeze ({
+        return table.freeze({
             _size = nil,
-            write = function (ch: ChannelState, value: any): ()
+            write = function(ch: ChannelState, value: any): ()
                 local tag = nameToTag[value[tagField]]
                 if not tag then
-                    error (`[Lync] Unknown variant: {value[tagField]}`)
+                    error(`[Lync] Unknown variant: {value[tagField]}`)
                 end
                 local varSize = fieldSizes[tag]
                 local totalNeeded = 1 + varSize
                 local c = ch.cursor
                 if c + totalNeeded > ch.size then
-                    alloc (ch, totalNeeded)
+                    alloc(ch, totalNeeded)
                 end
                 local b = ch.buff
-                buffer.writeu8 (b, c, tag - 1)
-                directWrites[tag] (b, c + 1, value)
+                buffer.writeu8(b, c, tag - 1)
+                directWrites[tag](b, c + 1, value)
                 ch.cursor = c + totalNeeded
             end,
-            read = function (src: buffer, pos: number, _refs: { Instance }?): (any, number)
-                local tag = buffer.readu8 (src, pos) + 1
+            read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
+                local tag = buffer.readu8(src, pos) + 1
                 local name = tagNames[tag]
                 if not name then
-                    error (`[Lync] Unknown variant index: {tag - 1}`)
+                    error(`[Lync] Unknown variant index: {tag - 1}`)
                 end
-                local data = directReads[tag] (src, pos + 1)
-                if type (data) == "table" then
+                local data = directReads[tag](src, pos + 1)
+                if type(data) == "table" then
                     data[tagField] = name
                 end
                 return data, 1 + fieldSizes[tag]
@@ -172,45 +172,45 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
         })
     end
 
-    local writeFns = table.create (count) :: { any }
-    local readFns = table.create (count) :: { any }
+    local writeFns = table.create(count) :: { any }
+    local readFns = table.create(count) :: { any }
     for i = 1, count do
         writeFns[i] = tagCodecs[i].write
         readFns[i] = tagCodecs[i].read
     end
-    table.freeze (writeFns)
-    table.freeze (readFns)
+    table.freeze(writeFns)
+    table.freeze(readFns)
 
-    return table.freeze ({
+    return table.freeze({
         _size = fixedSize,
-        write = function (ch: ChannelState, value: any): ()
+        write = function(ch: ChannelState, value: any): ()
             local tag = nameToTag[value[tagField]]
             if not tag then
-                error (`[Lync] Unknown variant: {value[tagField]}`)
+                error(`[Lync] Unknown variant: {value[tagField]}`)
             end
 
             local variantSize = tagSizes[tag]
             if variantSize then
-                alloc (ch, 1 + variantSize)
+                alloc(ch, 1 + variantSize)
             else
-                alloc (ch, 1)
+                alloc(ch, 1)
             end
 
             local c = ch.cursor
-            buffer.writeu8 (ch.buff, c, tag - 1)
+            buffer.writeu8(ch.buff, c, tag - 1)
             ch.cursor = c + 1
-            writeFns[tag] (ch, value)
+            writeFns[tag](ch, value)
         end,
-        read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local tag = buffer.readu8 (src, pos) + 1
+        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+            local tag = buffer.readu8(src, pos) + 1
             local name = tagNames[tag]
             if not name then
-                error (`[Lync] Unknown variant index: {tag - 1}`)
+                error(`[Lync] Unknown variant index: {tag - 1}`)
             end
 
-            local data, bytes = readFns[tag] (src, pos + 1, refs)
+            local data, bytes = readFns[tag](src, pos + 1, refs)
 
-            if type (data) == "table" then
+            if type(data) == "table" then
                 data[tagField] = name
             end
 
@@ -219,4 +219,4 @@ function Tagged.define (tagField: string, variants: { [string]: Codec<any> }): C
     })
 end
 
-return table.freeze (Tagged)
+return table.freeze(Tagged)

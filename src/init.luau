@@ -2,97 +2,117 @@
 --!optimize 2
 -- Public API.
 
-local RunService = game:GetService ("RunService")
+local RunService = game:GetService("RunService")
 
 -- Codec: primitive
-local BoolCodec = require (script.codec.primitive.Bool)
-local Float16 = require (script.codec.primitive.Float16)
-local NumberCodec = require (script.codec.primitive.Number)
+local BoolCodec = require(script.codec.primitive.Bool)
+local Float16 = require(script.codec.primitive.Float16)
+local NumberCodec = require(script.codec.primitive.Number)
 
 -- Codec: datatype
-local BufferCodec = require (script.codec.datatype.Buffer)
-local CFrameCodec = require (script.codec.datatype.CFrame)
-local ColorCodec = require (script.codec.datatype.Color)
-local InstanceCodec = require (script.codec.datatype.Instance)
-local IntVectorCodec = require (script.codec.datatype.IntVector)
-local NumberRangeCodec = require (script.codec.datatype.NumberRange)
-local RayCodec = require (script.codec.datatype.Ray)
-local RectCodec = require (script.codec.datatype.Rect)
-local RegionCodec = require (script.codec.datatype.Region)
-local SequenceCodec = require (script.codec.datatype.Sequence)
-local StringCodec = require (script.codec.datatype.String)
-local UDimCodec = require (script.codec.datatype.UDim)
-local VectorCodec = require (script.codec.datatype.Vector)
+local BufferCodec = require(script.codec.datatype.Buffer)
+local CFrameCodec = require(script.codec.datatype.CFrame)
+local ColorCodec = require(script.codec.datatype.Color)
+local InstanceCodec = require(script.codec.datatype.Instance)
+local IntVectorCodec = require(script.codec.datatype.IntVector)
+local NumberRangeCodec = require(script.codec.datatype.NumberRange)
+local RayCodec = require(script.codec.datatype.Ray)
+local RectCodec = require(script.codec.datatype.Rect)
+local RegionCodec = require(script.codec.datatype.Region)
+local SequenceCodec = require(script.codec.datatype.Sequence)
+local StringCodec = require(script.codec.datatype.String)
+local UDimCodec = require(script.codec.datatype.UDim)
+local VectorCodec = require(script.codec.datatype.Vector)
 
 -- Codec: composite
-local Array = require (script.codec.composite.Array)
-local Map = require (script.codec.composite.Map)
-local Optional = require (script.codec.composite.Optional)
-local Struct = require (script.codec.composite.Struct)
-local Tagged = require (script.codec.composite.Tagged)
-local Tuple = require (script.codec.composite.Tuple)
+local Array = require(script.codec.composite.Array)
+local Map = require(script.codec.composite.Map)
+local Optional = require(script.codec.composite.Optional)
+local Struct = require(script.codec.composite.Struct)
+local Tagged = require(script.codec.composite.Tagged)
+local Tuple = require(script.codec.composite.Tuple)
 
 -- Codec: meta
-local Auto = require (script.codec.meta.Auto)
-local Bitfield = require (script.codec.meta.Bitfield)
-local Custom = require (script.codec.meta.Custom)
-local EnumCodec = require (script.codec.meta.Enum)
-local Nothing = require (script.codec.meta.Nothing)
-local Quantized = require (script.codec.meta.Quantized)
-local Unknown = require (script.codec.meta.Unknown)
+local Auto = require(script.codec.meta.Auto)
+local Bitfield = require(script.codec.meta.Bitfield)
+local Custom = require(script.codec.meta.Custom)
+local EnumCodec = require(script.codec.meta.Enum)
+local Nothing = require(script.codec.meta.Nothing)
+local Quantized = require(script.codec.meta.Quantized)
+local Unknown = require(script.codec.meta.Unknown)
 
 -- Internal
-local Channel = require (script.internal.Channel)
-local Middleware = require (script.internal.Middleware)
-local Pool = require (script.internal.Pool)
+local Channel = require(script.internal.Channel)
+local Middleware = require(script.internal.Middleware)
+local Pool = require(script.internal.Pool)
 
 -- Transport
-local Client = require (script.transport.Client)
-local Gate = require (script.transport.Gate)
-local Server = require (script.transport.Server)
+local Client = require(script.transport.Client)
+local Gate = require(script.transport.Gate)
+local Server = require(script.transport.Server)
 
 -- API
-local Group = require (script.api.Group)
-local Namespace = require (script.api.Namespace)
-local Packet = require (script.api.Packet)
-local Query = require (script.api.Query)
-local Scope = require (script.api.Scope)
+local GroupModule = require(script.api.Group)
+local NamespaceModule = require(script.api.Namespace)
+local PacketModule = require(script.api.Packet)
+local QueryModule = require(script.api.Query)
+local ScopeModule = require(script.api.Scope)
+local SignalModule = require(script.api.Signal)
 
--- Constants ----------------------------------------------------------
+-- Type re-exports -----------------------------------------------------
 
-local ALL = table.freeze ({ _tag = "all" })
+local Types = require(script.Types)
 
--- Private ------------------------------------------------------------
+export type Codec<T> = Types.Codec<T>
+export type InternalCodec<T> = Types.InternalCodec<T>
+export type Connection = Types.Connection
+export type RateLimitConfig = Types.RateLimitConfig
+export type PacketConfig<T> = Types.PacketConfig<T>
+export type QueryConfig<R, S> = Types.QueryConfig<R, S>
 
-local function except (...: any): any
-    local count = select ("#", ...)
+export type Packet = PacketModule.Packet
+export type Query = QueryModule.Query
+export type Group = GroupModule.Group
+export type Scope = ScopeModule.Scope
+export type Namespace = NamespaceModule.Namespace
+export type Signal = SignalModule.Signal
+export type NamespaceConfig = Types.NamespaceConfig
+
+-- Constants -----------------------------------------------------------
+
+local ALL = table.freeze({ _tag = "all" })
+
+-- Private -------------------------------------------------------------
+
+local function except(...: any): any
+    local count = select("#", ...)
     local set = {} :: { [Player]: true }
     for i = 1, count do
-        set[select (i, ...)] = true
+        set[select(i, ...)] = true
     end
     return { _tag = "except", _set = set }
 end
 
-local function start (): ()
-    if RunService:IsServer () then
-        Server.start ()
+local function start(): ()
+    if RunService:IsServer() then
+        Server.start()
     else
-        Client.start ()
+        Client.start()
     end
 end
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Lync = {
-    VERSION = "1.4.3",
+    VERSION = "1.5.0",
 
     -- Lifecycle
     start = start,
 
     -- Definition
-    definePacket = Packet.define,
-    defineQuery = Query.define,
-    defineNamespace = Namespace.define,
+    definePacket = PacketModule.define,
+    defineQuery = QueryModule.define,
+    defineNamespace = NamespaceModule.define,
 
     -- Primitives
     u8 = NumberCodec.u8,
@@ -162,19 +182,19 @@ local Lync = {
     DROP = Middleware.DROP,
 
     -- Groups
-    createGroup = Group.create,
+    createGroup = GroupModule.create,
 
     -- Scope
-    scope = Scope.create,
+    scope = ScopeModule.create,
 
-    -- Configuration (call before start)
+    -- Configuration(call before start)
     setChannelMaxSize = Channel.setMaxSize,
     setValidationDepth = Gate.setMaxDepth,
     setPoolSize = Pool.setMaxSize,
 
     -- Introspection
-    queryPendingCount = Query.pendingCount,
+    queryPendingCount = QueryModule.pendingCount,
 }
 
 Lync.default = Lync
-return table.freeze (Lync)
+return table.freeze(Lync)

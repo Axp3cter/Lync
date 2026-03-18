@@ -13,7 +13,7 @@
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@1.4.3"
+Lync = "axp3cter/lync@1.5.0"
 ```
 
 **npm (roblox-ts)**
@@ -163,7 +163,7 @@ end
 | | What it does |
 |:---------|:------------|
 | `Lync.start()` | Sets up transport. Server creates remotes, client connects. Call once after all definitions. |
-| `Lync.VERSION` | `"1.4.3"` |
+| `Lync.VERSION` | `"1.5.0"` |
 
 ## Packets
 
@@ -227,6 +227,45 @@ packet:send(data)  -- send to server
 ## Namespaces
 
 `Lync.defineNamespace(name, config)` returns a Namespace. Takes a `packets` table and/or a `queries` table. All names get auto-prefixed with `"YourNamespace."` so nothing collides.
+
+The config takes `PacketConfig` and `QueryConfig` objects (same shape you'd pass to `definePacket` / `defineQuery`). The namespace creates and owns the packets/queries internally.
+
+```luau
+local Combat = Lync.defineNamespace("Combat", {
+    packets = {
+        Hit = {
+            value = Lync.struct({ targetId = Lync.u16, damage = Lync.f32, headshot = Lync.bool }),
+            rateLimit = { maxPerSecond = 30, burstAllowance = 5 },
+            validate = function(data, player)
+                if data.damage > 200 then return false, "damage" end
+                return true
+            end,
+        },
+        Death = { value = Lync.u16 },
+    },
+    queries = {
+        Stats = {
+            request  = Lync.nothing,
+            response = Lync.struct({ kills = Lync.u16, deaths = Lync.u16 }),
+            timeout  = 3,
+        },
+    },
+})
+
+-- Access by short name directly on the namespace
+Combat.Hit:send(data, player)
+Combat.Death:listen(function(targetId, sender) end)
+Combat.Stats:listen(function(request, player) return { kills = 10, deaths = 2 } end)
+
+-- Or via the typed sub-tables
+Combat.packets.Hit:send(data, player)
+Combat.queries.Stats:request(nil)
+```
+
+| Config field | Type | What it does |
+|:-------------|:-----|:-------------|
+| `packets` | `{ [string]: PacketConfig }?` | Map of short name → packet config. Each entry becomes a Packet on the namespace. |
+| `queries` | `{ [string]: QueryConfig }?` | Map of short name → query config. Each entry becomes a Query on the namespace. |
 
 Access packets and queries by their short name on the returned object: `ns.PacketName`, `ns.QueryName`. Or use the typed sub-tables: `ns.packets.PacketName`, `ns.queries.QueryName`.
 

@@ -2,12 +2,23 @@
 --!optimize 2
 -- Batched connection lifecycle management.
 
--- Private ------------------------------------------------------------
+local Types = require(script.Parent.Parent.Types)
+
+type Connection = Types.Connection
+
+-- Private -------------------------------------------------------------
+
+type ScopeFields = {
+    _entries: { any }, -- Connection | RBXScriptConnection
+    _count: number,
+}
 
 local ScopeImpl = {}
 ScopeImpl.__index = ScopeImpl
 
-function ScopeImpl.add (self: any, conn: any): ()
+export type Scope = typeof(setmetatable({} :: ScopeFields, ScopeImpl))
+
+function ScopeImpl.add(self: Scope, conn: any): ()
     if not conn then
         return
     end
@@ -18,31 +29,31 @@ function ScopeImpl.add (self: any, conn: any): ()
     entries[count] = conn
 end
 
-function ScopeImpl.listen (self: any, source: any, callback: (...any) -> ()): ()
-    local conn = source:listen (callback)
+function ScopeImpl.listen(self: Scope, source: any, callback: (...any) -> ()): ()
+    local conn = source:listen(callback)
     local entries = self._entries
     local count = self._count + 1
     self._count = count
     entries[count] = conn
 end
 
-function ScopeImpl.once (self: any, source: any, callback: (...any) -> ()): ()
-    local conn = source:once (callback)
+function ScopeImpl.once(self: Scope, source: any, callback: (...any) -> ()): ()
+    local conn = source:once(callback)
     local entries = self._entries
     local count = self._count + 1
     self._count = count
     entries[count] = conn
 end
 
-function ScopeImpl.listenAll (self: any, namespace: any, callback: (...any) -> ()): ()
-    local conn = namespace:listenAll (callback)
+function ScopeImpl.listenAll(self: Scope, namespace: any, callback: (...any) -> ()): ()
+    local conn = namespace:listenAll(callback)
     local entries = self._entries
     local count = self._count + 1
     self._count = count
     entries[count] = conn
 end
 
-function ScopeImpl.destroy (self: any): ()
+function ScopeImpl.destroy(self: Scope): ()
     local entries = self._entries
     local count = self._count
 
@@ -50,24 +61,27 @@ function ScopeImpl.destroy (self: any): ()
         local conn = entries[i]
         entries[i] = nil
 
-        if typeof (conn) == "RBXScriptConnection" then
-            conn:Disconnect ()
+        if typeof(conn) == "RBXScriptConnection" then
+            conn:Disconnect()
         elseif conn.disconnect then
-            conn:disconnect ()
+            conn:disconnect()
         end
     end
 
     self._count = 0
 end
 
-table.freeze (ScopeImpl)
+table.freeze(ScopeImpl)
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local Scope = {}
+local ScopeModule = {}
 
-function Scope.create (): any
-    return setmetatable ({ _entries = {}, _count = 0 }, ScopeImpl)
+function ScopeModule.create(): Scope
+    return setmetatable({
+        _entries = {},
+        _count = 0,
+    }, ScopeImpl)
 end
 
-return table.freeze (Scope)
+return table.freeze(ScopeModule)

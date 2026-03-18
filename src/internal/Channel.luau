@@ -2,11 +2,11 @@
 --!native
 -- Per-channel buffer state with batching, delta cache, frame XOR.
 
-local Types = require (script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
--- Constants ----------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 local INITIAL_SIZE = 1024
 local MAX_SIZE = 262144
@@ -18,7 +18,7 @@ local band32 = bit32.band
 local countlz = bit32.countlz
 local lshift = bit32.lshift
 
--- State --------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 local _maxSize = MAX_SIZE
 
@@ -26,25 +26,25 @@ local _maxSize = MAX_SIZE
 -- serializers may overwrite before the error fires.
 local _currentPacket = ""
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Channel = {}
 
 -- Override the maximum buffer size. Call before start(). Range: 4096–1048576.
-function Channel.setMaxSize (bytes: number): ()
+function Channel.setMaxSize(bytes: number): ()
     if bytes < 4096 or bytes > 1048576 then
-        error (`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
+        error(`[Lync] Channel max size must be 4096–1048576, got {bytes}`)
     end
     _maxSize = bytes
 end
 
-function Channel.getMaxSize (): number
+function Channel.getMaxSize(): number
     return _maxSize
 end
 
-function Channel.create (): ChannelState
+function Channel.create(): ChannelState
     return {
-        buff = buffer.create (INITIAL_SIZE),
+        buff = buffer.create(INITIAL_SIZE),
         cursor = 0,
         size = INITIAL_SIZE,
         refs = {},
@@ -57,21 +57,21 @@ function Channel.create (): ChannelState
 end
 
 -- Grows the channel buffer to fit the requested bytes. Power-of-two sizing.
-function Channel.alloc (ch: ChannelState, bytes: number): ()
+function Channel.alloc(ch: ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
     if needed <= ch.size then
         return
     end
     if needed > _maxSize then
-        error (
-            `[Lync] Channel overflow writing "{_currentPacket}": {needed} bytes > {_maxSize} max (call Channel.setMaxSize to raise)`
+        error(
+            `[Lync] Channel overflow writing "{_currentPacket}": {needed} bytes > {_maxSize} max(call Channel.setMaxSize to raise)`
         )
     end
 
-    local newSize = lshift (1, 32 - countlz (needed - 1))
+    local newSize = lshift(1, 32 - countlz(needed - 1))
 
-    local newBuff = buffer.create (newSize)
-    buffer.copy (newBuff, 0, ch.buff, 0, ch.cursor)
+    local newBuff = buffer.create(newSize)
+    buffer.copy(newBuff, 0, ch.buff, 0, ch.cursor)
     ch.buff = newBuff
     ch.size = newSize
 end
@@ -79,38 +79,38 @@ end
 local alloc = Channel.alloc
 
 -- Seals the open batch header and returns a snapshot of the buffer + refs.
-function Channel.sealAndDump (ch: ChannelState): (buffer, { Instance })
+function Channel.sealAndDump(ch: ChannelState): (buffer, { Instance })
     if ch.lastId >= 0 then
-        buffer.writeu16 (ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
     end
 
     local cur = ch.cursor
-    local out = buffer.create (cur)
-    buffer.copy (out, 0, ch.buff, 0, cur)
+    local out = buffer.create(cur)
+    buffer.copy(out, 0, ch.buff, 0, cur)
 
     local refs = ch.refs
-    return out, if #refs > 0 then table.clone (refs) else {}
+    return out, if #refs > 0 then table.clone(refs) else {}
 end
 
 -- Sets the packet name for overflow diagnostics.
-function Channel.setCurrentPacket (name: string): ()
+function Channel.setCurrentPacket(name: string): ()
     _currentPacket = name
 end
 
 -- Writes a single value into the batch. Opens a new header on ID change or overflow.
-function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: any, data: any): ()
+function Channel.writeBatch(ch: ChannelState, id: number, name: string, codec: any, data: any): ()
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
         if ch.lastId >= 0 then
-            buffer.writeu16 (ch.buff, ch.countPos, ch.itemCount)
+            buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         end
 
         _currentPacket = name
-        alloc (ch, 3)
+        alloc(ch, 3)
         local c = ch.cursor
-        buffer.writeu8 (ch.buff, c, id)
+        buffer.writeu8(ch.buff, c, id)
         ch.countPos = c + 1
         ch.cursor = c + 3
         ch.lastId = id
@@ -118,11 +118,11 @@ function Channel.writeBatch (ch: ChannelState, id: number, name: string, codec: 
     end
 
     ch.itemCount += 1
-    codec.write (ch, data)
+    codec.write(ch, data)
 end
 
 -- Appends pre-serialized bytes into a batch. Used by broadcast fan-out.
-function Channel.writeBatchRaw (
+function Channel.writeBatchRaw(
     ch: ChannelState,
     id: number,
     src: buffer,
@@ -131,12 +131,12 @@ function Channel.writeBatchRaw (
 ): ()
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
         if ch.lastId >= 0 then
-            buffer.writeu16 (ch.buff, ch.countPos, ch.itemCount)
+            buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         end
 
-        alloc (ch, 3)
+        alloc(ch, 3)
         local c = ch.cursor
-        buffer.writeu8 (ch.buff, c, id)
+        buffer.writeu8(ch.buff, c, id)
         ch.countPos = c + 1
         ch.cursor = c + 3
         ch.lastId = id
@@ -146,20 +146,20 @@ function Channel.writeBatchRaw (
     ch.itemCount += 1
 
     if srcLen > 0 then
-        alloc (ch, srcLen)
-        buffer.copy (ch.buff, ch.cursor, src, 0, srcLen)
+        alloc(ch, srcLen)
+        buffer.copy(ch.buff, ch.cursor, src, 0, srcLen)
         ch.cursor += srcLen
     end
 
     if srcRefs then
         local refs = ch.refs
-        table.move (srcRefs, 1, #srcRefs, #refs + 1, refs)
+        table.move(srcRefs, 1, #srcRefs, #refs + 1, refs)
     end
 end
 
-local function sealOpen (ch: ChannelState): ()
+local function sealOpen(ch: ChannelState): ()
     if ch.lastId >= 0 then
-        buffer.writeu16 (ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
@@ -168,10 +168,10 @@ end
 
 --[[
     Writes a query frame. Seals any open batch, then writes:
-        id (u8) + correlationId (u16) + status (u8)
+        id(u8) + correlationId(u16) + status(u8)
     Status 0 = payload follows. Status 1 = nil response.
 ]]
-function Channel.writeQuery (
+function Channel.writeQuery(
     ch: ChannelState,
     id: number,
     name: string,
@@ -180,61 +180,61 @@ function Channel.writeQuery (
     data: any?
 ): ()
     _currentPacket = name
-    sealOpen (ch)
+    sealOpen(ch)
 
-    alloc (ch, 4)
+    alloc(ch, 4)
     local c = ch.cursor
-    buffer.writeu8 (ch.buff, c, id)
-    buffer.writeu16 (ch.buff, c + 1, correlationId)
+    buffer.writeu8(ch.buff, c, id)
+    buffer.writeu16(ch.buff, c + 1, correlationId)
 
     if codec then
-        buffer.writeu8 (ch.buff, c + 3, 0)
+        buffer.writeu8(ch.buff, c + 3, 0)
         ch.cursor = c + 4
-        codec.write (ch, data)
+        codec.write(ch, data)
     else
-        buffer.writeu8 (ch.buff, c + 3, 1)
+        buffer.writeu8(ch.buff, c + 3, 1)
         ch.cursor = c + 4
     end
 end
 
 -- XOR current frame against previous. Produces zero-heavy output for deflate.
-function Channel.xorApply (current: buffer, previous: buffer?): buffer
-    local curLen = buffer.len (current)
+function Channel.xorApply(current: buffer, previous: buffer?): buffer
+    local curLen = buffer.len(current)
     if not previous then
         return current
     end
 
-    local prevLen = buffer.len (previous :: buffer)
+    local prevLen = buffer.len(previous :: buffer)
     if prevLen == 0 then
         return current
     end
 
-    local result = buffer.create (curLen)
-    local overlap = min (curLen, prevLen)
+    local result = buffer.create(curLen)
+    local overlap = min(curLen, prevLen)
     local prev = previous :: buffer
 
-    local aligned = band32 (overlap, 0xFFFFFFFC)
+    local aligned = band32(overlap, 0xFFFFFFFC)
     for i = 0, aligned - 4, 4 do
-        buffer.writeu32 (result, i, bxor (buffer.readu32 (current, i), buffer.readu32 (prev, i)))
+        buffer.writeu32(result, i, bxor(buffer.readu32(current, i), buffer.readu32(prev, i)))
     end
 
     for i = aligned, overlap - 1 do
-        buffer.writeu8 (result, i, bxor (buffer.readu8 (current, i), buffer.readu8 (prev, i)))
+        buffer.writeu8(result, i, bxor(buffer.readu8(current, i), buffer.readu8(prev, i)))
     end
 
     if curLen > overlap then
-        buffer.copy (result, overlap, current, overlap, curLen - overlap)
+        buffer.copy(result, overlap, current, overlap, curLen - overlap)
     end
 
     return result
 end
 
-function Channel.reset (ch: ChannelState): ()
+function Channel.reset(ch: ChannelState): ()
     ch.cursor = 0
     ch.lastId = -1
     ch.countPos = 0
     ch.itemCount = 0
-    table.clear (ch.refs)
+    table.clear(ch.refs)
 end
 
-return table.freeze (Channel)
+return table.freeze(Channel)

@@ -1,13 +1,13 @@
 --!strict
 --!optimize 2
--- Read-side baseline cache keyed by source (player or client sentinel).
+-- Read-side baseline cache keyed by source(player or client sentinel).
 
--- State --------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 local _readKey = false :: any
 local _readCaches = {} :: { [any]: { [number]: any } }
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Baseline = {}
 
@@ -16,16 +16,16 @@ local Baseline = {}
 -- cheap branch once deltas are first used in the session.
 Baseline.hasDelta = false
 
-function Baseline.setReadKey (key: any): ()
+function Baseline.setReadKey(key: any): ()
     _readKey = key
 end
 
-function Baseline.getCache (deltaId: number): any
+function Baseline.getCache(deltaId: number): any
     local map = _readCaches[_readKey]
     return map and map[deltaId]
 end
 
-function Baseline.setCache (deltaId: number, data: any): ()
+function Baseline.setCache(deltaId: number, data: any): ()
     if not Baseline.hasDelta then
         Baseline.hasDelta = true
     end
@@ -37,7 +37,7 @@ function Baseline.setCache (deltaId: number, data: any): ()
     map[deltaId] = data
 end
 
-function Baseline.clearSource (key: any): ()
+function Baseline.clearSource(key: any): ()
     _readCaches[key] = nil
 end
 

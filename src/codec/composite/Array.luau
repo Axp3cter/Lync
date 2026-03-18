@@ -2,11 +2,11 @@
 --!native
 -- array and deltaArray codecs.
 
-local Baseline = require (script.Parent.Parent.Parent.internal.Baseline)
-local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local Shared = require (script.Parent.Shared)
-local Types = require (script.Parent.Parent.Parent.Types)
-local Varint = require (script.Parent.Parent.primitive.Varint)
+local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local Shared = require(script.Parent.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.primitive.Varint)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
@@ -21,12 +21,12 @@ local FLAG_DELTA = Shared.FLAG_DELTA
 local FLAG_FULL = Shared.FLAG_FULL
 local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Array = {}
 
-function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any }>
-    local deltaId = Shared.allocDeltaId ()
+function Array.deltaArray(element: Codec<any>, maxCount: number?): Codec<{ any }>
+    local deltaId = Shared.allocDeltaId()
 
     local writeElement = element.write
     local readElement = element.read
@@ -36,31 +36,31 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
     local elemWrite = internal._directWrite
     local elemRead = internal._directRead
 
-    return table.freeze ({
+    return table.freeze({
         _isDelta = true,
 
-        write = function (ch: ChannelState, value: { any }): ()
+        write = function(ch: ChannelState, value: { any }): ()
             local len = #value
             local cache = ch.deltas[deltaId] :: { raw: buffer, bounds: { number }, len: number }?
-            local scratch = acquireScratch ()
+            local scratch = acquireScratch()
 
-            local bounds = table.create (len + 1)
+            local bounds = table.create(len + 1)
             bounds[1] = 0
 
             if elemWrite and elemSize then
                 local totalBytes = len * elemSize
-                alloc (scratch, totalBytes)
+                alloc(scratch, totalBytes)
                 local b = scratch.buff
                 local c = 0
                 for i = 1, len do
-                    elemWrite (b, c, value[i])
+                    elemWrite(b, c, value[i])
                     c += elemSize
                     bounds[i + 1] = c
                 end
                 scratch.cursor = totalBytes
             else
                 for i = 1, len do
-                    writeElement (scratch, value[i])
+                    writeElement(scratch, value[i])
                     bounds[i + 1] = scratch.cursor
                 end
             end
@@ -68,18 +68,18 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
             local scratchTotal = scratch.cursor
 
             if not cache or cache.len ~= len then
-                alloc (ch, 1)
-                buffer.writeu8 (ch.buff, ch.cursor, FLAG_FULL)
+                alloc(ch, 1)
+                buffer.writeu8(ch.buff, ch.cursor, FLAG_FULL)
                 ch.cursor += 1
-                Varint.write (ch, len)
+                Varint.write(ch, len)
 
-                alloc (ch, scratchTotal)
-                buffer.copy (ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
+                alloc(ch, scratchTotal)
+                buffer.copy(ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
                 ch.cursor += scratchTotal
             else
                 local cacheRaw = cache.raw
                 local cacheBds = cache.bounds
-                local dirty = table.create (len)
+                local dirty = table.create(len)
                 local dirtyN = 0
 
                 for i = 1, len do
@@ -90,7 +90,7 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
 
                     if
                         newLen ~= oldLen
-                        or not rangeEqual (scratch.buff, newOff, cacheRaw, oldOff, newLen)
+                        or not rangeEqual(scratch.buff, newOff, cacheRaw, oldOff, newLen)
                     then
                         dirtyN += 1
                         dirty[dirtyN] = i
@@ -98,111 +98,111 @@ function Array.deltaArray (element: Codec<any>, maxCount: number?): Codec<{ any 
                 end
 
                 if dirtyN == 0 then
-                    alloc (ch, 1)
-                    buffer.writeu8 (ch.buff, ch.cursor, FLAG_UNCHANGED)
+                    alloc(ch, 1)
+                    buffer.writeu8(ch.buff, ch.cursor, FLAG_UNCHANGED)
                     ch.cursor += 1
-                    releaseScratch ()
+                    releaseScratch()
                     return
                 end
 
-                alloc (ch, 1)
-                buffer.writeu8 (ch.buff, ch.cursor, FLAG_DELTA)
+                alloc(ch, 1)
+                buffer.writeu8(ch.buff, ch.cursor, FLAG_DELTA)
                 ch.cursor += 1
-                Varint.write (ch, dirtyN)
+                Varint.write(ch, dirtyN)
 
                 for j = 1, dirtyN do
                     local i = dirty[j]
                     local newOff = bounds[i]
                     local newLen = bounds[i + 1] - newOff
 
-                    Varint.write (ch, i - 1)
-                    alloc (ch, newLen)
-                    buffer.copy (ch.buff, ch.cursor, scratch.buff, newOff, newLen)
+                    Varint.write(ch, i - 1)
+                    alloc(ch, newLen)
+                    buffer.copy(ch.buff, ch.cursor, scratch.buff, newOff, newLen)
                     ch.cursor += newLen
                 end
             end
 
-            local rawBuf = buffer.create (scratchTotal)
-            buffer.copy (rawBuf, 0, scratch.buff, 0, scratchTotal)
+            local rawBuf = buffer.create(scratchTotal)
+            buffer.copy(rawBuf, 0, scratch.buff, 0, scratchTotal)
 
-            table.freeze (bounds)
+            table.freeze(bounds)
             ch.deltas[deltaId] = { raw = rawBuf, bounds = bounds, len = len }
-            releaseScratch ()
+            releaseScratch()
         end,
 
-        read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
-            local flag = buffer.readu8 (src, pos)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            local flag = buffer.readu8(src, pos)
             local absPos = pos + 1
 
             if flag == FLAG_UNCHANGED then
-                local cache = Baseline.getCache (deltaId)
-                return if cache then table.clone (cache) else {}, 1
+                local cache = Baseline.getCache(deltaId)
+                return if cache then table.clone(cache) else {}, 1
             end
 
             if flag == FLAG_FULL then
-                local len, lenBytes = Varint.read (src, absPos)
+                local len, lenBytes = Varint.read(src, absPos)
                 absPos += lenBytes
 
                 if maxCount and len > maxCount then
-                    error (`[Lync] Array count {len} exceeds max {maxCount}`)
+                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
                 end
 
-                local result = table.create (len)
+                local result = table.create(len)
 
                 if elemRead and elemSize then
                     for i = 1, len do
-                        result[i] = elemRead (src, absPos)
+                        result[i] = elemRead(src, absPos)
                         absPos += elemSize
                     end
                 else
                     for i = 1, len do
-                        local val, n = readElement (src, absPos, refs)
+                        local val, n = readElement(src, absPos, refs)
                         result[i] = val
                         absPos += n
                     end
                 end
 
-                Baseline.setCache (deltaId, result)
+                Baseline.setCache(deltaId, result)
                 return result, absPos - pos
             end
 
-            local cache = Baseline.getCache (deltaId) :: { any }?
-            local result = if cache then table.clone (cache) else {}
+            local cache = Baseline.getCache(deltaId) :: { any }?
+            local result = if cache then table.clone(cache) else {}
 
-            local dirtyN, dnBytes = Varint.read (src, absPos)
+            local dirtyN, dnBytes = Varint.read(src, absPos)
             absPos += dnBytes
 
             for _ = 1, dirtyN do
-                local idx, idxBytes = Varint.read (src, absPos)
+                local idx, idxBytes = Varint.read(src, absPos)
                 absPos += idxBytes
 
                 if elemRead and elemSize then
-                    result[idx + 1] = elemRead (src, absPos)
+                    result[idx + 1] = elemRead(src, absPos)
                     absPos += elemSize
                 else
-                    local val, n = readElement (src, absPos, refs)
+                    local val, n = readElement(src, absPos, refs)
                     result[idx + 1] = val
                     absPos += n
                 end
             end
 
-            Baseline.setCache (deltaId, result)
+            Baseline.setCache(deltaId, result)
             return result, absPos - pos
         end,
     })
 end
 
-function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
+function Array.array(element: Codec<any>, maxCount: number?): Codec<{ any }>
     local internal = element :: InternalCodec<any>
     local elementSize = internal._size
     local directWrite = internal._directWrite
     local directRead = internal._directRead
 
     if elementSize and directWrite and directRead then
-        return table.freeze ({
-            write = function (ch: ChannelState, value: { any }): ()
+        return table.freeze({
+            write = function(ch: ChannelState, value: { any }): ()
                 local len = #value
-                Varint.write (ch, len)
+                Varint.write(ch, len)
                 if len == 0 then
                     return
                 end
@@ -210,28 +210,28 @@ function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
                 local totalBytes = len * elementSize
                 local c = ch.cursor
                 if c + totalBytes > ch.size then
-                    alloc (ch, totalBytes)
+                    alloc(ch, totalBytes)
                 end
 
                 local b = ch.buff
                 for i = 1, len do
-                    directWrite (b, c, value[i])
+                    directWrite(b, c, value[i])
                     c += elementSize
                 end
                 ch.cursor = c
             end,
-            read = function (src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
-                local len, lenBytes = Varint.read (src, pos)
+            read = function(src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
+                local len, lenBytes = Varint.read(src, pos)
 
                 if maxCount and len > maxCount then
-                    error (`[Lync] Array count {len} exceeds max {maxCount}`)
+                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
                 end
 
-                local result = table.create (len)
+                local result = table.create(len)
                 local c = pos + lenBytes
 
                 for i = 1, len do
-                    result[i] = directRead (src, c)
+                    result[i] = directRead(src, c)
                     c += elementSize
                 end
 
@@ -243,29 +243,29 @@ function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
     local writeElement = element.write
     local readElement = element.read
 
-    return table.freeze ({
-        write = function (ch: ChannelState, value: { any }): ()
+    return table.freeze({
+        write = function(ch: ChannelState, value: { any }): ()
             local len = #value
-            Varint.write (ch, len)
+            Varint.write(ch, len)
             if elementSize and len > 0 then
-                alloc (ch, len * elementSize)
+                alloc(ch, len * elementSize)
             end
             for i = 1, len do
-                writeElement (ch, value[i])
+                writeElement(ch, value[i])
             end
         end,
-        read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
-            local len, lenBytes = Varint.read (src, pos)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            local len, lenBytes = Varint.read(src, pos)
 
             if maxCount and len > maxCount then
-                error (`[Lync] Array count {len} exceeds max {maxCount}`)
+                error(`[Lync] Array count {len} exceeds max {maxCount}`)
             end
 
-            local result = table.create (len)
+            local result = table.create(len)
             local absPos = pos + lenBytes
 
             for i = 1, len do
-                local value, n = readElement (src, absPos, refs)
+                local value, n = readElement(src, absPos, refs)
                 result[i] = value
                 absPos += n
             end
@@ -275,4 +275,4 @@ function Array.array (element: Codec<any>, maxCount: number?): Codec<{ any }>
     })
 end
 
-return table.freeze (Array)
+return table.freeze(Array)

@@ -2,18 +2,18 @@
 --!optimize 2
 -- Client-side transport with batching, frame XOR on reliable.
 
-local RunService = game:GetService ("RunService")
+local RunService = game:GetService("RunService")
 
-local Bridge = require (script.Parent.Bridge)
-local Channel = require (script.Parent.Parent.internal.Channel)
-local Middleware = require (script.Parent.Parent.internal.Middleware)
-local Reader = require (script.Parent.Reader)
-local Types = require (script.Parent.Parent.Types)
+local Bridge = require(script.Parent.Bridge)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Middleware = require(script.Parent.Parent.internal.Middleware)
+local Reader = require(script.Parent.Reader)
+local Types = require(script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
 
--- State --------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 local NOT_STARTED = "[Lync] Client not started. Call Lync.start() before sending"
 
@@ -22,77 +22,77 @@ local _unreliable = nil :: ChannelState?
 local _prevRecv = nil :: buffer?
 local _isStarted = false
 
--- Private ------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
-local function receive (data: any, refs: any, applyXor: boolean): ()
-    local buf = Reader.decodeIncoming (data)
+local function receive(data: any, refs: any, applyXor: boolean): ()
+    local buf = Reader.decodeIncoming(data)
     if not buf then
         return
     end
 
     local raw: buffer
     if applyXor then
-        raw = Channel.xorApply (buf, _prevRecv)
+        raw = Channel.xorApply(buf, _prevRecv)
         _prevRecv = raw
     else
         raw = buf
     end
 
-    local safeRefs: { Instance }? = if typeof (refs) == "table" then refs else nil
-    local ok, err = pcall (Reader.process, raw, safeRefs, nil, 0)
+    local safeRefs: { Instance }? = if typeof(refs) == "table" then refs else nil
+    local ok, err = pcall(Reader.process, raw, safeRefs, nil, 0)
     if not ok then
-        warn (`[Lync] Read failed: {err}`)
+        warn(`[Lync] Read failed: {err}`)
     end
 end
 
-local function flushChannel (remote: any, ch: ChannelState, applyXor: boolean): ()
+local function flushChannel(remote: any, ch: ChannelState, applyXor: boolean): ()
     if ch.cursor == 0 then
         return
     end
 
-    local raw, refs = Channel.sealAndDump (ch)
+    local raw, refs = Channel.sealAndDump(ch)
 
     if applyXor then
-        local xored = Channel.xorApply (raw, ch.prevDump)
+        local xored = Channel.xorApply(raw, ch.prevDump)
         ch.prevDump = raw
-        remote:FireServer (xored, refs)
+        remote:FireServer(xored, refs)
     else
-        remote:FireServer (raw, refs)
+        remote:FireServer(raw, refs)
     end
 
-    Channel.reset (ch)
+    Channel.reset(ch)
 end
 
-local function flush (): ()
-    flushChannel (Bridge.reliable, _reliable :: ChannelState, true)
-    flushChannel (Bridge.unreliable, _unreliable :: ChannelState, false)
+local function flush(): ()
+    flushChannel(Bridge.reliable, _reliable :: ChannelState, true)
+    flushChannel(Bridge.unreliable, _unreliable :: ChannelState, false)
 end
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Client = {}
 
-function Client.start (): ()
+function Client.start(): ()
     if _isStarted then
         return
     end
     _isStarted = true
 
-    Bridge.setup ()
+    Bridge.setup()
 
-    _reliable = Channel.create ()
-    _unreliable = Channel.create ()
+    _reliable = Channel.create()
+    _unreliable = Channel.create()
 
-    Bridge.reliable.OnClientEvent:Connect (function (data: any, refs: any): ()
-        receive (data, refs, true)
+    Bridge.reliable.OnClientEvent:Connect(function(data: any, refs: any): ()
+        receive(data, refs, true)
     end)
-    Bridge.unreliable.OnClientEvent:Connect (function (data: any, refs: any): ()
-        receive (data, refs, false)
+    Bridge.unreliable.OnClientEvent:Connect(function(data: any, refs: any): ()
+        receive(data, refs, false)
     end)
-    RunService.Heartbeat:Connect (flush)
+    RunService.Heartbeat:Connect(flush)
 end
 
-function Client.write (
+function Client.write(
     id: number,
     name: string,
     codec: Codec<any>,
@@ -100,12 +100,12 @@ function Client.write (
     isUnreliable: boolean
 ): ()
     if not _isStarted then
-        error (NOT_STARTED)
+        error(NOT_STARTED)
     end
 
     local final: any
     if Middleware.hasSend then
-        final = Middleware.runSend (data, name, nil)
+        final = Middleware.runSend(data, name, nil)
         if final == nil then
             return
         end
@@ -114,11 +114,11 @@ function Client.write (
     end
 
     local ch = if isUnreliable then _unreliable :: ChannelState else _reliable :: ChannelState
-    Channel.writeBatch (ch, id, name, codec, final)
+    Channel.writeBatch(ch, id, name, codec, final)
 end
 
--- Shared for both query requests and responses (identical wire format).
-function Client.writeQuery (
+-- Shared for both query requests and responses(identical wire format).
+function Client.writeQuery(
     id: number,
     name: string,
     correlationId: number,
@@ -126,12 +126,12 @@ function Client.writeQuery (
     data: any
 ): ()
     if not _isStarted then
-        error (NOT_STARTED)
+        error(NOT_STARTED)
     end
 
     local final: any
     if Middleware.hasSend then
-        final = Middleware.runSend (data, name, nil)
+        final = Middleware.runSend(data, name, nil)
         if final == nil then
             return
         end
@@ -139,14 +139,14 @@ function Client.writeQuery (
         final = data
     end
 
-    Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, codec, final)
+    Channel.writeQuery(_reliable :: ChannelState, id, name, correlationId, codec, final)
 end
 
-function Client.writeQueryNil (id: number, name: string, correlationId: number): ()
+function Client.writeQueryNil(id: number, name: string, correlationId: number): ()
     if not _isStarted then
-        error (NOT_STARTED)
+        error(NOT_STARTED)
     end
-    Channel.writeQuery (_reliable :: ChannelState, id, name, correlationId, nil, nil)
+    Channel.writeQuery(_reliable :: ChannelState, id, name, correlationId, nil, nil)
 end
 
-return table.freeze (Client)
+return table.freeze(Client)

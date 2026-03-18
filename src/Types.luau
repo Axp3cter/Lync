@@ -51,6 +51,18 @@ export type QueryConfig<Req, Resp> = {
     validate: ((data: Req, player: Player) -> (boolean, string?))?,
 }
 
+export type NamespaceConfig = {
+    packets: { [string]: PacketConfig<any> }?,
+    queries: { [string]: QueryConfig<any, any> }?,
+}
+
+-- Minimal signal interface for Registration. Avoids circular dependency
+-- with Signal.luau while typing the two methods consumers actually call.
+export type SignalLike = {
+    fire: (self: SignalLike, ...any) -> (),
+    connect: (self: SignalLike, callback: (...any) -> ()) -> Connection,
+}
+
 export type Registration = {
     id: number,
     name: string,
@@ -59,7 +71,7 @@ export type Registration = {
     isUnreliable: boolean,
     kind: number,
     partner: number?,
-    signal: any,
+    signal: SignalLike,
     rateLimit: RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
     needsGate: boolean,

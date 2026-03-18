@@ -2,8 +2,8 @@
 --!native
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
-local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local Types = require (script.Parent.Parent.Parent.Types)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
@@ -11,24 +11,24 @@ type InternalCodec<T> = Types.InternalCodec<T>
 
 local alloc = Channel.alloc
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Tuple = {}
 
-function Tuple.define (...: Codec<any>): Codec<{ any }>
+function Tuple.define(...: Codec<any>): Codec<{ any }>
     local codecs = { ... }
     local count = #codecs
     if count == 0 then
-        error ("[Lync] Tuple requires at least one codec")
+        error("[Lync] Tuple requires at least one codec")
     end
 
-    table.freeze (codecs)
+    table.freeze(codecs)
 
     local canDirect = true
     local totalSize: number = 0
-    local directWrites = table.create (count) :: { any }
-    local directReads = table.create (count) :: { any }
-    local fieldSizes = table.create (count) :: { number }
+    local directWrites = table.create(count) :: { any }
+    local directReads = table.create(count) :: { any }
+    local fieldSizes = table.create(count) :: { number }
 
     for i = 1, count do
         local internal = codecs[i] :: InternalCodec<any>
@@ -67,72 +67,72 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
     end
 
     if canDirect then
-        table.freeze (directWrites)
-        table.freeze (directReads)
-        table.freeze (fieldSizes)
+        table.freeze(directWrites)
+        table.freeze(directReads)
+        table.freeze(fieldSizes)
 
-        local function directWriteBody (b: buffer, c: number, value: { any }): ()
+        local function directWriteBody(b: buffer, c: number, value: { any }): ()
             for i = 1, count do
-                directWrites[i] (b, c, value[i])
+                directWrites[i](b, c, value[i])
                 c += fieldSizes[i]
             end
         end
 
-        local function directReadBody (b: buffer, pos: number): { any }
-            local result = table.create (count)
+        local function directReadBody(b: buffer, pos: number): { any }
+            local result = table.create(count)
             local c = pos
             for i = 1, count do
-                result[i] = directReads[i] (b, c)
+                result[i] = directReads[i](b, c)
                 c += fieldSizes[i]
             end
             return result
         end
 
-        return table.freeze ({
+        return table.freeze({
             _size = totalSize,
             _directWrite = directWriteBody,
             _directRead = directReadBody,
-            write = function (ch: ChannelState, value: { any }): ()
+            write = function(ch: ChannelState, value: { any }): ()
                 local c = ch.cursor
                 if c + totalSize > ch.size then
-                    alloc (ch, totalSize)
+                    alloc(ch, totalSize)
                 end
-                directWriteBody (ch.buff, c, value)
+                directWriteBody(ch.buff, c, value)
                 ch.cursor = c + totalSize
             end,
-            read = function (src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
-                return directReadBody (src, pos), totalSize
+            read = function(src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
+                return directReadBody(src, pos), totalSize
             end,
         })
     end
 
-    local writeFns = table.create (count) :: { any }
-    local readFns = table.create (count) :: { any }
+    local writeFns = table.create(count) :: { any }
+    local readFns = table.create(count) :: { any }
     for i = 1, count do
         writeFns[i] = codecs[i].write
         readFns[i] = codecs[i].read
     end
-    table.freeze (writeFns)
-    table.freeze (readFns)
+    table.freeze(writeFns)
+    table.freeze(readFns)
 
     local hasFixedTotal = totalSize ~= nil
 
-    return table.freeze ({
+    return table.freeze({
         _size = totalSize,
-        write = function (ch: ChannelState, value: { any }): ()
+        write = function(ch: ChannelState, value: { any }): ()
             if hasFixedTotal then
-                alloc (ch, totalSize :: number)
+                alloc(ch, totalSize :: number)
             end
             for i = 1, count do
-                writeFns[i] (ch, value[i])
+                writeFns[i](ch, value[i])
             end
         end,
-        read = function (src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
-            local result = table.create (count)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            local result = table.create(count)
             local absPos = pos
 
             for i = 1, count do
-                local value, n = readFns[i] (src, absPos, refs)
+                local value, n = readFns[i](src, absPos, refs)
                 result[i] = value
                 absPos += n
             end
@@ -142,4 +142,4 @@ function Tuple.define (...: Codec<any>): Codec<{ any }>
     })
 end
 
-return table.freeze (Tuple)
+return table.freeze(Tuple)

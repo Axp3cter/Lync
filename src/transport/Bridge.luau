@@ -2,35 +2,35 @@
 --!optimize 2
 -- Creates and exposes the network remote instances.
 
-local ReplicatedStorage = game:GetService ("ReplicatedStorage")
-local RunService = game:GetService ("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
--- Constants ----------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 local FOLDER = "_lync"
 local RELIABLE = "R"
 local UNRELIABLE = "U"
 local TIMEOUT = 10
 
--- State --------------------------------------------------------------
+-- State ---------------------------------------------------------------
 
 local _reliable: RemoteEvent
 local _unreliable: UnreliableRemoteEvent
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Bridge = {}
 
-function Bridge.setup (): ()
-    if RunService:IsServer () then
-        local folder = Instance.new ("Folder")
+function Bridge.setup(): ()
+    if RunService:IsServer() then
+        local folder = Instance.new("Folder")
         folder.Name = FOLDER
 
-        local reliable = Instance.new ("RemoteEvent")
+        local reliable = Instance.new("RemoteEvent")
         reliable.Name = RELIABLE
         reliable.Parent = folder
 
-        local unreliable = Instance.new ("UnreliableRemoteEvent")
+        local unreliable = Instance.new("UnreliableRemoteEvent")
         unreliable.Name = UNRELIABLE
         unreliable.Parent = folder
 
@@ -39,19 +39,19 @@ function Bridge.setup (): ()
         _reliable = reliable
         _unreliable = unreliable
     else
-        local folder = ReplicatedStorage:WaitForChild (FOLDER, TIMEOUT)
+        local folder = ReplicatedStorage:WaitForChild(FOLDER, TIMEOUT)
         if not folder then
-            error ("[Lync] Network folder not found, is the server started?")
+            error("[Lync] Network folder not found, is the server started?")
         end
 
-        local reliable = folder:WaitForChild (RELIABLE, TIMEOUT)
+        local reliable = folder:WaitForChild(RELIABLE, TIMEOUT)
         if not reliable then
-            error ("[Lync] Reliable remote not found")
+            error("[Lync] Reliable remote not found")
         end
 
-        local unreliable = folder:WaitForChild (UNRELIABLE, TIMEOUT)
+        local unreliable = folder:WaitForChild(UNRELIABLE, TIMEOUT)
         if not unreliable then
-            error ("[Lync] Unreliable remote not found")
+            error("[Lync] Unreliable remote not found")
         end
 
         _reliable = reliable :: RemoteEvent
@@ -60,7 +60,7 @@ function Bridge.setup (): ()
 
     Bridge.reliable = _reliable :: any
     Bridge.unreliable = _unreliable :: any
-    table.freeze (Bridge)
+    table.freeze(Bridge)
 end
 
 -- Not frozen at module level: setup() populates reliable/unreliable then freezes.

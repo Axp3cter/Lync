@@ -1,24 +1,24 @@
 --!strict
 --!native
--- Auto (self-describing) codec. Writes a u8 type tag then the value.
+-- Auto(self-describing) codec. Writes a u8 type tag then the value.
 
-local BoolCodec = require (script.Parent.Parent.primitive.Bool)
-local BufferCodec = require (script.Parent.Parent.datatype.Buffer)
-local CFrameCodec = require (script.Parent.Parent.datatype.CFrame)
-local Channel = require (script.Parent.Parent.Parent.internal.Channel)
-local ColorCodec = require (script.Parent.Parent.datatype.Color)
-local IntVectorCodec = require (script.Parent.Parent.datatype.IntVector)
-local NumberCodec = require (script.Parent.Parent.primitive.Number)
-local NumberRangeCodec = require (script.Parent.Parent.datatype.NumberRange)
-local RayCodec = require (script.Parent.Parent.datatype.Ray)
-local RectCodec = require (script.Parent.Parent.datatype.Rect)
-local RegionCodec = require (script.Parent.Parent.datatype.Region)
-local SequenceCodec = require (script.Parent.Parent.datatype.Sequence)
-local StringCodec = require (script.Parent.Parent.datatype.String)
-local Types = require (script.Parent.Parent.Parent.Types)
-local UDimCodec = require (script.Parent.Parent.datatype.UDim)
-local Varint = require (script.Parent.Parent.primitive.Varint)
-local VectorCodec = require (script.Parent.Parent.datatype.Vector)
+local BoolCodec = require(script.Parent.Parent.primitive.Bool)
+local BufferCodec = require(script.Parent.Parent.datatype.Buffer)
+local CFrameCodec = require(script.Parent.Parent.datatype.CFrame)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local ColorCodec = require(script.Parent.Parent.datatype.Color)
+local IntVectorCodec = require(script.Parent.Parent.datatype.IntVector)
+local NumberCodec = require(script.Parent.Parent.primitive.Number)
+local NumberRangeCodec = require(script.Parent.Parent.datatype.NumberRange)
+local RayCodec = require(script.Parent.Parent.datatype.Ray)
+local RectCodec = require(script.Parent.Parent.datatype.Rect)
+local RegionCodec = require(script.Parent.Parent.datatype.Region)
+local SequenceCodec = require(script.Parent.Parent.datatype.Sequence)
+local StringCodec = require(script.Parent.Parent.datatype.String)
+local Types = require(script.Parent.Parent.Parent.Types)
+local UDimCodec = require(script.Parent.Parent.datatype.UDim)
+local Varint = require(script.Parent.Parent.primitive.Varint)
+local VectorCodec = require(script.Parent.Parent.datatype.Vector)
 
 type ChannelState = Types.ChannelState
 type Codec<T> = Types.Codec<T>
@@ -27,7 +27,7 @@ type InternalCodec<T> = Types.InternalCodec<T>
 local alloc = Channel.alloc
 local floor = math.floor
 
--- Constants ----------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 local TAG_NIL = 0
 local TAG_BOOL = 1
@@ -57,7 +57,7 @@ local TAG_RAY = 24
 local TAG_NUMBERSEQUENCE = 25
 local TAG_COLORSEQUENCE = 26
 
-local READ_DISPATCH = table.freeze ({
+local READ_DISPATCH = table.freeze({
     [TAG_BOOL] = BoolCodec.bool,
     [TAG_U8] = NumberCodec.u8,
     [TAG_U16] = NumberCodec.u16,
@@ -86,11 +86,11 @@ local READ_DISPATCH = table.freeze ({
     [TAG_COLORSEQUENCE] = SequenceCodec.colorSequence,
 })
 
-local function extractDw (codec: any): any
+local function extractDw(codec: any): any
     return (codec :: InternalCodec<any>)._directWrite
 end
 
-local TYPE_DISPATCH = table.freeze ({
+local TYPE_DISPATCH = table.freeze({
     boolean = { tag = TAG_BOOL, codec = BoolCodec.bool, size = 1, dw = nil },
     string = { tag = TAG_STRING, codec = StringCodec.string, size = nil, dw = nil },
     buffer = { tag = TAG_BUFFER, codec = BufferCodec.buff, size = nil, dw = nil },
@@ -98,79 +98,79 @@ local TYPE_DISPATCH = table.freeze ({
         tag = TAG_VEC2,
         codec = VectorCodec.vec2,
         size = 8,
-        dw = extractDw (VectorCodec.vec2),
+        dw = extractDw(VectorCodec.vec2),
     },
     Vector3 = {
         tag = TAG_VEC3,
         codec = VectorCodec.vec3,
         size = 12,
-        dw = extractDw (VectorCodec.vec3),
+        dw = extractDw(VectorCodec.vec3),
     },
     Color3 = {
         tag = TAG_COLOR3,
         codec = ColorCodec.color3,
         size = 3,
-        dw = extractDw (ColorCodec.color3),
+        dw = extractDw(ColorCodec.color3),
     },
     CFrame = {
         tag = TAG_CFRAME,
         codec = CFrameCodec.cframe,
         size = 24,
-        dw = extractDw (CFrameCodec.cframe),
+        dw = extractDw(CFrameCodec.cframe),
     },
     UDim = {
         tag = TAG_UDIM,
         codec = UDimCodec.udim,
         size = 8,
-        dw = extractDw (UDimCodec.udim),
+        dw = extractDw(UDimCodec.udim),
     },
     UDim2 = {
         tag = TAG_UDIM2,
         codec = UDimCodec.udim2,
         size = 16,
-        dw = extractDw (UDimCodec.udim2),
+        dw = extractDw(UDimCodec.udim2),
     },
     NumberRange = {
         tag = TAG_NUMBERRANGE,
         codec = NumberRangeCodec.numberRange,
         size = 8,
-        dw = extractDw (NumberRangeCodec.numberRange),
+        dw = extractDw(NumberRangeCodec.numberRange),
     },
     Rect = {
         tag = TAG_RECT,
         codec = RectCodec.rect,
         size = 16,
-        dw = extractDw (RectCodec.rect),
+        dw = extractDw(RectCodec.rect),
     },
     Vector2int16 = {
         tag = TAG_VEC2INT16,
         codec = IntVectorCodec.vec2int16,
         size = 4,
-        dw = extractDw (IntVectorCodec.vec2int16),
+        dw = extractDw(IntVectorCodec.vec2int16),
     },
     Vector3int16 = {
         tag = TAG_VEC3INT16,
         codec = IntVectorCodec.vec3int16,
         size = 6,
-        dw = extractDw (IntVectorCodec.vec3int16),
+        dw = extractDw(IntVectorCodec.vec3int16),
     },
     Region3 = {
         tag = TAG_REGION3,
         codec = RegionCodec.region3,
         size = 24,
-        dw = extractDw (RegionCodec.region3),
+        dw = extractDw(RegionCodec.region3),
     },
     Region3int16 = {
         tag = TAG_REGION3INT16,
         codec = RegionCodec.region3int16,
         size = 12,
-        dw = extractDw (RegionCodec.region3int16),
+        dw = extractDw(RegionCodec.region3int16),
     },
     Ray = {
         tag = TAG_RAY,
         codec = RayCodec.ray,
         size = 24,
-        dw = extractDw (RayCodec.ray),
+        dw = extractDw(RayCodec.ray),
     },
     NumberSequence = {
         tag = TAG_NUMBERSEQUENCE,
@@ -206,19 +206,19 @@ do
     NUM_DWRITES[pair[1]] = (pair[2] :: InternalCodec<number>)._directWrite
 end
 
-table.freeze (NUM_SIZES)
-table.freeze (NUM_DWRITES)
+table.freeze(NUM_SIZES)
+table.freeze(NUM_DWRITES)
 
--- Private ------------------------------------------------------------
+-- Private -------------------------------------------------------------
 
-local _f32Temp = buffer.create (4)
+local _f32Temp = buffer.create(4)
 
-local function selectNumberTag (value: number): number
+local function selectNumberTag(value: number): number
     if value ~= value then
         return TAG_F64
     end
 
-    if value == floor (value) then
+    if value == floor(value) then
         if value >= 0 then
             if value <= 255 then
                 return TAG_U8
@@ -243,42 +243,42 @@ local function selectNumberTag (value: number): number
         return TAG_F64
     end
 
-    buffer.writef32 (_f32Temp, 0, value)
-    if buffer.readf32 (_f32Temp, 0) == value then
+    buffer.writef32(_f32Temp, 0, value)
+    if buffer.readf32(_f32Temp, 0) == value then
         return TAG_F32
     end
 
     return TAG_F64
 end
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local auto = table.freeze ({
-    write = function (ch: ChannelState, value: any): ()
+local auto = table.freeze({
+    write = function(ch: ChannelState, value: any): ()
         if value == nil then
             local c = ch.cursor
             if c + 1 > ch.size then
-                alloc (ch, 1)
+                alloc(ch, 1)
             end
-            buffer.writeu8 (ch.buff, c, TAG_NIL)
+            buffer.writeu8(ch.buff, c, TAG_NIL)
             ch.cursor = c + 1
             return
         end
 
-        local t = type (value)
+        local t = type(value)
 
         if t == "number" then
-            local tag = selectNumberTag (value)
+            local tag = selectNumberTag(value)
             local payloadSize = NUM_SIZES[tag]
             local totalSize = 1 + payloadSize
 
             local c = ch.cursor
             if c + totalSize > ch.size then
-                alloc (ch, totalSize)
+                alloc(ch, totalSize)
             end
             local b = ch.buff
-            buffer.writeu8 (b, c, tag)
-            NUM_DWRITES[tag] (b, c + 1, value)
+            buffer.writeu8(b, c, tag)
+            NUM_DWRITES[tag](b, c + 1, value)
             ch.cursor = c + totalSize
             return
         end
@@ -288,13 +288,13 @@ local auto = table.freeze ({
             local total = 6 + len
             local c = ch.cursor
             if c + total > ch.size then
-                alloc (ch, total)
+                alloc(ch, total)
             end
-            buffer.writeu8 (ch.buff, c, TAG_STRING)
+            buffer.writeu8(ch.buff, c, TAG_STRING)
             ch.cursor = c + 1
-            Varint.write (ch, len)
+            Varint.write(ch, len)
             local c2 = ch.cursor
-            buffer.writestring (ch.buff, c2, value)
+            buffer.writestring(ch.buff, c2, value)
             ch.cursor = c2 + len
             return
         end
@@ -302,19 +302,19 @@ local auto = table.freeze ({
         if t == "boolean" then
             local c = ch.cursor
             if c + 2 > ch.size then
-                alloc (ch, 2)
+                alloc(ch, 2)
             end
             local b = ch.buff
-            buffer.writeu8 (b, c, TAG_BOOL)
-            buffer.writeu8 (b, c + 1, if value then 1 else 0)
+            buffer.writeu8(b, c, TAG_BOOL)
+            buffer.writeu8(b, c + 1, if value then 1 else 0)
             ch.cursor = c + 2
             return
         end
 
-        local valueType = typeof (value)
+        local valueType = typeof(value)
         local entry = TYPE_DISPATCH[valueType]
         if not entry then
-            error (`[Lync] Auto unsupported type: {valueType}`)
+            error(`[Lync] Auto unsupported type: {valueType}`)
         end
 
         local entryDw = entry.dw
@@ -323,36 +323,38 @@ local auto = table.freeze ({
             local totalSize = 1 + entrySize
             local c = ch.cursor
             if c + totalSize > ch.size then
-                alloc (ch, totalSize)
+                alloc(ch, totalSize)
             end
             local b = ch.buff
-            buffer.writeu8 (b, c, entry.tag)
-            entryDw (b, c + 1, value)
+            buffer.writeu8(b, c, entry.tag)
+            entryDw(b, c + 1, value)
             ch.cursor = c + totalSize
         else
             local c = ch.cursor
             if c + 1 > ch.size then
-                alloc (ch, 1)
+                alloc(ch, 1)
             end
-            buffer.writeu8 (ch.buff, c, entry.tag)
+            buffer.writeu8(ch.buff, c, entry.tag)
             ch.cursor = c + 1
-            entry.codec.write (ch, value)
+            entry.codec.write(ch, value)
         end
     end,
-    read = function (src: buffer, pos: number, refs: { Instance }?): (any, number)
-        local tag = buffer.readu8 (src, pos)
+    read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+        local tag = buffer.readu8(src, pos)
         if tag == TAG_NIL then
             return nil, 1
         end
 
         local codec = READ_DISPATCH[tag]
         if not codec then
-            error (`[Lync] Auto unknown tag: {tag}`)
+            error(`[Lync] Auto unknown tag: {tag}`)
         end
 
-        local value, n = codec.read (src, pos + 1, refs)
+        local value, n = codec.read(src, pos + 1, refs)
         return value, 1 + n
     end,
 })
 
-return table.freeze ({ auto = auto })
+local AutoModule = {}
+AutoModule.auto = auto
+return table.freeze(AutoModule)

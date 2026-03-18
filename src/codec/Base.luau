@@ -2,52 +2,52 @@
 --!native
 -- Fixed-size codec factory. Every fixed-size codec calls Base.define once.
 
-local Channel = require (script.Parent.Parent.internal.Channel)
-local Types = require (script.Parent.Parent.Types)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Types = require(script.Parent.Parent.Types)
 
 type ChannelState = Types.ChannelState
 
 local alloc = Channel.alloc
 
--- Public -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
 local Base = {}
 
-function Base.define <T>(
+function Base.define<T>(
     size: number,
     directWrite: (b: buffer, offset: number, value: T) -> (),
     directRead: (b: buffer, offset: number) -> T
 ): any
-    return table.freeze ({
+    return table.freeze({
         _size = size,
         _directWrite = directWrite,
         _directRead = directRead,
-        write = function (ch: ChannelState, value: T): ()
+        write = function(ch: ChannelState, value: T): ()
             local c = ch.cursor
             if c + size > ch.size then
-                alloc (ch, size)
+                alloc(ch, size)
             end
-            directWrite (ch.buff, c, value)
+            directWrite(ch.buff, c, value)
             ch.cursor = c + size
         end,
-        read = function (src: buffer, pos: number, _refs: { Instance }?): (T, number)
-            return directRead (src, pos), size
+        read = function(src: buffer, pos: number, _refs: { Instance }?): (T, number)
+            return directRead(src, pos), size
         end,
     })
 end
 
-function Base.zero (): any
-    return table.freeze ({
+function Base.zero(): any
+    return table.freeze({
         _size = 0,
-        _directWrite = function (_b: buffer, _offset: number, _value: any): () end,
-        _directRead = function (_b: buffer, _offset: number): any
+        _directWrite = function(_b: buffer, _offset: number, _value: any): () end,
+        _directRead = function(_b: buffer, _offset: number): any
             return nil
         end,
-        write = function (_ch: ChannelState, _value: any): () end,
-        read = function (_src: buffer, _pos: number, _refs: { Instance }?): (any, number)
+        write = function(_ch: ChannelState, _value: any): () end,
+        read = function(_src: buffer, _pos: number, _refs: { Instance }?): (any, number)
             return nil, 0
         end,
     })
 end
 
-return table.freeze (Base)
+return table.freeze(Base)

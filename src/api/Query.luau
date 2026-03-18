@@ -203,12 +203,18 @@ function QueryImpl.listen(self: Query, callback: (...any) -> any): Connection
     if IS_SERVER then
         return self._reqReg.signal:connect(
             function(request: any, player: Player, correlation: number): ()
-                local ok, response = pcall(callback, request, player)
-                if not ok then
-                    warn(`[Lync] Query handler error on "{respName}": {response}`)
+                local results = table.pack(pcall(callback, request, player))
+                if not results[1] then
+                    warn(`[Lync] Query handler error on "{respName}": {results[2]}`)
+                    Server.writeQueryNil(player, respId, respName, correlation)
+                    return
                 end
 
-                if ok and response ~= nil then
+                local response = if results.n > 2
+                    then table.move(results, 2, results.n, 1, table.create(results.n - 1))
+                    else results[2]
+
+                if response ~= nil then
                     Server.writeQuery(player, respId, respName, correlation, respCodec, response)
                 else
                     Server.writeQueryNil(player, respId, respName, correlation)
@@ -218,12 +224,18 @@ function QueryImpl.listen(self: Query, callback: (...any) -> any): Connection
     else
         return self._reqReg.signal:connect(
             function(request: any, _player: Player?, correlation: number): ()
-                local ok, response = pcall(callback, request)
-                if not ok then
-                    warn(`[Lync] Query handler error on "{respName}": {response}`)
+                local results = table.pack(pcall(callback, request))
+                if not results[1] then
+                    warn(`[Lync] Query handler error on "{respName}": {results[2]}`)
+                    Client.writeQueryNil(respId, respName, correlation)
+                    return
                 end
 
-                if ok and response ~= nil then
+                local response = if results.n > 2
+                    then table.move(results, 2, results.n, 1, table.create(results.n - 1))
+                    else results[2]
+
+                if response ~= nil then
                     Client.writeQuery(respId, respName, correlation, respCodec, response)
                 else
                     Client.writeQueryNil(respId, respName, correlation)

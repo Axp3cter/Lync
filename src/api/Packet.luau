@@ -41,30 +41,27 @@ type PacketFields = {
     _signal: Signal.Signal,
 }
 
--- Shared methods(both contexts)
-local SharedImpl = {}
-
-function SharedImpl.listen(self: Packet, callback: (...any) -> ()): Connection
-    return self._signal:connect(callback)
-end
-
-function SharedImpl.once(self: Packet, callback: (...any) -> ()): Connection
-    return self._signal:once(callback)
-end
-
-function SharedImpl.wait(self: Packet): ...any
-    return self._signal:wait()
-end
-
-function SharedImpl.disconnectAll(self: Packet): ()
-    self._signal:disconnectAll()
-end
-
 -- Server-only metatable. Single send() dispatches on target type.
-local ServerImpl = setmetatable({}, { __index = SharedImpl })
+local ServerImpl = {}
 ServerImpl.__index = ServerImpl
 
 export type Packet = typeof(setmetatable({} :: PacketFields, ServerImpl))
+
+function ServerImpl.listen(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:connect(callback)
+end
+
+function ServerImpl.once(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:once(callback)
+end
+
+function ServerImpl.wait(self: Packet): ...any
+    return self._signal:wait()
+end
+
+function ServerImpl.disconnectAll(self: Packet): ()
+    self._signal:disconnectAll()
+end
 
 local function checkDeltaMode(self: Packet, mode: number): ()
     if not self._isDelta then
@@ -127,8 +124,24 @@ end
 table.freeze(ServerImpl)
 
 -- Client-only metatable. Has send(), no target needed.
-local ClientImpl = setmetatable({}, { __index = SharedImpl })
+local ClientImpl = {}
 ClientImpl.__index = ClientImpl
+
+function ClientImpl.listen(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:connect(callback)
+end
+
+function ClientImpl.once(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:once(callback)
+end
+
+function ClientImpl.wait(self: Packet): ...any
+    return self._signal:wait()
+end
+
+function ClientImpl.disconnectAll(self: Packet): ()
+    self._signal:disconnectAll()
+end
 
 function ClientImpl.send(self: Packet, data: any): ()
     clientWrite(self._id, self._name, self._codec, data, self._isUnreliable)

@@ -91,6 +91,10 @@ SignalImpl.__index = SignalImpl
 export type Signal = typeof(setmetatable({} :: SignalFields, SignalImpl))
 
 local function addEntry(self: Signal, callback: (...any) -> (), isOnce: boolean): Connection
+    if type(callback) ~= "function" then
+        error("[Lync] Expected function, got " .. type(callback))
+    end
+
     local count = self._count + 1
     self._count = count
 

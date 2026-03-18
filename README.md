@@ -509,7 +509,7 @@ Per-packet counters are available directly on the Packet object. Per-player coun
 
 ```luau
 -- Per-packet (both sides)
-print(Net.State.bytesSent, Net.State.fires, Net.State.drops)
+print(Net.State:getBytesSent(), Net.State:getFires(), Net.State:getDrops())
 
 -- Per-player (server only)
 local stats = Lync.getPlayerStats(player)
@@ -520,13 +520,13 @@ end
 Lync.resetStats()  -- zeros everything in-place
 ```
 
-| Field | What it counts |
-|:------|:---------------|
-| `packet.bytesSent` | Wire bytes produced (includes batch header overhead). |
-| `packet.bytesReceived` | Wire bytes consumed on receive. |
-| `packet.fires` | Send fire count. |
-| `packet.recvFires` | Receive fire count. |
-| `packet.drops` | Gate rejections (rate limit, NaN, validate). |
+| Method | What it returns |
+|:-------|:----------------|
+| `packet:getBytesSent()` | Wire bytes produced (includes batch header overhead). |
+| `packet:getBytesReceived()` | Wire bytes consumed on receive. |
+| `packet:getFires()` | Send fire count. |
+| `packet:getRecvFires()` | Receive fire count. |
+| `packet:getDrops()` | Gate rejections (rate limit, NaN, validate). |
 
 ## Flush Control
 

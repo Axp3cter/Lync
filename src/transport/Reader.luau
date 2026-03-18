@@ -18,7 +18,6 @@ local gateReportDrop = Gate.reportDrop
 local KIND_PACKET = Registry.KIND_PACKET
 local KIND_REQUEST = Registry.KIND_REQUEST
 
-local TS_NONE = Channel.TS_NONE
 local TS_FRAME = Channel.TS_FRAME
 local TS_OFFSET = Channel.TS_OFFSET
 local TS_FULL = Channel.TS_FULL
@@ -56,7 +55,6 @@ function Reader.process(
         Baseline.setReadKey(player or false)
     end
 
-    -- Cache flags once per frame-buffer, not per packet
     local hasReceiveMiddleware = Middleware.hasReceive
     local isServer = player ~= nil
 
@@ -88,7 +86,20 @@ function Reader.process(
             local signal = reg.signal
             local batchStart = pos
             local maxBytes = reg.maxPayloadBytes
+
+            -- Timestamp is per-batch, read once after count
+            local timestamp: number? = nil
             local tsMode = reg.timestampMode
+            if tsMode == TS_FRAME then
+                timestamp = buffer.readu8(incoming, pos)
+                pos += 1
+            elseif tsMode == TS_OFFSET then
+                timestamp = buffer.readu16(incoming, pos)
+                pos += 2
+            elseif tsMode == TS_FULL then
+                timestamp = buffer.readf64(incoming, pos)
+                pos += 8
+            end
 
             -- Cap count for fixed-size codecs to prevent wasted iterations
             local fixedSize = (codec :: any)._size
@@ -101,33 +112,25 @@ function Reader.process(
 
             -- Hot path: no gate, no middleware, no byte budget
             if not (isServer and reg.needsGate) and not hasReceiveMiddleware and not maxBytes then
+                local batchBytes = 0
                 for _ = 1, count do
                     if pos >= length then
                         break
                     end
 
-                    local timestamp: number? = nil
-                    if tsMode == TS_FRAME then
-                        timestamp = buffer.readu8(incoming, pos)
-                        pos += 1
-                    elseif tsMode == TS_OFFSET then
-                        timestamp = buffer.readu16(incoming, pos)
-                        pos += 2
-                    elseif tsMode == TS_FULL then
-                        timestamp = buffer.readf64(incoming, pos)
-                        pos += 8
-                    end
-
                     local value, consumed = codec.read(incoming, pos, refs)
                     pos += consumed
-                    reg.bytesReceived += consumed
-                    reg.recvFires += 1
+                    batchBytes += consumed
                     signal:fire(value, player, timestamp)
                 end
+                reg.bytesReceived += batchBytes
+                reg.recvFires += count
             else
                 -- Cold path: gate and/or middleware and/or byte budget active
                 local baseName = reg.baseName
                 local needsGate = isServer and reg.needsGate
+                local batchBytes = 0
+                local recvCount = 0
 
                 for _ = 1, count do
                     if pos >= length then
@@ -139,22 +142,10 @@ function Reader.process(
                         break
                     end
 
-                    local timestamp: number? = nil
-                    if tsMode == TS_FRAME then
-                        timestamp = buffer.readu8(incoming, pos)
-                        pos += 1
-                    elseif tsMode == TS_OFFSET then
-                        timestamp = buffer.readu16(incoming, pos)
-                        pos += 2
-                    elseif tsMode == TS_FULL then
-                        timestamp = buffer.readf64(incoming, pos)
-                        pos += 8
-                    end
-
                     local value, consumed = codec.read(incoming, pos, refs)
                     pos += consumed
-                    reg.bytesReceived += consumed
-                    reg.recvFires += 1
+                    batchBytes += consumed
+                    recvCount += 1
 
                     if needsGate and not gateCheck(value, reg, player :: Player) then
                         continue
@@ -170,6 +161,8 @@ function Reader.process(
                         signal:fire(value, player, timestamp)
                     end
                 end
+                reg.bytesReceived += batchBytes
+                reg.recvFires += recvCount
             end
         else
             -- Query frame: id(u8, already read) + correlationId(varint) + status(u8)
@@ -186,11 +179,7 @@ function Reader.process(
             pos += 1
 
             if status == 1 then
-                if kind == KIND_REQUEST then
-                    querySignal:fire(nil, player, correlationId)
-                else
-                    querySignal:fire(nil, player, correlationId)
-                end
+                querySignal:fire(nil, player, correlationId)
                 continue
             end
 
@@ -211,11 +200,7 @@ function Reader.process(
                 final = value
             end
 
-            if kind == KIND_REQUEST then
-                querySignal:fire(final, player, correlationId)
-            else
-                querySignal:fire(final, player, correlationId)
-            end
+            querySignal:fire(final, player, correlationId)
         end
     end
 end

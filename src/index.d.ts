@@ -135,11 +135,11 @@ export interface Packet<T> {
     wait(this: Packet<T>): LuaTuple<[T, Player | undefined]>;
     disconnectAll(this: Packet<T>): void;
 
-    readonly bytesSent: number;
-    readonly bytesReceived: number;
-    readonly fires: number;
-    readonly recvFires: number;
-    readonly drops: number;
+    getBytesSent(this: Packet<T>): number;
+    getBytesReceived(this: Packet<T>): number;
+    getFires(this: Packet<T>): number;
+    getRecvFires(this: Packet<T>): number;
+    getDrops(this: Packet<T>): number;
 }
 
 // -- Query -------------------------------------------------------------

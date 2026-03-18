@@ -11,7 +11,7 @@ local LyncFolder = ReplicatedStorage:WaitForChild("Lync")
 local Lync = require(LyncFolder)
 local Scenarios = require(LyncFolder:WaitForChild("bench"):WaitForChild("Scenarios"))
 
-Lync.setChannelMaxSize(1048576) -- 1 MB, needed for Blink entities bench(100x6B x 1000 fires)
+Lync.setChannelMaxSize(1048576) -- 1 MB, needed for Blink entities bench (100x6B x 1000 fires)
 Lync.start()
 
 -- Config --------------------------------------------------------------

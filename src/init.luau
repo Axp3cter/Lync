@@ -90,7 +90,7 @@ local function except(...: any): any
     for i = 1, count do
         set[select(i, ...)] = true
     end
-    return table.freeze({ _tag = "except", _set = table.freeze(set) })
+    return { _tag = "except", _set = set }
 end
 
 local function start(): ()

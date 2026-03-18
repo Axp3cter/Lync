@@ -40,8 +40,41 @@ type PacketFields = {
     _signal: Signal.Signal,
 }
 
--- Server-only methods
-local function serverSend(self: any, data: any, target: any?): ()
+local function checkDeltaMode(self: any, mode: number): ()
+    if not self._isDelta then
+        return
+    end
+    local current = self._deltaMode
+    if current == 0 then
+        self._deltaMode = mode
+    elseif current ~= mode then
+        error(`[Lync] Delta packet cannot mix targeted and broadcast: "{self._reg.name}"`)
+    end
+end
+
+-- Server-only metatable
+local ServerImpl = {}
+ServerImpl.__index = ServerImpl
+
+export type Packet = typeof(setmetatable({} :: PacketFields, ServerImpl))
+
+function ServerImpl.listen(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:connect(callback)
+end
+
+function ServerImpl.once(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:once(callback)
+end
+
+function ServerImpl.wait(self: Packet): ...any
+    return self._signal:wait()
+end
+
+function ServerImpl.disconnectAll(self: Packet): ()
+    self._signal:disconnectAll()
+end
+
+function ServerImpl.send(self: Packet, data: any, target: any?): ()
     if target == nil then
         error("[Lync] Server packet:send requires a target")
     end
@@ -49,130 +82,88 @@ local function serverSend(self: any, data: any, target: any?): ()
     local reg = self._reg
     local isUnreliable = self._isUnreliable
 
-    -- Single player
     if typeof(target) == "Instance" then
-        if self._isDelta then
-            local current = self._deltaMode
-            if current == 0 then
-                self._deltaMode = DELTA_TARGETED
-            elseif current ~= DELTA_TARGETED then
-                error(`[Lync] Delta packet cannot mix targeted and broadcast: "{reg.name}"`)
-            end
-        end
+        checkDeltaMode(self, DELTA_TARGETED)
         Server.writeTo(target :: Player, reg, data, isUnreliable)
         return
     end
 
-    -- Must be a table from here
     local tag = target._tag
 
-    if self._isDelta then
-        local current = self._deltaMode
-        if tag == "all" or tag == "except" or tag == "group" then
-            if current == 0 then
-                self._deltaMode = DELTA_BROADCAST
-            elseif current ~= DELTA_BROADCAST then
-                error(`[Lync] Delta packet cannot mix targeted and broadcast: "{reg.name}"`)
-            end
-        else
-            if current == 0 then
-                self._deltaMode = DELTA_TARGETED
-            elseif current ~= DELTA_TARGETED then
-                error(`[Lync] Delta packet cannot mix targeted and broadcast: "{reg.name}"`)
-            end
-        end
-    end
-
-    -- Lync.all sentinel
     if tag == "all" then
+        checkDeltaMode(self, DELTA_BROADCAST)
         Server.writeToAll(reg, data, isUnreliable)
         return
     end
 
-    -- Lync.except(player, ...) descriptor
     if tag == "except" then
+        checkDeltaMode(self, DELTA_BROADCAST)
         Server.writeToAllExcept(target._set, reg, data, isUnreliable)
         return
     end
 
-    -- Group object
     if tag == "group" then
+        checkDeltaMode(self, DELTA_BROADCAST)
         Server.writeToSet(target:getSet(), reg, data, isUnreliable)
         return
     end
 
-    -- Player list (array)
+    checkDeltaMode(self, DELTA_TARGETED)
     Server.writeToList(target :: { Player }, reg, data, isUnreliable)
 end
 
-local function clientSend(self: any, data: any): ()
-    Client.write(self._reg, data, self._isUnreliable)
+-- Stats: read directly from registration
+function ServerImpl.getBytesSent(self: Packet): number
+    return self._reg.bytesSent
 end
 
-local function listen(self: any, callback: (...any) -> ()): Connection
-    return self._signal:connect(callback)
+function ServerImpl.getBytesReceived(self: Packet): number
+    return self._reg.bytesReceived
 end
 
-local function once(self: any, callback: (...any) -> ()): Connection
-    return self._signal:once(callback)
+function ServerImpl.getFires(self: Packet): number
+    return self._reg.fires
 end
 
-local function wait(self: any): ...any
-    return self._signal:wait()
+function ServerImpl.getRecvFires(self: Packet): number
+    return self._reg.recvFires
 end
 
-local function disconnectAll(self: any): ()
-    self._signal:disconnectAll()
+function ServerImpl.getDrops(self: Packet): number
+    return self._reg.drops
 end
-
--- Shared method tables for __index lookup
-local serverMethods = {
-    send = serverSend,
-    listen = listen,
-    once = once,
-    wait = wait,
-    disconnectAll = disconnectAll,
-}
-
-local clientMethods = {
-    send = clientSend,
-    listen = listen,
-    once = once,
-    wait = wait,
-    disconnectAll = disconnectAll,
-}
-
--- Server metatable with function-based __index for stats passthrough
-local ServerImpl = {}
-ServerImpl.__index = function(self: any, key: string)
-    local m = serverMethods[key]
-    if m then
-        return m
-    end
-    local reg = rawget(self, "_reg")
-    if reg then
-        return (reg :: any)[key]
-    end
-    return nil
-end
-
-export type Packet = typeof(setmetatable({} :: PacketFields, ServerImpl))
 
 table.freeze(ServerImpl)
 
--- Client metatable
+-- Client-only metatable
 local ClientImpl = {}
-ClientImpl.__index = function(self: any, key: string)
-    local m = clientMethods[key]
-    if m then
-        return m
-    end
-    local reg = rawget(self, "_reg")
-    if reg then
-        return (reg :: any)[key]
-    end
-    return nil
+ClientImpl.__index = ClientImpl
+
+function ClientImpl.listen(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:connect(callback)
 end
+
+function ClientImpl.once(self: Packet, callback: (...any) -> ()): Connection
+    return self._signal:once(callback)
+end
+
+function ClientImpl.wait(self: Packet): ...any
+    return self._signal:wait()
+end
+
+function ClientImpl.disconnectAll(self: Packet): ()
+    self._signal:disconnectAll()
+end
+
+function ClientImpl.send(self: Packet, data: any): ()
+    Client.write(self._reg, data, self._isUnreliable)
+end
+
+ClientImpl.getBytesSent = ServerImpl.getBytesSent
+ClientImpl.getBytesReceived = ServerImpl.getBytesReceived
+ClientImpl.getFires = ServerImpl.getFires
+ClientImpl.getRecvFires = ServerImpl.getRecvFires
+ClientImpl.getDrops = ServerImpl.getDrops
 
 table.freeze(ClientImpl)
 
@@ -199,7 +190,10 @@ function PacketModule.define(name: string, config: PacketConfig<any>): Packet
         error(`[Lync] Invalid timestamp mode: "{config.timestamp}" on packet "{name}"`)
     end
 
-    -- Warn if codec tree contains unknown without validate
+    if timestampMode then
+        Channel.enableTimestamps()
+    end
+
     local hasUnknown = (config.value :: any)._hasUnknown
     if hasUnknown and not config.validate then
         warn(

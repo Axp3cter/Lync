@@ -25,8 +25,9 @@ local _isStarted = false
 
 -- Flush control
 local _flushRate = 60
-local _flushAccum = 0
 local _flushInterval = 1 / 60
+local _useAccumulator = false
+local _flushAccum = 0
 
 -- Timestamp
 local _frameCounter: number = 0
@@ -73,9 +74,10 @@ local function flushChannel(remote: any, ch: ChannelState, applyXor: boolean): (
 end
 
 local function flush(): ()
-    _frameCounter = (_frameCounter + 1) % 256
-    local now = os.clock()
-    Channel.updateTimestamp(_frameCounter, 0, now)
+    if Channel.hasTimestamps() then
+        _frameCounter = (_frameCounter + 1) % 256
+        Channel.updateTimestamp(_frameCounter, 0, os.clock())
+    end
 
     flushChannel(Bridge.reliable, _reliable :: ChannelState, true)
     flushChannel(Bridge.unreliable, _unreliable :: ChannelState, false)
@@ -102,14 +104,19 @@ function Client.start(): ()
     Bridge.unreliable.OnClientEvent:Connect(function(data: any, refs: any): ()
         receive(data, refs, false)
     end)
-    RunService.Heartbeat:Connect(function(dt: number)
-        _flushAccum += dt
-        if _flushAccum < _flushInterval then
-            return
-        end
-        _flushAccum = 0
-        flush()
-    end)
+
+    if _useAccumulator then
+        RunService.Heartbeat:Connect(function(dt: number)
+            _flushAccum += dt
+            if _flushAccum < _flushInterval then
+                return
+            end
+            _flushAccum -= _flushInterval
+            flush()
+        end)
+    else
+        RunService.Heartbeat:Connect(flush)
+    end
 end
 
 function Client.write(reg: Registration, data: any, isUnreliable: boolean): ()
@@ -134,7 +141,6 @@ function Client.write(reg: Registration, data: any, isUnreliable: boolean): ()
     reg.fires += 1
 end
 
--- Shared for both query requests and responses (identical wire format).
 function Client.writeQuery(
     id: number,
     name: string,
@@ -174,6 +180,7 @@ end
 function Client.setFlushRate(hz: number): ()
     _flushRate = math.clamp(hz, 1, 60)
     _flushInterval = 1 / _flushRate
+    _useAccumulator = _flushRate < 60
 end
 
 function Client.getFlushRate(): number

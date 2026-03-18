@@ -21,9 +21,7 @@ type Registration = Types.Registration
 
 local channelWriteBatch = Channel.writeBatch
 local channelWriteBatchRaw = Channel.writeBatchRaw
-local channelSetPacket = Channel.setCurrentPacket
 local channelUpdateTimestamp = Channel.updateTimestamp
-local registryGet = Registry.get
 
 -- State ---------------------------------------------------------------
 
@@ -45,8 +43,9 @@ local _broadScratch = Channel.create()
 
 -- Flush control
 local _flushRate = 60
-local _flushAccum = 0
 local _flushInterval = 1 / 60
+local _useAccumulator = false
+local _flushAccum = 0
 
 -- Timestamp
 local _frameCounter: number = 0
@@ -116,12 +115,10 @@ local function receive(player: Player, data: any, refs: any, applyXor: boolean):
     local ok, err = pcall(Reader.process, raw, safeRefs, player, 0)
     if not ok then
         warn(`[Lync] Read failed from {player.Name} ({player.UserId}): {err}`)
-        -- pcall failure counts as a strike
         strikes = (_strikes[player] or 0) + 1
         _strikes[player] = strikes
     end
 
-    -- Per-player recv stats
     local state = _players[player]
     if state then
         state.stats.bytesReceived += buffer.len(raw)
@@ -143,7 +140,6 @@ local function flushChannel(remote: any, ch: ChannelState, target: Player, apply
         remote:FireClient(target, raw, refs)
     end
 
-    -- Per-player send stats
     local state = _players[target]
     if state then
         state.stats.bytesSent += buffer.len(raw)
@@ -153,10 +149,11 @@ local function flushChannel(remote: any, ch: ChannelState, target: Player, apply
 end
 
 local function flush(): ()
-    -- Update timestamp state for this frame
-    _frameCounter = (_frameCounter + 1) % 256
-    local now = os.clock()
-    channelUpdateTimestamp(_frameCounter, 0, now)
+    -- Update timestamp only when any packet uses them
+    if Channel.hasTimestamps() then
+        _frameCounter = (_frameCounter + 1) % 256
+        channelUpdateTimestamp(_frameCounter, 0, os.clock())
+    end
 
     local reliable = Bridge.reliable
     local unreliable = Bridge.unreliable
@@ -177,26 +174,12 @@ local function flush(): ()
 end
 
 -- Serialize data once into shared scratch, return raw bytes + refs snapshot.
+-- No timestamp here: writeBatchRaw handles it in the batch header.
 local function serializeBroadcast(reg: Registration, data: any): (number, { Instance }?)
     local scratch = _broadScratch
     scratch.cursor = 0
     table.clear(scratch.refs)
-
-    local tsMode = reg.timestampMode
-    if tsMode == Channel.TS_FRAME then
-        Channel.alloc(scratch, 1)
-        buffer.writeu8(scratch.buff, scratch.cursor, _frameCounter)
-        scratch.cursor += 1
-    elseif tsMode == Channel.TS_OFFSET then
-        Channel.alloc(scratch, 2)
-        buffer.writeu16(scratch.buff, scratch.cursor, 0)
-        scratch.cursor += 2
-    elseif tsMode == Channel.TS_FULL then
-        Channel.alloc(scratch, 8)
-        buffer.writef64(scratch.buff, scratch.cursor, os.clock())
-        scratch.cursor += 8
-    end
-
+    Channel.setCurrentPacket(reg.name)
     reg.codec.write(scratch, data)
 
     local snapRefs = if #scratch.refs > 0 then table.clone(scratch.refs) else nil
@@ -231,8 +214,8 @@ local function broadcastToAll(
         return
     end
 
-    local id = reg.id
     local scratchBuff = _broadScratch.buff
+    local totalBytes = 0
     local count = 0
     for player, state in _players do
         if exceptSet and exceptSet[player] then
@@ -240,10 +223,11 @@ local function broadcastToAll(
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
         local before = ch.cursor
-        channelWriteBatchRaw(ch, id, scratchBuff, snapLen, snapRefs)
-        reg.bytesSent += ch.cursor - before
+        channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
+        totalBytes += ch.cursor - before
         count += 1
     end
+    reg.bytesSent += totalBytes
     reg.fires += count
 end
 
@@ -259,8 +243,8 @@ local function broadcastToList(
         return
     end
 
-    local id = reg.id
     local scratchBuff = _broadScratch.buff
+    local totalBytes = 0
     local count = 0
     for _, player in players do
         local state = _players[player]
@@ -269,10 +253,11 @@ local function broadcastToList(
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
         local before = ch.cursor
-        channelWriteBatchRaw(ch, id, scratchBuff, snapLen, snapRefs)
-        reg.bytesSent += ch.cursor - before
+        channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
+        totalBytes += ch.cursor - before
         count += 1
     end
+    reg.bytesSent += totalBytes
     reg.fires += count
 end
 
@@ -288,8 +273,8 @@ local function broadcastToSet(
         return
     end
 
-    local id = reg.id
     local scratchBuff = _broadScratch.buff
+    local totalBytes = 0
     local count = 0
     for player in set do
         local state = _players[player]
@@ -298,10 +283,11 @@ local function broadcastToSet(
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
         local before = ch.cursor
-        channelWriteBatchRaw(ch, id, scratchBuff, snapLen, snapRefs)
-        reg.bytesSent += ch.cursor - before
+        channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
+        totalBytes += ch.cursor - before
         count += 1
     end
+    reg.bytesSent += totalBytes
     reg.fires += count
 end
 
@@ -329,14 +315,19 @@ function Server.start(): ()
     Bridge.unreliable.OnServerEvent:Connect(function(player: Player, data: any, refs: any): ()
         receive(player, data, refs, false)
     end)
-    RunService.Heartbeat:Connect(function(dt: number)
-        _flushAccum += dt
-        if _flushAccum < _flushInterval then
-            return
-        end
-        _flushAccum = 0
-        flush()
-    end)
+
+    if _useAccumulator then
+        RunService.Heartbeat:Connect(function(dt: number)
+            _flushAccum += dt
+            if _flushAccum < _flushInterval then
+                return
+            end
+            _flushAccum -= _flushInterval
+            flush()
+        end)
+    else
+        RunService.Heartbeat:Connect(flush)
+    end
 end
 
 function Server.writeTo(player: Player, reg: Registration, data: any, isUnreliable: boolean): ()
@@ -393,7 +384,6 @@ function Server.writeToSet(
     broadcastToSet(set, reg, data, isUnreliable)
 end
 
--- Shared for both query requests and responses (identical wire format).
 function Server.writeQuery(
     player: Player,
     id: number,
@@ -437,6 +427,7 @@ end
 function Server.setFlushRate(hz: number): ()
     _flushRate = math.clamp(hz, 1, 60)
     _flushInterval = 1 / _flushRate
+    _useAccumulator = _flushRate < 60
 end
 
 function Server.getFlushRate(): number

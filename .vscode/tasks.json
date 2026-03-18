@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "stylua: format all",
+            "type": "shell",
+            "command": "stylua",
+            "args": ["src/", "test/", "bench/"],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

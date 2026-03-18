@@ -10,7 +10,7 @@ type ChannelState = Types.ChannelState
 
 local INITIAL_SIZE = 1024
 local MAX_SIZE = 262144
-local MAX_BATCH = 255
+local MAX_BATCH = 65535
 
 local min = math.min
 local bxor = bit32.bxor
@@ -28,9 +28,6 @@ local TS_FULL = 3
 -- State ---------------------------------------------------------------
 
 local _maxSize = MAX_SIZE
-
--- Packet name for overflow diagnostics. Not coroutine-safe: concurrent
--- serializers may overwrite before the error fires.
 local _currentPacket = ""
 
 -- Timestamp state updated once per flush via updateTimestamp().
@@ -39,11 +36,13 @@ local _offsetMs: number = 0
 local _clockTime: number = 0
 local _anyTimestamp = false
 
+-- Stats gating. Default off; set via Lync.enableStats().
+local _statsEnabled = false
+
 -- Public --------------------------------------------------------------
 
 local Channel = {}
 
--- Override the maximum buffer size. Call before start(). Range: 4096-1048576.
 function Channel.setMaxSize(bytes: number): ()
     if bytes < 4096 or bytes > 1048576 then
         error(`[Lync] Channel max size must be 4096-1048576, got {bytes}`)
@@ -69,7 +68,6 @@ function Channel.create(): ChannelState
     }
 end
 
--- Grows the channel buffer to fit the requested bytes. Power-of-two sizing.
 function Channel.alloc(ch: ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
     if needed <= ch.size then
@@ -94,7 +92,7 @@ local alloc = Channel.alloc
 -- Seals the open batch header and returns a snapshot of the buffer + refs.
 function Channel.sealAndDump(ch: ChannelState): (buffer, { Instance })
     if ch.lastId >= 0 then
-        buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
@@ -108,19 +106,16 @@ function Channel.sealAndDump(ch: ChannelState): (buffer, { Instance })
     return out, if #refs > 0 then table.clone(refs) else {}
 end
 
--- Sets the packet name for overflow diagnostics.
 function Channel.setCurrentPacket(name: string): ()
     _currentPacket = name
 end
 
--- Called once per flush when any packet uses timestamps.
 function Channel.updateTimestamp(frameCounter: number, offsetMs: number, clockTime: number): ()
     _frameCounter = frameCounter
     _offsetMs = offsetMs
     _clockTime = clockTime
 end
 
--- Set once at define time when any packet uses timestamps.
 function Channel.enableTimestamps(): ()
     _anyTimestamp = true
 end
@@ -129,55 +124,98 @@ function Channel.hasTimestamps(): boolean
     return _anyTimestamp
 end
 
--- Opens a batch header with optional timestamp. Returns nothing.
--- Timestamp is per-batch, not per-fire.
-local function openBatch(ch: ChannelState, id: number, name: string, tsMode: number): ()
-    if ch.lastId >= 0 then
-        buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
-    end
+function Channel.enableStats(): ()
+    _statsEnabled = true
+end
 
+function Channel.statsEnabled(): boolean
+    return _statsEnabled
+end
+
+-- Batch opener: no timestamp variant. Resolved at define time via reg._openFn (#2)
+local function openBatchPlain(ch: ChannelState, id: number, name: string): ()
+    if ch.lastId >= 0 then
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
     _currentPacket = name
-    local tsBytes = if tsMode == TS_FRAME
-        then 1
-        elseif tsMode == TS_OFFSET then 2
-        elseif tsMode == TS_FULL then 8
-        else 0
-    alloc(ch, 2 + tsBytes)
+    alloc(ch, 3)
     local c = ch.cursor
     buffer.writeu8(ch.buff, c, id)
     ch.countPos = c + 1
-    c += 2
-
-    if tsMode == TS_FRAME then
-        buffer.writeu8(ch.buff, c, _frameCounter)
-        c += 1
-    elseif tsMode == TS_OFFSET then
-        buffer.writeu16(ch.buff, c, _offsetMs)
-        c += 2
-    elseif tsMode == TS_FULL then
-        buffer.writef64(ch.buff, c, _clockTime)
-        c += 8
-    end
-
-    ch.cursor = c
+    ch.cursor = c + 3
     ch.lastId = id
     ch.itemCount = 0
 end
 
--- Writes a single value into the batch. Opens a new header on ID change or overflow.
+local function openBatchFrame(ch: ChannelState, id: number, name: string): ()
+    if ch.lastId >= 0 then
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
+    _currentPacket = name
+    alloc(ch, 4)
+    local c = ch.cursor
+    buffer.writeu8(ch.buff, c, id)
+    ch.countPos = c + 1
+    buffer.writeu8(ch.buff, c + 3, _frameCounter)
+    ch.cursor = c + 4
+    ch.lastId = id
+    ch.itemCount = 0
+end
+
+local function openBatchOffset(ch: ChannelState, id: number, name: string): ()
+    if ch.lastId >= 0 then
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
+    _currentPacket = name
+    alloc(ch, 5)
+    local c = ch.cursor
+    buffer.writeu8(ch.buff, c, id)
+    ch.countPos = c + 1
+    buffer.writeu16(ch.buff, c + 3, _offsetMs)
+    ch.cursor = c + 5
+    ch.lastId = id
+    ch.itemCount = 0
+end
+
+local function openBatchFull(ch: ChannelState, id: number, name: string): ()
+    if ch.lastId >= 0 then
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
+    _currentPacket = name
+    alloc(ch, 11)
+    local c = ch.cursor
+    buffer.writeu8(ch.buff, c, id)
+    ch.countPos = c + 1
+    buffer.writef64(ch.buff, c + 3, _clockTime)
+    ch.cursor = c + 11
+    ch.lastId = id
+    ch.itemCount = 0
+end
+
+-- Returns the correct openBatch function for a given timestamp mode.
+function Channel.resolveOpenFn(tsMode: number): (ch: ChannelState, id: number, name: string) -> ()
+    if tsMode == TS_FRAME then
+        return openBatchFrame
+    elseif tsMode == TS_OFFSET then
+        return openBatchOffset
+    elseif tsMode == TS_FULL then
+        return openBatchFull
+    end
+    return openBatchPlain
+end
+
+-- Writes a single value into the batch. Zero branching on the hot path.
 function Channel.writeBatch(ch: ChannelState, reg: any, data: any): ()
     local id = reg.id
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
-        openBatch(ch, id, reg.name, reg.timestampMode)
+        reg._openFn(ch, id, reg.name)
     end
 
     ch.itemCount += 1
-    local codec = reg.codec
-    codec.write(ch, data)
+    reg.codec.write(ch, data)
 end
 
 -- Appends pre-serialized bytes into a batch. Used by broadcast fan-out.
--- Timestamp is written once per batch header, not per item.
 function Channel.writeBatchRaw(
     ch: ChannelState,
     reg: any,
@@ -187,7 +225,7 @@ function Channel.writeBatchRaw(
 ): ()
     local id = reg.id
     if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
-        openBatch(ch, id, reg.name, reg.timestampMode)
+        reg._openFn(ch, id, reg.name)
     end
 
     ch.itemCount += 1
@@ -206,7 +244,7 @@ end
 
 local function sealOpen(ch: ChannelState): ()
     if ch.lastId >= 0 then
-        buffer.writeu8(ch.buff, ch.countPos, ch.itemCount)
+        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
         ch.lastId = -1
         ch.countPos = 0
         ch.itemCount = 0
@@ -297,12 +335,15 @@ function Channel.xorApply(current: buffer, previous: buffer?): buffer
     return result
 end
 
+-- Conditional refs clear (#6)
 function Channel.reset(ch: ChannelState): ()
     ch.cursor = 0
     ch.lastId = -1
     ch.countPos = 0
     ch.itemCount = 0
-    table.clear(ch.refs)
+    if #ch.refs > 0 then
+        table.clear(ch.refs)
+    end
 end
 
 Channel.TS_NONE = TS_NONE

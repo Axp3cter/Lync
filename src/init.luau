@@ -226,7 +226,8 @@ local Lync = {
     flush = flush,
     setFlushRate = setFlushRate,
 
-    -- Stats (server-only for per-player)
+    -- Stats (default off; call enableStats() to activate)
+    enableStats = Channel.enableStats,
     getPlayerStats = getPlayerStats,
     resetStats = resetStats,
 
@@ -235,6 +236,11 @@ local Lync = {
 
     -- Introspection
     queryPendingCount = QueryModule.pendingCount,
+
+    -- Packet capture (server-only, debug)
+    startCapture = if IS_SERVER then Server.startCapture else nil,
+    stopCapture = if IS_SERVER then Server.stopCapture else nil,
+    dumpCaptures = if IS_SERVER then Server.dumpCaptures else nil,
 }
 
 Lync.default = Lync

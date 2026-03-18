@@ -206,6 +206,75 @@ function Array.array(element: Codec<any>, maxCount: number?): Codec<{ any }>
     local directWrite = internal._directWrite
     local directRead = internal._directRead
 
+    local band = bit32.band
+    local bor = bit32.bor
+    local lshift = bit32.lshift
+    local rshift = bit32.rshift
+    local ceil = math.ceil
+
+    -- Bitpacked bool array: 8 bools per byte
+    if internal._isBool then
+        return table.freeze({
+            _hasUnknown = nil,
+            write = function(ch: ChannelState, value: { any }): ()
+                local len = #value
+                Varint.write(ch, len)
+                if len == 0 then
+                    return
+                end
+
+                local byteCount = ceil(len / 8)
+                local c = ch.cursor
+                if c + byteCount > ch.size then
+                    alloc(ch, byteCount)
+                end
+
+                local b = ch.buff
+                local byteIdx = 0
+                local acc = 0
+                for i = 1, len do
+                    local bit = (i - 1) % 8
+                    if value[i] then
+                        acc = bor(acc, lshift(1, bit))
+                    end
+                    if bit == 7 then
+                        buffer.writeu8(b, c + byteIdx, acc)
+                        byteIdx += 1
+                        acc = 0
+                    end
+                end
+                -- Flush remaining bits
+                if len % 8 ~= 0 then
+                    buffer.writeu8(b, c + byteIdx, acc)
+                end
+                ch.cursor = c + byteCount
+            end,
+            read = function(src: buffer, pos: number, _refs: { Instance }?): ({ boolean }, number)
+                local len, lenBytes = Varint.read(src, pos)
+
+                if maxCount and len > maxCount then
+                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
+                end
+
+                local result = table.create(len)
+                if len == 0 then
+                    return result, lenBytes
+                end
+
+                local byteCount = ceil(len / 8)
+                local c = pos + lenBytes
+                for i = 1, len do
+                    local byteIdx = rshift(i - 1, 3)
+                    local bit = (i - 1) % 8
+                    local byte = buffer.readu8(src, c + byteIdx)
+                    result[i] = band(byte, lshift(1, bit)) ~= 0
+                end
+
+                return result, lenBytes + byteCount
+            end,
+        })
+    end
+
     if elementSize and directWrite and directRead then
         return table.freeze({
             _hasUnknown = (element :: any)._hasUnknown or nil,

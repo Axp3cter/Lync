@@ -57,6 +57,7 @@ function Reader.process(
 
     local hasReceiveMiddleware = Middleware.hasReceive
     local isServer = player ~= nil
+    local statsOn = Channel.statsEnabled()
 
     while pos < length do
         local id = buffer.readu8(incoming, pos)
@@ -71,12 +72,12 @@ function Reader.process(
         local kind = reg.kind
 
         if kind == KIND_PACKET then
-            if pos + 1 > length then
+            if pos + 2 > length then
                 break
             end
 
-            local count = buffer.readu8(incoming, pos)
-            pos += 1
+            local count = buffer.readu16(incoming, pos)
+            pos += 2
 
             if count == 0 then
                 continue
@@ -112,25 +113,37 @@ function Reader.process(
 
             -- Hot path: no gate, no middleware, no byte budget
             if not (isServer and reg.needsGate) and not hasReceiveMiddleware and not maxBytes then
-                local batchBytes = 0
-                for _ = 1, count do
-                    if pos >= length then
-                        break
-                    end
+                if statsOn then
+                    local batchBytes = 0
+                    for _ = 1, count do
+                        if pos >= length then
+                            break
+                        end
 
-                    local value, consumed = codec.read(incoming, pos, refs)
-                    pos += consumed
-                    batchBytes += consumed
-                    signal:fire(value, player, timestamp)
+                        local value, consumed = codec.read(incoming, pos, refs)
+                        pos += consumed
+                        batchBytes += consumed
+                        signal:fire(value, player, timestamp)
+                    end
+                    reg.bytesReceived += batchBytes
+                    reg.recvFires += count
+                else
+                    for _ = 1, count do
+                        if pos >= length then
+                            break
+                        end
+
+                        local value, consumed = codec.read(incoming, pos, refs)
+                        pos += consumed
+                        signal:fire(value, player, timestamp)
+                    end
                 end
-                reg.bytesReceived += batchBytes
-                reg.recvFires += count
             else
                 -- Cold path: gate and/or middleware and/or byte budget active
                 local baseName = reg.baseName
                 local needsGate = isServer and reg.needsGate
-                local batchBytes = 0
-                local recvCount = 0
+                local batchBytes = if statsOn then 0 else nil
+                local recvCount = if statsOn then 0 else nil
 
                 for _ = 1, count do
                     if pos >= length then
@@ -144,8 +157,11 @@ function Reader.process(
 
                     local value, consumed = codec.read(incoming, pos, refs)
                     pos += consumed
-                    batchBytes += consumed
-                    recvCount += 1
+
+                    if batchBytes then
+                        batchBytes += consumed
+                        recvCount += 1
+                    end
 
                     if needsGate and not gateCheck(value, reg, player :: Player) then
                         continue
@@ -161,8 +177,10 @@ function Reader.process(
                         signal:fire(value, player, timestamp)
                     end
                 end
-                reg.bytesReceived += batchBytes
-                reg.recvFires += recvCount
+                if batchBytes then
+                    reg.bytesReceived += batchBytes
+                    reg.recvFires += recvCount :: number
+                end
             end
         else
             -- Query frame: id(u8, already read) + correlationId(varint) + status(u8)

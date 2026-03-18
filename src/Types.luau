@@ -78,6 +78,7 @@ export type Registration = {
     needsGate: boolean,
     maxPayloadBytes: number?,
     timestampMode: number,
+    _openFn: (ch: ChannelState, id: number, name: string) -> (), -- resolved at define time (#2)
 
     -- Stats counters (mutable, incremented at runtime)
     bytesSent: number,

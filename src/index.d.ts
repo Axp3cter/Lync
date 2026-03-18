@@ -327,7 +327,8 @@ declare namespace Lync {
     export function flush(): void;
     export function setFlushRate(hz: number): void;
 
-    // Stats (server-only for per-player)
+    // Stats (default off; call enableStats() to activate)
+    export function enableStats(): void;
     export function getPlayerStats(player: Player): PlayerStats | undefined;
     export function resetStats(): void;
 
@@ -336,6 +337,11 @@ declare namespace Lync {
 
     // Introspection
     export function queryPendingCount(): number;
+
+    // Packet capture (server-only, debug)
+    export function startCapture(label?: string): void;
+    export function stopCapture(): void;
+    export function dumpCaptures(): void;
 }
 
 export default Lync;

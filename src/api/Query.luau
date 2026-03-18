@@ -318,6 +318,8 @@ function QueryModule.define(name: string, config: QueryConfig<any, any>): Query
 
     local rateLimit = config.rateLimit or { maxPerSecond = 30 }
 
+    local Channel = require(script.Parent.Parent.internal.Channel)
+
     local reqReg, respReg = Registry.registerQueryPair(
         name,
         config.request,
@@ -327,6 +329,11 @@ function QueryModule.define(name: string, config: QueryConfig<any, any>): Query
         rateLimit,
         config.validate
     )
+
+    -- Queries use writeQuery, not writeBatch, but _openFn must be set
+    local openFn = Channel.resolveOpenFn(0)
+    reqReg._openFn = openFn
+    respReg._openFn = openFn
 
     respSignal:connect(function(resp: any, source: Player?, correlation: number): ()
         completeQuery(correlation, resp, source)

@@ -387,7 +387,7 @@ Used as the second argument to `packet:send()` on the server.
 | `Lync.f16` | 2 | ±65,504, roughly 3 digits of precision |
 | `Lync.f32` | 4 | IEEE 754 single |
 | `Lync.f64` | 8 | IEEE 754 double |
-| `Lync.bool` | 1 | true/false. Gets packed into bitfields when inside structs. |
+| `Lync.bool` | 1 | true/false. Gets packed into bitfields when inside structs, and 8-per-byte when inside arrays. |
 
 ### Datatypes
 
@@ -418,7 +418,7 @@ Used as the second argument to `packet:send()` on the server.
 | Constructor | What it does |
 |:------------|:------------|
 | `Lync.struct({ key = codec })` | Named fields. Bools get packed into bitfields automatically. |
-| `Lync.array(codec, maxCount?)` | Variable length list with varint count. Optional `maxCount` rejects on read if exceeded. |
+| `Lync.array(codec, maxCount?)` | Variable length list with varint count. Optional `maxCount` rejects on read if exceeded. Bool arrays are bitpacked (8 per byte). |
 | `Lync.map(keyCodec, valueCodec, maxCount?)` | Key-value pairs with varint count. Optional `maxCount` rejects on read if exceeded. |
 | `Lync.optional(codec)` | 1 byte flag, value only if present. |
 | `Lync.tuple(codec, codec, ...)` | Ordered positional values, no keys. |
@@ -505,9 +505,14 @@ Same data shapes and methodology as [Blink's benchmark suite](https://github.com
 
 ## Stats
 
+Off by default. Call `Lync.enableStats()` before `Lync.start()` to activate. When disabled, zero overhead on send and receive paths.
+
 Per-packet counters are available directly on the Packet object. Per-player counters are available via `Lync.getPlayerStats()`.
 
 ```luau
+Lync.enableStats()
+Lync.start()
+
 -- Per-packet (both sides)
 print(Net.State:getBytesSent(), Net.State:getFires(), Net.State:getDrops())
 
@@ -520,13 +525,16 @@ end
 Lync.resetStats()  -- zeros everything in-place
 ```
 
-| Method | What it returns |
+| Function / Method | What it does |
 |:-------|:----------------|
+| `Lync.enableStats()` | Activates stat counters. Call before `start()`. |
 | `packet:getBytesSent()` | Wire bytes produced (includes batch header overhead). |
 | `packet:getBytesReceived()` | Wire bytes consumed on receive. |
 | `packet:getFires()` | Send fire count. |
 | `packet:getRecvFires()` | Receive fire count. |
 | `packet:getDrops()` | Gate rejections (rate limit, NaN, validate). |
+| `Lync.getPlayerStats(player)` | Returns `{ bytesSent, bytesReceived }` or nil. Server only. |
+| `Lync.resetStats()` | Zeros all counters in-place. |
 
 ## Flush Control
 
@@ -539,8 +547,8 @@ Lync.flush()           -- force an immediate flush, resets the accumulator
 
 | Function | What it does |
 |:---------|:------------|
-| `Lync.setFlushRate(hz)` | 1 to 60. Default 60. Callable at runtime. |
-| `Lync.flush()` | Immediate flush. Resets the timer so you dont double-send at frame end. |
+| `Lync.setFlushRate(hz)` | 1 to 60. Default 60. Callable at runtime. At 60hz, flushes every Heartbeat directly (no accumulator). Below 60, uses an elapsed-time accumulator with drift correction. |
+| `Lync.flush()` | Immediate flush. Skips the next scheduled Heartbeat flush to prevent double-sending and XOR chain desync. |
 
 ## Security
 
@@ -558,6 +566,32 @@ Fires `onDrop` with reason `"bandwidth"` when a player exceeds the threshold. Re
 
 If a packet uses `Lync.unknown` anywhere in its codec tree without a `validate` callback, Lync prints a warning at define time. The `unknown` codec bypasses schema validation entirely; client data goes through Roblox's sidecar without type checking. Adding `validate` suppresses the warning.
 
+## Packet Capture
+
+Server-only debug tool. Records raw and XOR'd buffer hex for analysis.
+
+```luau
+Lync.startCapture("My test")
+-- fire packets...
+Lync.flush()
+Lync.stopCapture()
+
+Lync.startCapture("Another test")
+-- fire packets...
+Lync.flush()
+Lync.stopCapture()
+
+Lync.dumpCaptures()  -- writes JSON to ServerStorage.LyncCapture
+```
+
+Each entry contains the label, frame number, raw hex (pre-XOR), XOR'd hex (post-XOR, nil for unreliable), byte count, and refs count. Hex is capped at 512 bytes per buffer to keep the output manageable.
+
+| Function | What it does |
+|:---------|:------------|
+| `Lync.startCapture(label?)` | Start recording. Tags entries with the label. |
+| `Lync.stopCapture()` | Stop recording. |
+| `Lync.dumpCaptures()` | Writes all entries as JSON to a StringValue in ServerStorage, then clears. |
+
 ## Limits & Configuration
 
 Call these before `Lync.start()` unless noted otherwise.
@@ -567,6 +601,7 @@ Call these before `Lync.start()` unless noted otherwise.
 | Packet types | 255 | Cant change | u8 on the wire. Each query eats 2 IDs. |
 | Buffer per channel per frame | 256 KB | `Lync.setChannelMaxSize(n)` | 4 KB to 1 MB. |
 | Concurrent queries | 65,536 | Cant change | Varint correlation IDs. Freed on response or timeout. `Lync.queryPendingCount()` returns in-flight count. Queries default to 30/s rate limit. |
+| Stats | Off | `Lync.enableStats()` | Zero overhead when off. Counters on packets and players. |
 | NaN/inf scan depth | 16 | `Lync.setValidationDepth(n)` | 4 to 32. |
 | Channel pool | 16 | `Lync.setPoolSize(n)` | 2 to 128. Extra gets GCd. |
 | Flush rate | 60 hz | `Lync.setFlushRate(n)` | 1 to 60. Runtime-safe. |

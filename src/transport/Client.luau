@@ -28,6 +28,7 @@ local _flushRate = 60
 local _flushInterval = 1 / 60
 local _useAccumulator = false
 local _flushAccum = 0
+local _flushedThisFrame = false
 
 -- Timestamp
 local _frameCounter: number = 0
@@ -107,6 +108,10 @@ function Client.start(): ()
 
     if _useAccumulator then
         RunService.Heartbeat:Connect(function(dt: number)
+            if _flushedThisFrame then
+                _flushedThisFrame = false
+                return
+            end
             _flushAccum += dt
             if _flushAccum < _flushInterval then
                 return
@@ -115,7 +120,13 @@ function Client.start(): ()
             flush()
         end)
     else
-        RunService.Heartbeat:Connect(flush)
+        RunService.Heartbeat:Connect(function()
+            if _flushedThisFrame then
+                _flushedThisFrame = false
+                return
+            end
+            flush()
+        end)
     end
 end
 
@@ -135,10 +146,14 @@ function Client.write(reg: Registration, data: any, isUnreliable: boolean): ()
     end
 
     local ch = if isUnreliable then _unreliable :: ChannelState else _reliable :: ChannelState
-    local before = ch.cursor
-    Channel.writeBatch(ch, reg, final)
-    reg.bytesSent += ch.cursor - before
-    reg.fires += 1
+    if Channel.statsEnabled() then
+        local before = ch.cursor
+        Channel.writeBatch(ch, reg, final)
+        reg.bytesSent += ch.cursor - before
+        reg.fires += 1
+    else
+        Channel.writeBatch(ch, reg, final)
+    end
 end
 
 function Client.writeQuery(
@@ -174,6 +189,7 @@ end
 
 function Client.flush(): ()
     _flushAccum = 0
+    _flushedThisFrame = true
     flush()
 end
 

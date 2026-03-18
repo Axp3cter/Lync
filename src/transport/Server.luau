@@ -22,6 +22,7 @@ type Registration = Types.Registration
 local channelWriteBatch = Channel.writeBatch
 local channelWriteBatchRaw = Channel.writeBatchRaw
 local channelUpdateTimestamp = Channel.updateTimestamp
+local channelStatsEnabled = Channel.statsEnabled
 
 -- State ---------------------------------------------------------------
 
@@ -46,6 +47,7 @@ local _flushRate = 60
 local _flushInterval = 1 / 60
 local _useAccumulator = false
 local _flushAccum = 0
+local _flushedThisFrame = false
 
 -- Timestamp
 local _frameCounter: number = 0
@@ -54,6 +56,23 @@ local _frameCounter: number = 0
 local _strikes = {} :: { [Player]: number }
 local _softLimit = 16384
 local _maxStrikes = 10
+
+-- Packet capture
+local _captureEnabled = false
+local _captureLabel = ""
+local _captureFrame = 0
+local _captures = {} :: { any }
+
+local MAX_HEX = 512 -- cap hex dump to first 512 bytes to keep capture size sane
+
+local function bufToHex(buf: buffer, len: number): string
+    local cap = math.min(len, MAX_HEX)
+    local parts = table.create(cap)
+    for i = 0, cap - 1 do
+        parts[i + 1] = string.format("%02x", buffer.readu8(buf, i))
+    end
+    return table.concat(parts)
+end
 
 -- Private -------------------------------------------------------------
 
@@ -89,7 +108,6 @@ local function receive(player: Player, data: any, refs: any, applyXor: boolean):
         return
     end
 
-    -- Bandwidth strike counter
     local len = buffer.len(buf)
     local strikes = _strikes[player] or 0
     if len > _softLimit then
@@ -119,9 +137,11 @@ local function receive(player: Player, data: any, refs: any, applyXor: boolean):
         _strikes[player] = strikes
     end
 
-    local state = _players[player]
-    if state then
-        state.stats.bytesReceived += buffer.len(raw)
+    if channelStatsEnabled() then
+        local state = _players[player]
+        if state then
+            state.stats.bytesReceived += buffer.len(raw)
+        end
     end
 end
 
@@ -132,24 +152,39 @@ local function flushChannel(remote: any, ch: ChannelState, target: Player, apply
 
     local raw, refs = Channel.sealAndDump(ch)
 
+    local xored: buffer? = nil
     if applyXor then
-        local xored = Channel.xorApply(raw, ch.prevDump)
+        xored = Channel.xorApply(raw, ch.prevDump)
         ch.prevDump = raw
         remote:FireClient(target, xored, refs)
     else
         remote:FireClient(target, raw, refs)
     end
 
-    local state = _players[target]
-    if state then
-        state.stats.bytesSent += buffer.len(raw)
+    if _captureEnabled then
+        _captureFrame += 1
+        local rawLen = buffer.len(raw)
+        table.insert(_captures, {
+            label = _captureLabel,
+            frame = _captureFrame,
+            raw = bufToHex(raw, rawLen),
+            xored = if xored then bufToHex(xored :: buffer, buffer.len(xored :: buffer)) else nil,
+            bytes = rawLen,
+            refs = #refs,
+        })
+    end
+
+    if channelStatsEnabled() then
+        local state = _players[target]
+        if state then
+            state.stats.bytesSent += buffer.len(raw)
+        end
     end
 
     Channel.reset(ch)
 end
 
 local function flush(): ()
-    -- Update timestamp only when any packet uses them
     if Channel.hasTimestamps() then
         _frameCounter = (_frameCounter + 1) % 256
         channelUpdateTimestamp(_frameCounter, 0, os.clock())
@@ -173,7 +208,6 @@ local function flush(): ()
     end
 end
 
--- Serialize data once into shared scratch, return raw bytes + refs snapshot.
 -- No timestamp here: writeBatchRaw handles it in the batch header.
 local function serializeBroadcast(reg: Registration, data: any): (number, { Instance }?)
     local scratch = _broadScratch
@@ -186,7 +220,6 @@ local function serializeBroadcast(reg: Registration, data: any): (number, { Inst
     return scratch.cursor, snapRefs
 end
 
--- Run middleware and serialize once. Returns nil if middleware dropped.
 local function prepareBroadcast(reg: Registration, data: any): (any, number, { Instance }?)
     local final: any
     if Middleware.hasSend then
@@ -202,7 +235,7 @@ local function prepareBroadcast(reg: Registration, data: any): (any, number, { I
     return final, snapLen, snapRefs
 end
 
--- Fan out to all connected players via _players map.
+-- Broadcast fan-out: stats computed once from snapLen, not per-player (#7)
 local function broadcastToAll(
     reg: Registration,
     data: any,
@@ -215,23 +248,27 @@ local function broadcastToAll(
     end
 
     local scratchBuff = _broadScratch.buff
-    local totalBytes = 0
     local count = 0
     for player, state in _players do
         if exceptSet and exceptSet[player] then
             continue
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
-        local before = ch.cursor
         channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
-        totalBytes += ch.cursor - before
         count += 1
     end
-    reg.bytesSent += totalBytes
-    reg.fires += count
+    if channelStatsEnabled() and count > 0 then
+        -- Header (3 bytes for id+count) + timestamp + payload per player
+        local tsBytes = if reg.timestampMode == 1
+            then 1
+            elseif reg.timestampMode == 2 then 2
+            elseif reg.timestampMode == 3 then 8
+            else 0
+        reg.bytesSent += (3 + tsBytes + snapLen) * count
+        reg.fires += count
+    end
 end
 
--- Fan out to a specific player list.
 local function broadcastToList(
     players: { Player },
     reg: Registration,
@@ -244,7 +281,6 @@ local function broadcastToList(
     end
 
     local scratchBuff = _broadScratch.buff
-    local totalBytes = 0
     local count = 0
     for _, player in players do
         local state = _players[player]
@@ -252,16 +288,20 @@ local function broadcastToList(
             continue
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
-        local before = ch.cursor
         channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
-        totalBytes += ch.cursor - before
         count += 1
     end
-    reg.bytesSent += totalBytes
-    reg.fires += count
+    if channelStatsEnabled() and count > 0 then
+        local tsBytes = if reg.timestampMode == 1
+            then 1
+            elseif reg.timestampMode == 2 then 2
+            elseif reg.timestampMode == 3 then 8
+            else 0
+        reg.bytesSent += (3 + tsBytes + snapLen) * count
+        reg.fires += count
+    end
 end
 
--- Fan out to a group set { [Player]: true }.
 local function broadcastToSet(
     set: { [Player]: true },
     reg: Registration,
@@ -274,7 +314,6 @@ local function broadcastToSet(
     end
 
     local scratchBuff = _broadScratch.buff
-    local totalBytes = 0
     local count = 0
     for player in set do
         local state = _players[player]
@@ -282,13 +321,18 @@ local function broadcastToSet(
             continue
         end
         local ch = if isUnreliable then state.unreliable else state.reliable
-        local before = ch.cursor
         channelWriteBatchRaw(ch, reg, scratchBuff, snapLen, snapRefs)
-        totalBytes += ch.cursor - before
         count += 1
     end
-    reg.bytesSent += totalBytes
-    reg.fires += count
+    if channelStatsEnabled() and count > 0 then
+        local tsBytes = if reg.timestampMode == 1
+            then 1
+            elseif reg.timestampMode == 2 then 2
+            elseif reg.timestampMode == 3 then 8
+            else 0
+        reg.bytesSent += (3 + tsBytes + snapLen) * count
+        reg.fires += count
+    end
 end
 
 -- Public --------------------------------------------------------------
@@ -318,6 +362,10 @@ function Server.start(): ()
 
     if _useAccumulator then
         RunService.Heartbeat:Connect(function(dt: number)
+            if _flushedThisFrame then
+                _flushedThisFrame = false
+                return
+            end
             _flushAccum += dt
             if _flushAccum < _flushInterval then
                 return
@@ -326,7 +374,13 @@ function Server.start(): ()
             flush()
         end)
     else
-        RunService.Heartbeat:Connect(flush)
+        RunService.Heartbeat:Connect(function()
+            if _flushedThisFrame then
+                _flushedThisFrame = false
+                return
+            end
+            flush()
+        end)
     end
 end
 
@@ -347,10 +401,14 @@ function Server.writeTo(player: Player, reg: Registration, data: any, isUnreliab
     end
 
     local ch = if isUnreliable then state.unreliable else state.reliable
-    local before = ch.cursor
-    channelWriteBatch(ch, reg, final)
-    reg.bytesSent += ch.cursor - before
-    reg.fires += 1
+    if channelStatsEnabled() then
+        local before = ch.cursor
+        channelWriteBatch(ch, reg, final)
+        reg.bytesSent += ch.cursor - before
+        reg.fires += 1
+    else
+        channelWriteBatch(ch, reg, final)
+    end
 end
 
 function Server.writeToAll(reg: Registration, data: any, isUnreliable: boolean): ()
@@ -421,6 +479,7 @@ end
 
 function Server.flush(): ()
     _flushAccum = 0
+    _flushedThisFrame = true
     flush()
 end
 
@@ -456,6 +515,53 @@ function Server.resetStats(): ()
         reg.recvFires = 0
         reg.drops = 0
     end)
+end
+
+function Server.startCapture(label: string?): ()
+    _captureEnabled = true
+    _captureLabel = label or "unknown"
+    _captureFrame = 0
+end
+
+function Server.stopCapture(): ()
+    _captureEnabled = false
+end
+
+function Server.dumpCaptures(): ()
+    local json = game:GetService("HttpService"):JSONEncode(_captures)
+    local storage = game:GetService("ServerStorage")
+
+    -- Clean up previous captures
+    local old = storage:FindFirstChild("LyncCapture")
+    if old then
+        old:Destroy()
+    end
+
+    -- Split across StringValues if needed (200K limit per value)
+    local CHUNK = 199000
+    if #json <= CHUNK then
+        local sv = Instance.new("StringValue")
+        sv.Name = "LyncCapture"
+        sv.Value = json
+        sv.Parent = storage
+    else
+        local folder = Instance.new("Folder")
+        folder.Name = "LyncCapture"
+        local parts = math.ceil(#json / CHUNK)
+        for i = 1, parts do
+            local sv = Instance.new("StringValue")
+            sv.Name = `Part{i}`
+            sv.Value = string.sub(json, (i - 1) * CHUNK + 1, i * CHUNK)
+            sv.Parent = folder
+        end
+        folder.Parent = storage
+    end
+
+    local count = #_captures
+    table.clear(_captures)
+    print(
+        `[Lync] Capture saved: {count} entries, {#json} chars -> ServerStorage.LyncCapture (open in script editor, copy contents)`
+    )
 end
 
 return table.freeze(Server)

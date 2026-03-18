@@ -72,6 +72,7 @@ local function assign(
         needsGate = rateLimit ~= nil or validate ~= nil,
         maxPayloadBytes = maxPayloadBytes,
         timestampMode = timestampMode or 0,
+        _openFn = nil :: any, -- set by Packet.define via Channel.resolveOpenFn
         bytesSent = 0,
         bytesReceived = 0,
         fires = 0,

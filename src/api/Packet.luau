@@ -214,6 +214,9 @@ function PacketModule.define(name: string, config: PacketConfig<any>): Packet
         timestampMode
     )
 
+    -- Resolve batch opener at define time: zero branching on hot path (#2)
+    reg._openFn = Channel.resolveOpenFn(reg.timestampMode)
+
     local isDelta = (config.value :: InternalCodec<any>)._isDelta == true
 
     local fields: PacketFields = {

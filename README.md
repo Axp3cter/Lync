@@ -486,7 +486,7 @@ Disabled by default. Zero overhead when off. Enable via `Lync.configure({ stats 
 
 ## Benchmarks
 
-Run `rojo serve bench.project.json`, open in Studio with one local server + one client. The suite has 7 sections. Fill in the `—` placeholders after running the bench on your hardware.
+Run `rojo serve bench.project.json`, open in Studio with one local server + one client.
 
 See `bench/Run.server.luau` for full configuration and methodology.
 
@@ -496,34 +496,34 @@ Exact byte count per codec write. Raw payload only — no batch framing overhead
 
 | Codec | Input | Bytes |
 |:------|:------|------:|
-| `bool` | `true` | — |
-| `int(0, 255)` | `42` | — |
-| `int(0, 65535)` | `1000` | — |
-| `int(0, 1000000)` | `500000` | — |
-| `int(-128, 127)` | `-50` | — |
-| `f16` | `42.5` | — |
-| `f32` | `3.14` | — |
-| `f64` | `π` | — |
-| `nothing` | `nil` | — |
-| `string` | `""` (empty) | — |
-| `string` | 5 chars | — |
-| `string` | 191 chars (max inline prefix) | — |
-| `string` | 192 chars (varint prefix) | — |
-| `string` | 1000 chars | — |
-| `vec2` | lossless | — |
-| `vec2(0, 100, 1)` | u8 quantized | — |
-| `vec3` | lossless | — |
-| `vec3(0, 100, 1)` | u8 quantized | — |
-| `vec3(-1000, 1000, 0.1)` | u16 quantized | — |
-| `cframe` | lossless | — |
-| `cframe()` | smallest-three | — |
-| `color3` | RGB | — |
-| `ray` | origin + direction | — |
-| entity struct | 6 fields + bool (lossless) | — |
-| entity struct | quantized fields (compact) | — |
-| bitfield | bool + uint packed | — |
-| `array` × 100 entities | 100× struct(6× u8) | — |
-| `array` × 1000 bools | bitpacked | — |
+| `bool` | `true` | 1 |
+| `int(0, 255)` | `42` | 1 |
+| `int(0, 65535)` | `1000` | 2 |
+| `int(0, 1000000)` | `500000` | 4 |
+| `int(-128, 127)` | `-50` | 1 |
+| `f16` | `42.5` | 2 |
+| `f32` | `3.14` | 4 |
+| `f64` | `π` | 8 |
+| `nothing` | `nil` | 0 |
+| `string` | `""` (empty) | 1 |
+| `string` | 5 chars | 6 |
+| `string` | 191 chars (max inline prefix) | 192 |
+| `string` | 192 chars (varint prefix) | 194 |
+| `string` | 1000 chars | 1002 |
+| `vec2` | lossless | 8 |
+| `vec2(0, 100, 1)` | u8 quantized | 2 |
+| `vec3` | lossless | 12 |
+| `vec3(0, 100, 1)` | u8 quantized | 3 |
+| `vec3(-1000, 1000, 0.1)` | u16 quantized | 6 |
+| `cframe` | lossless | 24 |
+| `cframe()` | smallest-three | 16 |
+| `color3` | RGB | 3 |
+| `ray` | origin + direction | 24 |
+| entity struct | 6 fields + bool (lossless) | 34 |
+| entity struct | quantized fields (compact) | 13 |
+| bitfield | bool + uint packed | 2 |
+| `array` × 100 entities | 100× struct(6× u8) | 601 |
+| `array` × 1000 bools | bitpacked | 127 |
 
 ### Codec Throughput
 
@@ -531,28 +531,28 @@ Isolated CPU cost. No networking. Encode + decode measured independently. 100k i
 
 | Codec | Bytes | Encode | Decode | Round-trips/sec |
 |:------|------:|-------:|-------:|----------------:|
-| `bool` | — | — | — | — |
-| `int(0, 255)` | — | — | — | — |
-| `int(0, 65535)` | — | — | — | — |
-| `f16` | — | — | — | — |
-| `f32` | — | — | — | — |
-| `f64` | — | — | — | — |
-| `string` (empty) | — | — | — | — |
-| `string` (10 chars) | — | — | — | — |
-| `string` (100 chars) | — | — | — | — |
-| `string` (1000 chars) | — | — | — | — |
-| `vec2` | — | — | — | — |
-| `vec3` | — | — | — | — |
-| `vec3` (quantized) | — | — | — | — |
-| `cframe` (lossless) | — | — | — | — |
-| `cframe()` (compressed) | — | — | — | — |
-| `color3` | — | — | — | — |
-| `udim2` | — | — | — | — |
-| entity struct | — | — | — | — |
-| entity compact | — | — | — | — |
-| bitfield flags | — | — | — | — |
-| 100× entity array | — | — | — | — |
-| 1000× bool array | — | — | — | — |
+| `bool` | 1 | 44ns | 29ns | 13,862,127 |
+| `int(0, 255)` | 1 | 42ns | 28ns | 14,387,868 |
+| `int(0, 65535)` | 2 | 41ns | 28ns | 14,395,324 |
+| `f16` | 2 | 61ns | 42ns | 9,686,824 |
+| `f32` | 4 | 41ns | 25ns | 15,003,300 |
+| `f64` | 8 | 41ns | 26ns | 14,844,063 |
+| `string` (empty) | 1 | 30ns | 22ns | 19,240,019 |
+| `string` (10 chars) | 11 | 46ns | 60ns | 9,441,889 |
+| `string` (100 chars) | 101 | 48ns | 91ns | 7,166,506 |
+| `string` (1000 chars) | 1002 | 76ns | 238ns | 3,179,953 |
+| `vec2` | 8 | 75ns | 43ns | 8,417,720 |
+| `vec3` | 12 | 53ns | 27ns | 12,360,328 |
+| `vec3` (quantized) | 3 | 130ns | 85ns | 4,636,348 |
+| `cframe` (lossless) | 24 | 92ns | 144ns | 4,232,266 |
+| `cframe()` (compressed) | 16 | 123ns | 170ns | 3,413,621 |
+| `color3` | 3 | 125ns | 58ns | 5,482,756 |
+| `udim2` | 16 | 235ns | 112ns | 2,880,482 |
+| entity struct | 34 | 239ns | 395ns | 1,578,183 |
+| entity compact | 13 | 377ns | 490ns | 1,153,064 |
+| bitfield flags | 2 | 142ns | 332ns | 2,107,486 |
+| 100× entity array | 601 | 15.2µs | 34.1µs | 20,306 |
+| 1000× bool array | 127 | 4.3µs | 5.1µs | 106,806 |
 
 ### Delta Savings
 
@@ -560,11 +560,11 @@ Byte cost across three consecutive writes: initial (full), identical repeat (unc
 
 | Codec | Full | Unchanged | Changed | Savings |
 |:------|-----:|----------:|--------:|--------:|
-| `deltaStruct` (entity) | — | — | — | — |
-| `deltaStruct` (compact) | — | — | — | — |
-| `deltaArray` (100× entity) | — | — | — | — |
-| `deltaArray` (1000× bool) | — | — | — | — |
-| `deltaMap` (string → u8) | — | — | — | — |
+| `deltaStruct` (entity) | 35B | 1B | 35B | 97% |
+| `deltaStruct` (compact) | 14B | 1B | 14B | 93% |
+| `deltaArray` (100× entity) | 602B | 1B | 1B | 100% |
+| `deltaArray` (1000× bool) | 128B | 1B | 1B | 99% |
+| `deltaMap` (string → u8) | 19B | 1B | 19B | 95% |
 
 ### Batch Framing
 
@@ -572,8 +572,8 @@ MSB single-item batches use a 1-byte header. Multi-item batches add a u16 count 
 
 | Scenario | Total bytes | Per-item overhead |
 |:---------|----------:|------------------:|
-| 1 × u8 (single-item) | — | — |
-| 10 × u8 (multi-item) | — | — |
+| 1 × u8 (single-item) | 2B | 1B |
+| 10 × u8 (multi-item) | 13B | 0.3B |
 
 ### Network Throughput
 
@@ -581,14 +581,14 @@ Live sends to one player. Measured over 8 seconds. FPS and Kbps at median and ta
 
 | Packet | Fires/frame | FPS median | FPS p1 | Kbps median | Kbps p95 | Kbps p99 |
 |:-------|:---:|----:|----:|-----:|-----:|-----:|
-| booleans | 1000 | — | — | — | — | — |
-| entity struct | 1000 | — | — | — | — | — |
-| entity compact | 1000 | — | — | — | — | — |
-| 100× entities | 100 | — | — | — | — | — |
-| 1000× bools | 100 | — | — | — | — | — |
-| bitfield flags | 1000 | — | — | — | — | — |
-| cframe lossless | 1000 | — | — | — | — | — |
-| cframe compressed | 1000 | — | — | — | — | — |
+| booleans | 1000 | 60 | 59.9 | 2.5 | 6.2 | 6.2 |
+| entity struct | 1000 | 60 | 59.9 | 2.3 | 2.4 | 2.4 |
+| entity compact | 1000 | 60 | 59.9 | 2.4 | 2.5 | 2.5 |
+| 100× entities | 100 | 60 | 59.9 | 2.3 | 3.1 | 3.1 |
+| 1000× bools | 100 | 60 | 59.9 | 2.3 | 2.3 | 2.3 |
+| bitfield flags | 1000 | 60 | 59.9 | 2.4 | 2.5 | 2.5 |
+| cframe lossless | 1000 | 60 | 59.9 | 2.5 | 2.5 | 2.5 |
+| cframe compressed | 1000 | 60 | 59.8 | 2.3 | 2.3 | 2.3 |
 
 ---
 
@@ -596,7 +596,7 @@ Live sends to one player. Measured over 8 seconds. FPS and Kbps at median and ta
 
 The tables below use the same data shapes and methodology as [Blink's published benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md): 1,000 fires/frame, same data every frame, 10 seconds, Kbps scaled by 60/FPS.
 
-Numbers for `blink`, `zap`, `bytenet`, and `roblox` are copied directly from [Blink v0.17.1 results](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (2025-04-30). Fill in Lync numbers by running Section 7 of `bench/Run.server.luau` on the same hardware.
+Numbers for `blink`, `zap`, `bytenet`, and `roblox` are copied directly from [Blink v0.17.1 results](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (2025-04-30).
 
 > [!NOTE]
 > **Architectural differences that affect these numbers:**
@@ -616,42 +616,47 @@ Numbers for `blink`, `zap`, `bytenet`, and `roblox` are copied directly from [Bl
 | Tool | Median | P0 | P80 | P90 | P95 | P100 | Loss |
 |:-----|-------:|---:|----:|----:|----:|-----:|-----:|
 | roblox | 16.00 | 16.00 | 15.00 | 15.00 | 15.00 | 15.00 | 0% |
+| **lync** | **60.00** | **61.00** | **60.00** | **60.00** | **60.00** | **58.00** | **0%** |
 | blink | 42.00 | 45.00 | 42.00 | 42.00 | 42.00 | 42.00 | 0% |
 | zap | 39.00 | 40.00 | 38.00 | 38.00 | 38.00 | 38.00 | 0% |
 | bytenet | 32.00 | 34.00 | 32.00 | 32.00 | 32.00 | 31.00 | 0% |
-| **lync** | **—** | **—** | **—** | **—** | **—** | **—** | **—** |
 
 #### Entities — Kbps
 
 | Tool | Median | P0 | P80 | P90 | P95 | P100 | Loss |
 |:-----|-------:|---:|----:|----:|----:|-----:|-----:|
 | roblox | 559,364 | 559,364 | 676,716 | 676,716 | 676,716 | 784,082 | 0% |
+| **lync** | **3.68** | **3.61** | **3.72** | **3.75** | **3.75** | **4.18** | **0%** |
 | blink | 41.81 | 26.30 | 42.40 | 42.48 | 42.48 | 42.62 | 0% |
 | zap | 41.71 | 25.46 | 42.19 | 42.32 | 42.32 | 42.93 | 0% |
 | bytenet | 41.64 | 22.84 | 42.36 | 42.82 | 42.82 | 43.24 | 0% |
-| **lync** | **—** | **—** | **—** | **—** | **—** | **—** | **—** |
 
 #### Booleans — FPS
 
 | Tool | Median | P0 | P80 | P90 | P95 | P100 | Loss |
 |:-----|-------:|---:|----:|----:|----:|-----:|-----:|
 | roblox | 21.00 | 22.00 | 20.00 | 19.00 | 19.00 | 19.00 | 0% |
+| **lync** | **60.00** | **61.00** | **60.00** | **60.00** | **60.00** | **59.00** | **0%** |
 | blink | 97.00 | 98.00 | 97.00 | 96.00 | 96.00 | 96.00 | 0% |
 | zap | 52.00 | 53.00 | 51.00 | 51.00 | 51.00 | 49.00 | 0% |
 | bytenet | 35.00 | 37.00 | 35.00 | 35.00 | 35.00 | 34.00 | 0% |
-| **lync** | **—** | **—** | **—** | **—** | **—** | **—** | **—** |
 
 #### Booleans — Kbps
 
 | Tool | Median | P0 | P80 | P90 | P95 | P100 | Loss |
 |:-----|-------:|---:|----:|----:|----:|-----:|-----:|
 | roblox | 353,107 | 196,827 | 690,748 | 842,240 | 842,240 | 1,124,176 | 0% |
+| **lync** | **2.49** | **2.44** | **2.50** | **2.52** | **2.52** | **2.54** | **0%** |
 | blink | 7.91 | 7.41 | 7.93 | 7.99 | 7.99 | 8.00 | 0% |
 | zap | 8.10 | 5.75 | 8.17 | 8.22 | 8.22 | 8.27 | 0% |
 | bytenet | 8.11 | 5.07 | 8.35 | 8.46 | 8.46 | 8.47 | 0% |
-| **lync** | **—** | **—** | **—** | **—** | **—** | **—** | **—** |
 
-> To fill in Lync numbers: run `bench/Run.server.luau` Section 7. Copy the percentile output into the `lync` rows.
+#### Wire Size Comparison
+
+| Data | Lync | Other tools | Difference |
+|:-----|-----:|------------:|-----------:|
+| 100× entities | 601B | ~602B | -1B |
+| 1000× bools | 127B | ~1002B | -875B (87% smaller) |
 
 ## License
 

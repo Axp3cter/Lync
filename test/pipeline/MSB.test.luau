@@ -8,8 +8,13 @@ local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 local function makeReg(id: number, name: string): any
     local codec = Lync.int(0, 255)
     return {
-        id = id, name = name, kind = 0, codec = codec, isUnreliable = false,
-        headerSize = 1, timestampMode = Channel.TS_NONE,
+        id = id,
+        name = name,
+        kind = 0,
+        codec = codec,
+        isUnreliable = false,
+        headerSize = 1,
+        timestampMode = Channel.TS_NONE,
         _openFn = Channel.resolveOpenFn(Channel.TS_NONE, name),
     }
 end

@@ -19,31 +19,19 @@ end
 
 local IntVectorCodec = {}
 
-IntVectorCodec.vec2int16 = Base.define(4,
-    function(b: buffer, off: number, value: Vector2int16): ()
-        writeI16(b, off, value.X)
-        writeI16(b, off + 2, value.Y)
-    end,
-    function(b: buffer, off: number): Vector2int16
-        return Vector2int16.new(readI16(b, off), readI16(b, off + 2))
-    end,
-    { _typeCheck = "Vector2int16" }
-)
+IntVectorCodec.vec2int16 = Base.define(4, function(b: buffer, off: number, value: Vector2int16): ()
+    writeI16(b, off, value.X)
+    writeI16(b, off + 2, value.Y)
+end, function(b: buffer, off: number): Vector2int16
+    return Vector2int16.new(readI16(b, off), readI16(b, off + 2))
+end, { _typeCheck = "Vector2int16" })
 
-IntVectorCodec.vec3int16 = Base.define(6,
-    function(b: buffer, off: number, value: Vector3int16): ()
-        writeI16(b, off, value.X)
-        writeI16(b, off + 2, value.Y)
-        writeI16(b, off + 4, value.Z)
-    end,
-    function(b: buffer, off: number): Vector3int16
-        return Vector3int16.new(
-            readI16(b, off),
-            readI16(b, off + 2),
-            readI16(b, off + 4)
-        )
-    end,
-    { _typeCheck = "Vector3int16" }
-)
+IntVectorCodec.vec3int16 = Base.define(6, function(b: buffer, off: number, value: Vector3int16): ()
+    writeI16(b, off, value.X)
+    writeI16(b, off + 2, value.Y)
+    writeI16(b, off + 4, value.Z)
+end, function(b: buffer, off: number): Vector3int16
+    return Vector3int16.new(readI16(b, off), readI16(b, off + 2), readI16(b, off + 4))
+end, { _typeCheck = "Vector3int16" })
 
 return table.freeze(IntVectorCodec)

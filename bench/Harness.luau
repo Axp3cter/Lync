@@ -6,9 +6,9 @@
 
 local clock = os.clock
 local floor = math.floor
-local sort  = table.sort
-local max   = math.max
-local min   = math.min
+local sort = table.sort
+local max = math.max
+local min = math.min
 
 local function percentile(sorted: { number }, p: number): number
     local idx = floor(#sorted * p / 100 + 0.5)
@@ -18,10 +18,14 @@ end
 local function fmtNum(n: number): string
     local s = tostring(floor(n))
     local len = #s
-    if len <= 3 then return s end
+    if len <= 3 then
+        return s
+    end
     local parts = {}
     local rem = len % 3
-    if rem > 0 then table.insert(parts, s:sub(1, rem)) end
+    if rem > 0 then
+        table.insert(parts, s:sub(1, rem))
+    end
     for i = rem + 1, len, 3 do
         table.insert(parts, s:sub(i, i + 2))
     end
@@ -29,14 +33,22 @@ local function fmtNum(n: number): string
 end
 
 local function fmtBytes(n: number): string
-    if n < 1024 then return `{n}B` end
-    if n < 1048576 then return `{floor(n / 1024 * 10 + 0.5) / 10}KB` end
+    if n < 1024 then
+        return `{n}B`
+    end
+    if n < 1048576 then
+        return `{floor(n / 1024 * 10 + 0.5) / 10}KB`
+    end
     return `{floor(n / 1048576 * 100 + 0.5) / 100}MB`
 end
 
 local function fmtTime(us: number): string
-    if us < 1 then return `{floor(us * 1000 + 0.5)}ns` end
-    if us < 1000 then return `{floor(us * 10 + 0.5) / 10}µs` end
+    if us < 1 then
+        return `{floor(us * 1000 + 0.5)}ns`
+    end
+    if us < 1000 then
+        return `{floor(us * 10 + 0.5) / 10}µs`
+    end
     return `{floor(us / 1000 * 10 + 0.5) / 10}ms`
 end
 
@@ -45,9 +57,13 @@ end
 local Harness = {}
 
 function Harness.header(title: string): ()
-    print("╔══════════════════════════════════════════════════════════════╗")
+    print(
+        "╔══════════════════════════════════════════════════════════════╗"
+    )
     print(`║  {title}{string.rep(" ", 60 - #title - 2)}║`)
-    print("╚══════════════════════════════════════════════════════════════╝")
+    print(
+        "╚══════════════════════════════════════════════════════════════╝"
+    )
 end
 
 function Harness.section(title: string): ()
@@ -63,11 +79,7 @@ end
     Runs the function for warmup, then times N iterations.
     Returns ops/sec and mean time in microseconds.
 ]]
-function Harness.benchEncode(
-    label: string,
-    iterations: number,
-    fn: () -> ()
-): ()
+function Harness.benchEncode(label: string, iterations: number, fn: () -> ()): ()
     -- Warmup
     for _ = 1, min(1000, iterations // 10) do
         fn()
@@ -84,18 +96,16 @@ function Harness.benchEncode(
     local meanUs = elapsed / iterations * 1e6
 
     print(`  │  {label}`)
-    print(`  │    {fmtNum(floor(opsPerSec))} ops/sec   {fmtTime(meanUs)}/op   ({fmtNum(iterations)} iterations)`)
+    print(
+        `  │    {fmtNum(floor(opsPerSec))} ops/sec   {fmtTime(meanUs)}/op   ({fmtNum(iterations)} iterations)`
+    )
 end
 
 --[[
     Measures wire size for a codec + value pair.
     Writes once and reports exact byte count.
 ]]
-function Harness.benchWireSize(
-    label: string,
-    codec: any,
-    value: any
-): number
+function Harness.benchWireSize(label: string, codec: any, value: any): number
     local Channel = require(script.Parent.Parent.internal.Channel)
     local ch = Channel.create()
     codec.write(ch, value)
@@ -108,11 +118,7 @@ end
 --[[
     Measures delta savings: first write vs unchanged second write.
 ]]
-function Harness.benchDelta(
-    label: string,
-    codec: any,
-    value: any
-): ()
+function Harness.benchDelta(label: string, codec: any, value: any): ()
     local Channel = require(script.Parent.Parent.internal.Channel)
     local ch = Channel.create()
 
@@ -141,19 +147,16 @@ function Harness.benchDelta(
     local savings = floor((1 - unchangedBytes / fullBytes) * 100 + 0.5)
 
     print(`  │  {label}`)
-    print(`  │    full={fullBytes}B  unchanged={unchangedBytes}B  changed={changedBytes}B  savings={savings}%`)
+    print(
+        `  │    full={fullBytes}B  unchanged={unchangedBytes}B  changed={changedBytes}B  savings={savings}%`
+    )
 end
 
 --[[
     Measures full round-trip: encode + decode for a codec.
     Reports encode time, decode time, and total.
 ]]
-function Harness.benchRoundTrip(
-    label: string,
-    iterations: number,
-    codec: any,
-    value: any
-): ()
+function Harness.benchRoundTrip(label: string, iterations: number, codec: any, value: any): ()
     local Channel = require(script.Parent.Parent.internal.Channel)
     local ch = Channel.create()
 
@@ -192,7 +195,11 @@ function Harness.benchRoundTrip(
     local totalUs = encUs + decUs
 
     print(`  │  {label} ({written}B)`)
-    print(`  │    encode={fmtTime(encUs)}  decode={fmtTime(decUs)}  total={fmtTime(totalUs)}  {fmtNum(floor(iterations / (encodeTime + decodeTime)))} round-trips/sec`)
+    print(
+        `  │    encode={fmtTime(encUs)}  decode={fmtTime(decUs)}  total={fmtTime(totalUs)}  {fmtNum(
+            floor(iterations / (encodeTime + decodeTime))
+        )} round-trips/sec`
+    )
 end
 
 --[[
@@ -245,10 +252,10 @@ function Harness.benchNetwork(
     end
 
     local fpsMed = floor(percentile(fpsData, 50) * 10 + 0.5) / 10
-    local fpsP1  = floor(percentile(fpsData, 1) * 10 + 0.5) / 10
-    local kMed   = floor(percentile(kbpsData, 50) * 10 + 0.5) / 10
-    local kP95   = floor(percentile(kbpsData, 95) * 10 + 0.5) / 10
-    local kP99   = floor(percentile(kbpsData, 99) * 10 + 0.5) / 10
+    local fpsP1 = floor(percentile(fpsData, 1) * 10 + 0.5) / 10
+    local kMed = floor(percentile(kbpsData, 50) * 10 + 0.5) / 10
+    local kP95 = floor(percentile(kbpsData, 95) * 10 + 0.5) / 10
+    local kP99 = floor(percentile(kbpsData, 99) * 10 + 0.5) / 10
 
     print(`  │  {label}`)
     print(`  │    FPS: median={fpsMed}  p1={fpsP1}`)
@@ -280,11 +287,11 @@ function Harness.benchComparison(
     end
     task.wait(2)
 
-    local fpsData: { number }  = {}
+    local fpsData: { number } = {}
     local kbpsData: { number } = {}
-    local frames  = 0
+    local frames = 0
     local elapsed = 0
-    local sent    = 0
+    local sent = 0
 
     local conn = RunService.Heartbeat:Connect(function(dt: number): ()
         frames += 1
@@ -310,7 +317,9 @@ function Harness.benchComparison(
 
     sort(kbpsData)
     -- FPS sorted descending: P0 = best, P100 = worst
-    sort(fpsData, function(a: number, b: number): boolean return a > b end)
+    sort(fpsData, function(a: number, b: number): boolean
+        return a > b
+    end)
 
     local n = #fpsData
     if n == 0 then
@@ -324,8 +333,18 @@ function Harness.benchComparison(
     end
 
     print(`  │  {label}`)
-    print(`  │    FPS    │ Median={p(fpsData, 50)} │ P0={p(fpsData, 0)} │ P80={p(fpsData, 80)} │ P90={p(fpsData, 90)} │ P95={p(fpsData, 95)} │ P100={p(fpsData, 100)}`)
-    print(`  │    Kbps   │ Median={p(kbpsData, 50)} │ P0={p(kbpsData, 0)} │ P80={p(kbpsData, 80)} │ P90={p(kbpsData, 90)} │ P95={p(kbpsData, 95)} │ P100={p(kbpsData, 100)}`)
+    print(
+        `  │    FPS    │ Median={p(fpsData, 50)} │ P0={p(fpsData, 0)} │ P80={p(fpsData, 80)} │ P90={p(
+            fpsData,
+            90
+        )} │ P95={p(fpsData, 95)} │ P100={p(fpsData, 100)}`
+    )
+    print(
+        `  │    Kbps   │ Median={p(kbpsData, 50)} │ P0={p(kbpsData, 0)} │ P80={p(
+            kbpsData,
+            80
+        )} │ P90={p(kbpsData, 90)} │ P95={p(kbpsData, 95)} │ P100={p(kbpsData, 100)}`
+    )
     print(`  │    Sent={sent}  Samples={n}`)
 end
 

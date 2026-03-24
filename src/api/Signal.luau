@@ -7,8 +7,8 @@ local Types = require(script.Parent.Parent.Types)
 -- Constants -----------------------------------------------------------
 
 local STATE_DISCONNECTED = 0
-local STATE_CONNECTED    = 1
-local STATE_ONCE         = 2
+local STATE_CONNECTED = 1
+local STATE_ONCE = 2
 
 -- State ---------------------------------------------------------------
 
@@ -52,7 +52,9 @@ local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 
 function EntryImpl.disconnect(self: Entry): ()
-    if self._state == STATE_DISCONNECTED then return end
+    if self._state == STATE_DISCONNECTED then
+        return
+    end
 
     self._state = STATE_DISCONNECTED
     self.connected = false
@@ -138,7 +140,9 @@ end
 
 function SignalImpl.fire(self: SignalFields, ...: any): ()
     local count = self._count[1]
-    if count == 0 then return end
+    if count == 0 then
+        return
+    end
 
     local entries = self._entries
 
@@ -173,7 +177,9 @@ end
 
 function SignalImpl.fireSync(self: SignalFields, ...: any): ()
     local count = self._count[1]
-    if count == 0 then return end
+    if count == 0 then
+        return
+    end
 
     local entries = self._entries
 

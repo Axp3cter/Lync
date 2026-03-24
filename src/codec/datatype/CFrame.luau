@@ -6,22 +6,22 @@ local Base = require(script.Parent.Parent.Base)
 
 -- Constants -----------------------------------------------------------
 
-local EPSILON    = 2.4e-7
+local EPSILON = 2.4e-7
 local EPSILON_SQ = EPSILON * EPSILON
-local SQRT       = math.sqrt
-local COS        = math.cos
-local SIN        = math.sin
-local ABS        = math.abs
-local ROUND      = math.round
-local ACOS       = math.acos
+local SQRT = math.sqrt
+local COS = math.cos
+local SIN = math.sin
+local ABS = math.abs
+local ROUND = math.round
+local ACOS = math.acos
 
 -- Smallest-three quantization constants
-local INV_SQRT2  = 1 / SQRT(2)
-local Q_SCALE    = 1023 / (2 * INV_SQRT2)
-local Q_INV      = (2 * INV_SQRT2) / 1023
+local INV_SQRT2 = 1 / SQRT(2)
+local Q_SCALE = 1023 / (2 * INV_SQRT2)
+local Q_INV = (2 * INV_SQRT2) / 1023
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
@@ -91,9 +91,18 @@ local function writeCompressed(b: buffer, off: number, value: CFrame): ()
     local largest = 3
     local maxVal = aw
 
-    if ax > maxVal then largest = 0; maxVal = ax end
-    if ay > maxVal then largest = 1; maxVal = ay end
-    if az > maxVal then largest = 2; maxVal = az end
+    if ax > maxVal then
+        largest = 0
+        maxVal = ax
+    end
+    if ay > maxVal then
+        largest = 1
+        maxVal = ay
+    end
+    if az > maxVal then
+        largest = 2
+        maxVal = az
+    end
 
     -- Negate quaternion if largest component is negative
     local sign: number
@@ -180,10 +189,7 @@ local function readCompressed(b: buffer, off: number): CFrame
     local len = SQRT(qx * qx + qy * qy + qz * qz)
     local angle = 2 * ACOS(if qw > 1 then 1 elseif qw < -1 then -1 else qw)
     local inv = 1 / len
-    return origin * CFrame.fromAxisAngle(
-        Vector3.new(qx * inv, qy * inv, qz * inv),
-        angle
-    )
+    return origin * CFrame.fromAxisAngle(Vector3.new(qx * inv, qy * inv, qz * inv), angle)
 end
 
 -- __call factory for compressed variant
@@ -197,22 +203,27 @@ end
 
 local CFrameCodec = {}
 
-CFrameCodec.cframe = setmetatable({
-    _size = 24,
-    _directWrite = writeLossless,
-    _directRead = readLossless,
-    _typeCheck = "CFrame",
+CFrameCodec.cframe = setmetatable(
+    {
+        _size = 24,
+        _directWrite = writeLossless,
+        _directRead = readLossless,
+        _typeCheck = "CFrame",
 
-    write = function(ch: Types.ChannelState, value: CFrame): ()
-        local cursor = ch.cursor
-        if cursor + 24 > ch.size then alloc(ch, 24) end
-        writeLossless(ch.buff, cursor, value)
-        ch.cursor = cursor + 24
-    end,
+        write = function(ch: Types.ChannelState, value: CFrame): ()
+            local cursor = ch.cursor
+            if cursor + 24 > ch.size then
+                alloc(ch, 24)
+            end
+            writeLossless(ch.buff, cursor, value)
+            ch.cursor = cursor + 24
+        end,
 
-    read = function(src: buffer, pos: number, _refs: { Instance }?): (CFrame, number)
-        return readLossless(src, pos), 24
-    end,
-} :: any, { __call = compressedFactory })
+        read = function(src: buffer, pos: number, _refs: { Instance }?): (CFrame, number)
+            return readLossless(src, pos), 24
+        end,
+    } :: any,
+    { __call = compressedFactory }
+)
 
 return table.freeze(CFrameCodec)

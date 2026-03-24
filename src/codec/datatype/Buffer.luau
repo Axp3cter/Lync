@@ -2,13 +2,13 @@
 --!optimize 2
 -- Raw buffer codec with dense-prefix-varint length prefix.
 
-local Types  = require(script.Parent.Parent.Parent.Types)
-local Base   = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
+local Types = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private -------------------------------------------------------------
 
-local alloc  = Base.alloc
+local alloc = Base.alloc
 local INLINE = Varint.INLINE_MAX
 
 -- Public --------------------------------------------------------------
@@ -23,7 +23,9 @@ BufferCodec.buff = table.freeze({
         local cursor = ch.cursor
 
         if len <= INLINE then
-            if cursor + 1 + len > ch.size then alloc(ch, 1 + len) end
+            if cursor + 1 + len > ch.size then
+                alloc(ch, 1 + len)
+            end
             local b = ch.buff
             buffer.writeu8(b, cursor, len)
             if len > 0 then
@@ -33,7 +35,9 @@ BufferCodec.buff = table.freeze({
         else
             Varint.write(ch, len)
             cursor = ch.cursor
-            if cursor + len > ch.size then alloc(ch, len) end
+            if cursor + len > ch.size then
+                alloc(ch, len)
+            end
             buffer.copy(ch.buff, cursor, value, 0, len)
             ch.cursor = cursor + len
         end
@@ -51,7 +55,9 @@ BufferCodec.buff = table.freeze({
             len, lenBytes = Varint.read(src, pos)
         end
 
-        if len == 0 then return buffer.create(0), lenBytes end
+        if len == 0 then
+            return buffer.create(0), lenBytes
+        end
 
         local dataStart = pos + lenBytes
         if dataStart + len > buffer.len(src) then

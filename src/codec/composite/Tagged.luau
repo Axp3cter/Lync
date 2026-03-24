@@ -2,14 +2,14 @@
 --!optimize 2
 -- Discriminated union codec. u8 variant tag + variant payload.
 
+local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
-local Base  = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local alloc   = Base.alloc
+local alloc = Base.alloc
 local writeu8 = buffer.writeu8
-local readu8  = buffer.readu8
+local readu8 = buffer.readu8
 
 -- Public --------------------------------------------------------------
 
@@ -19,7 +19,9 @@ function Tagged.define(
     tagField: string,
     variants: { [string]: Types.InternalCodec<any> }
 ): Types.InternalCodec<any>
-    if tagField == "" then error("[Lync] Lync.tagged: tagField cannot be empty") end
+    if tagField == "" then
+        error("[Lync] Lync.tagged: tagField cannot be empty")
+    end
 
     local names: { string } = {}
     for name in variants do
@@ -28,13 +30,17 @@ function Tagged.define(
     table.sort(names)
 
     local variantCount = #names
-    if variantCount == 0 then error("[Lync] Lync.tagged: requires at least one variant") end
-    if variantCount > 256 then error("[Lync] Lync.tagged: exceeds 256 variants") end
+    if variantCount == 0 then
+        error("[Lync] Lync.tagged: requires at least one variant")
+    end
+    if variantCount > 256 then
+        error("[Lync] Lync.tagged: exceeds 256 variants")
+    end
 
     -- Build lookup tables
     local nameToTag: { [string]: number } = {}
     local tagToCodec = table.create(variantCount)
-    local tagToName  = table.create(variantCount)
+    local tagToName = table.create(variantCount)
     local hasUnknown = false
 
     for i = 1, variantCount do
@@ -43,7 +49,9 @@ function Tagged.define(
         nameToTag[name] = i - 1
         tagToCodec[i] = codec
         tagToName[i] = name
-        if (codec :: any)._hasUnknown then hasUnknown = true end
+        if (codec :: any)._hasUnknown then
+            hasUnknown = true
+        end
     end
 
     table.freeze(nameToTag)
@@ -63,7 +71,9 @@ function Tagged.define(
             end
 
             local cursor = ch.cursor
-            if cursor + 1 > ch.size then alloc(ch, 1) end
+            if cursor + 1 > ch.size then
+                alloc(ch, 1)
+            end
             writeu8(ch.buff, cursor, tag)
             ch.cursor = cursor + 1
 
@@ -89,7 +99,9 @@ function Tagged.define(
         end,
     }
 
-    if hasUnknown then codec._hasUnknown = true end
+    if hasUnknown then
+        codec._hasUnknown = true
+    end
     return table.freeze(codec)
 end
 

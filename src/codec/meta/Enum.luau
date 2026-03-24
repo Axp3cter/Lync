@@ -11,8 +11,12 @@ local EnumCodec = {}
 function EnumCodec.define(...: string): any
     local values = { ... }
     local count = #values
-    if count == 0 then error("[Lync] Lync.enum: requires at least one value") end
-    if count > 256 then error("[Lync] Lync.enum: exceeds 256 variants") end
+    if count == 0 then
+        error("[Lync] Lync.enum: requires at least one value")
+    end
+    if count > 256 then
+        error("[Lync] Lync.enum: exceeds 256 variants")
+    end
 
     -- Build lookup tables
     local toIndex: { [string]: number } = {}
@@ -30,24 +34,20 @@ function EnumCodec.define(...: string): any
     table.freeze(toIndex)
     table.freeze(toValue)
 
-    return Base.define(1,
-        function(b: buffer, off: number, value: string): ()
-            local idx = toIndex[value]
-            if idx == nil then
-                error(`[Lync] Enum: invalid value "{value}"`)
-            end
-            buffer.writeu8(b, off, idx)
-        end,
-        function(b: buffer, off: number): string
-            local idx = buffer.readu8(b, off)
-            local val = toValue[idx + 1]
-            if val == nil then
-                error(`[Lync] Enum: invalid index {idx}`)
-            end
-            return val
-        end,
-        { _typeCheck = "string" }
-    )
+    return Base.define(1, function(b: buffer, off: number, value: string): ()
+        local idx = toIndex[value]
+        if idx == nil then
+            error(`[Lync] Enum: invalid value "{value}"`)
+        end
+        buffer.writeu8(b, off, idx)
+    end, function(b: buffer, off: number): string
+        local idx = buffer.readu8(b, off)
+        local val = toValue[idx + 1]
+        if val == nil then
+            error(`[Lync] Enum: invalid index {idx}`)
+        end
+        return val
+    end, { _typeCheck = "string" })
 end
 
 return table.freeze(EnumCodec)

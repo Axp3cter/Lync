@@ -6,41 +6,43 @@ local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
-local TS_NONE   = 0
-local TS_FRAME  = 1
+local TS_NONE = 0
+local TS_FRAME = 1
 local TS_OFFSET = 2
-local TS_FULL   = 3
+local TS_FULL = 3
 
-local DEFAULT_MAX   = 262144
-local EMPTY_REFS    = table.freeze({})
+local DEFAULT_MAX = 262144
+local EMPTY_REFS = table.freeze({})
 
 -- State ---------------------------------------------------------------
 
-local _maxSize       = DEFAULT_MAX
-local _anyTimestamp  = false
-local _statsEnabled  = false
-local _frameCounter  = 0
-local _offsetMs      = 0
-local _clock         = 0.0
+local _maxSize = DEFAULT_MAX
+local _anyTimestamp = false
+local _statsEnabled = false
+local _frameCounter = 0
+local _offsetMs = 0
+local _clock = 0.0
 
 -- Private -------------------------------------------------------------
 
-local countlz  = bit32.countlz
-local lshift   = bit32.lshift
-local bxor     = bit32.bxor
-local bor      = bit32.bor
-local band     = bit32.band
-local writeu8  = buffer.writeu8
+local countlz = bit32.countlz
+local lshift = bit32.lshift
+local bxor = bit32.bxor
+local bor = bit32.bor
+local band = bit32.band
+local writeu8 = buffer.writeu8
 local writeu16 = buffer.writeu16
 local writef64 = buffer.writef64
-local readu8   = buffer.readu8
-local readu32  = buffer.readu32
-local round    = math.round
-local min      = math.min
+local readu8 = buffer.readu8
+local readu32 = buffer.readu32
+local round = math.round
+local min = math.min
 
 local function alloc(ch: Types.ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
-    if needed <= ch.size then return end
+    if needed <= ch.size then
+        return
+    end
     if needed > _maxSize then
         error(
             if ch.currentPacket
@@ -59,10 +61,10 @@ end
 
 local Channel = {}
 
-Channel.TS_NONE   = TS_NONE
-Channel.TS_FRAME  = TS_FRAME
+Channel.TS_NONE = TS_NONE
+Channel.TS_FRAME = TS_FRAME
 Channel.TS_OFFSET = TS_OFFSET
-Channel.TS_FULL   = TS_FULL
+Channel.TS_FULL = TS_FULL
 
 function Channel.create(): Types.ChannelState
     return {
@@ -123,13 +125,14 @@ function Channel.resolveOpenFn(
 
             -- Write single-mode header: [1IIIIIII]
             local cursor = ch.cursor
-            if cursor + 1 > ch.size then alloc(ch, 1) end
+            if cursor + 1 > ch.size then
+                alloc(ch, 1)
+            end
             writeu8(ch.buff, cursor, bor(0x80, id))
             ch.singleMode = true
             ch.singlePos = cursor
             ch.cursor = cursor + 1
         end
-
     elseif timestampMode == TS_FRAME then
         return function(ch: Types.ChannelState, id: number): ()
             if ch.lastId >= 0 and not ch.singleMode then
@@ -140,7 +143,9 @@ function Channel.resolveOpenFn(
             ch.itemCount = 0
 
             local cursor = ch.cursor
-            if cursor + 2 > ch.size then alloc(ch, 2) end
+            if cursor + 2 > ch.size then
+                alloc(ch, 2)
+            end
             local b = ch.buff
             writeu8(b, cursor, bor(0x80, id))
             writeu8(b, cursor + 1, _frameCounter)
@@ -148,7 +153,6 @@ function Channel.resolveOpenFn(
             ch.singlePos = cursor
             ch.cursor = cursor + 2
         end
-
     elseif timestampMode == TS_OFFSET then
         return function(ch: Types.ChannelState, id: number): ()
             if ch.lastId >= 0 and not ch.singleMode then
@@ -159,7 +163,9 @@ function Channel.resolveOpenFn(
             ch.itemCount = 0
 
             local cursor = ch.cursor
-            if cursor + 3 > ch.size then alloc(ch, 3) end
+            if cursor + 3 > ch.size then
+                alloc(ch, 3)
+            end
             local b = ch.buff
             writeu8(b, cursor, bor(0x80, id))
             writeu16(b, cursor + 1, _offsetMs)
@@ -167,7 +173,6 @@ function Channel.resolveOpenFn(
             ch.singlePos = cursor
             ch.cursor = cursor + 3
         end
-
     else -- TS_FULL
         return function(ch: Types.ChannelState, id: number): ()
             if ch.lastId >= 0 and not ch.singleMode then
@@ -178,7 +183,9 @@ function Channel.resolveOpenFn(
             ch.itemCount = 0
 
             local cursor = ch.cursor
-            if cursor + 9 > ch.size then alloc(ch, 9) end
+            if cursor + 9 > ch.size then
+                alloc(ch, 9)
+            end
             local b = ch.buff
             writeu8(b, cursor, bor(0x80, id))
             writef64(b, cursor + 1, _clock)
@@ -192,11 +199,7 @@ end
 --[[
     Writes one item into a batch. Handles MSB single→multi upgrade.
 ]]
-function Channel.writeBatch(
-    ch: Types.ChannelState,
-    reg: Types.Registration,
-    data: any
-): ()
+function Channel.writeBatch(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
     if reg.id ~= ch.lastId or ch.itemCount >= 0xFFFF then
         reg._openFn(ch, reg.id)
     elseif ch.singleMode then
@@ -218,7 +221,9 @@ function Channel.writeBatch(
         ]]
         local cursor = ch.cursor
         local payloadLen = cursor - afterTs
-        if cursor + 2 > ch.size then alloc(ch, 2) end
+        if cursor + 2 > ch.size then
+            alloc(ch, 2)
+        end
         local b2 = ch.buff
 
         if payloadLen > 0 then
@@ -268,7 +273,9 @@ function Channel.xorApply(
     previous: buffer?,
     prevLen: number
 ): buffer
-    if not previous then return current end
+    if not previous then
+        return current
+    end
 
     local result = buffer.create(curLen)
     local overlap = min(curLen, prevLen)
@@ -316,26 +323,34 @@ function Channel.writeQuery(
 
     if codec and data ~= nil then
         local cursor = ch.cursor
-        if cursor + 1 > ch.size then alloc(ch, 1) end
+        if cursor + 1 > ch.size then
+            alloc(ch, 1)
+        end
         writeu8(ch.buff, cursor, id)
         ch.cursor = cursor + 1
 
         -- Inlined varint avoids the function call overhead for correlation IDs
         if correlationId <= 0xBF then
             local c2 = ch.cursor
-            if c2 + 1 > ch.size then alloc(ch, 1) end
+            if c2 + 1 > ch.size then
+                alloc(ch, 1)
+            end
             writeu8(ch.buff, c2, correlationId)
             ch.cursor = c2 + 1
         elseif correlationId <= 8383 then
             local c2 = ch.cursor
-            if c2 + 2 > ch.size then alloc(ch, 2) end
+            if c2 + 2 > ch.size then
+                alloc(ch, 2)
+            end
             local adjusted = correlationId - 192
             writeu8(ch.buff, c2, bor(0xC0, band(adjusted // 256, 0x1F)))
             writeu8(ch.buff, c2 + 1, band(adjusted, 0xFF))
             ch.cursor = c2 + 2
         else
             local c2 = ch.cursor
-            if c2 + 5 > ch.size then alloc(ch, 5) end
+            if c2 + 5 > ch.size then
+                alloc(ch, 5)
+            end
             writeu8(ch.buff, c2, 0xF0)
             buffer.writeu32(ch.buff, c2 + 1, correlationId)
             ch.cursor = c2 + 5
@@ -345,25 +360,33 @@ function Channel.writeQuery(
     else
         -- MSB set signals nil response to the reader
         local cursor = ch.cursor
-        if cursor + 1 > ch.size then alloc(ch, 1) end
+        if cursor + 1 > ch.size then
+            alloc(ch, 1)
+        end
         writeu8(ch.buff, cursor, bor(0x80, id))
         ch.cursor = cursor + 1
 
         if correlationId <= 0xBF then
             local c2 = ch.cursor
-            if c2 + 1 > ch.size then alloc(ch, 1) end
+            if c2 + 1 > ch.size then
+                alloc(ch, 1)
+            end
             writeu8(ch.buff, c2, correlationId)
             ch.cursor = c2 + 1
         elseif correlationId <= 8383 then
             local c2 = ch.cursor
-            if c2 + 2 > ch.size then alloc(ch, 2) end
+            if c2 + 2 > ch.size then
+                alloc(ch, 2)
+            end
             local adjusted = correlationId - 192
             writeu8(ch.buff, c2, bor(0xC0, band(adjusted // 256, 0x1F)))
             writeu8(ch.buff, c2 + 1, band(adjusted, 0xFF))
             ch.cursor = c2 + 2
         else
             local c2 = ch.cursor
-            if c2 + 5 > ch.size then alloc(ch, 5) end
+            if c2 + 5 > ch.size then
+                alloc(ch, 5)
+            end
             writeu8(ch.buff, c2, 0xF0)
             buffer.writeu32(ch.buff, c2 + 1, correlationId)
             ch.cursor = c2 + 5

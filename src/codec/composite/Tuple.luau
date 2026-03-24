@@ -2,8 +2,8 @@
 --!optimize 2
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
+local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
-local Base  = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
@@ -16,7 +16,9 @@ local Tuple = {}
 function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
     local codecs = { ... }
     local count = #codecs
-    if count == 0 then error("[Lync] Lync.tuple: requires at least one codec") end
+    if count == 0 then
+        error("[Lync] Lync.tuple: requires at least one codec")
+    end
 
     -- Check if all codecs are direct
     local allDirect = true
@@ -25,7 +27,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
 
     for i = 1, count do
         local c = codecs[i] :: any
-        if c._hasUnknown then hasUnknown = true end
+        if c._hasUnknown then
+            hasUnknown = true
+        end
         if not c._size or not c._directWrite or not c._directRead then
             allDirect = false
         else
@@ -39,7 +43,7 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
         -- Build precomputed offsets
         local offsets = table.create(count)
         local directWrites = table.create(count)
-        local directReads  = table.create(count)
+        local directReads = table.create(count)
         local cursor = 0
 
         for i = 1, count do
@@ -73,7 +77,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
 
             write = function(ch: Types.ChannelState, value: any): ()
                 local c = ch.cursor
-                if c + totalSize > ch.size then alloc(ch, totalSize) end
+                if c + totalSize > ch.size then
+                    alloc(ch, totalSize)
+                end
                 local b = ch.buff
                 for i = 1, count do
                     directWrites[i](b, c + offsets[i], value[i])
@@ -90,7 +96,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
             end,
         }
 
-        if hasUnknown then codec._hasUnknown = true end
+        if hasUnknown then
+            codec._hasUnknown = true
+        end
         return table.freeze(codec)
     end
 
@@ -114,7 +122,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
         end,
     }
 
-    if hasUnknown then codec._hasUnknown = true end
+    if hasUnknown then
+        codec._hasUnknown = true
+    end
     return table.freeze(codec)
 end
 

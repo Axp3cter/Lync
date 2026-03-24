@@ -2,8 +2,8 @@
 --!optimize 2
 -- NumberSequence and ColorSequence codecs with varint count.
 
-local Types  = require(script.Parent.Parent.Parent.Types)
-local Base   = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
+local Types = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private -------------------------------------------------------------
@@ -24,11 +24,15 @@ SequenceCodec.numberSequence = table.freeze({
         local count = #keypoints
         Varint.write(ch, count)
 
-        if count == 0 then return end
+        if count == 0 then
+            return
+        end
 
         local bytes = count * 12
         local cursor = ch.cursor
-        if cursor + bytes > ch.size then alloc(ch, bytes) end
+        if cursor + bytes > ch.size then
+            alloc(ch, bytes)
+        end
         local b = ch.buff
 
         for i = 1, count do
@@ -44,7 +48,9 @@ SequenceCodec.numberSequence = table.freeze({
 
     read = function(src: buffer, pos: number, _refs: { Instance }?): (NumberSequence, number)
         local count, lenBytes = Varint.read(src, pos)
-        if count == 0 then return NumberSequence.new(0), lenBytes end
+        if count == 0 then
+            return NumberSequence.new(0), lenBytes
+        end
 
         local bytes = count * 12
         local dataStart = pos + lenBytes
@@ -74,11 +80,15 @@ SequenceCodec.colorSequence = table.freeze({
         local count = #keypoints
         Varint.write(ch, count)
 
-        if count == 0 then return end
+        if count == 0 then
+            return
+        end
 
         local bytes = count * 7
         local cursor = ch.cursor
-        if cursor + bytes > ch.size then alloc(ch, bytes) end
+        if cursor + bytes > ch.size then
+            alloc(ch, bytes)
+        end
         local b = ch.buff
 
         for i = 1, count do

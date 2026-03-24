@@ -4,49 +4,49 @@
 
 local RunService = game:GetService("RunService")
 
-local Types      = require(script.Types)
-local Channel    = require(script.internal.Channel)
-local Registry   = require(script.internal.Registry)
-local Pool       = require(script.internal.Pool)
+local Base = require(script.codec.Base)
+local Channel = require(script.internal.Channel)
+local Gate = require(script.transport.Gate)
+local Group = require(script.api.Group)
 local Middleware = require(script.internal.Middleware)
-local Gate       = require(script.transport.Gate)
-local Base       = require(script.codec.Base)
-local Packet     = require(script.api.Packet)
-local Query      = require(script.api.Query)
-local Group      = require(script.api.Group)
-local Scope      = require(script.api.Scope)
+local Packet = require(script.api.Packet)
+local Pool = require(script.internal.Pool)
+local Query = require(script.api.Query)
+local Registry = require(script.internal.Registry)
+local Scope = require(script.api.Scope)
+local Types = require(script.Types)
 
 -- Codecs
-local BoolC     = require(script.codec.primitive.Bool)
-local NumberC   = require(script.codec.primitive.Number)
-local Float16C  = require(script.codec.primitive.Float16)
-local IntC      = require(script.codec.primitive.Int)
-local StringC   = require(script.codec.datatype.String)
-local BufferC   = require(script.codec.datatype.Buffer)
-local VectorC   = require(script.codec.datatype.Vector)
-local CFrameC   = require(script.codec.datatype.CFrame)
-local ColorC    = require(script.codec.datatype.Color)
-local InstanceC = require(script.codec.datatype.Instance)
-local UDimC     = require(script.codec.datatype.UDim)
-local NRC       = require(script.codec.datatype.NumberRange)
-local RayC      = require(script.codec.datatype.Ray)
-local RectC     = require(script.codec.datatype.Rect)
-local IVC       = require(script.codec.datatype.IntVector)
-local RegionC   = require(script.codec.datatype.Region)
-local SeqC      = require(script.codec.datatype.Sequence)
-local FloatC    = require(script.codec.meta.Float)
-local EnumC     = require(script.codec.meta.Enum)
-local NothingC  = require(script.codec.meta.Nothing)
-local CustomC   = require(script.codec.meta.Custom)
-local UnknownC  = require(script.codec.meta.Unknown)
+local ArrayC = require(script.codec.composite.Array)
+local AutoC = require(script.codec.meta.Auto)
 local BitfieldC = require(script.codec.meta.Bitfield)
-local AutoC     = require(script.codec.meta.Auto)
+local BoolC = require(script.codec.primitive.Bool)
+local BufferC = require(script.codec.datatype.Buffer)
+local CFrameC = require(script.codec.datatype.CFrame)
+local ColorC = require(script.codec.datatype.Color)
+local CustomC = require(script.codec.meta.Custom)
+local EnumC = require(script.codec.meta.Enum)
+local Float16C = require(script.codec.primitive.Float16)
+local FloatC = require(script.codec.meta.Float)
+local IVC = require(script.codec.datatype.IntVector)
+local InstanceC = require(script.codec.datatype.Instance)
+local IntC = require(script.codec.primitive.Int)
+local MapC = require(script.codec.composite.Map)
+local NRC = require(script.codec.datatype.NumberRange)
+local NothingC = require(script.codec.meta.Nothing)
+local NumberC = require(script.codec.primitive.Number)
 local OptionalC = require(script.codec.composite.Optional)
-local TupleC    = require(script.codec.composite.Tuple)
-local TaggedC   = require(script.codec.composite.Tagged)
-local StructC   = require(script.codec.composite.Struct)
-local ArrayC    = require(script.codec.composite.Array)
-local MapC      = require(script.codec.composite.Map)
+local RayC = require(script.codec.datatype.Ray)
+local RectC = require(script.codec.datatype.Rect)
+local RegionC = require(script.codec.datatype.Region)
+local SeqC = require(script.codec.datatype.Sequence)
+local StringC = require(script.codec.datatype.String)
+local StructC = require(script.codec.composite.Struct)
+local TaggedC = require(script.codec.composite.Tagged)
+local TupleC = require(script.codec.composite.Tuple)
+local UDimC = require(script.codec.datatype.UDim)
+local UnknownC = require(script.codec.meta.Unknown)
+local VectorC = require(script.codec.datatype.Vector)
 
 -- Constants -----------------------------------------------------------
 
@@ -54,15 +54,15 @@ local IS_SERVER = RunService:IsServer()
 
 -- State ---------------------------------------------------------------
 
-local _started       = false
-local _flushRate     = 60
-local _flushAccum    = 0
+local _started = false
+local _flushRate = 60
+local _flushAccum = 0
 local _flushConn: RBXScriptConnection? = nil
 
 -- Private -------------------------------------------------------------
 
 local DROP = table.freeze({ _lyncDrop = true })
-local ALL  = table.freeze({ _lyncAll = true })
+local ALL = table.freeze({ _lyncAll = true })
 
 local function except(...: any): any
     local excluded: { [Player]: boolean } = {}
@@ -153,10 +153,7 @@ function Lync.configure(options: Types.ConfigureOptions): ()
     end
 
     if options.bandwidthLimit then
-        Gate.configureBandwidth(
-            options.bandwidthLimit.softLimit,
-            options.bandwidthLimit.maxStrikes
-        )
+        Gate.configureBandwidth(options.bandwidthLimit.softLimit, options.bandwidthLimit.maxStrikes)
     end
 
     if options.globalRateLimit then
@@ -195,21 +192,21 @@ Lync.started = false
 -- Definitions ---------------------------------------------------------
 
 Lync.packet = Packet.define
-Lync.query  = Query.define
-Lync.group  = Group.create
-Lync.scope  = Scope.create
+Lync.query = Query.define
+Lync.group = Group.create
+Lync.scope = Scope.create
 
 -- Targeting -----------------------------------------------------------
 
-Lync.all    = ALL
+Lync.all = ALL
 Lync.except = except
-Lync.DROP   = DROP
+Lync.DROP = DROP
 
 -- Middleware ----------------------------------------------------------
 
-Lync.onSend    = Middleware.onSend
+Lync.onSend = Middleware.onSend
 Lync.onReceive = Middleware.onReceive
-Lync.onDrop    = Middleware.onDrop
+Lync.onDrop = Middleware.onDrop
 
 -- Runtime control -----------------------------------------------------
 
@@ -242,7 +239,9 @@ end
 
 Lync.stats = table.freeze({
     player = function(player: Player): Types.PlayerStats?
-        if not IS_SERVER then return nil end
+        if not IS_SERVER then
+            return nil
+        end
         local Server = require(script.transport.Server)
         return Server.getPlayerStats(player)
     end,
@@ -302,45 +301,45 @@ Lync.debug = table.freeze({
 
 -- Codecs --------------------------------------------------------------
 
-Lync.int             = IntC.int
-Lync.float           = FloatC.float
-Lync.f16             = Float16C.f16
-Lync.f32             = NumberC.f32
-Lync.f64             = NumberC.f64
-Lync.bool            = BoolC.bool
-Lync.string          = StringC
-Lync.buff            = BufferC.buff
-Lync.vec2            = VectorC.vec2
-Lync.vec3            = VectorC.vec3
-Lync.cframe          = CFrameC.cframe
-Lync.color3          = ColorC.color3
-Lync.inst            = InstanceC.inst
-Lync.udim            = UDimC.udim
-Lync.udim2           = UDimC.udim2
-Lync.numberRange     = NRC.numberRange
-Lync.rect            = RectC.rect
-Lync.ray             = RayC.ray
-Lync.region3         = RegionC.region3
-Lync.region3int16    = RegionC.region3int16
-Lync.vec2int16       = IVC.vec2int16
-Lync.vec3int16       = IVC.vec3int16
-Lync.numberSequence  = SeqC.numberSequence
-Lync.colorSequence   = SeqC.colorSequence
-Lync.struct          = StructC.struct
-Lync.deltaStruct     = StructC.deltaStruct
-Lync.array           = ArrayC.array
-Lync.deltaArray      = ArrayC.deltaArray
-Lync.map             = MapC.map
-Lync.deltaMap        = MapC.deltaMap
-Lync.optional        = OptionalC.optional
-Lync.tuple           = TupleC.define
-Lync.tagged          = TaggedC.define
-Lync.enum            = EnumC.define
-Lync.bitfield        = BitfieldC.define
-Lync.custom          = CustomC.define
-Lync.nothing         = NothingC.nothing
-Lync.unknown         = UnknownC.unknown
-Lync.auto            = AutoC.auto
+Lync.int = IntC.int
+Lync.float = FloatC.float
+Lync.f16 = Float16C.f16
+Lync.f32 = NumberC.f32
+Lync.f64 = NumberC.f64
+Lync.bool = BoolC.bool
+Lync.string = StringC
+Lync.buff = BufferC.buff
+Lync.vec2 = VectorC.vec2
+Lync.vec3 = VectorC.vec3
+Lync.cframe = CFrameC.cframe
+Lync.color3 = ColorC.color3
+Lync.inst = InstanceC.inst
+Lync.udim = UDimC.udim
+Lync.udim2 = UDimC.udim2
+Lync.numberRange = NRC.numberRange
+Lync.rect = RectC.rect
+Lync.ray = RayC.ray
+Lync.region3 = RegionC.region3
+Lync.region3int16 = RegionC.region3int16
+Lync.vec2int16 = IVC.vec2int16
+Lync.vec3int16 = IVC.vec3int16
+Lync.numberSequence = SeqC.numberSequence
+Lync.colorSequence = SeqC.colorSequence
+Lync.struct = StructC.struct
+Lync.deltaStruct = StructC.deltaStruct
+Lync.array = ArrayC.array
+Lync.deltaArray = ArrayC.deltaArray
+Lync.map = MapC.map
+Lync.deltaMap = MapC.deltaMap
+Lync.optional = OptionalC.optional
+Lync.tuple = TupleC.define
+Lync.tagged = TaggedC.define
+Lync.enum = EnumC.define
+Lync.bitfield = BitfieldC.define
+Lync.custom = CustomC.define
+Lync.nothing = NothingC.nothing
+Lync.unknown = UnknownC.unknown
+Lync.auto = AutoC.auto
 
 -- Wrap in metatable for `Lync.started` property -----------------------
 

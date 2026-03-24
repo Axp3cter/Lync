@@ -6,11 +6,11 @@ local Base = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local ceil  = math.ceil
+local ceil = math.ceil
 local clamp = math.clamp
 local round = math.round
-local max   = math.max
-local min   = math.min
+local max = math.max
+local min = math.min
 
 -- Public --------------------------------------------------------------
 
@@ -51,18 +51,14 @@ function Float.float(rangeMin: number, rangeMax: number, precision: number): any
         rfn = buffer.readu32
     end
 
-    local scale    = maxInt / delta
+    local scale = maxInt / delta
     local invScale = delta / maxInt
 
-    return Base.define(compBytes,
-        function(b: buffer, off: number, value: number): ()
-            wfn(b, off, round(clamp(value - rangeMin, 0, delta) * scale))
-        end,
-        function(b: buffer, off: number): number
-            return rfn(b, off) * invScale + rangeMin
-        end,
-        { _min = rangeMin, _max = rangeMax, _typeCheck = "number" }
-    )
+    return Base.define(compBytes, function(b: buffer, off: number, value: number): ()
+        wfn(b, off, round(clamp(value - rangeMin, 0, delta) * scale))
+    end, function(b: buffer, off: number): number
+        return rfn(b, off) * invScale + rangeMin
+    end, { _min = rangeMin, _max = rangeMax, _typeCheck = "number" })
 end
 
 return table.freeze(Float)

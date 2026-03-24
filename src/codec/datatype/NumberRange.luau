@@ -8,16 +8,14 @@ local Base = require(script.Parent.Parent.Base)
 
 local NumberRangeCodec = {}
 
-NumberRangeCodec.numberRange = Base.define(8,
+NumberRangeCodec.numberRange = Base.define(
+    8,
     function(b: buffer, off: number, value: NumberRange): ()
         buffer.writef32(b, off, value.Min)
         buffer.writef32(b, off + 4, value.Max)
     end,
     function(b: buffer, off: number): NumberRange
-        return NumberRange.new(
-            buffer.readf32(b, off),
-            buffer.readf32(b, off + 4)
-        )
+        return NumberRange.new(buffer.readf32(b, off), buffer.readf32(b, off + 4))
     end,
     { _typeCheck = "NumberRange" }
 )

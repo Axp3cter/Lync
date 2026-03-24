@@ -2,10 +2,10 @@
 --!optimize 2
 -- Client-side transport: single channel pair, flush.
 
-local Types    = require(script.Parent.Parent.Types)
-local Channel  = require(script.Parent.Parent.internal.Channel)
-local Bridge   = require(script.Parent.Parent.transport.Bridge)
-local Reader   = require(script.Parent.Parent.transport.Reader)
+local Bridge = require(script.Parent.Parent.transport.Bridge)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Reader = require(script.Parent.Parent.transport.Reader)
+local Types = require(script.Parent.Parent.Types)
 
 -- State ---------------------------------------------------------------
 
@@ -52,7 +52,9 @@ function Client.start(): ()
     -- Incoming reliable (XOR encoded)
     reliable.OnClientEvent:Connect(function(data: any, refs: any?)
         local incoming = Reader.decodeIncoming(data)
-        if not incoming then return end
+        if not incoming then
+            return
+        end
 
         local incomingLen = buffer.len(incoming)
 
@@ -77,7 +79,9 @@ function Client.start(): ()
     -- Incoming unreliable (no XOR)
     unreliable.OnClientEvent:Connect(function(data: any, refs: any?)
         local incoming = Reader.decodeIncoming(data)
-        if not incoming then return end
+        if not incoming then
+            return
+        end
 
         local incomingLen = buffer.len(incoming)
 

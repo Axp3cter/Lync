@@ -4,13 +4,13 @@
 
 local Players = game:GetService("Players")
 
-local Types      = require(script.Parent.Parent.Types)
-local Channel    = require(script.Parent.Parent.internal.Channel)
-local Pool       = require(script.Parent.Parent.internal.Pool)
-local Gate       = require(script.Parent.Parent.transport.Gate)
-local Bridge     = require(script.Parent.Parent.transport.Bridge)
-local Reader     = require(script.Parent.Parent.transport.Reader)
-local Baseline   = require(script.Parent.Parent.internal.Baseline)
+local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Bridge = require(script.Parent.Parent.transport.Bridge)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Gate = require(script.Parent.Parent.transport.Gate)
+local Pool = require(script.Parent.Parent.internal.Pool)
+local Reader = require(script.Parent.Parent.transport.Reader)
+local Types = require(script.Parent.Parent.Types)
 
 -- State ---------------------------------------------------------------
 
@@ -55,7 +55,9 @@ local function flushPlayer(player: Player): ()
 
         if _statsEnabled then
             local ps = _playerStats[player]
-            if ps then ps.bytesSent += byteLen end
+            if ps then
+                ps.bytesSent += byteLen
+            end
         end
     end
 
@@ -69,7 +71,9 @@ local function flushPlayer(player: Player): ()
 
         if _statsEnabled then
             local ps = _playerStats[player]
-            if ps then ps.bytesSent += byteLen end
+            if ps then
+                ps.bytesSent += byteLen
+            end
         end
     end
 end
@@ -115,7 +119,9 @@ function Server.start(): ()
     -- Incoming reliable
     reliable.OnServerEvent:Connect(function(player: Player, data: any, refs: any?)
         local incoming = Reader.decodeIncoming(data)
-        if not incoming then return end
+        if not incoming then
+            return
+        end
 
         local incomingLen = buffer.len(incoming)
 
@@ -132,14 +138,18 @@ function Server.start(): ()
 
         if _statsEnabled then
             local ps = _playerStats[player]
-            if ps then ps.bytesReceived += incomingLen end
+            if ps then
+                ps.bytesReceived += incomingLen
+            end
         end
     end)
 
     -- Incoming unreliable
     unreliable.OnServerEvent:Connect(function(player: Player, data: any, refs: any?)
         local incoming = Reader.decodeIncoming(data)
-        if not incoming then return end
+        if not incoming then
+            return
+        end
 
         local incomingLen = buffer.len(incoming)
 
@@ -150,7 +160,9 @@ function Server.start(): ()
 
         if _statsEnabled then
             local ps = _playerStats[player]
-            if ps then ps.bytesReceived += incomingLen end
+            if ps then
+                ps.bytesReceived += incomingLen
+            end
         end
     end)
 

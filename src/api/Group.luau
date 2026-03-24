@@ -15,12 +15,16 @@ local _cleanupConnected = false
 -- Private -------------------------------------------------------------
 
 local function ensureCleanup(): ()
-    if _cleanupConnected then return end
+    if _cleanupConnected then
+        return
+    end
     _cleanupConnected = true
 
     Players.PlayerRemoving:Connect(function(player: Player)
         local groups = _playerCleanup[player]
-        if not groups then return end
+        if not groups then
+            return
+        end
 
         for _, group in groups do
             group._members[player] = nil
@@ -63,7 +67,9 @@ function GroupMeta.__iter(self: any): () -> (Player?, boolean?)
 end
 
 function GroupMeta.add(self: any, player: Player): boolean
-    if self._members[player] then return false end
+    if self._members[player] then
+        return false
+    end
 
     self._members[player] = true
     self._count += 1
@@ -80,7 +86,9 @@ function GroupMeta.add(self: any, player: Player): boolean
 end
 
 function GroupMeta.remove(self: any, player: Player): boolean
-    if not self._members[player] then return false end
+    if not self._members[player] then
+        return false
+    end
 
     self._members[player] = nil
     self._count -= 1

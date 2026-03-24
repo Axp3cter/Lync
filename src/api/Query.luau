@@ -2,17 +2,17 @@
 --!optimize 2
 -- Query definition: handle, request with correlation IDs and timeout.
 
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Players    = game:GetService("Players")
 
-local Types    = require(script.Parent.Parent.Types)
-local Registry = require(script.Parent.Parent.internal.Registry)
-local Channel  = require(script.Parent.Parent.internal.Channel)
 local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
-local IS_SERVER      = RunService:IsServer()
+local IS_SERVER = RunService:IsServer()
 local DEFAULT_TIMEOUT = 5
 
 -- State ---------------------------------------------------------------
@@ -107,7 +107,9 @@ function Query.define(
     local _handler: ((any, Player?) -> any)? = nil
 
     reqReg.signal:connect(function(value: any, sender: Player?, corrId: number)
-        if not _handler then return end
+        if not _handler then
+            return
+        end
 
         -- Run handler, get response
         local ok, response = pcall(_handler :: any, value, sender)
@@ -145,18 +147,16 @@ function Query.define(
         return table.freeze({
             connected = true,
             disconnect = function(self: Types.Connection): ()
-                if not (self :: any).connected then return end
-                ;(self :: any).connected = false
+                if not (self :: any).connected then
+                    return
+                end
+                (self :: any).connected = false
                 _handler = nil
             end,
         } :: any)
     end
 
-    function handle.request(
-        _self: QueryHandle,
-        data: any,
-        target: any?
-    ): any
+    function handle.request(_self: QueryHandle, data: any, target: any?): any
         _nextCorrId += 1
         local corrId = _nextCorrId
 
@@ -206,7 +206,9 @@ function Query.define(
                 end
             end
 
-            if #targets == 0 then return {} end
+            if #targets == 0 then
+                return {}
+            end
 
             local results: { [Player]: any } = {}
             local remaining = #targets

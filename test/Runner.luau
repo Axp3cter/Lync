@@ -34,34 +34,50 @@ type Suite = {
 
 -- State ---------------------------------------------------------------
 
-local _suites: { Suite }  = {}
-local _current: Suite?     = nil
-local _passed              = 0
-local _failed              = 0
-local _skipped             = 0
-local _errors: { string }  = {}
+local _suites: { Suite } = {}
+local _current: Suite? = nil
+local _passed = 0
+local _failed = 0
+local _skipped = 0
+local _errors: { string } = {}
 
 -- Private -------------------------------------------------------------
 
 local function deepEqual(a: any, b: any): boolean
-    if a == b then return true end
+    if a == b then
+        return true
+    end
     local tA = typeof(a)
-    if tA ~= typeof(b) then return false end
-    if tA ~= "table" then return false end
+    if tA ~= typeof(b) then
+        return false
+    end
+    if tA ~= "table" then
+        return false
+    end
     for k, v in a do
-        if not deepEqual(v, b[k]) then return false end
+        if not deepEqual(v, b[k]) then
+            return false
+        end
     end
     for k in b do
-        if a[k] == nil then return false end
+        if a[k] == nil then
+            return false
+        end
     end
     return true
 end
 
 local function fmt(value: any): string
     local t = typeof(value)
-    if t == "string" then return `"{value}"` end
-    if t == "table" then return "{table}" end
-    if t == "nil" then return "nil" end
+    if t == "string" then
+        return `"{value}"`
+    end
+    if t == "table" then
+        return "{table}"
+    end
+    if t == "nil" then
+        return "nil"
+    end
     return tostring(value)
 end
 
@@ -71,37 +87,59 @@ local function createExpectation(actual: any, neg: boolean): Expectation
 
     e.toBe = function(_s: Expectation, expected: any): ()
         local ok = (actual == expected)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {fmt(actual)} {p}to be {fmt(expected)}`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {fmt(actual)} {p}to be {fmt(expected)}`)
+        end
     end
 
     e.toEqual = function(_s: Expectation, expected: any): ()
         local ok = deepEqual(actual, expected)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {p}deep equality`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {p}deep equality`)
+        end
     end
 
     e.toBeNil = function(_s: Expectation): ()
         local ok = (actual == nil)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {fmt(actual)} {p}to be nil`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {fmt(actual)} {p}to be nil`)
+        end
     end
 
     e.toBeCloseTo = function(_s: Expectation, expected: number, tolerance: number?): ()
         local tol = tolerance or 0.001
         local diff = math.abs((actual :: number) - expected)
         local ok = (diff <= tol)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {actual} {p}within {tol} of {expected} (diff={diff})`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {actual} {p}within {tol} of {expected} (diff={diff})`)
+        end
     end
 
     e.toThrow = function(_s: Expectation, pattern: string?): ()
-        if typeof(actual) ~= "function" then error("toThrow expects a function") end
+        if typeof(actual) ~= "function" then
+            error("toThrow expects a function")
+        end
         local ok, err = pcall(actual :: () -> ())
         if neg then
-            if not ok then error(`Expected no throw, got: {err}`) end
+            if not ok then
+                error(`Expected no throw, got: {err}`)
+            end
         else
-            if ok then error("Expected throw, got none") end
+            if ok then
+                error("Expected throw, got none")
+            end
             if pattern and not string.find(tostring(err), pattern, 1, true) then
                 error(`Expected error matching "{pattern}", got: {err}`)
             end
@@ -110,40 +148,64 @@ local function createExpectation(actual: any, neg: boolean): Expectation
 
     e.toBeTruthy = function(_s: Expectation): ()
         local ok = (actual ~= nil and actual ~= false)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {fmt(actual)} {p}to be truthy`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {fmt(actual)} {p}to be truthy`)
+        end
     end
 
     e.toBeFalsy = function(_s: Expectation): ()
         local ok = (actual == nil or actual == false)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {fmt(actual)} {p}to be falsy`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {fmt(actual)} {p}to be falsy`)
+        end
     end
 
     e.toBeGreaterThan = function(_s: Expectation, n: number): ()
         local ok = ((actual :: number) > n)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {actual} {p}> {n}`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {actual} {p}> {n}`)
+        end
     end
 
     e.toBeLessThan = function(_s: Expectation, n: number): ()
         local ok = ((actual :: number) < n)
-        if neg then ok = not ok end
-        if not ok then error(`Expected {actual} {p}< {n}`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected {actual} {p}< {n}`)
+        end
     end
 
     e.toHaveLength = function(_s: Expectation, n: number): ()
         local len = #(actual :: any)
         local ok = (len == n)
-        if neg then ok = not ok end
-        if not ok then error(`Expected length {len} {p}to be {n}`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected length {len} {p}to be {n}`)
+        end
     end
 
     e.toBeType = function(_s: Expectation, t: string): ()
         local at = typeof(actual)
         local ok = (at == t)
-        if neg then ok = not ok end
-        if not ok then error(`Expected type {at} {p}to be {t}`) end
+        if neg then
+            ok = not ok
+        end
+        if not ok then
+            error(`Expected type {at} {p}to be {t}`)
+        end
     end
 
     if not neg then
@@ -167,12 +229,16 @@ function Runner.describe(name: string, fn: () -> ()): ()
 end
 
 function Runner.it(name: string, fn: () -> ()): ()
-    if not _current then error("it() must be inside describe()") end
+    if not _current then
+        error("it() must be inside describe()")
+    end
     table.insert(_current.tests, { name = name, fn = fn, skipped = false })
 end
 
 function Runner.skip(name: string, _fn: (() -> ())?): ()
-    if not _current then error("skip() must be inside describe()") end
+    if not _current then
+        error("skip() must be inside describe()")
+    end
     table.insert(_current.tests, { name = name, fn = nil, skipped = true })
 end
 
@@ -188,9 +254,13 @@ function Runner.run(): boolean
 
     local t0 = os.clock()
 
-    print("╔══════════════════════════════════════════════════════════╗")
+    print(
+        "╔══════════════════════════════════════════════════════════╗"
+    )
     print("║                    Lync Test Suite                      ║")
-    print("╚══════════════════════════════════════════════════════════╝")
+    print(
+        "╚══════════════════════════════════════════════════════════╝"
+    )
 
     for _, suite in _suites do
         print(`  ┌ {suite.name}`)
@@ -218,7 +288,9 @@ function Runner.run(): boolean
     local skipStr = if _skipped > 0 then `, {_skipped} skipped` else ""
     local total = _passed + _failed + _skipped
 
-    print("  ──────────────────────────────────────────────────────")
+    print(
+        "  ──────────────────────────────────────────────────────"
+    )
     if _failed == 0 then
         print(`  ✓ {_passed} passed{skipStr} ({total} total, {ms}ms)`)
     else
@@ -229,7 +301,9 @@ function Runner.run(): boolean
             print(msg)
         end
     end
-    print("  ──────────────────────────────────────────────────────")
+    print(
+        "  ──────────────────────────────────────────────────────"
+    )
 
     table.clear(_suites)
     return _failed == 0

@@ -2,13 +2,13 @@
 --!native
 -- Shared helpers for composite codecs: delta flags, scratch pool, bool packing.
 
+local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
-local Base  = require(script.Parent.Parent.Base)
 
 -- Constants -----------------------------------------------------------
 
-local DELTA_UNCHANGED    = 0
-local DELTA_FULL_OFFSET  = 1
+local DELTA_UNCHANGED = 0
+local DELTA_FULL_OFFSET = 1
 local DELTA_MULTI_OFFSET = 2
 
 -- State ---------------------------------------------------------------
@@ -19,14 +19,14 @@ local _scratchStack: { Types.ChannelState } = {}
 
 -- Private -------------------------------------------------------------
 
-local alloc  = Base.alloc
-local band   = bit32.band
-local bor    = bit32.bor
-local bxor   = bit32.bxor
+local alloc = Base.alloc
+local band = bit32.band
+local bor = bit32.bor
+local bxor = bit32.bxor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
-local readu8  = buffer.readu8
+local readu8 = buffer.readu8
 local readu32 = buffer.readu32
 local writeu8 = buffer.writeu8
 
@@ -34,8 +34,8 @@ local writeu8 = buffer.writeu8
 
 local Shared = {}
 
-Shared.DELTA_UNCHANGED    = DELTA_UNCHANGED
-Shared.DELTA_FULL_OFFSET  = DELTA_FULL_OFFSET
+Shared.DELTA_UNCHANGED = DELTA_UNCHANGED
+Shared.DELTA_FULL_OFFSET = DELTA_FULL_OFFSET
 Shared.DELTA_MULTI_OFFSET = DELTA_MULTI_OFFSET
 
 function Shared.allocDeltaId(): number
@@ -75,13 +75,7 @@ function Shared.releaseScratch(): ()
     _scratchDepth -= 1
 end
 
-function Shared.rangeEqual(
-    a: buffer,
-    offA: number,
-    b: buffer,
-    offB: number,
-    len: number
-): boolean
+function Shared.rangeEqual(a: buffer, offA: number, b: buffer, offB: number, len: number): boolean
     -- u32 chunks
     local aligned = len - (len % 4)
     local i = 0
@@ -106,9 +100,9 @@ end
 function Shared.extractFields(
     schema: { [string]: Types.InternalCodec<any> }
 ): ({ string }, { Types.InternalCodec<any> }, { string })
-    local dataKeys: { string }                    = {}
+    local dataKeys: { string } = {}
     local dataCodecs: { Types.InternalCodec<any> } = {}
-    local boolKeys: { string }                    = {}
+    local boolKeys: { string } = {}
 
     for key, codec in schema do
         if (codec :: any)._isBool then
@@ -144,7 +138,9 @@ function Shared.packBools(
 ): ()
     local byteCount = (boolCount + 7) // 8
     local cursor = ch.cursor
-    if cursor + byteCount > ch.size then alloc(ch, byteCount) end
+    if cursor + byteCount > ch.size then
+        alloc(ch, byteCount)
+    end
     local b = ch.buff
 
     local idx = 1

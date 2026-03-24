@@ -39,38 +39,26 @@ function Int.int(min: number, max: number): any
     else
         -- Signed path: use unsigned write/read, interpret as signed
         if min >= -0x80 and max <= 0x7F then
-            return Base.define(1,
-                function(b: buffer, off: number, v: number): ()
-                    buffer.writeu8(b, off, if v < 0 then v + 0x100 else v)
-                end,
-                function(b: buffer, off: number): number
-                    local raw = buffer.readu8(b, off)
-                    return if raw >= 0x80 then raw - 0x100 else raw
-                end,
-                meta
-            )
+            return Base.define(1, function(b: buffer, off: number, v: number): ()
+                buffer.writeu8(b, off, if v < 0 then v + 0x100 else v)
+            end, function(b: buffer, off: number): number
+                local raw = buffer.readu8(b, off)
+                return if raw >= 0x80 then raw - 0x100 else raw
+            end, meta)
         elseif min >= -0x8000 and max <= 0x7FFF then
-            return Base.define(2,
-                function(b: buffer, off: number, v: number): ()
-                    buffer.writeu16(b, off, if v < 0 then v + 0x10000 else v)
-                end,
-                function(b: buffer, off: number): number
-                    local raw = buffer.readu16(b, off)
-                    return if raw >= 0x8000 then raw - 0x10000 else raw
-                end,
-                meta
-            )
+            return Base.define(2, function(b: buffer, off: number, v: number): ()
+                buffer.writeu16(b, off, if v < 0 then v + 0x10000 else v)
+            end, function(b: buffer, off: number): number
+                local raw = buffer.readu16(b, off)
+                return if raw >= 0x8000 then raw - 0x10000 else raw
+            end, meta)
         elseif min >= -0x80000000 and max <= 0x7FFFFFFF then
-            return Base.define(4,
-                function(b: buffer, off: number, v: number): ()
-                    buffer.writeu32(b, off, if v < 0 then v + 0x100000000 else v)
-                end,
-                function(b: buffer, off: number): number
-                    local raw = buffer.readu32(b, off)
-                    return if raw >= 0x80000000 then raw - 0x100000000 else raw
-                end,
-                meta
-            )
+            return Base.define(4, function(b: buffer, off: number, v: number): ()
+                buffer.writeu32(b, off, if v < 0 then v + 0x100000000 else v)
+            end, function(b: buffer, off: number): number
+                local raw = buffer.readu32(b, off)
+                return if raw >= 0x80000000 then raw - 0x100000000 else raw
+            end, meta)
         end
     end
 

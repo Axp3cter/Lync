@@ -2,8 +2,8 @@
 --!optimize 2
 -- Stack-based ChannelState pool for per-player channel reuse.
 
-local Types   = require(script.Parent.Parent.Types)
 local Channel = require(script.Parent.Channel)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
@@ -32,7 +32,9 @@ function Pool.acquire(): Types.ChannelState
 end
 
 function Pool.release(ch: Types.ChannelState): ()
-    if _depth >= _maxSize then return end
+    if _depth >= _maxSize then
+        return
+    end
 
     _depth += 1
     _stack[_depth] = ch

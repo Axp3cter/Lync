@@ -2,29 +2,29 @@
 --!native
 -- struct and deltaStruct codecs with single-field delta shortcut.
 
-local Types  = require(script.Parent.Parent.Parent.Types)
-local Base   = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Shared = require(script.Parent.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private -------------------------------------------------------------
 
-local alloc       = Base.alloc
-local writeu8     = buffer.writeu8
-local readu8      = buffer.readu8
+local alloc = Base.alloc
+local writeu8 = buffer.writeu8
+local readu8 = buffer.readu8
 local extractFields = Shared.extractFields
-local packBools     = Shared.packBools
-local unpackBools   = Shared.unpackBools
-local rangeEqual    = Shared.rangeEqual
+local packBools = Shared.packBools
+local unpackBools = Shared.unpackBools
+local rangeEqual = Shared.rangeEqual
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
-local allocDeltaId   = Shared.allocDeltaId
+local allocDeltaId = Shared.allocDeltaId
 
-local DELTA_UNCHANGED    = Shared.DELTA_UNCHANGED
-local DELTA_FULL_OFFSET  = Shared.DELTA_FULL_OFFSET
+local DELTA_UNCHANGED = Shared.DELTA_UNCHANGED
+local DELTA_FULL_OFFSET = Shared.DELTA_FULL_OFFSET
 local DELTA_MULTI_OFFSET = Shared.DELTA_MULTI_OFFSET
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 
 -- Public --------------------------------------------------------------
@@ -61,9 +61,9 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
 
     if allDirect and dataCount > 0 then
         -- Precompute offsets
-        local offsets      = table.create(dataCount)
+        local offsets = table.create(dataCount)
         local directWrites = table.create(dataCount)
-        local directReads  = table.create(dataCount)
+        local directReads = table.create(dataCount)
         local cursor = 0
 
         for i = 1, dataCount do
@@ -118,7 +118,9 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
 
             write = function(ch: Types.ChannelState, value: any): ()
                 local c = ch.cursor
-                if c + totalFixed > ch.size then alloc(ch, totalFixed) end
+                if c + totalFixed > ch.size then
+                    alloc(ch, totalFixed)
+                end
                 local b = ch.buff
                 for i = 1, dataCount do
                     directWrites[i](b, c + offsets[i], value[dataKeys[i]])
@@ -171,14 +173,16 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
     } :: any)
 end
 
-function Struct.deltaStruct(schema: { [string]: Types.InternalCodec<any> }): Types.InternalCodec<any>
+function Struct.deltaStruct(
+    schema: { [string]: Types.InternalCodec<any> }
+): Types.InternalCodec<any>
     local dataKeys, dataCodecs, boolKeys = extractFields(schema)
     local dataCount = #dataKeys
     local boolCount = #boolKeys
     local boolBytes = (boolCount + 7) // 8
-    local segCount  = dataCount + (if boolCount > 0 then 1 else 0)
+    local segCount = dataCount + (if boolCount > 0 then 1 else 0)
     local maskBytes = (segCount + 7) // 8
-    local deltaId   = allocDeltaId()
+    local deltaId = allocDeltaId()
 
     -- Freeze schema for Gate
     local frozenSchema: { [string]: Types.InternalCodec<any> } = {}
@@ -194,7 +198,7 @@ function Struct.deltaStruct(schema: { [string]: Types.InternalCodec<any> }): Typ
           segCount + 1 = FULL
           segCount + 2 = MULTI dirty
     ]]
-    local FLAG_FULL  = segCount + DELTA_FULL_OFFSET
+    local FLAG_FULL = segCount + DELTA_FULL_OFFSET
     local FLAG_MULTI = segCount + DELTA_MULTI_OFFSET
 
     -- Inner struct codec for full serialization
@@ -210,7 +214,9 @@ function Struct.deltaStruct(schema: { [string]: Types.InternalCodec<any> }): Typ
             if not cache then
                 -- First frame: FLAG_FULL + full payload
                 local cursor = ch.cursor
-                if cursor + 1 > ch.size then alloc(ch, 1) end
+                if cursor + 1 > ch.size then
+                    alloc(ch, 1)
+                end
                 writeu8(ch.buff, cursor, FLAG_FULL)
                 ch.cursor = cursor + 1
 
@@ -239,13 +245,15 @@ function Struct.deltaStruct(schema: { [string]: Types.InternalCodec<any> }): Typ
 
             local scratchBuf = scratch.buff
             local scratchLen = scratch.cursor
-            local cachedBuf  = cache.raw
-            local cachedLen  = cache.len
+            local cachedBuf = cache.raw
+            local cachedLen = cache.len
 
             -- Byte-for-byte match means no fields changed
             if scratchLen == cachedLen and rangeEqual(scratchBuf, 0, cachedBuf, 0, scratchLen) then
                 local cursor = ch.cursor
-                if cursor + 1 > ch.size then alloc(ch, 1) end
+                if cursor + 1 > ch.size then
+                    alloc(ch, 1)
+                end
                 writeu8(ch.buff, cursor, DELTA_UNCHANGED)
                 ch.cursor = cursor + 1
                 releaseScratch()
@@ -257,7 +265,9 @@ function Struct.deltaStruct(schema: { [string]: Types.InternalCodec<any> }): Typ
                 tracking is deferred to a future version.
             ]]
             local cursor = ch.cursor
-            if cursor + 1 > ch.size then alloc(ch, 1) end
+            if cursor + 1 > ch.size then
+                alloc(ch, 1)
+            end
             writeu8(ch.buff, cursor, FLAG_FULL)
             ch.cursor = cursor + 1
             innerStruct.write(ch, value)

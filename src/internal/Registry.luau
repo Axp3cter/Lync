@@ -2,15 +2,15 @@
 --!optimize 2
 -- Deterministic packet/query ID assignment. Sequential 7-bit IDs.
 
-local Types  = require(script.Parent.Parent.Types)
 local Signal = require(script.Parent.Parent.api.Signal)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
-local KIND_PACKET   = 0
-local KIND_REQUEST  = 1
+local KIND_PACKET = 0
+local KIND_REQUEST = 1
 local KIND_RESPONSE = 2
-local MAX_ID        = 127
+local MAX_ID = 127
 
 -- State ---------------------------------------------------------------
 
@@ -22,8 +22,8 @@ local _byName: { [string]: Types.Registration } = {}
 
 local Registry = {}
 
-Registry.KIND_PACKET   = KIND_PACKET
-Registry.KIND_REQUEST  = KIND_REQUEST
+Registry.KIND_PACKET = KIND_PACKET
+Registry.KIND_REQUEST = KIND_REQUEST
 Registry.KIND_RESPONSE = KIND_RESPONSE
 
 function Registry.register(

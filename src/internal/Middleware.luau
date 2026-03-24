@@ -2,8 +2,8 @@
 --!optimize 2
 -- Ordered intercept chains returning Connection objects.
 
-local Types  = require(script.Parent.Parent.Types)
 local Signal = require(script.Parent.Parent.api.Signal)
+local Types = require(script.Parent.Parent.Types)
 
 -- State ---------------------------------------------------------------
 
@@ -19,11 +19,15 @@ function Middleware.onSend(fn: (data: any, name: string, player: Player?) -> any
     return _sendSignal:connect(fn)
 end
 
-function Middleware.onReceive(fn: (data: any, name: string, player: Player?) -> any): Types.Connection
+function Middleware.onReceive(
+    fn: (data: any, name: string, player: Player?) -> any
+): Types.Connection
     return _receiveSignal:connect(fn)
 end
 
-function Middleware.onDrop(fn: (player: Player, reason: string, name: string, data: any?) -> ()): Types.Connection
+function Middleware.onDrop(
+    fn: (player: Player, reason: string, name: string, data: any?) -> ()
+): Types.Connection
     return _dropSignal:connect(fn)
 end
 
@@ -33,7 +37,9 @@ end
 ]]
 function Middleware.runSend(data: any, name: string, player: Player?): any
     local count = _sendSignal._count[1]
-    if count == 0 then return data end
+    if count == 0 then
+        return data
+    end
 
     local entries = _sendSignal._entries
     local result = data
@@ -53,7 +59,9 @@ end
 
 function Middleware.runReceive(data: any, name: string, player: Player?): any
     local count = _receiveSignal._count[1]
-    if count == 0 then return data end
+    if count == 0 then
+        return data
+    end
 
     local entries = _receiveSignal._entries
     local result = data

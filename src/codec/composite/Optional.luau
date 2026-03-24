@@ -2,14 +2,14 @@
 --!optimize 2
 -- Optional codec. 1 byte flag, value only if present.
 
+local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
-local Base  = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local alloc   = Base.alloc
+local alloc = Base.alloc
 local writeu8 = buffer.writeu8
-local readu8  = buffer.readu8
+local readu8 = buffer.readu8
 
 -- Public --------------------------------------------------------------
 
@@ -19,7 +19,9 @@ function Optional.optional(inner: Types.InternalCodec<any>): Types.InternalCodec
     local codec: any = {
         write = function(ch: Types.ChannelState, value: any): ()
             local cursor = ch.cursor
-            if cursor + 1 > ch.size then alloc(ch, 1) end
+            if cursor + 1 > ch.size then
+                alloc(ch, 1)
+            end
             if value == nil then
                 writeu8(ch.buff, cursor, 0)
                 ch.cursor = cursor + 1

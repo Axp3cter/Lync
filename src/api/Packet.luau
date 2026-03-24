@@ -2,14 +2,14 @@
 --!optimize 2
 -- Packet definition, send, on, once, wait, stats.
 
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Players    = game:GetService("Players")
 
-local Types      = require(script.Parent.Parent.Types)
-local Registry   = require(script.Parent.Parent.internal.Registry)
-local Channel    = require(script.Parent.Parent.internal.Channel)
+local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.internal.Channel)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
-local Baseline   = require(script.Parent.Parent.internal.Baseline)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
@@ -57,7 +57,9 @@ function Packet.define(
     end
 
     if (codec :: any)._hasUnknown and not opts.validate then
-        warn(`[Lync] Lync.packet: "{name}" uses unknown codec without validate — data bypasses schema validation`)
+        warn(
+            `[Lync] Lync.packet: "{name}" uses unknown codec without validate — data bypasses schema validation`
+        )
     end
 
     if (codec :: any)._isDelta then
@@ -122,7 +124,9 @@ function Packet.define(
             if typeof(target) == "Instance" and target:IsA("Player") then
                 local ch = Server.getChannel(target :: Player, isUnreliable)
                 Channel.writeBatch(ch, reg, data)
-                if Channel.statsEnabled() then reg.fires += 1 end
+                if Channel.statsEnabled() then
+                    reg.fires += 1
+                end
                 return
             end
 
@@ -134,7 +138,9 @@ function Packet.define(
                         local ch = Server.getChannel(player, isUnreliable)
                         Channel.writeBatch(ch, reg, data)
                     end
-                    if Channel.statsEnabled() then reg.fires += 1 end
+                    if Channel.statsEnabled() then
+                        reg.fires += 1
+                    end
                     return
                 end
 
@@ -146,7 +152,9 @@ function Packet.define(
                             Channel.writeBatch(ch, reg, data)
                         end
                     end
-                    if Channel.statsEnabled() then reg.fires += 1 end
+                    if Channel.statsEnabled() then
+                        reg.fires += 1
+                    end
                     return
                 end
 
@@ -156,7 +164,9 @@ function Packet.define(
                         local ch = Server.getChannel(player, isUnreliable)
                         Channel.writeBatch(ch, reg, data)
                     end
-                    if Channel.statsEnabled() then reg.fires += 1 end
+                    if Channel.statsEnabled() then
+                        reg.fires += 1
+                    end
                     return
                 end
 
@@ -166,16 +176,24 @@ function Packet.define(
                         Channel.writeBatch(ch, reg, data)
                     end
                 end
-                if Channel.statsEnabled() then reg.fires += 1 end
+                if Channel.statsEnabled() then
+                    reg.fires += 1
+                end
                 return
             end
 
-            error(`[Lync] Packet "{name}": expected Player, table, Group, or Lync.all as target, got {typeof(target)}`)
+            error(
+                `[Lync] Packet "{name}": expected Player, table, Group, or Lync.all as target, got {typeof(
+                    target
+                )}`
+            )
         else
             local Client = getClient()
             local ch = Client.getChannel(isUnreliable)
             Channel.writeBatch(ch, reg, data)
-            if Channel.statsEnabled() then reg.fires += 1 end
+            if Channel.statsEnabled() then
+                reg.fires += 1
+            end
         end
     end
 

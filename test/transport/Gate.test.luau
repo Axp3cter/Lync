@@ -3,7 +3,8 @@
 local Gate = require(script.Parent.Parent.Parent.transport.Gate)
 local Lync = require(script.Parent.Parent.Parent)
 local Runner = require(script.Parent.Parent.Runner)
-local describe, it, expect, fakePlayer = Runner.describe, Runner.it, Runner.expect, Runner.fakePlayer
+local describe, it, expect, fakePlayer =
+    Runner.describe, Runner.it, Runner.expect, Runner.fakePlayer
 
 describe("Gate rate limit: token bucket", function(): ()
     it("allows burst tokens", function(): ()
@@ -17,7 +18,8 @@ describe("Gate rate limit: token bucket", function(): ()
     it("rejects after burst exhausted", function(): ()
         local reg: any = { id = 50002, rateLimit = { maxPerSecond = 2, burst = 2 } }
         local p = fakePlayer("RL2", 5002)
-        Gate.checkRateLimit(reg, p); Gate.checkRateLimit(reg, p)
+        Gate.checkRateLimit(reg, p)
+        Gate.checkRateLimit(reg, p)
         expect(Gate.checkRateLimit(reg, p)):toBe(false)
         Gate.clearPlayer(p)
     end)
@@ -68,10 +70,12 @@ describe("Gate global rate limit", function(): ()
         Gate.configureGlobalRateLimit(2)
         local p1 = fakePlayer("GRL1", 5021)
         local p2 = fakePlayer("GRL2", 5022)
-        Gate.checkGlobalRateLimit(p1); Gate.checkGlobalRateLimit(p1)
+        Gate.checkGlobalRateLimit(p1)
+        Gate.checkGlobalRateLimit(p1)
         expect(Gate.checkGlobalRateLimit(p1)):toBe(false)
         expect(Gate.checkGlobalRateLimit(p2)):toBe(true)
-        Gate.clearPlayer(p1); Gate.clearPlayer(p2)
+        Gate.clearPlayer(p1)
+        Gate.clearPlayer(p2)
     end)
 end)
 
@@ -95,8 +99,8 @@ describe("Gate bandwidth throttle", function(): ()
         local p = fakePlayer("BW3", 5032)
         Gate.checkBandwidth(p, 200) -- +1
         Gate.checkBandwidth(p, 200) -- +2
-        Gate.checkBandwidth(p, 50)  -- -1
-        Gate.checkBandwidth(p, 50)  -- -1 → 0
+        Gate.checkBandwidth(p, 50) -- -1
+        Gate.checkBandwidth(p, 50) -- -1 → 0
         expect(Gate.checkBandwidth(p, 200)):toBe(true) -- +1
         Gate.clearPlayer(p)
     end)

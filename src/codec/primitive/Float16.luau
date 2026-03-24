@@ -6,21 +6,25 @@ local Base = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
-local frexp  = math.frexp
-local ldexp  = math.ldexp
-local round  = math.round
-local huge   = math.huge
+local frexp = math.frexp
+local ldexp = math.ldexp
+local round = math.round
+local huge = math.huge
 
 local function encode(value: number): number
     -- NaN
-    if value ~= value then return 0x7E00 end
+    if value ~= value then
+        return 0x7E00
+    end
 
     -- Zero (both +0 and -0 map to positive zero)
-    if value == 0 then return 0 end
+    if value == 0 then
+        return 0
+    end
 
     -- Sign extraction
     local sign = 0
@@ -30,7 +34,9 @@ local function encode(value: number): number
     end
 
     -- Overflow to infinity
-    if value > 65504 then return bor(sign, 0x7C00) end
+    if value > 65504 then
+        return bor(sign, 0x7C00)
+    end
 
     -- Decompose via frexp: value = mantissa * 2^exponent, mantissa in [0.5, 1)
     local mantissa, exponent = frexp(value)
@@ -43,7 +49,9 @@ local function encode(value: number): number
             -- Rounds to minimum normal
             return bor(sign, 0x0400)
         end
-        if frac <= 0 then return sign end
+        if frac <= 0 then
+            return sign
+        end
         return bor(sign, frac)
     end
 
@@ -57,14 +65,16 @@ local function encode(value: number): number
     end
 
     -- Overflow after carry
-    if biasedExp >= 31 then return bor(sign, 0x7C00) end
+    if biasedExp >= 31 then
+        return bor(sign, 0x7C00)
+    end
 
     return bor(sign, lshift(biasedExp, 10), frac)
 end
 
 local function decode(raw: number): number
     local sign = band(raw, 0x8000)
-    local exp  = band(rshift(raw, 10), 0x1F)
+    local exp = band(rshift(raw, 10), 0x1F)
     local frac = band(raw, 0x03FF)
 
     local value: number
@@ -87,14 +97,10 @@ end
 
 local Float16 = {}
 
-Float16.f16 = Base.define(2,
-    function(b: buffer, off: number, value: number): ()
-        buffer.writeu16(b, off, encode(value))
-    end,
-    function(b: buffer, off: number): number
-        return decode(buffer.readu16(b, off))
-    end,
-    { _typeCheck = "number" }
-)
+Float16.f16 = Base.define(2, function(b: buffer, off: number, value: number): ()
+    buffer.writeu16(b, off, encode(value))
+end, function(b: buffer, off: number): number
+    return decode(buffer.readu16(b, off))
+end, { _typeCheck = "number" })
 
 return table.freeze(Float16)

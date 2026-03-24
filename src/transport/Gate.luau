@@ -2,9 +2,9 @@
 --!native
 -- Schema-aware validation and rate limiting.
 
-local Types      = require(script.Parent.Parent.Types)
-local Registry   = require(script.Parent.Parent.internal.Registry)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants -----------------------------------------------------------
 
@@ -23,9 +23,9 @@ local _bandwidthStrikes: { [Player]: number } = {}
 -- Private -------------------------------------------------------------
 
 local isfinite = math.isfinite
-local floor    = math.floor
-local abs      = math.abs
-local clock    = os.clock
+local floor = math.floor
+local abs = math.abs
+local clock = os.clock
 
 --[[
     Checks a number value for NaN/inf and optionally range + integrality.
@@ -37,14 +37,20 @@ local function validateNumber(
     minVal: number?,
     maxVal: number?
 ): boolean
-    if not isfinite(value) then return false end
+    if not isfinite(value) then
+        return false
+    end
 
     if isInteger and floor(value) ~= value then
         return false
     end
 
-    if minVal and value < minVal then return false end
-    if maxVal and value > maxVal then return false end
+    if minVal and value < minVal then
+        return false
+    end
+    if maxVal and value > maxVal then
+        return false
+    end
 
     return true
 end
@@ -54,7 +60,9 @@ end
     Used as fallback for f32, f64, auto, and Roblox types.
 ]]
 local function scanValue(value: any, depth: number): boolean
-    if depth <= 0 then return true end
+    if depth <= 0 then
+        return true
+    end
 
     local t = typeof(value)
 
@@ -84,8 +92,10 @@ local function scanValue(value: any, depth: number): boolean
     end
 
     if t == "UDim2" then
-        return isfinite(value.X.Scale) and isfinite(value.X.Offset)
-            and isfinite(value.Y.Scale) and isfinite(value.Y.Offset)
+        return isfinite(value.X.Scale)
+            and isfinite(value.X.Offset)
+            and isfinite(value.Y.Scale)
+            and isfinite(value.Y.Offset)
     end
 
     if t == "Color3" then
@@ -97,15 +107,21 @@ local function scanValue(value: any, depth: number): boolean
     end
 
     if t == "Rect" then
-        return isfinite(value.Min.X) and isfinite(value.Min.Y)
-            and isfinite(value.Max.X) and isfinite(value.Max.Y)
+        return isfinite(value.Min.X)
+            and isfinite(value.Min.Y)
+            and isfinite(value.Max.X)
+            and isfinite(value.Max.Y)
     end
 
     if t == "Ray" then
         local o = value.Origin
         local d = value.Direction
-        return isfinite(o.X) and isfinite(o.Y) and isfinite(o.Z)
-            and isfinite(d.X) and isfinite(d.Y) and isfinite(d.Z)
+        return isfinite(o.X)
+            and isfinite(o.Y)
+            and isfinite(o.Z)
+            and isfinite(d.X)
+            and isfinite(d.Y)
+            and isfinite(d.Z)
     end
 
     if t == "table" then
@@ -131,7 +147,9 @@ local function validateWithCodec(
     codec: Types.InternalCodec<any>,
     depth: number
 ): (boolean, string?)
-    if depth <= 0 then return true, nil end
+    if depth <= 0 then
+        return true, nil
+    end
 
     local codecAny = codec :: any
 
@@ -150,18 +168,28 @@ local function validateWithCodec(
 
     -- Integer + range
     if codecAny._isInteger then
-        if not isfinite(value) then return false, "non-finite" end
-        if floor(value) ~= value then return false, "non-integer" end
+        if not isfinite(value) then
+            return false, "non-finite"
+        end
+        if floor(value) ~= value then
+            return false, "non-integer"
+        end
         local minV = codecAny._min
         local maxV = codecAny._max
-        if minV and value < minV then return false, `below min {minV}` end
-        if maxV and value > maxV then return false, `above max {maxV}` end
+        if minV and value < minV then
+            return false, `below min {minV}`
+        end
+        if maxV and value > maxV then
+            return false, `above max {maxV}`
+        end
         return true, nil
     end
 
     -- Float with range (quantized float)
     if codecAny._min ~= nil and codecAny._max ~= nil and not codecAny._isInteger then
-        if not isfinite(value) then return false, "non-finite" end
+        if not isfinite(value) then
+            return false, "non-finite"
+        end
         return true, nil
     end
 
@@ -201,10 +229,7 @@ function Gate.setDepth(depth: number): ()
     _depth = depth
 end
 
-function Gate.validate(
-    value: any,
-    codec: Types.InternalCodec<any>
-): (boolean, string?)
+function Gate.validate(value: any, codec: Types.InternalCodec<any>): (boolean, string?)
     return validateWithCodec(value, codec, _depth)
 end
 
@@ -216,7 +241,9 @@ end
 
 function Gate.checkRateLimit(reg: Types.Registration, player: Player): boolean
     local config = reg.rateLimit
-    if not config then return true end
+    if not config then
+        return true
+    end
 
     local now = clock()
 
@@ -248,7 +275,9 @@ function Gate.checkRateLimit(reg: Types.Registration, player: Player): boolean
 
     -- Token bucket mode
     local maxPerSecond = config.maxPerSecond
-    if not maxPerSecond then return true end
+    if not maxPerSecond then
+        return true
+    end
 
     local elapsed = now - state.lastRefill
     state.lastRefill = now
@@ -267,7 +296,9 @@ end
 
 function Gate.checkGlobalRateLimit(player: Player): boolean
     local maxPS = _globalMaxPerSecond
-    if not maxPS then return true end
+    if not maxPS then
+        return true
+    end
 
     local now = clock()
     local state = _globalLimits[player]
@@ -289,7 +320,9 @@ function Gate.checkGlobalRateLimit(player: Player): boolean
 end
 
 function Gate.checkBandwidth(player: Player, bytes: number): boolean
-    if not _bandwidthSoftLimit then return true end
+    if not _bandwidthSoftLimit then
+        return true
+    end
 
     if bytes <= _bandwidthSoftLimit then
         local strikes = _bandwidthStrikes[player]

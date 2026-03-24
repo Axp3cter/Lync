@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 
 -- Constants -----------------------------------------------------------
 
-local RELIABLE_NAME   = "LyncReliable"
+local RELIABLE_NAME = "LyncReliable"
 local UNRELIABLE_NAME = "LyncUnreliable"
 
 -- State ---------------------------------------------------------------

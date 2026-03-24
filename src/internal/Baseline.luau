@@ -18,7 +18,9 @@ end
 
 function Baseline.getCache(deltaId: number): any?
     local perPlayer = _caches[deltaId]
-    if not perPlayer then return nil end
+    if not perPlayer then
+        return nil
+    end
     return perPlayer[_currentKey]
 end
 

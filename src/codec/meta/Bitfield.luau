@@ -6,15 +6,15 @@ local Base = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
 -- Field type constants
 local TYPE_BOOL = 0
 local TYPE_UINT = 1
-local TYPE_INT  = 2
+local TYPE_INT = 2
 
 -- Public --------------------------------------------------------------
 
@@ -32,17 +32,17 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
         error("[Lync] Lync.bitfield: requires at least one field")
     end
 
-    local fieldCount   = #keys
-    local fieldKeys    = table.create(fieldCount)
-    local fieldTypes   = table.create(fieldCount)
+    local fieldCount = #keys
+    local fieldKeys = table.create(fieldCount)
+    local fieldTypes = table.create(fieldCount)
     local fieldOffsets = table.create(fieldCount)
-    local fieldMasks   = table.create(fieldCount)
+    local fieldMasks = table.create(fieldCount)
     local fieldSignBit = table.create(fieldCount)
     local fieldSignExt = table.create(fieldCount)
-    local totalBits    = 0
+    local totalBits = 0
 
     for i = 1, fieldCount do
-        local key  = keys[i]
+        local key = keys[i]
         local spec = schema[key]
         fieldKeys[i] = key
         fieldOffsets[i] = totalBits
@@ -109,43 +109,40 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
     table.freeze(fieldSignBit)
     table.freeze(fieldSignExt)
 
-    return Base.define(wireBytes,
-        function(b: buffer, off: number, value: any): ()
-            local packed = 0
-            for i = 1, fieldCount do
-                local v = value[fieldKeys[i]]
-                if fieldTypes[i] == TYPE_BOOL then
-                    if v then
-                        packed = bor(packed, lshift(1, fieldOffsets[i]))
-                    end
-                else
-                    packed = bor(packed, lshift(band(v, fieldMasks[i]), fieldOffsets[i]))
+    return Base.define(wireBytes, function(b: buffer, off: number, value: any): ()
+        local packed = 0
+        for i = 1, fieldCount do
+            local v = value[fieldKeys[i]]
+            if fieldTypes[i] == TYPE_BOOL then
+                if v then
+                    packed = bor(packed, lshift(1, fieldOffsets[i]))
                 end
+            else
+                packed = bor(packed, lshift(band(v, fieldMasks[i]), fieldOffsets[i]))
             end
-            wfn(b, off, packed)
-        end,
-        function(b: buffer, off: number): any
-            local packed = rfn(b, off)
-            local result: { [string]: any } = {}
+        end
+        wfn(b, off, packed)
+    end, function(b: buffer, off: number): any
+        local packed = rfn(b, off)
+        local result: { [string]: any } = {}
 
-            for i = 1, fieldCount do
-                local raw = band(rshift(packed, fieldOffsets[i]), fieldMasks[i])
-                if fieldTypes[i] == TYPE_BOOL then
-                    result[fieldKeys[i]] = raw ~= 0
-                elseif fieldTypes[i] == TYPE_INT then
-                    if raw >= fieldSignBit[i] then
-                        result[fieldKeys[i]] = raw - fieldSignExt[i]
-                    else
-                        result[fieldKeys[i]] = raw
-                    end
+        for i = 1, fieldCount do
+            local raw = band(rshift(packed, fieldOffsets[i]), fieldMasks[i])
+            if fieldTypes[i] == TYPE_BOOL then
+                result[fieldKeys[i]] = raw ~= 0
+            elseif fieldTypes[i] == TYPE_INT then
+                if raw >= fieldSignBit[i] then
+                    result[fieldKeys[i]] = raw - fieldSignExt[i]
                 else
                     result[fieldKeys[i]] = raw
                 end
+            else
+                result[fieldKeys[i]] = raw
             end
-
-            return result
         end
-    )
+
+        return result
+    end)
 end
 
 return table.freeze(Bitfield)

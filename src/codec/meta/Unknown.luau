@@ -2,14 +2,14 @@
 --!optimize 2
 -- Bypasses buffer serialization. Uses Roblox remote sidecar refs.
 
+local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
-local Base  = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local alloc    = Base.alloc
+local alloc = Base.alloc
 local writeu16 = buffer.writeu16
-local readu16  = buffer.readu16
+local readu16 = buffer.readu16
 
 -- Public --------------------------------------------------------------
 
@@ -28,7 +28,9 @@ Unknown.unknown = table.freeze({
         ch.refCount = idx
 
         local cursor = ch.cursor
-        if cursor + 2 > ch.size then alloc(ch, 2) end
+        if cursor + 2 > ch.size then
+            alloc(ch, 2)
+        end
         writeu16(ch.buff, cursor, idx)
         ch.cursor = cursor + 2
     end,

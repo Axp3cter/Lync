@@ -15,11 +15,13 @@ local _maxSize = DEFAULT_MAX
 -- Private -------------------------------------------------------------
 
 local countlz = bit32.countlz
-local lshift  = bit32.lshift
+local lshift = bit32.lshift
 
 local function alloc(ch: Types.ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
-    if needed <= ch.size then return end
+    if needed <= ch.size then
+        return
+    end
 
     if needed > _maxSize then
         local name = ch.currentPacket
@@ -62,7 +64,9 @@ function Base.define<T>(
 
         write = function(ch: Types.ChannelState, value: T): ()
             local cursor = ch.cursor
-            if cursor + size > ch.size then alloc(ch, size) end
+            if cursor + size > ch.size then
+                alloc(ch, size)
+            end
             directWrite(ch.buff, cursor, value)
             ch.cursor = cursor + size
         end,

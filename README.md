@@ -159,7 +159,7 @@ if serverTime then print("server clock:", serverTime) end
 | `rateLimit` | `RateLimitConfig` | none | Server-side rate limiting on incoming fires. See [Rate Limiting](#rate-limiting). |
 | `validate` | `(data, player) → (bool, string?)` | none | Server-side callback after schema validation. Return `false, "reason"` to drop. Fires `onDrop`. |
 | `maxPayloadBytes` | `number` | none | Maximum bytes a single payload can consume. |
-| `timestamp` | `"frame" \| "offset" \| "full"` | none | Prepends a timestamp to each item. `"frame"` = u8 wrapping counter (1B). `"offset"` = u16 milliseconds into the current second (2B). `"full"` = f64 `os.clock()` (8B). Listeners receive it as a third argument after `sender`. |
+| `timestamp` | `"frame"`, `"offset"`, or `"full"` | none | Prepends a timestamp to each item. `"frame"` = u8 wrapping counter (1B). `"offset"` = u16 milliseconds into the current second (2B). `"full"` = f64 `os.clock()` (8B). Listeners receive it as a third argument after `sender`. |
 
 ### Packet Methods
 
@@ -391,8 +391,8 @@ Variable-length unsigned integer encoding. 1-byte range covers 0–191 (LEB128 o
 | Range | Bytes | Encoding |
 |:------|------:|:---------|
 | 0–191 | 1 | Direct value |
-| 192–8,383 | 2 | `0xC0 | high5`, `low8` |
-| 8,384–1,056,959 | 3 | `0xE0 | high4`, `low16 LE` |
+| 192–8,383 | 2 | `0xC0 + high5`, `low8` |
+| 8,384–1,056,959 | 3 | `0xE0 + high4`, `low16 LE` |
 | 1,056,960–4,294,967,295 | 5 | `0xF0`, `u32 LE` |
 
 ### MSB Batch Framing

@@ -169,6 +169,8 @@ packet:send(data)
 | `packet:on(fn)` | `fn(data, sender, timestamp?)`. Returns a Connection. |
 | `packet:once(fn)` | Fires once, then disconnects. |
 | `packet:wait()` | Yields until next fire. Returns `data, sender, timestamp?`. |
+| `packet:name()` | Returns the packet name. |
+| `packet:stats()` | Returns `{ bytesSent, bytesReceived, fires, recvFires, drops }`. Requires stats enabled. |
 
 ## Queries
 
@@ -192,6 +194,10 @@ Request-response built on packets. Returns `nil` on timeout.
 | `query:request(data)` | Client | Send to server, yield for response. |
 | `query:request(data, player)` | Server | Send to one client. |
 | `query:request(data, target)` | Server | Send to multiple. Returns `{ [Player]: response? }`. |
+| `query:name()` | Both | Returns the query name. |
+| `query:stats()` | Both | Combined stats for request and response channels. |
+
+Each query consumes two packet IDs internally.
 
 ## Groups
 
@@ -375,6 +381,8 @@ Global limit across all packets: `Lync.configure({ globalRateLimit = { maxPerSec
 | Option | Default | Description |
 |:-------|--------:|:------------|
 | `channelMaxSize` | 262,144 | Max buffer bytes per frame (4,096–1,048,576). |
+| `validationDepth` | 16 | Max recursion depth for input validation (4–32). |
+| `poolSize` | 16 | Buffer pool size (2–128). |
 | `bandwidthLimit` | none | `{ softLimit, maxStrikes }`. Per-player bandwidth throttle. |
 | `globalRateLimit` | none | `{ maxPerSecond }`. Global per-player rate limit. |
 | `stats` | `false` | Enables `packet:stats()` and `Lync.stats.player()`. |
@@ -385,6 +393,7 @@ Global limit across all packets: `Lync.configure({ globalRateLimit = { maxPerSec
 |:---------|:------------|
 | `Lync.configure(options)` | Set options before start. |
 | `Lync.start()` | Initialize transport. Call once after all definitions. |
+| `Lync.started` | Read-only boolean. `true` after `start()`. |
 | `Lync.flush()` | Force an immediate send. |
 | `Lync.flushRate(hz)` | Set flush rate. 1–60. Default 60. |
 
@@ -397,6 +406,13 @@ Enable with `Lync.configure({ stats = true })`.
 | `packet:stats()` | `{ bytesSent, bytesReceived, fires, recvFires, drops }` |
 | `Lync.stats.player(player)` | `{ bytesSent, bytesReceived }` — server only. |
 | `Lync.stats.reset()` | Zeros all counters. |
+
+### Debug
+
+| Function | Description |
+|:---------|:------------|
+| `Lync.debug.pending()` | Number of in-flight query requests. Useful for detecting leaks. |
+| `Lync.debug.registrations()` | Frozen array of `{ name, id, kind, isUnreliable }` for all registered packets and queries. |
 
 ## Limits
 

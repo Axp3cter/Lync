@@ -16,11 +16,17 @@ jobs:
       - name: Install Rokit
         uses: CompeyDev/setup-rokit@v0.1.2
 
-      - name: Build rbxm
-        run: rojo build default.project.json -o lync.rbxm
+      - name: Build
+        run: |
+          rojo build default.project.json -o Lync.rbxm
+          rojo build dev.project.json -o Lync-dev.rbxl
+          rojo build bench.project.json -o Lync-bench.rbxl
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: lync.rbxm
+          files: |
+            Lync.rbxm
+            Lync-dev.rbxl
+            Lync-bench.rbxl
           generate_release_notes: true

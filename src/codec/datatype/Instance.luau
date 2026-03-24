@@ -1,52 +1,57 @@
 --!strict
---!native
+--!optimize 2
 -- Instance codec via sidecar reference array.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
+local Base  = require(script.Parent.Parent.Base)
 
-type ChannelState = Types.ChannelState
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
+local alloc    = Base.alloc
+local writeu16 = buffer.writeu16
+local readu16  = buffer.readu16
 
 -- Public --------------------------------------------------------------
 
 local InstanceCodec = {}
 
+-- No _directWrite/_directRead: write needs ch.refs, so structs can't use the all-direct path
 InstanceCodec.inst = table.freeze({
     _size = 2,
-    write = function(ch: ChannelState, value: Instance): ()
-        local refs = ch.refs
-        local idx = #refs + 1
-        if idx > 65535 then
-            error(`[Lync] Instance ref overflow: {idx} exceeds u16 max`)
+    _typeCheck = "Instance",
+
+    write = function(ch: Types.ChannelState, value: Instance): ()
+        local idx = ch.refCount + 1
+        if idx > 0xFFFF then
+            error("[Lync] Instance: ref overflow (>65535)")
         end
 
-        refs[idx] = value
+        ch.refs[idx] = value
+        ch.refCount = idx
 
-        local c = ch.cursor
-        if c + 2 > ch.size then
-            alloc(ch, 2)
-        end
-        buffer.writeu16(ch.buff, c, idx)
-        ch.cursor = c + 2
+        local cursor = ch.cursor
+        if cursor + 2 > ch.size then alloc(ch, 2) end
+        writeu16(ch.buff, cursor, idx)
+        ch.cursor = cursor + 2
     end,
+
     read = function(src: buffer, pos: number, refs: { Instance }?): (Instance, number)
-        local idx = buffer.readu16(src, pos)
         if not refs then
-            error("[Lync] Instance read requires refs array")
+            error("[Lync] Instance: read requires refs array")
+        end
+
+        local idx = readu16(src, pos)
+        if idx < 1 or idx > #refs then
+            error(`[Lync] Instance: ref index {idx} out of bounds`)
         end
 
         local inst = refs[idx]
-        if not inst then
-            error(`[Lync] Instance ref index out of bounds: {idx}`)
-        end
         if typeof(inst) ~= "Instance" then
-            error("[Lync] Invalid ref: expected Instance")
+            error("[Lync] Instance: invalid ref (expected Instance)")
         end
 
         return inst, 2
     end,
-})
+} :: any)
 
 return table.freeze(InstanceCodec)

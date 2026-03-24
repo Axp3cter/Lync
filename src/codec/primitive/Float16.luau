@@ -2,111 +2,99 @@
 --!native
 -- Half-precision float codec. 2 bytes, ±65504, ~3 decimal digits.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
-
-local alloc = Channel.alloc
-
-type ChannelState = Types.ChannelState
-
--- Constants -----------------------------------------------------------
-
-local MAX_HALF = 65504
-local BIAS = 15
-local EXP_MAX = 31
-local MANT_BITS = 10
-local MANT_SCALE = 1024
-local SIGN_BIT = 0x8000
-local INF_BITS = 0x7C00
-local NAN_BITS = 0x7E00
-
-local band = bit32.band
-local bor = bit32.bor
-local lshift = bit32.lshift
-local rshift = bit32.rshift
-local frexp = math.frexp
-local ldexp = math.ldexp
-local round = math.round
-local huge = math.huge
+local Base = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-local function encode(value: number): number
-    if value ~= value then
-        return NAN_BITS
-    end
-    if value == 0 then
-        return 0
-    end
+local band   = bit32.band
+local bor    = bit32.bor
+local lshift = bit32.lshift
+local rshift = bit32.rshift
+local frexp  = math.frexp
+local ldexp  = math.ldexp
+local round  = math.round
+local huge   = math.huge
 
+local function encode(value: number): number
+    -- NaN
+    if value ~= value then return 0x7E00 end
+
+    -- Zero (both +0 and -0 map to positive zero)
+    if value == 0 then return 0 end
+
+    -- Sign extraction
     local sign = 0
     if value < 0 then
-        sign = SIGN_BIT
+        sign = 0x8000
         value = -value
     end
 
-    if value > MAX_HALF then
-        return bor(sign, INF_BITS)
-    end
+    -- Overflow to infinity
+    if value > 65504 then return bor(sign, 0x7C00) end
 
+    -- Decompose via frexp: value = mantissa * 2^exponent, mantissa in [0.5, 1)
     local mantissa, exponent = frexp(value)
-    exponent += 14
+    local biasedExp = exponent + 14
 
-    local bits: number
-    if exponent <= 0 then
-        local shift = exponent + MANT_BITS - 1
-        if shift < 0 then
-            return sign
+    if biasedExp <= 0 then
+        -- Subnormal: frac = round(mantissa * 2^(biasedExp + 10))
+        local frac = round(ldexp(mantissa, biasedExp + 10))
+        if frac >= 1024 then
+            -- Rounds to minimum normal
+            return bor(sign, 0x0400)
         end
-        bits = round(mantissa * lshift(1, shift))
-    elseif exponent >= EXP_MAX then
-        bits = INF_BITS
-    else
-        bits = bor(lshift(exponent, MANT_BITS), round((mantissa * 2 - 1) * MANT_SCALE))
+        if frac <= 0 then return sign end
+        return bor(sign, frac)
     end
 
-    return bor(sign, bits)
+    -- Normal: frac = round((mantissa * 2 - 1) * 1024)
+    local frac = round((mantissa * 2 - 1) * 1024)
+
+    -- Carry: mantissa rounding overflows into exponent
+    if frac >= 1024 then
+        frac = 0
+        biasedExp += 1
+    end
+
+    -- Overflow after carry
+    if biasedExp >= 31 then return bor(sign, 0x7C00) end
+
+    return bor(sign, lshift(biasedExp, 10), frac)
 end
 
-local function decode(packed: number): number
-    local exponent = band(rshift(packed, MANT_BITS), 0x1F)
-    local mantissa = band(packed, 0x03FF)
+local function decode(raw: number): number
+    local sign = band(raw, 0x8000)
+    local exp  = band(rshift(raw, 10), 0x1F)
+    local frac = band(raw, 0x03FF)
 
-    local result: number
-    if exponent == 0 then
-        result = if mantissa == 0 then 0 else ldexp(mantissa / MANT_SCALE, 1 - BIAS)
-    elseif exponent == EXP_MAX then
-        result = if mantissa == 0 then huge else 0 / 0
+    local value: number
+
+    if exp == 0 then
+        -- Zero or subnormal
+        value = if frac == 0 then 0 else ldexp(frac, -24)
+    elseif exp == 31 then
+        -- Infinity or NaN
+        value = if frac == 0 then huge else 0 / 0
     else
-        result = ldexp(mantissa / MANT_SCALE + 1, exponent - BIAS)
+        -- Normal: (frac + 1024) * 2^(exp - 25)
+        value = ldexp(frac + 1024, exp - 25)
     end
 
-    return if band(packed, SIGN_BIT) ~= 0 then -result else result
+    return if sign ~= 0 then -value else value
 end
 
 -- Public --------------------------------------------------------------
 
 local Float16 = {}
 
-Float16.f16 = table.freeze({
-    _size = 2,
-    _directWrite = function(b: buffer, offset: number, value: number): ()
-        buffer.writeu16(b, offset, encode(value))
+Float16.f16 = Base.define(2,
+    function(b: buffer, off: number, value: number): ()
+        buffer.writeu16(b, off, encode(value))
     end,
-    _directRead = function(b: buffer, offset: number): number
-        return decode(buffer.readu16(b, offset))
+    function(b: buffer, off: number): number
+        return decode(buffer.readu16(b, off))
     end,
-    write = function(ch: ChannelState, value: number): ()
-        local c = ch.cursor
-        if c + 2 > ch.size then
-            alloc(ch, 2)
-        end
-        buffer.writeu16(ch.buff, c, encode(value))
-        ch.cursor = c + 2
-    end,
-    read = function(src: buffer, pos: number, _refs: { Instance }?): (number, number)
-        return decode(buffer.readu16(src, pos)), 2
-    end,
-})
+    { _typeCheck = "number" }
+)
 
 return table.freeze(Float16)

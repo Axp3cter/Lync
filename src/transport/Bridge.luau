@@ -1,67 +1,88 @@
 --!strict
 --!optimize 2
--- Creates and exposes the network remote instances.
+-- Remote instance creation and access.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 -- Constants -----------------------------------------------------------
 
-local FOLDER = "_lync"
-local RELIABLE = "R"
-local UNRELIABLE = "U"
-local TIMEOUT = 10
+local RELIABLE_NAME   = "LyncReliable"
+local UNRELIABLE_NAME = "LyncUnreliable"
 
 -- State ---------------------------------------------------------------
 
-local _reliable: RemoteEvent
-local _unreliable: UnreliableRemoteEvent
+local _reliable: RemoteEvent? = nil
+local _unreliable: UnreliableRemoteEvent? = nil
+local _isServer = RunService:IsServer()
 
 -- Public --------------------------------------------------------------
 
 local Bridge = {}
 
-function Bridge.setup(): ()
-    if RunService:IsServer() then
-        local folder = Instance.new("Folder")
-        folder.Name = FOLDER
+function Bridge.setup(container: Instance): ()
+    if _isServer then
+        local re = Instance.new("RemoteEvent")
+        re.Name = RELIABLE_NAME
+        re.Parent = container
 
-        local reliable = Instance.new("RemoteEvent")
-        reliable.Name = RELIABLE
-        reliable.Parent = folder
+        local ure = Instance.new("UnreliableRemoteEvent")
+        ure.Name = UNRELIABLE_NAME
+        ure.Parent = container
 
-        local unreliable = Instance.new("UnreliableRemoteEvent")
-        unreliable.Name = UNRELIABLE
-        unreliable.Parent = folder
-
-        folder.Parent = ReplicatedStorage
-
-        _reliable = reliable
-        _unreliable = unreliable
+        _reliable = re
+        _unreliable = ure
     else
-        local folder = ReplicatedStorage:WaitForChild(FOLDER, TIMEOUT)
-        if not folder then
-            error("[Lync] Network folder not found, is the server started?")
-        end
-
-        local reliable = folder:WaitForChild(RELIABLE, TIMEOUT)
-        if not reliable then
-            error("[Lync] Reliable remote not found")
-        end
-
-        local unreliable = folder:WaitForChild(UNRELIABLE, TIMEOUT)
-        if not unreliable then
-            error("[Lync] Unreliable remote not found")
-        end
-
-        _reliable = reliable :: RemoteEvent
-        _unreliable = unreliable :: UnreliableRemoteEvent
+        _reliable = container:WaitForChild(RELIABLE_NAME) :: RemoteEvent
+        _unreliable = container:WaitForChild(UNRELIABLE_NAME) :: UnreliableRemoteEvent
     end
-
-    Bridge.reliable = _reliable :: any
-    Bridge.unreliable = _unreliable :: any
-    table.freeze(Bridge)
 end
 
--- Not frozen at module level: setup() populates reliable/unreliable then freezes.
-return Bridge
+function Bridge.reliable(): RemoteEvent
+    return _reliable :: RemoteEvent
+end
+
+function Bridge.unreliable(): UnreliableRemoteEvent
+    return _unreliable :: UnreliableRemoteEvent
+end
+
+function Bridge.isServer(): boolean
+    return _isServer
+end
+
+function Bridge.fireServer(data: buffer, refs: { Instance }): ()
+    local re = _reliable :: RemoteEvent
+    if #refs > 0 then
+        re:FireServer(data, refs)
+    else
+        re:FireServer(data)
+    end
+end
+
+function Bridge.fireClient(player: Player, data: buffer, refs: { Instance }): ()
+    local re = _reliable :: RemoteEvent
+    if #refs > 0 then
+        re:FireClient(player, data, refs)
+    else
+        re:FireClient(player, data)
+    end
+end
+
+function Bridge.fireServerUnreliable(data: buffer, refs: { Instance }): ()
+    local ure = _unreliable :: UnreliableRemoteEvent
+    if #refs > 0 then
+        ure:FireServer(data, refs)
+    else
+        ure:FireServer(data)
+    end
+end
+
+function Bridge.fireClientUnreliable(player: Player, data: buffer, refs: { Instance }): ()
+    local ure = _unreliable :: UnreliableRemoteEvent
+    if #refs > 0 then
+        ure:FireClient(player, data, refs)
+    else
+        ure:FireClient(player, data)
+    end
+end
+
+return table.freeze(Bridge)

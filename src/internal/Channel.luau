@@ -1,119 +1,386 @@
 --!strict
 --!native
--- Per-channel buffer state with batching, delta cache, frame XOR.
+-- Per-channel buffer state with MSB batch framing, XOR, timestamps.
 
 local Types = require(script.Parent.Parent.Types)
 
-type ChannelState = Types.ChannelState
-
 -- Constants -----------------------------------------------------------
 
-local INITIAL_SIZE = 1024
-local MAX_SIZE = 262144
-local MAX_BATCH = 65535
-
-local min = math.min
-local bxor = bit32.bxor
-local band32 = bit32.band
-local countlz = bit32.countlz
-local lshift = bit32.lshift
-local bor = bit32.bor
-local rshift = bit32.rshift
-
-local TS_NONE = 0
-local TS_FRAME = 1
+local TS_NONE   = 0
+local TS_FRAME  = 1
 local TS_OFFSET = 2
-local TS_FULL = 3
+local TS_FULL   = 3
+
+local DEFAULT_MAX   = 262144
+local EMPTY_REFS    = table.freeze({})
 
 -- State ---------------------------------------------------------------
 
-local _maxSize = MAX_SIZE
-local _currentPacket = ""
+local _maxSize       = DEFAULT_MAX
+local _anyTimestamp  = false
+local _statsEnabled  = false
+local _frameCounter  = 0
+local _offsetMs      = 0
+local _clock         = 0.0
 
--- Timestamp state updated once per flush via updateTimestamp().
-local _frameCounter: number = 0
-local _offsetMs: number = 0
-local _clockTime: number = 0
-local _anyTimestamp = false
+-- Private -------------------------------------------------------------
 
--- Stats gating. Default off; set via Lync.enableStats().
-local _statsEnabled = false
+local countlz  = bit32.countlz
+local lshift   = bit32.lshift
+local bxor     = bit32.bxor
+local bor      = bit32.bor
+local band     = bit32.band
+local writeu8  = buffer.writeu8
+local writeu16 = buffer.writeu16
+local writef64 = buffer.writef64
+local readu8   = buffer.readu8
+local readu32  = buffer.readu32
+local round    = math.round
+local min      = math.min
 
--- Public --------------------------------------------------------------
-
-local Channel = {}
-
-function Channel.setMaxSize(bytes: number): ()
-    if bytes < 4096 or bytes > 1048576 then
-        error(`[Lync] Channel max size must be 4096-1048576, got {bytes}`)
-    end
-    _maxSize = bytes
-end
-
-function Channel.getMaxSize(): number
-    return _maxSize
-end
-
-function Channel.create(): ChannelState
-    return {
-        buff = buffer.create(INITIAL_SIZE),
-        cursor = 0,
-        size = INITIAL_SIZE,
-        refs = {},
-        lastId = -1,
-        countPos = 0,
-        itemCount = 0,
-        deltas = {},
-        prevDump = nil,
-    }
-end
-
-function Channel.alloc(ch: ChannelState, bytes: number): ()
+local function alloc(ch: Types.ChannelState, bytes: number): ()
     local needed = ch.cursor + bytes
-    if needed <= ch.size then
-        return
-    end
+    if needed <= ch.size then return end
     if needed > _maxSize then
         error(
-            `[Lync] Channel overflow writing "{_currentPacket}": {needed} bytes > {_maxSize} max(call Channel.setMaxSize to raise)`
+            if ch.currentPacket
+                then `[Lync] Channel: buffer overflow ({needed}B, max {_maxSize}B) in "{ch.currentPacket}"`
+                else `[Lync] Channel: buffer overflow ({needed}B, max {_maxSize}B)`
         )
     end
-
     local newSize = lshift(1, 32 - countlz(needed - 1))
-
     local newBuff = buffer.create(newSize)
     buffer.copy(newBuff, 0, ch.buff, 0, ch.cursor)
     ch.buff = newBuff
     ch.size = newSize
 end
 
-local alloc = Channel.alloc
+-- Public --------------------------------------------------------------
 
--- Seals the open batch header and returns a snapshot of the buffer + refs.
-function Channel.sealAndDump(ch: ChannelState): (buffer, { Instance })
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-        ch.lastId = -1
-        ch.countPos = 0
-        ch.itemCount = 0
+local Channel = {}
+
+Channel.TS_NONE   = TS_NONE
+Channel.TS_FRAME  = TS_FRAME
+Channel.TS_OFFSET = TS_OFFSET
+Channel.TS_FULL   = TS_FULL
+
+function Channel.create(): Types.ChannelState
+    return {
+        buff = buffer.create(1024),
+        cursor = 0,
+        size = 1024,
+        refs = {},
+        refCount = 0,
+        lastId = -1,
+        countPos = -1,
+        itemCount = 0,
+        singleMode = false,
+        singlePos = 0,
+        deltas = {},
+        prevDump = nil,
+        prevDumpLen = 0,
+        currentPacket = nil,
+    }
+end
+
+function Channel.alloc(ch: Types.ChannelState, bytes: number): ()
+    alloc(ch, bytes)
+end
+
+function Channel.reset(ch: Types.ChannelState): ()
+    ch.cursor = 0
+    ch.lastId = -1
+    ch.countPos = -1
+    ch.itemCount = 0
+    ch.singleMode = false
+    ch.singlePos = 0
+    ch.currentPacket = nil
+    if ch.refCount > 0 then
+        table.clear(ch.refs)
+        ch.refCount = 0
+    end
+end
+
+--[[
+    Resolves the batch-open function for a given timestamp mode.
+    The returned function handles MSB single-item framing:
+      First item: writes [0x80 | id] (single mode, no count).
+      Second item: upgrades to multi mode with u16 count.
+]]
+function Channel.resolveOpenFn(
+    timestampMode: number,
+    name: string
+): (ch: Types.ChannelState, id: number) -> ()
+    if timestampMode == TS_NONE then
+        return function(ch: Types.ChannelState, id: number): ()
+            -- Seal previous batch
+            if ch.lastId >= 0 and not ch.singleMode then
+                writeu16(ch.buff, ch.countPos, ch.itemCount)
+            end
+            ch.currentPacket = name
+            ch.lastId = id
+            ch.itemCount = 0
+
+            -- Write single-mode header: [1IIIIIII]
+            local cursor = ch.cursor
+            if cursor + 1 > ch.size then alloc(ch, 1) end
+            writeu8(ch.buff, cursor, bor(0x80, id))
+            ch.singleMode = true
+            ch.singlePos = cursor
+            ch.cursor = cursor + 1
+        end
+
+    elseif timestampMode == TS_FRAME then
+        return function(ch: Types.ChannelState, id: number): ()
+            if ch.lastId >= 0 and not ch.singleMode then
+                writeu16(ch.buff, ch.countPos, ch.itemCount)
+            end
+            ch.currentPacket = name
+            ch.lastId = id
+            ch.itemCount = 0
+
+            local cursor = ch.cursor
+            if cursor + 2 > ch.size then alloc(ch, 2) end
+            local b = ch.buff
+            writeu8(b, cursor, bor(0x80, id))
+            writeu8(b, cursor + 1, _frameCounter)
+            ch.singleMode = true
+            ch.singlePos = cursor
+            ch.cursor = cursor + 2
+        end
+
+    elseif timestampMode == TS_OFFSET then
+        return function(ch: Types.ChannelState, id: number): ()
+            if ch.lastId >= 0 and not ch.singleMode then
+                writeu16(ch.buff, ch.countPos, ch.itemCount)
+            end
+            ch.currentPacket = name
+            ch.lastId = id
+            ch.itemCount = 0
+
+            local cursor = ch.cursor
+            if cursor + 3 > ch.size then alloc(ch, 3) end
+            local b = ch.buff
+            writeu8(b, cursor, bor(0x80, id))
+            writeu16(b, cursor + 1, _offsetMs)
+            ch.singleMode = true
+            ch.singlePos = cursor
+            ch.cursor = cursor + 3
+        end
+
+    else -- TS_FULL
+        return function(ch: Types.ChannelState, id: number): ()
+            if ch.lastId >= 0 and not ch.singleMode then
+                writeu16(ch.buff, ch.countPos, ch.itemCount)
+            end
+            ch.currentPacket = name
+            ch.lastId = id
+            ch.itemCount = 0
+
+            local cursor = ch.cursor
+            if cursor + 9 > ch.size then alloc(ch, 9) end
+            local b = ch.buff
+            writeu8(b, cursor, bor(0x80, id))
+            writef64(b, cursor + 1, _clock)
+            ch.singleMode = true
+            ch.singlePos = cursor
+            ch.cursor = cursor + 9
+        end
+    end
+end
+
+--[[
+    Writes one item into a batch. Handles MSB single→multi upgrade.
+]]
+function Channel.writeBatch(
+    ch: Types.ChannelState,
+    reg: Types.Registration,
+    data: any
+): ()
+    if reg.id ~= ch.lastId or ch.itemCount >= 0xFFFF then
+        reg._openFn(ch, reg.id)
+    elseif ch.singleMode then
+        --[[
+            Second item for same packet: upgrade to multi mode.
+            Rewrite header byte to clear MSB, insert u16 count after.
+        ]]
+        local b = ch.buff
+        local headerPos = ch.singlePos
+        writeu8(b, headerPos, reg.id) -- MSB cleared = multi-item mode
+
+        local tsBytes = reg.headerSize - 1
+        local afterTs = headerPos + 1 + tsBytes
+
+        --[[
+            Upgrading from single→multi requires inserting 2 bytes (u16 count)
+            between the timestamp and the first item's payload, shifting
+            existing data right by 2.
+        ]]
+        local cursor = ch.cursor
+        local payloadLen = cursor - afterTs
+        if cursor + 2 > ch.size then alloc(ch, 2) end
+        local b2 = ch.buff
+
+        if payloadLen > 0 then
+            buffer.copy(b2, afterTs + 2, b2, afterTs, payloadLen)
+        end
+
+        ch.countPos = afterTs
+        writeu16(b2, afterTs, 0) -- placeholder u16; sealAndDump writes final count
+        ch.cursor = cursor + 2
+        ch.singleMode = false
     end
 
-    local cur = ch.cursor
-    local out = buffer.create(cur)
-    buffer.copy(out, 0, ch.buff, 0, cur)
-
-    local refs = ch.refs
-    return out, if #refs > 0 then table.clone(refs) else {}
+    ch.itemCount += 1
+    reg.codec.write(ch, data)
 end
 
-function Channel.setCurrentPacket(name: string): ()
-    _currentPacket = name
+--[[
+    Seals the current batch and returns a snapshot for transmission.
+]]
+function Channel.sealAndDump(ch: Types.ChannelState): (buffer, { Instance }, number, number)
+    -- Multi-item batches need their count finalized before transmission
+    if ch.lastId >= 0 and not ch.singleMode and ch.countPos >= 0 then
+        writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
+
+    local cursor = ch.cursor
+    local snapshot = buffer.create(cursor)
+    buffer.copy(snapshot, 0, ch.buff, 0, cursor)
+
+    local refs: { Instance }
+    local refCount = ch.refCount
+    if refCount > 0 then
+        refs = table.clone(ch.refs)
+    else
+        refs = EMPTY_REFS :: any
+    end
+
+    return snapshot, refs, cursor, refCount
 end
 
-function Channel.updateTimestamp(frameCounter: number, offsetMs: number, clockTime: number): ()
-    _frameCounter = frameCounter
-    _offsetMs = offsetMs
-    _clockTime = clockTime
+--[[
+    XOR current frame against previous for deflate-friendly output.
+]]
+function Channel.xorApply(
+    current: buffer,
+    curLen: number,
+    previous: buffer?,
+    prevLen: number
+): buffer
+    if not previous then return current end
+
+    local result = buffer.create(curLen)
+    local overlap = min(curLen, prevLen)
+    local prev = previous :: buffer
+
+    -- u32 chunks
+    local aligned = overlap - (overlap % 4)
+    local i = 0
+    while i < aligned do
+        buffer.writeu32(result, i, bxor(readu32(current, i), readu32(prev, i)))
+        i += 4
+    end
+
+    -- u8 remainder of overlap
+    while i < overlap do
+        writeu8(result, i, bxor(readu8(current, i), readu8(prev, i)))
+        i += 1
+    end
+
+    -- Excess bytes (current longer than previous)
+    if curLen > overlap then
+        buffer.copy(result, overlap, current, overlap, curLen - overlap)
+    end
+
+    return result
+end
+
+--[[
+    Writes a query frame with MSB encoding for nil-status.
+    MSB set = nil response, MSB clear = payload follows.
+]]
+function Channel.writeQuery(
+    ch: Types.ChannelState,
+    id: number,
+    correlationId: number,
+    codec: Types.InternalCodec<any>?,
+    data: any
+): ()
+    -- Queries are standalone frames, so close any open packet batch first
+    if ch.lastId >= 0 and not ch.singleMode and ch.countPos >= 0 then
+        writeu16(ch.buff, ch.countPos, ch.itemCount)
+    end
+    ch.lastId = -1
+    ch.singleMode = false
+
+    if codec and data ~= nil then
+        local cursor = ch.cursor
+        if cursor + 1 > ch.size then alloc(ch, 1) end
+        writeu8(ch.buff, cursor, id)
+        ch.cursor = cursor + 1
+
+        -- Inlined varint avoids the function call overhead for correlation IDs
+        if correlationId <= 0xBF then
+            local c2 = ch.cursor
+            if c2 + 1 > ch.size then alloc(ch, 1) end
+            writeu8(ch.buff, c2, correlationId)
+            ch.cursor = c2 + 1
+        elseif correlationId <= 8383 then
+            local c2 = ch.cursor
+            if c2 + 2 > ch.size then alloc(ch, 2) end
+            local adjusted = correlationId - 192
+            writeu8(ch.buff, c2, bor(0xC0, band(adjusted // 256, 0x1F)))
+            writeu8(ch.buff, c2 + 1, band(adjusted, 0xFF))
+            ch.cursor = c2 + 2
+        else
+            local c2 = ch.cursor
+            if c2 + 5 > ch.size then alloc(ch, 5) end
+            writeu8(ch.buff, c2, 0xF0)
+            buffer.writeu32(ch.buff, c2 + 1, correlationId)
+            ch.cursor = c2 + 5
+        end
+
+        codec.write(ch, data)
+    else
+        -- MSB set signals nil response to the reader
+        local cursor = ch.cursor
+        if cursor + 1 > ch.size then alloc(ch, 1) end
+        writeu8(ch.buff, cursor, bor(0x80, id))
+        ch.cursor = cursor + 1
+
+        if correlationId <= 0xBF then
+            local c2 = ch.cursor
+            if c2 + 1 > ch.size then alloc(ch, 1) end
+            writeu8(ch.buff, c2, correlationId)
+            ch.cursor = c2 + 1
+        elseif correlationId <= 8383 then
+            local c2 = ch.cursor
+            if c2 + 2 > ch.size then alloc(ch, 2) end
+            local adjusted = correlationId - 192
+            writeu8(ch.buff, c2, bor(0xC0, band(adjusted // 256, 0x1F)))
+            writeu8(ch.buff, c2 + 1, band(adjusted, 0xFF))
+            ch.cursor = c2 + 2
+        else
+            local c2 = ch.cursor
+            if c2 + 5 > ch.size then alloc(ch, 5) end
+            writeu8(ch.buff, c2, 0xF0)
+            buffer.writeu32(ch.buff, c2 + 1, correlationId)
+            ch.cursor = c2 + 5
+        end
+    end
+end
+
+-- Configuration -------------------------------------------------------
+
+function Channel.setMaxSize(bytes: number): ()
+    _maxSize = bytes
+end
+
+function Channel.updateTimestamp(): ()
+    _frameCounter = (_frameCounter + 1) % 256
+    _offsetMs = round((os.clock() % 65.536) * 1000)
+    _clock = os.clock()
 end
 
 function Channel.enableTimestamps(): ()
@@ -131,240 +398,5 @@ end
 function Channel.statsEnabled(): boolean
     return _statsEnabled
 end
-
--- Batch opener: no timestamp variant. Resolved at define time via reg._openFn (#2)
-local function openBatchPlain(ch: ChannelState, id: number, name: string): ()
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-    end
-    _currentPacket = name
-    alloc(ch, 3)
-    local c = ch.cursor
-    buffer.writeu8(ch.buff, c, id)
-    ch.countPos = c + 1
-    ch.cursor = c + 3
-    ch.lastId = id
-    ch.itemCount = 0
-end
-
-local function openBatchFrame(ch: ChannelState, id: number, name: string): ()
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-    end
-    _currentPacket = name
-    alloc(ch, 4)
-    local c = ch.cursor
-    buffer.writeu8(ch.buff, c, id)
-    ch.countPos = c + 1
-    buffer.writeu8(ch.buff, c + 3, _frameCounter)
-    ch.cursor = c + 4
-    ch.lastId = id
-    ch.itemCount = 0
-end
-
-local function openBatchOffset(ch: ChannelState, id: number, name: string): ()
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-    end
-    _currentPacket = name
-    alloc(ch, 5)
-    local c = ch.cursor
-    buffer.writeu8(ch.buff, c, id)
-    ch.countPos = c + 1
-    buffer.writeu16(ch.buff, c + 3, _offsetMs)
-    ch.cursor = c + 5
-    ch.lastId = id
-    ch.itemCount = 0
-end
-
-local function openBatchFull(ch: ChannelState, id: number, name: string): ()
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-    end
-    _currentPacket = name
-    alloc(ch, 11)
-    local c = ch.cursor
-    buffer.writeu8(ch.buff, c, id)
-    ch.countPos = c + 1
-    buffer.writef64(ch.buff, c + 3, _clockTime)
-    ch.cursor = c + 11
-    ch.lastId = id
-    ch.itemCount = 0
-end
-
--- Returns the correct openBatch function for a given timestamp mode.
-function Channel.resolveOpenFn(tsMode: number): (ch: ChannelState, id: number, name: string) -> ()
-    if tsMode == TS_FRAME then
-        return openBatchFrame
-    elseif tsMode == TS_OFFSET then
-        return openBatchOffset
-    elseif tsMode == TS_FULL then
-        return openBatchFull
-    end
-    return openBatchPlain
-end
-
--- Writes a single value into the batch. Zero branching on the hot path.
-function Channel.writeBatch(ch: ChannelState, reg: any, data: any): ()
-    local id = reg.id
-    if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
-        reg._openFn(ch, id, reg.name)
-    end
-
-    ch.itemCount += 1
-    reg.codec.write(ch, data)
-end
-
--- Appends pre-serialized bytes into a batch. Used by broadcast fan-out.
-function Channel.writeBatchRaw(
-    ch: ChannelState,
-    reg: any,
-    src: buffer,
-    srcLen: number,
-    srcRefs: { Instance }?
-): ()
-    local id = reg.id
-    if id ~= ch.lastId or ch.itemCount >= MAX_BATCH then
-        reg._openFn(ch, id, reg.name)
-    end
-
-    ch.itemCount += 1
-
-    if srcLen > 0 then
-        alloc(ch, srcLen)
-        buffer.copy(ch.buff, ch.cursor, src, 0, srcLen)
-        ch.cursor += srcLen
-    end
-
-    if srcRefs then
-        local refs = ch.refs
-        table.move(srcRefs, 1, #srcRefs, #refs + 1, refs)
-    end
-end
-
-local function sealOpen(ch: ChannelState): ()
-    if ch.lastId >= 0 then
-        buffer.writeu16(ch.buff, ch.countPos, ch.itemCount)
-        ch.lastId = -1
-        ch.countPos = 0
-        ch.itemCount = 0
-    end
-end
-
---[[
-    Writes a query frame. Seals any open batch, then writes:
-        id(u8) + correlationId(varint) + status(u8)
-    Status 0 = payload follows. Status 1 = nil response.
-]]
-function Channel.writeQuery(
-    ch: ChannelState,
-    id: number,
-    name: string,
-    correlationId: number,
-    codec: any?,
-    data: any?
-): ()
-    _currentPacket = name
-    sealOpen(ch)
-
-    alloc(ch, 2)
-    local c = ch.cursor
-    buffer.writeu8(ch.buff, c, id)
-    ch.cursor = c + 1
-
-    -- Inline varint write to avoid circular dependency (Varint requires Channel)
-    local v = correlationId
-    if v < 0x80 then
-        alloc(ch, 1)
-        buffer.writeu8(ch.buff, ch.cursor, v)
-        ch.cursor += 1
-    else
-        alloc(ch, 5)
-        local b = ch.buff
-        local vc = ch.cursor
-        while v >= 0x80 do
-            buffer.writeu8(b, vc, bor(band32(v, 0x7F), 0x80))
-            v = rshift(v, 7)
-            vc += 1
-        end
-        buffer.writeu8(b, vc, v)
-        ch.cursor = vc + 1
-    end
-
-    local c2 = ch.cursor
-    alloc(ch, 1)
-    if codec then
-        buffer.writeu8(ch.buff, c2, 0)
-        ch.cursor = c2 + 1
-        codec.write(ch, data)
-    else
-        buffer.writeu8(ch.buff, c2, 1)
-        ch.cursor = c2 + 1
-    end
-end
-
--- XOR current frame against previous. Produces zero-heavy output for deflate.
-function Channel.xorApply(current: buffer, previous: buffer?): buffer
-    local curLen = buffer.len(current)
-    if not previous then
-        return current
-    end
-
-    local prevLen = buffer.len(previous :: buffer)
-    if prevLen == 0 then
-        return current
-    end
-
-    local result = buffer.create(curLen)
-    local overlap = min(curLen, prevLen)
-    local prev = previous :: buffer
-
-    local aligned = band32(overlap, 0xFFFFFFFC)
-    for i = 0, aligned - 4, 4 do
-        buffer.writeu32(result, i, bxor(buffer.readu32(current, i), buffer.readu32(prev, i)))
-    end
-
-    for i = aligned, overlap - 1 do
-        buffer.writeu8(result, i, bxor(buffer.readu8(current, i), buffer.readu8(prev, i)))
-    end
-
-    if curLen > overlap then
-        buffer.copy(result, overlap, current, overlap, curLen - overlap)
-    end
-
-    return result
-end
-
--- Conditional refs clear (#6)
-function Channel.reset(ch: ChannelState): ()
-    ch.cursor = 0
-    ch.lastId = -1
-    ch.countPos = 0
-    ch.itemCount = 0
-    if #ch.refs > 0 then
-        table.clear(ch.refs)
-    end
-end
-
--- Test helper: builds a minimal reg-like object for writeBatch.
-function Channel.mockReg(id: number, name: string, codec: any): any
-    return {
-        id = id,
-        name = name,
-        codec = codec,
-        timestampMode = 0,
-        _openFn = openBatchPlain,
-        drops = 0,
-        bytesSent = 0,
-        bytesReceived = 0,
-        fires = 0,
-        recvFires = 0,
-    }
-end
-
-Channel.TS_NONE = TS_NONE
-Channel.TS_FRAME = TS_FRAME
-Channel.TS_OFFSET = TS_OFFSET
-Channel.TS_FULL = TS_FULL
 
 return table.freeze(Channel)

@@ -1,155 +1,121 @@
 --!strict
---!native
+--!optimize 2
 -- Positional ordered codec. Like struct but indexed, not keyed.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
+local Base  = require(script.Parent.Parent.Base)
 
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
-type InternalCodec<T> = Types.InternalCodec<T>
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
+local alloc = Base.alloc
 
 -- Public --------------------------------------------------------------
 
 local Tuple = {}
 
-function Tuple.define(...: Codec<any>): Codec<{ any }>
+function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
     local codecs = { ... }
     local count = #codecs
-    if count == 0 then
-        error("[Lync] Tuple requires at least one codec")
+    if count == 0 then error("[Lync] Lync.tuple: requires at least one codec") end
+
+    -- Check if all codecs are direct
+    local allDirect = true
+    local totalSize = 0
+    local hasUnknown = false
+
+    for i = 1, count do
+        local c = codecs[i] :: any
+        if c._hasUnknown then hasUnknown = true end
+        if not c._size or not c._directWrite or not c._directRead then
+            allDirect = false
+        else
+            totalSize += c._size
+        end
     end
 
     table.freeze(codecs)
 
-    local hasUnknown = false
-    for i = 1, count do
-        if (codecs[i] :: any)._hasUnknown then
-            hasUnknown = true
-            break
-        end
-    end
+    if allDirect then
+        -- Build precomputed offsets
+        local offsets = table.create(count)
+        local directWrites = table.create(count)
+        local directReads  = table.create(count)
+        local cursor = 0
 
-    local canDirect = true
-    local totalSize: number = 0
-    local directWrites = table.create(count) :: { any }
-    local directReads = table.create(count) :: { any }
-    local fieldSizes = table.create(count) :: { number }
-
-    for i = 1, count do
-        local internal = codecs[i] :: InternalCodec<any>
-        local size = internal._size
-        local dw = internal._directWrite
-        local dr = internal._directRead
-
-        if size and dw and dr then
-            fieldSizes[i] = size
-            directWrites[i] = dw
-            directReads[i] = dr
-            totalSize += size
-        else
-            canDirect = false
-            if size then
-                totalSize += size
-            else
-                totalSize = nil :: any
-            end
-            break
-        end
-    end
-
-    -- Recompute totalSize for generic path if direct failed partway
-    if not canDirect then
-        totalSize = 0 :: any
         for i = 1, count do
-            local size = (codecs[i] :: InternalCodec<any>)._size
-            if size then
-                totalSize = (totalSize :: number) + size
-            else
-                totalSize = nil :: any
-                break
-            end
+            local c = codecs[i] :: any
+            offsets[i] = cursor
+            directWrites[i] = c._directWrite
+            directReads[i] = c._directRead
+            cursor += c._size
         end
-    end
 
-    if canDirect then
+        table.freeze(offsets)
         table.freeze(directWrites)
         table.freeze(directReads)
-        table.freeze(fieldSizes)
 
-        local function directWriteBody(b: buffer, c: number, value: { any }): ()
-            for i = 1, count do
-                directWrites[i](b, c, value[i])
-                c += fieldSizes[i]
-            end
-        end
-
-        local function directReadBody(b: buffer, pos: number): { any }
-            local result = table.create(count)
-            local c = pos
-            for i = 1, count do
-                result[i] = directReads[i](b, c)
-                c += fieldSizes[i]
-            end
-            return result
-        end
-
-        return table.freeze({
+        local codec: any = {
             _size = totalSize,
-            _directWrite = directWriteBody,
-            _directRead = directReadBody,
-            _hasUnknown = hasUnknown or nil,
-            write = function(ch: ChannelState, value: { any }): ()
-                local c = ch.cursor
-                if c + totalSize > ch.size then
-                    alloc(ch, totalSize)
+
+            _directWrite = function(b: buffer, off: number, value: any): ()
+                for i = 1, count do
+                    directWrites[i](b, off + offsets[i], value[i])
                 end
-                directWriteBody(ch.buff, c, value)
+            end,
+
+            _directRead = function(b: buffer, off: number): any
+                local result = table.create(count)
+                for i = 1, count do
+                    result[i] = directReads[i](b, off + offsets[i])
+                end
+                return result
+            end,
+
+            write = function(ch: Types.ChannelState, value: any): ()
+                local c = ch.cursor
+                if c + totalSize > ch.size then alloc(ch, totalSize) end
+                local b = ch.buff
+                for i = 1, count do
+                    directWrites[i](b, c + offsets[i], value[i])
+                end
                 ch.cursor = c + totalSize
             end,
-            read = function(src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
-                return directReadBody(src, pos), totalSize
+
+            read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
+                local result = table.create(count)
+                for i = 1, count do
+                    result[i] = directReads[i](src, pos + offsets[i])
+                end
+                return result, totalSize
             end,
-        })
+        }
+
+        if hasUnknown then codec._hasUnknown = true end
+        return table.freeze(codec)
     end
 
-    local writeFns = table.create(count) :: { any }
-    local readFns = table.create(count) :: { any }
-    for i = 1, count do
-        writeFns[i] = codecs[i].write
-        readFns[i] = codecs[i].read
-    end
-    table.freeze(writeFns)
-    table.freeze(readFns)
-
-    local hasFixedTotal = totalSize ~= nil
-
-    return table.freeze({
-        _size = totalSize,
-        _hasUnknown = hasUnknown or nil,
-        write = function(ch: ChannelState, value: { any }): ()
-            if hasFixedTotal then
-                alloc(ch, totalSize :: number)
-            end
+    -- Generic path
+    local codec: any = {
+        write = function(ch: Types.ChannelState, value: any): ()
             for i = 1, count do
-                writeFns[i](ch, value[i])
+                codecs[i].write(ch, value[i])
             end
         end,
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+
+        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
             local result = table.create(count)
-            local absPos = pos
-
+            local total = 0
             for i = 1, count do
-                local value, n = readFns[i](src, absPos, refs)
-                result[i] = value
-                absPos += n
+                local v, consumed = codecs[i].read(src, pos + total, refs)
+                result[i] = v
+                total += consumed
             end
-
-            return result, absPos - pos
+            return result, total
         end,
-    })
+    }
+
+    if hasUnknown then codec._hasUnknown = true end
+    return table.freeze(codec)
 end
 
 return table.freeze(Tuple)

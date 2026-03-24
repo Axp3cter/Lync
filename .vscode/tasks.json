@@ -7,10 +7,33 @@
             "command": "stylua",
             "args": ["src/", "test/", "bench/"],
             "group": "build",
-            "presentation": {
-                "reveal": "silent",
-                "close": true
-            },
+            "presentation": { "reveal": "silent", "close": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "rojo: serve dev",
+            "type": "shell",
+            "command": "rojo",
+            "args": ["serve", "dev.project.json"],
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "rojo: serve bench",
+            "type": "shell",
+            "command": "rojo",
+            "args": ["serve", "bench.project.json"],
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "rojo: build release",
+            "type": "shell",
+            "command": "rojo",
+            "args": ["build", "default.project.json", "-o", "lync.rbxm"],
+            "group": "build",
             "problemMatcher": []
         }
     ]

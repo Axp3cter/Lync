@@ -1,6 +1,7 @@
 test/
 bench/
 .github/
+.vscode/
 .luaurc
 .gitattributes
 stylua.toml

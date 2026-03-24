@@ -2,353 +2,284 @@
 --!optimize 2
 -- Server-side benchmark runner.
 
-local Players = game:GetService("Players")
+local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
 
-local LyncFolder = ReplicatedStorage:WaitForChild("Lync")
-local Lync = require(LyncFolder)
-local Scenarios = require(LyncFolder:WaitForChild("bench"):WaitForChild("Scenarios"))
+local LyncFolder  = ReplicatedStorage:WaitForChild("Lync")
+local Lync        = require(LyncFolder)
+local benchFolder = LyncFolder:WaitForChild("bench")
+local Scenarios   = require(benchFolder:WaitForChild("Scenarios"))
+local Harness     = require(benchFolder:WaitForChild("Harness"))
+local Channel     = require(LyncFolder:WaitForChild("internal"):WaitForChild("Channel"))
 
-Lync.setChannelMaxSize(1048576) -- 1 MB, needed for Blink entities bench (100x6B x 1000 fires)
+Lync.configure({ channelMaxSize = 1048576, stats = true })
 Lync.start()
 
--- Config --------------------------------------------------------------
+local N = 100000
 
-local FIRES_PER_FRAME = 1000
-local DURATION = 10
-local SETTLE = 3
-local MAX_FRAMERATE = 60
+-- ═══════════════════════════════════════════════════════════════
+-- Sections 1–5: CPU-only (no player needed)
+-- ═══════════════════════════════════════════════════════════════
 
-local floor = math.floor
-local sort = table.sort
-local max = math.max
-local min = math.min
+Harness.header("Wire Sizes")
 
--- Helpers -------------------------------------------------------------
+Harness.section("Primitives")
+Harness.benchWireSize("bool", Lync.bool, true)
+Harness.benchWireSize("u8", Lync.int(0, 255), 42)
+Harness.benchWireSize("u16", Lync.int(0, 65535), 1000)
+Harness.benchWireSize("u32", Lync.int(0, 1000000), 500000)
+Harness.benchWireSize("i8", Lync.int(-128, 127), -50)
+Harness.benchWireSize("i16", Lync.int(-32768, 32767), -1000)
+Harness.benchWireSize("i32", Lync.int(-2147483648, 2147483647), -100000)
+Harness.benchWireSize("f16", Lync.f16, 42.5)
+Harness.benchWireSize("f32", Lync.f32, 3.14)
+Harness.benchWireSize("f64", Lync.f64, math.pi)
+Harness.benchWireSize("nothing", Lync.nothing, nil)
+Harness.sectionEnd()
+
+Harness.section("Strings")
+Harness.benchWireSize("empty", Lync.string, "")
+Harness.benchWireSize("5 chars", Lync.string, "hello")
+Harness.benchWireSize("100 chars", Lync.string, string.rep("x", 100))
+Harness.benchWireSize("191 chars (max inline)", Lync.string, string.rep("x", 191))
+Harness.benchWireSize("192 chars (varint)", Lync.string, string.rep("x", 192))
+Harness.benchWireSize("1000 chars", Lync.string, string.rep("x", 1000))
+Harness.sectionEnd()
+
+Harness.section("Vectors & Spatial")
+Harness.benchWireSize("vec2 (lossless)", Lync.vec2, Vector2.new(1, 2))
+Harness.benchWireSize("vec2 (u8 quantized)", Lync.vec2(0, 100, 1), Vector2.new(50, 75))
+Harness.benchWireSize("vec3 (lossless)", Lync.vec3, Vector3.new(1, 2, 3))
+Harness.benchWireSize("vec3 (u8 quantized)", Lync.vec3(0, 100, 1), Vector3.new(25, 50, 75))
+Harness.benchWireSize("vec3 (u16 quantized)", Lync.vec3(-1000, 1000, 0.1), Vector3.new(0, 0, 0))
+Harness.benchWireSize("cframe (lossless 24B)", Lync.cframe, CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3))
+Harness.benchWireSize("cframe (compressed 16B)", Lync.cframe(), CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3))
+Harness.benchWireSize("color3", Lync.color3, Color3.fromRGB(255, 128, 0))
+Harness.benchWireSize("ray", Lync.ray, Ray.new(Vector3.zero, Vector3.yAxis))
+Harness.sectionEnd()
+
+Harness.section("Structs")
+Harness.benchWireSize("entity (lossless)", Scenarios.entityCodec, Scenarios.ENTITY)
+Harness.benchWireSize("entity (compact)", Scenarios.entityCompactCodec, Scenarios.ENTITY_COMPACT)
+Harness.benchWireSize("bitfield flags", Scenarios.flagsCodec, Scenarios.FLAGS)
+Harness.sectionEnd()
+
+Harness.section("Arrays")
+Harness.benchWireSize("100x entities", Lync.array(Scenarios.blinkEntityCodec), Scenarios.BLINK_ENTITIES)
+Harness.benchWireSize("1000x bools (bitpacked)", Lync.array(Lync.bool), Scenarios.BLINK_BOOLS)
+Harness.sectionEnd()
+
+Harness.header("Codec Throughput")
+
+Harness.section("Primitive encode/decode round-trips")
+Harness.benchRoundTrip("bool", N, Lync.bool, true)
+Harness.benchRoundTrip("u8", N, Lync.int(0, 255), 42)
+Harness.benchRoundTrip("u16", N, Lync.int(0, 65535), 30000)
+Harness.benchRoundTrip("i16", N, Lync.int(-32768, 32767), -1000)
+Harness.benchRoundTrip("f16", N, Lync.f16, 42.5)
+Harness.benchRoundTrip("f32", N, Lync.f32, 3.14)
+Harness.benchRoundTrip("f64", N, Lync.f64, math.pi)
+Harness.sectionEnd()
+
+Harness.section("String encode/decode")
+Harness.benchRoundTrip("empty string", N, Lync.string, "")
+Harness.benchRoundTrip("10-char string", N, Lync.string, "0123456789")
+Harness.benchRoundTrip("100-char string", N, Lync.string, string.rep("x", 100))
+Harness.benchRoundTrip("1000-char string", N // 10, Lync.string, string.rep("x", 1000))
+Harness.sectionEnd()
+
+Harness.section("Roblox types")
+Harness.benchRoundTrip("vec2", N, Lync.vec2, Vector2.new(1.5, -3.25))
+Harness.benchRoundTrip("vec3", N, Lync.vec3, Vector3.new(1, 2, 3))
+Harness.benchRoundTrip("vec3 quantized", N, Lync.vec3(0, 100, 1), Vector3.new(25, 50, 75))
+Harness.benchRoundTrip("cframe lossless", N, Lync.cframe, CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3))
+Harness.benchRoundTrip("cframe compressed", N, Lync.cframe(), CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3))
+Harness.benchRoundTrip("color3", N, Lync.color3, Color3.fromRGB(255, 128, 0))
+Harness.benchRoundTrip("udim2", N, Lync.udim2, UDim2.new(UDim.new(0.5, 10), UDim.new(1, 20)))
+Harness.sectionEnd()
+
+Harness.section("Composites")
+Harness.benchRoundTrip("entity struct", N // 2, Scenarios.entityCodec, Scenarios.ENTITY)
+Harness.benchRoundTrip("entity compact", N // 2, Scenarios.entityCompactCodec, Scenarios.ENTITY_COMPACT)
+Harness.benchRoundTrip("bitfield flags", N, Scenarios.flagsCodec, Scenarios.FLAGS)
+Harness.benchRoundTrip("100x entities", N // 50, Lync.array(Scenarios.blinkEntityCodec), Scenarios.BLINK_ENTITIES)
+Harness.benchRoundTrip("1000x bools", N // 10, Lync.array(Lync.bool), Scenarios.BLINK_BOOLS)
+Harness.sectionEnd()
+
+Harness.header("Delta Savings")
+
+Harness.section("deltaStruct unchanged vs changed")
+Harness.benchDelta("entity delta", Scenarios.deltaEntityCodec, Scenarios.ENTITY)
+Harness.benchDelta("compact delta", Lync.deltaStruct({
+    position = Lync.vec3(-500, 500, 0.1),
+    velocity = Lync.vec3(-50, 50, 0.5),
+    health = Lync.int(0, 255),
+    shield = Lync.int(0, 255),
+    alive = Lync.bool,
+    team = Lync.int(0, 7),
+}), Scenarios.ENTITY_COMPACT)
+Harness.sectionEnd()
+
+Harness.section("deltaArray / deltaMap")
+Harness.benchDelta("100x entities array", Lync.deltaArray(Scenarios.blinkEntityCodec), Scenarios.BLINK_ENTITIES)
+Harness.benchDelta("1000x bools array", Lync.deltaArray(Lync.bool), Scenarios.BLINK_BOOLS)
+Harness.benchDelta("string to u8 map", Lync.deltaMap(Lync.string, Lync.int(0, 255)), { hp = 100, mp = 50, stamina = 75 })
+Harness.sectionEnd()
+
+Harness.header("Batch Framing Overhead")
+
+Harness.section("MSB single vs multi-item")
+
+do
+    local codec = Lync.int(0, 255)
+    local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__bench_msb")
+    local reg: any = {
+        id = 1, name = "__bench_msb", kind = 0, codec = codec, isUnreliable = false,
+        headerSize = 1, timestampMode = Channel.TS_NONE, _openFn = openFn,
+    }
+
+    local ch1 = Channel.create()
+    Channel.writeBatch(ch1, reg, 42)
+    print(`  │  single-item header: {ch1.cursor}B total (1B header + 1B payload)`)
+
+    local ch10 = Channel.create()
+    for _ = 1, 10 do Channel.writeBatch(ch10, reg, 42) end
+    local overhead = ch10.cursor - 10
+    print(`  │  10-item batch: {ch10.cursor}B total ({overhead}B overhead for 10 items)`)
+    print(`  │  per-item overhead: {overhead / 10}B`)
+end
+
+Harness.sectionEnd()
+
+Harness.header("Encode Throughput")
+
+Harness.section("Isolated encode speed (write only, no decode)")
+
+Harness.benchEncode("bool x 100k", N, function(): ()
+    local ch = Channel.create()
+    Lync.bool.write(ch, true)
+end)
+
+Harness.benchEncode("entity struct x 100k", N, function(): ()
+    local ch = Channel.create()
+    Scenarios.entityCodec.write(ch, Scenarios.ENTITY)
+end)
+
+Harness.benchEncode("100x entities x 2k", N // 50, function(): ()
+    local ch = Channel.create()
+    Lync.array(Scenarios.blinkEntityCodec).write(ch, Scenarios.BLINK_ENTITIES)
+end)
+
+Harness.benchEncode("1000x bools x 10k", N // 10, function(): ()
+    local ch = Channel.create()
+    Lync.array(Lync.bool).write(ch, Scenarios.BLINK_BOOLS)
+end)
+
+Harness.benchEncode("cframe compressed x 100k", N, function(): ()
+    local ch = Channel.create()
+    Lync.cframe().write(ch, CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3))
+end)
+
+Harness.sectionEnd()
+
+-- ═══════════════════════════════════════════════════════════════
+-- Sections 6–7: network (needs a connected client)
+-- ═══════════════════════════════════════════════════════════════
 
 local function getPlayer(): Player
     local players = Players:GetPlayers()
     return if #players > 0 then players[1] else Players.PlayerAdded:Wait()
 end
 
-local function percentile(sorted: { number }, p: number): number
-    local idx = floor(#sorted * p / 100 + 0.5)
-    return sorted[max(1, min(idx, #sorted))]
-end
-
-local function fmt(value: number): string
-    return `{floor(value * 100 + 0.5) / 100}`
-end
-
--- Lync-style bench -------------------------------------------------------
-
-type TestConfig = {
-    name: string,
-    player: Player,
-    packet: any,
-    data: () -> any,
-    bytes: number,
-}
-
-local function runTest(config: TestConfig): ()
-    task.wait(SETTLE)
-
-    local packet = config.packet
-    local getData = config.data
-    local target = config.player
-    local fpsData = {} :: { number }
-    local kbpsData = {} :: { number }
-    local frames = 0
-    local elapsed = 0
-    local sampleN = 0
-
-    local conn: RBXScriptConnection
-    conn = RunService.Heartbeat:Connect(function(dt: number): ()
-        local frameData = getData()
-
-        for _ = 1, FIRES_PER_FRAME do
-            packet:send(frameData, target)
-        end
-
-        frames += 1
-        elapsed += dt
-
-        if elapsed >= 1 then
-            sampleN += 1
-            fpsData[sampleN] = frames / elapsed
-            kbpsData[sampleN] = Stats.DataSendKbps
-            frames = 0
-            elapsed = 0
-        end
-    end)
-
-    task.wait(DURATION)
-    conn:Disconnect()
-
-    sort(fpsData)
-    sort(kbpsData)
-
-    local n = #fpsData
-    if n == 0 then
-        print(`    {config.name}: no samples`)
-        return
-    end
-
-    local fMed = fmt(fpsData[floor(n / 2) + 1])
-    local kMed = fmt(kbpsData[floor(n / 2) + 1])
-    local kP95 = fmt(percentile(kbpsData, 95))
-    local raw = fmt(config.bytes * FIRES_PER_FRAME * 60 * 8 / 1000)
-
-    print(`    {config.name}`)
-    print(`      FPS med={fMed}  Kbps med={kMed}  p95={kP95}  raw={raw}  ({n} samples)`)
-end
-
--- Blink-style bench ------------------------------------------------------
-
-type BlinkTestConfig = {
-    name: string,
-    player: Player,
-    packet: any,
-    data: any,
-}
-
-local function runBlinkTest(config: BlinkTestConfig): ()
-    task.wait(SETTLE)
-
-    -- Wait for any leftover traffic to drain
-    while Stats.DataSendKbps > 0.5 do
-        RunService.Heartbeat:Wait()
-    end
-    task.wait(2)
-
-    local packet = config.packet
-    local data = config.data
-    local target = config.player
-
-    local fpsData = {} :: { number }
-    local kbpsData = {} :: { number }
-    local frames = 0
-    local elapsed = 0
-    local sent = 0
-
-    local conn: RBXScriptConnection
-    conn = RunService.Heartbeat:Connect(function(dt: number): ()
-        frames += 1
-        elapsed += dt
-
-        for _ = 1, FIRES_PER_FRAME do
-            packet:send(data, target)
-            sent += 1
-        end
-
-        if elapsed >= 1 then
-            local scale = MAX_FRAMERATE / frames
-            table.insert(kbpsData, Stats.DataSendKbps * scale)
-            table.insert(fpsData, frames)
-            frames = 0
-            elapsed -= 1
-        end
-    end)
-
-    task.wait(DURATION)
-    conn:Disconnect()
-
-    sort(kbpsData)
-    sort(fpsData, function(a: number, b: number): boolean
-        return a > b
-    end)
-
-    local n = #fpsData
-    if n == 0 then
-        print(`    {config.name}: no samples`)
-        return
-    end
-
-    -- Blink-format output: Median, P0, P80, P90, P95, P100
-    local function p(samples: { number }, pct: number): string
-        local idx = max(1, min(floor(#samples * pct / 100), #samples))
-        return fmt(samples[idx])
-    end
-
-    -- FPS is sorted descending so P0 = best, P100 = worst
-    print(`    {config.name}`)
-    print(
-        `      FPS    | Median={p(fpsData, 50)} | P0={p(fpsData, 0)} | P80={p(fpsData, 80)} | P90={p(
-            fpsData,
-            90
-        )} | P95={p(fpsData, 95)} | P100={p(fpsData, 100)}`
-    )
-    print(
-        `      Kbps   | Median={p(kbpsData, 50)} | P0={p(kbpsData, 0)} | P80={p(kbpsData, 80)} | P90={p(
-            kbpsData,
-            90
-        )} | P95={p(kbpsData, 95)} | P100={p(kbpsData, 100)}`
-    )
-    print(`      Sent={sent}  Samples={n}`)
-end
-
--- Main ----------------------------------------------------------------
-
 local player = getPlayer()
+
+--[[
+    Handshake: server tells the client CPU tests are done,
+    client responds with Ready. Without this the client sends
+    Ready while sections 1–5 are still running and the signal
+    fires before the server registers its wait() listener.
+]]
+Scenarios.ServerReady:send(true, player)
 Scenarios.Ready:wait()
 
--- Capture toggle
-local CAPTURE_ENABLED = false
-local CAPTURE_FRAMES = 5
-local CAPTURE_FIRES = 100 -- keep frames under MAX_INCOMING (65536 bytes)
+local NET_FIRES = 1000
+local NET_DURATION = 8
 
-local function captureTest(label: string, packet: any, getData: () -> any, target: Player): ()
-    Lync.startCapture(label)
-    for _ = 1, CAPTURE_FRAMES do
-        for _ = 1, CAPTURE_FIRES do
-            packet:send(getData(), target)
-        end
-        Lync.flush()
-    end
-    Lync.stopCapture()
+Harness.header("Network Throughput")
+
+Harness.section(`{NET_FIRES}/frame, {NET_DURATION}s per test`)
+
+Harness.benchNetwork("booleans", NET_FIRES, NET_DURATION,
+    Scenarios.BoolPacket, true, player)
+
+Harness.benchNetwork("entity struct", NET_FIRES, NET_DURATION,
+    Scenarios.EntityPacket, Scenarios.ENTITY, player)
+
+Harness.benchNetwork("entity compact", NET_FIRES, NET_DURATION,
+    Scenarios.EntityCompactPacket, Scenarios.ENTITY_COMPACT, player)
+
+Harness.benchNetwork("100x entities", NET_FIRES // 10, NET_DURATION,
+    Scenarios.BlinkEntitiesPacket, Scenarios.BLINK_ENTITIES, player)
+
+Harness.benchNetwork("1000x bools", NET_FIRES // 10, NET_DURATION,
+    Scenarios.BlinkBoolsPacket, Scenarios.BLINK_BOOLS, player)
+
+Harness.benchNetwork("bitfield flags", NET_FIRES, NET_DURATION,
+    Scenarios.FlagsPacket, Scenarios.FLAGS, player)
+
+Harness.benchNetwork("cframe lossless", NET_FIRES, NET_DURATION,
+    Scenarios.CFramePacket, CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3), player)
+
+Harness.benchNetwork("cframe compressed", NET_FIRES, NET_DURATION,
+    Scenarios.CFrameCPacket, CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3), player)
+
+Harness.sectionEnd()
+
+local COMP_FIRES    = 1000
+local COMP_DURATION = 10
+local COMP_FPS      = 60
+
+Harness.header("Cross-Library Comparison Data")
+
+print("  ┌ Notes")
+print("  │  Paste these numbers into the README comparison tables.")
+print("  │  Same data shapes as github.com/1Axen/blink/benchmark.")
+print("  └")
+
+Harness.section(`Entities — 100x struct(6x u8) — {COMP_FIRES}/frame, {COMP_DURATION}s`)
+Harness.benchComparison(
+    "100x entities",
+    COMP_FIRES, COMP_DURATION, COMP_FPS,
+    Scenarios.BlinkEntitiesPacket, Scenarios.BLINK_ENTITIES, player
+)
+Harness.sectionEnd()
+
+Harness.section(`Booleans — 1000x bool — {COMP_FIRES}/frame, {COMP_DURATION}s`)
+Harness.benchComparison(
+    "1000x bools",
+    COMP_FIRES, COMP_DURATION, COMP_FPS,
+    Scenarios.BlinkBoolsPacket, Scenarios.BLINK_BOOLS, player
+)
+Harness.sectionEnd()
+
+Harness.section("Wire size comparison")
+
+do
+    local entBytes = Harness.benchWireSize(
+        "Lync: 100x entities",
+        Lync.array(Scenarios.blinkEntityCodec),
+        Scenarios.BLINK_ENTITIES
+    )
+    print(`  │  Other tools: ~602B (100 x 6B + ~2B length)`)
+    print(`  │  Difference:  {entBytes - 602}B`)
+
+    local boolBytes = Harness.benchWireSize(
+        "Lync: 1000x bools (bitpacked)",
+        Lync.array(Lync.bool),
+        Scenarios.BLINK_BOOLS
+    )
+    print(`  │  Other tools: ~1002B (1000 x 1B + ~2B length)`)
+    print(`  │  Difference:  {boolBytes - 1002}B ({if boolBytes < 1002 then `{math.floor((1 - boolBytes/1002) * 100)}% smaller` else "comparable"})`)
 end
 
--- Full benchmarks
-print(`\n  Lync Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test\n`)
-
-if CAPTURE_ENABLED then
-    captureTest("Static booleans", Scenarios.Booleans, function(): any
-        return true
-    end, player)
-
-    captureTest("Static entities", Scenarios.Entities, function(): any
-        return Scenarios.STATIC_ENTITY
-    end, player)
-
-    local capFrame = 0
-    captureTest("Moving entities", Scenarios.Entities, function(): any
-        capFrame += 1
-        return {
-            position = Vector3.new(100.5 + capFrame * 0.1, 50.25, -200.75 + capFrame * 0.05),
-            velocity = Vector3.new(10.1, 0, -5.3),
-            health = 87.5,
-            shield = 42.0,
-            alive = true,
-            team = 2,
-        }
-    end, player)
-
-    local captureRandom = Random.new(42)
-    captureTest("Chaotic entities", Scenarios.Entities, function(): any
-        return {
-            position = Vector3.new(
-                captureRandom:NextNumber(-500, 500),
-                captureRandom:NextNumber(0, 200),
-                captureRandom:NextNumber(-500, 500)
-            ),
-            velocity = Vector3.new(
-                captureRandom:NextNumber(-50, 50),
-                captureRandom:NextNumber(-10, 10),
-                captureRandom:NextNumber(-50, 50)
-            ),
-            health = captureRandom:NextNumber(0, 100),
-            shield = captureRandom:NextNumber(0, 100),
-            alive = captureRandom:NextNumber(0, 1) > 0.5,
-            team = captureRandom:NextInteger(1, 4),
-        }
-    end, player)
-
-    Lync.dumpCaptures()
-    print("  [Capture saved to ServerStorage.LyncCapture]\n")
-end
-runTest({
-    name = "Static booleans",
-    player = player,
-    packet = Scenarios.Booleans,
-    data = function(): any
-        return true
-    end,
-    bytes = 1,
-})
-
-print("")
-
-runTest({
-    name = "Static entities",
-    player = player,
-    packet = Scenarios.Entities,
-    data = function(): any
-        return Scenarios.STATIC_ENTITY
-    end,
-    bytes = 34,
-})
-
-print("")
-
-local moveFrame = 0
-
-runTest({
-    name = "Moving entities",
-    player = player,
-    packet = Scenarios.Entities,
-    data = function(): any
-        moveFrame += 1
-        return {
-            position = Vector3.new(100.5 + moveFrame * 0.1, 50.25, -200.75 + moveFrame * 0.05),
-            velocity = Vector3.new(10.1, 0, -5.3),
-            health = 87.5,
-            shield = 42.0,
-            alive = true,
-            team = 2,
-        }
-    end,
-    bytes = 34,
-})
-
-print("")
-
-local random = Random.new(42)
-
-runTest({
-    name = "Chaotic entities",
-    player = player,
-    packet = Scenarios.Entities,
-    data = function(): any
-        return {
-            position = Vector3.new(
-                random:NextNumber(-500, 500),
-                random:NextNumber(0, 200),
-                random:NextNumber(-500, 500)
-            ),
-            velocity = Vector3.new(
-                random:NextNumber(-50, 50),
-                random:NextNumber(-10, 10),
-                random:NextNumber(-50, 50)
-            ),
-            health = random:NextNumber(0, 100),
-            shield = random:NextNumber(0, 100),
-            alive = random:NextNumber(0, 1) > 0.5,
-            team = random:NextInteger(1, 4),
-        }
-    end,
-    bytes = 34,
-})
-
--- Section 2: Blink-compatible benchmarks
-print(`\n\n  Blink-Compatible Bench  {FIRES_PER_FRAME}/frame  {DURATION}s per test`)
-print("  Same data shapes as github.com/1Axen/blink/benchmark\n")
-
-runBlinkTest({
-    name = "Entities(100x struct, 6x u8)",
-    player = player,
-    packet = Scenarios.BlinkEntities,
-    data = Scenarios.BLINK_ENTITIES,
-})
-
-print("")
-
-runBlinkTest({
-    name = "Booleans(1000x bool)",
-    player = player,
-    packet = Scenarios.BlinkBooleans,
-    data = Scenarios.BLINK_BOOLEANS,
-})
-
-print("\n  Done\n")
+Harness.sectionEnd()

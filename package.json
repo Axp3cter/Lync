@@ -1,6 +1,6 @@
 {
     "name": "@axpecter/lync",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Buffer networking for Roblox. Delta compression, XOR framing, built-in security",
     "main": "src/init.luau",
     "types": "src/index.d.ts",

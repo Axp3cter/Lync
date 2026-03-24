@@ -1,98 +1,129 @@
 --!strict
 --!native
--- Shared helpers for composite codecs: delta flags, scratch pool, struct field extraction, bool packing.
+-- Shared helpers for composite codecs: delta flags, scratch pool, bool packing.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
-
-local alloc = Channel.alloc
+local Base  = require(script.Parent.Parent.Base)
 
 -- Constants -----------------------------------------------------------
 
-local band = bit32.band
-local bor = bit32.bor
-local lshift = bit32.lshift
-local ceil = math.ceil
-local min = math.min
-
-local FLAG_DELTA = 0
-local FLAG_FULL = 1
-local FLAG_UNCHANGED = 2
+local DELTA_UNCHANGED    = 0
+local DELTA_FULL_OFFSET  = 1
+local DELTA_MULTI_OFFSET = 2
 
 -- State ---------------------------------------------------------------
 
-local _nextDeltaId = 1
-local _scratchStack = {} :: { ChannelState }
+local _nextDeltaId = 0
 local _scratchDepth = 0
+local _scratchStack: { Types.ChannelState } = {}
+
+-- Private -------------------------------------------------------------
+
+local alloc  = Base.alloc
+local band   = bit32.band
+local bor    = bit32.bor
+local bxor   = bit32.bxor
+local lshift = bit32.lshift
+local rshift = bit32.rshift
+
+local readu8  = buffer.readu8
+local readu32 = buffer.readu32
+local writeu8 = buffer.writeu8
 
 -- Public --------------------------------------------------------------
 
-local Shared = {
-    FLAG_DELTA = FLAG_DELTA,
-    FLAG_FULL = FLAG_FULL,
-    FLAG_UNCHANGED = FLAG_UNCHANGED,
-}
+local Shared = {}
+
+Shared.DELTA_UNCHANGED    = DELTA_UNCHANGED
+Shared.DELTA_FULL_OFFSET  = DELTA_FULL_OFFSET
+Shared.DELTA_MULTI_OFFSET = DELTA_MULTI_OFFSET
 
 function Shared.allocDeltaId(): number
-    local id = _nextDeltaId
     _nextDeltaId += 1
-    return id
+    return _nextDeltaId
 end
 
-function Shared.acquireScratch(): ChannelState
+function Shared.acquireScratch(): Types.ChannelState
     _scratchDepth += 1
-    local scratch = _scratchStack[_scratchDepth]
-    if not scratch then
-        scratch = Channel.create()
-        _scratchStack[_scratchDepth] = scratch
+    local ch = _scratchStack[_scratchDepth]
+    if not ch then
+        ch = {
+            buff = buffer.create(1024),
+            cursor = 0,
+            size = 1024,
+            refs = {},
+            refCount = 0,
+            lastId = -1,
+            countPos = 0,
+            itemCount = 0,
+            singleMode = false,
+            singlePos = 0,
+            deltas = {},
+            prevDump = nil,
+            prevDumpLen = 0,
+            currentPacket = nil,
+        }
+        _scratchStack[_scratchDepth] = ch
+    else
+        ch.cursor = 0
+        ch.refCount = 0
     end
-    scratch.cursor = 0
-    table.clear(scratch.refs)
-    return scratch
+    return ch
 end
 
 function Shared.releaseScratch(): ()
     _scratchDepth -= 1
 end
 
-function Shared.rangeEqual(a: buffer, offA: number, b: buffer, offB: number, len: number): boolean
-    local aligned = band(len, 0xFFFFFFFC)
-    for i = 0, aligned - 4, 4 do
-        if buffer.readu32(a, offA + i) ~= buffer.readu32(b, offB + i) then
+function Shared.rangeEqual(
+    a: buffer,
+    offA: number,
+    b: buffer,
+    offB: number,
+    len: number
+): boolean
+    -- u32 chunks
+    local aligned = len - (len % 4)
+    local i = 0
+    while i < aligned do
+        if bxor(readu32(a, offA + i), readu32(b, offB + i)) ~= 0 then
             return false
         end
+        i += 4
     end
 
-    for i = aligned, len - 1 do
-        if buffer.readu8(a, offA + i) ~= buffer.readu8(b, offB + i) then
+    -- u8 remainder
+    while i < len do
+        if readu8(a, offA + i) ~= readu8(b, offB + i) then
             return false
         end
+        i += 1
     end
 
     return true
 end
 
-function Shared.extractFields(schema: { [string]: any }): ({ string }, { any }, { string })
-    local dataKeys = {} :: { string }
-    local dataCodecs = {} :: { any }
-    local boolKeys = {} :: { string }
+function Shared.extractFields(
+    schema: { [string]: Types.InternalCodec<any> }
+): ({ string }, { Types.InternalCodec<any> }, { string })
+    local dataKeys: { string }                    = {}
+    local dataCodecs: { Types.InternalCodec<any> } = {}
+    local boolKeys: { string }                    = {}
 
     for key, codec in schema do
-        if codec._isBool then
+        if (codec :: any)._isBool then
             table.insert(boolKeys, key)
         else
             table.insert(dataKeys, key)
         end
     end
 
+    if #dataKeys == 0 and #boolKeys == 0 then
+        error("[Lync] Lync.struct: requires at least one field")
+    end
+
     table.sort(dataKeys)
     table.sort(boolKeys)
-
-    if #dataKeys == 0 and #boolKeys == 0 then
-        error("[Lync] Struct requires at least one field")
-    end
 
     for i = 1, #dataKeys do
         dataCodecs[i] = schema[dataKeys[i]]
@@ -105,27 +136,31 @@ function Shared.extractFields(schema: { [string]: any }): ({ string }, { any }, 
     return dataKeys, dataCodecs, boolKeys
 end
 
-function Shared.packBools(ch: ChannelState, boolKeys: { string }, boolCount: number, value: any): ()
-    local boolByteCount = ceil(boolCount / 8)
-    alloc(ch, boolByteCount)
+function Shared.packBools(
+    ch: Types.ChannelState,
+    value: any,
+    boolKeys: { string },
+    boolCount: number
+): ()
+    local byteCount = (boolCount + 7) // 8
+    local cursor = ch.cursor
+    if cursor + byteCount > ch.size then alloc(ch, byteCount) end
     local b = ch.buff
-    local c = ch.cursor
 
-    for byteIdx = 0, boolByteCount - 1 do
+    local idx = 1
+    for byteIdx = 0, byteCount - 1 do
         local packed = 0
-        local base = byteIdx * 8
-        local limit = min(8, boolCount - base)
-
+        local limit = if idx + 8 <= boolCount + 1 then 8 else boolCount - idx + 1
         for bit = 0, limit - 1 do
-            if value[boolKeys[base + bit + 1]] then
+            if value[boolKeys[idx]] then
                 packed = bor(packed, lshift(1, bit))
             end
+            idx += 1
         end
-
-        buffer.writeu8(b, c + byteIdx, packed)
+        writeu8(b, cursor + byteIdx, packed)
     end
 
-    ch.cursor = c + boolByteCount
+    ch.cursor = cursor + byteCount
 end
 
 function Shared.unpackBools(
@@ -135,19 +170,19 @@ function Shared.unpackBools(
     boolCount: number,
     result: any
 ): number
-    local boolByteCount = ceil(boolCount / 8)
+    local byteCount = (boolCount + 7) // 8
+    local idx = 1
 
-    for byteIdx = 0, boolByteCount - 1 do
-        local byte = buffer.readu8(src, pos + byteIdx)
-        local base = byteIdx * 8
-        local limit = min(8, boolCount - base)
-
+    for byteIdx = 0, byteCount - 1 do
+        local byte = readu8(src, pos + byteIdx)
+        local limit = if idx + 8 <= boolCount + 1 then 8 else boolCount - idx + 1
         for bit = 0, limit - 1 do
-            result[boolKeys[base + bit + 1]] = band(byte, lshift(1, bit)) ~= 0
+            result[boolKeys[idx]] = band(byte, lshift(1, bit)) ~= 0
+            idx += 1
         end
     end
 
-    return boolByteCount
+    return byteCount
 end
 
 return table.freeze(Shared)

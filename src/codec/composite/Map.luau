@@ -2,414 +2,154 @@
 --!native
 -- map and deltaMap codecs.
 
-local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Shared = require(script.Parent.Shared)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
 local Varint = require(script.Parent.Parent.primitive.Varint)
+local Shared = require(script.Parent.Shared)
 
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
-type InternalCodec<T> = Types.InternalCodec<T>
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
-local rangeEqual = Shared.rangeEqual
+local alloc   = Base.alloc
+local writeu8 = buffer.writeu8
+local readu8  = buffer.readu8
+
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
-
-local FLAG_DELTA = Shared.FLAG_DELTA
-local FLAG_FULL = Shared.FLAG_FULL
-local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
+local rangeEqual     = Shared.rangeEqual
+local allocDeltaId   = Shared.allocDeltaId
+local DELTA_UNCHANGED = Shared.DELTA_UNCHANGED
 
 -- Public --------------------------------------------------------------
 
 local Map = {}
 
 function Map.map(
-    keyCodec: Codec<any>,
-    valueCodec: Codec<any>,
+    keyCodec: Types.InternalCodec<any>,
+    valueCodec: Types.InternalCodec<any>,
     maxCount: number?
-): Codec<{ [any]: any }>
-    local keyInternal = keyCodec :: InternalCodec<any>
-    local valInternal = valueCodec :: InternalCodec<any>
-
-    local keySize = keyInternal._size
-    local valSize = valInternal._size
-    local keyDWrite = keyInternal._directWrite
-    local valDWrite = valInternal._directWrite
-    local keyDRead = keyInternal._directRead
-    local valDRead = valInternal._directRead
-
-    if keySize and valSize and keyDWrite and valDWrite and keyDRead and valDRead then
-        local entrySize = keySize + valSize
-
-        return table.freeze({
-            _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
-            write = function(ch: ChannelState, value: { [any]: any }): ()
-                local count = 0
-                for _ in value do
-                    count += 1
-                end
-
-                Varint.write(ch, count)
-
-                if count > 0 then
-                    local totalBytes = count * entrySize
-                    local c = ch.cursor
-                    if c + totalBytes > ch.size then
-                        alloc(ch, totalBytes)
-                    end
-
-                    local b = ch.buff
-                    for k, v in value do
-                        keyDWrite(b, c, k)
-                        valDWrite(b, c + keySize, v)
-                        c += entrySize
-                    end
-                    ch.cursor = c
-                end
-            end,
-            read = function(
-                src: buffer,
-                pos: number,
-                _refs: { Instance }?
-            ): ({ [any]: any }, number)
-                local count, lenBytes = Varint.read(src, pos)
-
-                if maxCount and count > maxCount then
-                    error(`[Lync] Map count {count} exceeds max {maxCount}`)
-                end
-
-                local result = {}
-                local c = pos + lenBytes
-
-                for _ = 1, count do
-                    local k = keyDRead(src, c)
-                    local v = valDRead(src, c + keySize)
-                    result[k] = v
-                    c += entrySize
-                end
-
-                return result, c - pos
-            end,
-        })
-    end
-
-    local writeKey = keyCodec.write
-    local writeVal = valueCodec.write
-    local readKey = keyCodec.read
-    local readVal = valueCodec.read
-
+): Types.InternalCodec<any>
     return table.freeze({
-        _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
-        write = function(ch: ChannelState, value: { [any]: any }): ()
+        write = function(ch: Types.ChannelState, value: any): ()
+            -- Count entries
             local count = 0
             for _ in value do
                 count += 1
             end
 
             Varint.write(ch, count)
+            if count == 0 then return end
+
+            -- Pre-alloc if both fixed size
+            local kAny = keyCodec :: any
+            local vAny = valueCodec :: any
+            if kAny._size and vAny._size then
+                local entrySize = kAny._size + vAny._size
+                local cursor = ch.cursor
+                if cursor + count * entrySize > ch.size then
+                    alloc(ch, count * entrySize)
+                end
+            end
 
             for k, v in value do
-                writeKey(ch, k)
-                writeVal(ch, v)
+                keyCodec.write(ch, k)
+                valueCodec.write(ch, v)
             end
         end,
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
-            local count, lenBytes = Varint.read(src, pos)
 
+        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+            local count, lenBytes = Varint.read(src, pos)
             if maxCount and count > maxCount then
-                error(`[Lync] Map count {count} exceeds max {maxCount}`)
+                error(`[Lync] Map: count {count} exceeds max {maxCount}`)
             end
 
-            local result = {}
-            local absPos = pos + lenBytes
+            local result: { [any]: any } = {}
+            local total = lenBytes
 
             for _ = 1, count do
-                local k, kn = readKey(src, absPos, refs)
-                absPos += kn
-                local v, vn = readVal(src, absPos, refs)
-                absPos += vn
+                local k, kc = keyCodec.read(src, pos + total, refs)
+                total += kc
+                local v, vc = valueCodec.read(src, pos + total, refs)
+                total += vc
                 result[k] = v
             end
 
-            return result, absPos - pos
+            return result, total
         end,
-    })
+    } :: any)
 end
 
---[[
-    Delta map: tracks per-key changes. First frame is full, then upserts + removes only.
-
-    Wire format:
-      FLAG_FULL:      u8(1) + varint(count) + [key+value ...]
-      FLAG_UNCHANGED: u8(2)
-      FLAG_DELTA:     u8(0) + varint(upsertN) + [key+value ...] + varint(removeN) + [key ...]
-]]
 function Map.deltaMap(
-    keyCodec: Codec<any>,
-    valueCodec: Codec<any>,
+    keyCodec: Types.InternalCodec<any>,
+    valueCodec: Types.InternalCodec<any>,
     maxCount: number?
-): Codec<{ [any]: any }>
-    local deltaId = Shared.allocDeltaId()
-
-    local writeKey = keyCodec.write
-    local writeVal = valueCodec.write
-    local readKey = keyCodec.read
-    local readVal = valueCodec.read
-
-    local keyInternal = keyCodec :: InternalCodec<any>
-    local valInternal = valueCodec :: InternalCodec<any>
-
-    local keySize = keyInternal._size
-    local valSize = valInternal._size
-    local keyDWrite = keyInternal._directWrite
-    local valDWrite = valInternal._directWrite
-    local keyDRead = keyInternal._directRead
-    local valDRead = valInternal._directRead
-
-    local scratchDirect = keySize and valSize and keyDWrite and valDWrite
-    local entrySize = if keySize and valSize then keySize + valSize else nil
-
-    type EntryBounds = {
-        keyOff: number,
-        keyLen: number,
-        valOff: number,
-        valLen: number,
-    }
-
-    type DeltaMapCache = {
-        raw: buffer,
-        entries: { EntryBounds },
-        keyLookup: { [string]: number },
-        count: number,
-    }
+): Types.InternalCodec<any>
+    local deltaId = allocDeltaId()
+    local innerMap = Map.map(keyCodec, valueCodec, maxCount)
 
     return table.freeze({
         _isDelta = true,
-        _hasUnknown = (keyCodec :: any)._hasUnknown or (valueCodec :: any)._hasUnknown or nil,
 
-        write = function(ch: ChannelState, value: { [any]: any }): ()
-            local scratch = acquireScratch()
-
-            local entries = {} :: { EntryBounds }
-            local keyLookup = {} :: { [string]: number }
-            local entryCount = 0
-
-            if scratchDirect then
-                for k, v in value do
-                    entryCount += 1
-                    local c = scratch.cursor
-                    alloc(scratch, entrySize :: number)
-                    local b = scratch.buff
-                    keyDWrite(b, c, k)
-                    valDWrite(b, c + (keySize :: number), v)
-                    scratch.cursor = c + (entrySize :: number)
-
-                    entries[entryCount] = {
-                        keyOff = c,
-                        keyLen = keySize :: number,
-                        valOff = c + (keySize :: number),
-                        valLen = valSize :: number,
-                    }
-
-                    local keyId = buffer.readstring(b, c, keySize :: number)
-                    keyLookup[keyId] = entryCount
-                end
-            else
-                for k, v in value do
-                    entryCount += 1
-                    local keyStart = scratch.cursor
-                    writeKey(scratch, k)
-                    local keyEnd = scratch.cursor
-                    writeVal(scratch, v)
-                    local valEnd = scratch.cursor
-
-                    entries[entryCount] = {
-                        keyOff = keyStart,
-                        keyLen = keyEnd - keyStart,
-                        valOff = keyEnd,
-                        valLen = valEnd - keyEnd,
-                    }
-
-                    local keyId = buffer.readstring(scratch.buff, keyStart, keyEnd - keyStart)
-                    keyLookup[keyId] = entryCount
-                end
-            end
-
-            local scratchTotal = scratch.cursor
-            local cache = ch.deltas[deltaId] :: DeltaMapCache?
+        write = function(ch: Types.ChannelState, value: any): ()
+            local cache = ch.deltas[deltaId]
 
             if not cache then
-                alloc(ch, 1)
-                buffer.writeu8(ch.buff, ch.cursor, FLAG_FULL)
-                ch.cursor += 1
-                Varint.write(ch, entryCount)
+                local cursor = ch.cursor
+                if cursor + 1 > ch.size then alloc(ch, 1) end
+                writeu8(ch.buff, cursor, 3) -- FLAG_FULL
+                ch.cursor = cursor + 1
 
-                if scratchTotal > 0 then
-                    alloc(ch, scratchTotal)
-                    buffer.copy(ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
-                    ch.cursor += scratchTotal
-                end
-            else
-                local cacheRaw = cache.raw
-                local cacheEntries = cache.entries
-                local cacheLookup = cache.keyLookup
+                local scratch = acquireScratch()
+                innerMap.write(scratch, value)
+                local snapLen = scratch.cursor
+                local snapBuf = buffer.create(snapLen)
+                buffer.copy(snapBuf, 0, scratch.buff, 0, snapLen)
 
-                local upsertKeys = {} :: { number }
-                local upsertN = 0
-
-                for keyId, idx in keyLookup do
-                    local oldIdx = cacheLookup[keyId]
-                    if not oldIdx then
-                        upsertN += 1
-                        upsertKeys[upsertN] = idx
-                    else
-                        local newE = entries[idx]
-                        local oldE = cacheEntries[oldIdx]
-                        if
-                            newE.valLen ~= oldE.valLen
-                            or not rangeEqual(
-                                scratch.buff,
-                                newE.valOff,
-                                cacheRaw,
-                                oldE.valOff,
-                                newE.valLen
-                            )
-                        then
-                            upsertN += 1
-                            upsertKeys[upsertN] = idx
-                        end
-                    end
-                end
-
-                local removeKeyIds = {} :: { string }
-                local removeN = 0
-
-                for keyId in cacheLookup do
-                    if not keyLookup[keyId] then
-                        removeN += 1
-                        removeKeyIds[removeN] = keyId
-                    end
-                end
-
-                if upsertN == 0 and removeN == 0 then
-                    alloc(ch, 1)
-                    buffer.writeu8(ch.buff, ch.cursor, FLAG_UNCHANGED)
-                    ch.cursor += 1
-                    releaseScratch()
-                    return
-                end
-
-                alloc(ch, 1)
-                buffer.writeu8(ch.buff, ch.cursor, FLAG_DELTA)
-                ch.cursor += 1
-
-                Varint.write(ch, upsertN)
-                for i = 1, upsertN do
-                    local e = entries[upsertKeys[i]]
-                    local totalLen = e.keyLen + e.valLen
-                    alloc(ch, totalLen)
-                    buffer.copy(ch.buff, ch.cursor, scratch.buff, e.keyOff, totalLen)
-                    ch.cursor += totalLen
-                end
-
-                Varint.write(ch, removeN)
-                for i = 1, removeN do
-                    local keyId = removeKeyIds[i]
-                    local oldIdx = cacheLookup[keyId]
-                    local oldE = cacheEntries[oldIdx]
-                    alloc(ch, oldE.keyLen)
-                    buffer.copy(ch.buff, ch.cursor, cacheRaw, oldE.keyOff, oldE.keyLen)
-                    ch.cursor += oldE.keyLen
-                end
+                ch.deltas[deltaId] = { raw = snapBuf, len = snapLen }
+                innerMap.write(ch, value)
+                releaseScratch()
+                return
             end
 
-            local rawBuf = buffer.create(scratchTotal)
-            if scratchTotal > 0 then
-                buffer.copy(rawBuf, 0, scratch.buff, 0, scratchTotal)
+            local scratch = acquireScratch()
+            innerMap.write(scratch, value)
+            local scratchLen = scratch.cursor
+            local cachedLen  = cache.len
+
+            if scratchLen == cachedLen and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen) then
+                local cursor = ch.cursor
+                if cursor + 1 > ch.size then alloc(ch, 1) end
+                writeu8(ch.buff, cursor, DELTA_UNCHANGED)
+                ch.cursor = cursor + 1
+                releaseScratch()
+                return
             end
 
-            ch.deltas[deltaId] = {
-                raw = rawBuf,
-                entries = entries,
-                keyLookup = keyLookup,
-                count = entryCount,
-            }
+            -- Changed: full re-send
+            local cursor = ch.cursor
+            if cursor + 1 > ch.size then alloc(ch, 1) end
+            writeu8(ch.buff, cursor, 3) -- FLAG_FULL
+            ch.cursor = cursor + 1
+            innerMap.write(ch, value)
+
+            local newBuf = buffer.create(scratchLen)
+            buffer.copy(newBuf, 0, scratch.buff, 0, scratchLen)
+            cache.raw = newBuf
+            cache.len = scratchLen
 
             releaseScratch()
         end,
 
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
-            local flag = buffer.readu8(src, pos)
-            local absPos = pos + 1
+        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+            local flag = readu8(src, pos)
 
-            if flag == FLAG_UNCHANGED then
-                local cache = Baseline.getCache(deltaId)
-                return if cache then table.clone(cache) else {}, 1
+            if flag == DELTA_UNCHANGED then
+                return {} :: any, 1
             end
 
-            if flag == FLAG_FULL then
-                local count, lenBytes = Varint.read(src, absPos)
-                absPos += lenBytes
-
-                if maxCount and count > maxCount then
-                    error(`[Lync] Map count {count} exceeds max {maxCount}`)
-                end
-
-                local result = {}
-
-                if keyDRead and valDRead and keySize and valSize then
-                    for _ = 1, count do
-                        local k = keyDRead(src, absPos)
-                        local v = valDRead(src, absPos + keySize)
-                        result[k] = v
-                        absPos += entrySize :: number
-                    end
-                else
-                    for _ = 1, count do
-                        local k, kn = readKey(src, absPos, refs)
-                        absPos += kn
-                        local v, vn = readVal(src, absPos, refs)
-                        absPos += vn
-                        result[k] = v
-                    end
-                end
-
-                Baseline.setCache(deltaId, result)
-                return result, absPos - pos
-            end
-
-            local cache = Baseline.getCache(deltaId) :: { [any]: any }?
-            if not cache then
-                error("[Lync] Delta frame without baseline")
-            end
-            local result = table.clone(cache)
-
-            local upsertN, unBytes = Varint.read(src, absPos)
-            absPos += unBytes
-
-            for _ = 1, upsertN do
-                local k, kn = readKey(src, absPos, refs)
-                absPos += kn
-                local v, vn = readVal(src, absPos, refs)
-                absPos += vn
-                result[k] = v
-            end
-
-            local removeN, rmBytes = Varint.read(src, absPos)
-            absPos += rmBytes
-
-            for _ = 1, removeN do
-                local k, kn = readKey(src, absPos, refs)
-                absPos += kn
-                result[k] = nil
-            end
-
-            Baseline.setCache(deltaId, result)
-            return result, absPos - pos
+            local value, consumed = innerMap.read(src, pos + 1, refs)
+            return value, 1 + consumed
         end,
-    })
+    } :: any)
 end
 
 return table.freeze(Map)

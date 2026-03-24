@@ -1,10 +1,14 @@
 --!strict
---!native
--- User-defined fixed-size codec factory. Public API wrapper over Base.define.
+--!optimize 2
+-- User-defined fixed-size codec.
 
 local Base = require(script.Parent.Parent.Base)
 
+-- Private -------------------------------------------------------------
+
 local floor = math.floor
+
+-- Public --------------------------------------------------------------
 
 local Custom = {}
 
@@ -13,8 +17,8 @@ function Custom.define(
     writeFn: (b: buffer, offset: number, value: any) -> (),
     readFn: (b: buffer, offset: number) -> any
 ): any
-    if size < 0 or size ~= floor(size) then
-        error(`[Lync] Custom codec size must be a non-negative integer, got {size}`)
+    if type(size) ~= "number" or size < 0 or floor(size) ~= size then
+        error("[Lync] Lync.custom: size must be a non-negative integer")
     end
 
     if size == 0 then

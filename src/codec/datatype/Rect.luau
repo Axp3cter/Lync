@@ -1,21 +1,29 @@
 --!strict
---!native
+--!optimize 2
 -- Rect codec. 16 bytes: 4x f32.
 
 local Base = require(script.Parent.Parent.Base)
 
-return table.freeze({
-    rect = Base.define(16, function(b: buffer, o: number, v: Rect): ()
-        buffer.writef32(b, o, v.Min.X)
-        buffer.writef32(b, o + 4, v.Min.Y)
-        buffer.writef32(b, o + 8, v.Max.X)
-        buffer.writef32(b, o + 12, v.Max.Y)
-    end, function(b: buffer, o: number): Rect
+-- Public --------------------------------------------------------------
+
+local RectCodec = {}
+
+RectCodec.rect = Base.define(16,
+    function(b: buffer, off: number, value: Rect): ()
+        buffer.writef32(b, off, value.Min.X)
+        buffer.writef32(b, off + 4, value.Min.Y)
+        buffer.writef32(b, off + 8, value.Max.X)
+        buffer.writef32(b, off + 12, value.Max.Y)
+    end,
+    function(b: buffer, off: number): Rect
         return Rect.new(
-            buffer.readf32(b, o),
-            buffer.readf32(b, o + 4),
-            buffer.readf32(b, o + 8),
-            buffer.readf32(b, o + 12)
+            buffer.readf32(b, off),
+            buffer.readf32(b, off + 4),
+            buffer.readf32(b, off + 8),
+            buffer.readf32(b, off + 12)
         )
-    end),
-})
+    end,
+    { _typeCheck = "Rect" }
+)
+
+return table.freeze(RectCodec)

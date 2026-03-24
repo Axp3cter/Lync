@@ -2,356 +2,240 @@
 --!native
 -- array and deltaArray codecs.
 
-local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Shared = require(script.Parent.Shared)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
 local Varint = require(script.Parent.Parent.primitive.Varint)
+local Shared = require(script.Parent.Shared)
 
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
-type InternalCodec<T> = Types.InternalCodec<T>
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
-local rangeEqual = Shared.rangeEqual
+local alloc   = Base.alloc
+local writeu8 = buffer.writeu8
+local readu8  = buffer.readu8
+local band    = bit32.band
+local bor     = bit32.bor
+local lshift  = bit32.lshift
+
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
+local rangeEqual     = Shared.rangeEqual
+local allocDeltaId   = Shared.allocDeltaId
 
-local FLAG_DELTA = Shared.FLAG_DELTA
-local FLAG_FULL = Shared.FLAG_FULL
-local FLAG_UNCHANGED = Shared.FLAG_UNCHANGED
+local DELTA_UNCHANGED    = Shared.DELTA_UNCHANGED
+local DELTA_FULL_OFFSET  = Shared.DELTA_FULL_OFFSET
+local DELTA_MULTI_OFFSET = Shared.DELTA_MULTI_OFFSET
 
 -- Public --------------------------------------------------------------
 
 local Array = {}
 
-function Array.deltaArray(element: Codec<any>, maxCount: number?): Codec<{ any }>
-    local deltaId = Shared.allocDeltaId()
+function Array.array(element: Types.InternalCodec<any>, maxCount: number?): Types.InternalCodec<any>
+    local elemAny = element :: any
 
-    local writeElement = element.write
-    local readElement = element.read
-
-    local internal = element :: InternalCodec<any>
-    local elemSize = internal._size
-    local elemWrite = internal._directWrite
-    local elemRead = internal._directRead
-
-    return table.freeze({
-        _isDelta = true,
-        _hasUnknown = (element :: any)._hasUnknown or nil,
-
-        write = function(ch: ChannelState, value: { any }): ()
-            local len = #value
-            local cache = ch.deltas[deltaId] :: { raw: buffer, bounds: { number }, len: number }?
-            local scratch = acquireScratch()
-
-            local bounds = table.create(len + 1)
-            bounds[1] = 0
-
-            if elemWrite and elemSize then
-                local totalBytes = len * elemSize
-                alloc(scratch, totalBytes)
-                local b = scratch.buff
-                local c = 0
-                for i = 1, len do
-                    elemWrite(b, c, value[i])
-                    c += elemSize
-                    bounds[i + 1] = c
-                end
-                scratch.cursor = totalBytes
-            else
-                for i = 1, len do
-                    writeElement(scratch, value[i])
-                    bounds[i + 1] = scratch.cursor
-                end
-            end
-
-            local scratchTotal = scratch.cursor
-
-            if not cache or cache.len ~= len then
-                alloc(ch, 1)
-                buffer.writeu8(ch.buff, ch.cursor, FLAG_FULL)
-                ch.cursor += 1
-                Varint.write(ch, len)
-
-                alloc(ch, scratchTotal)
-                buffer.copy(ch.buff, ch.cursor, scratch.buff, 0, scratchTotal)
-                ch.cursor += scratchTotal
-            else
-                local cacheRaw = cache.raw
-                local cacheBds = cache.bounds
-                local dirty = table.create(len)
-                local dirtyN = 0
-
-                for i = 1, len do
-                    local newOff = bounds[i]
-                    local newLen = bounds[i + 1] - newOff
-                    local oldOff = cacheBds[i]
-                    local oldLen = cacheBds[i + 1] - oldOff
-
-                    if
-                        newLen ~= oldLen
-                        or not rangeEqual(scratch.buff, newOff, cacheRaw, oldOff, newLen)
-                    then
-                        dirtyN += 1
-                        dirty[dirtyN] = i
-                    end
-                end
-
-                if dirtyN == 0 then
-                    alloc(ch, 1)
-                    buffer.writeu8(ch.buff, ch.cursor, FLAG_UNCHANGED)
-                    ch.cursor += 1
-                    releaseScratch()
-                    return
-                end
-
-                alloc(ch, 1)
-                buffer.writeu8(ch.buff, ch.cursor, FLAG_DELTA)
-                ch.cursor += 1
-                Varint.write(ch, dirtyN)
-
-                local prevIdx = 0
-                for j = 1, dirtyN do
-                    local i = dirty[j]
-                    local newOff = bounds[i]
-                    local newLen = bounds[i + 1] - newOff
-
-                    Varint.write(ch, (i - 1) - prevIdx)
-                    prevIdx = i - 1
-                    alloc(ch, newLen)
-                    buffer.copy(ch.buff, ch.cursor, scratch.buff, newOff, newLen)
-                    ch.cursor += newLen
-                end
-            end
-
-            local rawBuf = buffer.create(scratchTotal)
-            buffer.copy(rawBuf, 0, scratch.buff, 0, scratchTotal)
-
-            table.freeze(bounds)
-            ch.deltas[deltaId] = { raw = rawBuf, bounds = bounds, len = len }
-            releaseScratch()
-        end,
-
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
-            local flag = buffer.readu8(src, pos)
-            local absPos = pos + 1
-
-            if flag == FLAG_UNCHANGED then
-                local cache = Baseline.getCache(deltaId)
-                return if cache then table.clone(cache) else {}, 1
-            end
-
-            if flag == FLAG_FULL then
-                local len, lenBytes = Varint.read(src, absPos)
-                absPos += lenBytes
-
-                if maxCount and len > maxCount then
-                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
-                end
-
-                local result = table.create(len)
-
-                if elemRead and elemSize then
-                    for i = 1, len do
-                        result[i] = elemRead(src, absPos)
-                        absPos += elemSize
-                    end
-                else
-                    for i = 1, len do
-                        local val, n = readElement(src, absPos, refs)
-                        result[i] = val
-                        absPos += n
-                    end
-                end
-
-                Baseline.setCache(deltaId, result)
-                return result, absPos - pos
-            end
-
-            local cache = Baseline.getCache(deltaId) :: { any }?
-            if not cache then
-                error("[Lync] Delta frame without baseline")
-            end
-            local result = table.clone(cache)
-
-            local dirtyN, dnBytes = Varint.read(src, absPos)
-            absPos += dnBytes
-
-            local runningIdx = 0
-            for _ = 1, dirtyN do
-                local delta, deltaBytes = Varint.read(src, absPos)
-                absPos += deltaBytes
-                runningIdx += delta
-
-                if elemRead and elemSize then
-                    result[runningIdx + 1] = elemRead(src, absPos)
-                    absPos += elemSize
-                else
-                    local val, n = readElement(src, absPos, refs)
-                    result[runningIdx + 1] = val
-                    absPos += n
-                end
-            end
-
-            Baseline.setCache(deltaId, result)
-            return result, absPos - pos
-        end,
-    })
-end
-
-function Array.array(element: Codec<any>, maxCount: number?): Codec<{ any }>
-    local internal = element :: InternalCodec<any>
-    local elementSize = internal._size
-    local directWrite = internal._directWrite
-    local directRead = internal._directRead
-
-    local band = bit32.band
-    local bor = bit32.bor
-    local lshift = bit32.lshift
-    local rshift = bit32.rshift
-    local ceil = math.ceil
-
-    -- Bitpacked bool array: 8 bools per byte
-    if internal._isBool then
+    -- Bool array: bitpacked
+    if elemAny._isBool then
         return table.freeze({
-            _hasUnknown = nil,
-            write = function(ch: ChannelState, value: { any }): ()
+            write = function(ch: Types.ChannelState, value: { any }): ()
                 local len = #value
                 Varint.write(ch, len)
-                if len == 0 then
-                    return
-                end
+                if len == 0 then return end
 
-                local byteCount = ceil(len / 8)
-                local c = ch.cursor
-                if c + byteCount > ch.size then
-                    alloc(ch, byteCount)
-                end
-
+                local byteCount = (len + 7) // 8
+                local cursor = ch.cursor
+                if cursor + byteCount > ch.size then alloc(ch, byteCount) end
                 local b = ch.buff
-                local byteIdx = 0
-                local acc = 0
-                for i = 1, len do
-                    local bit = (i - 1) % 8
-                    if value[i] then
-                        acc = bor(acc, lshift(1, bit))
+
+                local idx = 1
+                for byteIdx = 0, byteCount - 1 do
+                    local packed = 0
+                    local limit = if idx + 8 <= len + 1 then 8 else len - idx + 1
+                    for bit = 0, limit - 1 do
+                        if value[idx] then
+                            packed = bor(packed, lshift(1, bit))
+                        end
+                        idx += 1
                     end
-                    if bit == 7 then
-                        buffer.writeu8(b, c + byteIdx, acc)
-                        byteIdx += 1
-                        acc = 0
-                    end
+                    writeu8(b, cursor + byteIdx, packed)
                 end
-                -- Flush remaining bits
-                if len % 8 ~= 0 then
-                    buffer.writeu8(b, c + byteIdx, acc)
-                end
-                ch.cursor = c + byteCount
+                ch.cursor = cursor + byteCount
             end,
+
             read = function(src: buffer, pos: number, _refs: { Instance }?): ({ boolean }, number)
                 local len, lenBytes = Varint.read(src, pos)
-
                 if maxCount and len > maxCount then
-                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
+                    error(`[Lync] Array: count {len} exceeds max {maxCount}`)
                 end
+                if len == 0 then return {}, lenBytes end
 
+                local byteCount = (len + 7) // 8
+                local dataStart = pos + lenBytes
                 local result = table.create(len)
-                if len == 0 then
-                    return result, lenBytes
-                end
+                local idx = 1
 
-                local byteCount = ceil(len / 8)
-                local c = pos + lenBytes
-                for i = 1, len do
-                    local byteIdx = rshift(i - 1, 3)
-                    local bit = (i - 1) % 8
-                    local byte = buffer.readu8(src, c + byteIdx)
-                    result[i] = band(byte, lshift(1, bit)) ~= 0
+                for byteIdx = 0, byteCount - 1 do
+                    local byte = readu8(src, dataStart + byteIdx)
+                    local limit = if idx + 8 <= len + 1 then 8 else len - idx + 1
+                    for bit = 0, limit - 1 do
+                        result[idx] = band(byte, lshift(1, bit)) ~= 0
+                        idx += 1
+                    end
                 end
 
                 return result, lenBytes + byteCount
             end,
-        })
+        } :: any)
     end
 
-    if elementSize and directWrite and directRead then
+    -- Direct array: element has _size + _directWrite + _directRead
+    local elemSize = elemAny._size
+    local elemDW   = elemAny._directWrite
+    local elemDR   = elemAny._directRead
+
+    if elemSize and elemDW and elemDR then
         return table.freeze({
-            _hasUnknown = (element :: any)._hasUnknown or nil,
-            write = function(ch: ChannelState, value: { any }): ()
+            write = function(ch: Types.ChannelState, value: { any }): ()
                 local len = #value
                 Varint.write(ch, len)
-                if len == 0 then
-                    return
-                end
+                if len == 0 then return end
 
-                local totalBytes = len * elementSize
-                local c = ch.cursor
-                if c + totalBytes > ch.size then
-                    alloc(ch, totalBytes)
-                end
-
+                local payloadBytes = len * elemSize
+                local cursor = ch.cursor
+                if cursor + payloadBytes > ch.size then alloc(ch, payloadBytes) end
                 local b = ch.buff
+
                 for i = 1, len do
-                    directWrite(b, c, value[i])
-                    c += elementSize
+                    elemDW(b, cursor + (i - 1) * elemSize, value[i])
                 end
-                ch.cursor = c
+                ch.cursor = cursor + payloadBytes
             end,
+
             read = function(src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
                 local len, lenBytes = Varint.read(src, pos)
-
                 if maxCount and len > maxCount then
-                    error(`[Lync] Array count {len} exceeds max {maxCount}`)
+                    error(`[Lync] Array: count {len} exceeds max {maxCount}`)
+                end
+                if len == 0 then return {}, lenBytes end
+
+                local payloadBytes = len * elemSize
+                local dataStart = pos + lenBytes
+
+                -- Safety cap
+                local remaining = buffer.len(src) - dataStart
+                if payloadBytes > remaining then
+                    len = remaining // elemSize
+                    payloadBytes = len * elemSize
                 end
 
                 local result = table.create(len)
-                local c = pos + lenBytes
-
                 for i = 1, len do
-                    result[i] = directRead(src, c)
-                    c += elementSize
+                    result[i] = elemDR(src, dataStart + (i - 1) * elemSize)
                 end
 
-                return result, c - pos
+                return result, lenBytes + payloadBytes
             end,
-        })
+        } :: any)
     end
 
-    local writeElement = element.write
-    local readElement = element.read
-
+    -- Generic array
     return table.freeze({
-        _hasUnknown = (element :: any)._hasUnknown or nil,
-        write = function(ch: ChannelState, value: { any }): ()
+        write = function(ch: Types.ChannelState, value: { any }): ()
             local len = #value
             Varint.write(ch, len)
-            if elementSize and len > 0 then
-                alloc(ch, len * elementSize)
-            end
             for i = 1, len do
-                writeElement(ch, value[i])
+                element.write(ch, value[i])
             end
         end,
+
         read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
             local len, lenBytes = Varint.read(src, pos)
-
             if maxCount and len > maxCount then
-                error(`[Lync] Array count {len} exceeds max {maxCount}`)
+                error(`[Lync] Array: count {len} exceeds max {maxCount}`)
             end
+            if len == 0 then return {}, lenBytes end
 
             local result = table.create(len)
-            local absPos = pos + lenBytes
-
+            local total = lenBytes
             for i = 1, len do
-                local value, n = readElement(src, absPos, refs)
-                result[i] = value
-                absPos += n
+                local v, consumed = element.read(src, pos + total, refs)
+                result[i] = v
+                total += consumed
             end
 
-            return result, absPos - pos
+            return result, total
         end,
-    })
+    } :: any)
+end
+
+function Array.deltaArray(element: Types.InternalCodec<any>, maxCount: number?): Types.InternalCodec<any>
+    local deltaId = allocDeltaId()
+    local innerArray = Array.array(element, maxCount)
+
+    return table.freeze({
+        _isDelta = true,
+
+        write = function(ch: Types.ChannelState, value: { any }): ()
+            local cache = ch.deltas[deltaId]
+
+            if not cache then
+                -- First frame: full
+                local cursor = ch.cursor
+                if cursor + 1 > ch.size then alloc(ch, 1) end
+                writeu8(ch.buff, cursor, 1) -- FLAG_FULL (len+1 where len=0 for first)
+                ch.cursor = cursor + 1
+
+                local scratch = acquireScratch()
+                innerArray.write(scratch, value)
+                local snapLen = scratch.cursor
+                local snapBuf = buffer.create(snapLen)
+                buffer.copy(snapBuf, 0, scratch.buff, 0, snapLen)
+
+                ch.deltas[deltaId] = { raw = snapBuf, len = snapLen }
+                innerArray.write(ch, value)
+                releaseScratch()
+                return
+            end
+
+            -- Compare against cache
+            local scratch = acquireScratch()
+            innerArray.write(scratch, value)
+            local scratchLen = scratch.cursor
+            local cachedLen  = cache.len
+
+            if scratchLen == cachedLen and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen) then
+                local cursor = ch.cursor
+                if cursor + 1 > ch.size then alloc(ch, 1) end
+                writeu8(ch.buff, cursor, DELTA_UNCHANGED)
+                ch.cursor = cursor + 1
+                releaseScratch()
+                return
+            end
+
+            -- Changed: full re-send
+            local cursor = ch.cursor
+            if cursor + 1 > ch.size then alloc(ch, 1) end
+            writeu8(ch.buff, cursor, 1)
+            ch.cursor = cursor + 1
+            innerArray.write(ch, value)
+
+            local newBuf = buffer.create(scratchLen)
+            buffer.copy(newBuf, 0, scratch.buff, 0, scratchLen)
+            cache.raw = newBuf
+            cache.len = scratchLen
+
+            releaseScratch()
+        end,
+
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            local flag = readu8(src, pos)
+
+            if flag == DELTA_UNCHANGED then
+                return {} :: any, 1
+            end
+
+            local value, consumed = innerArray.read(src, pos + 1, refs)
+            return value, 1 + consumed
+        end,
+    } :: any)
 end
 
 return table.freeze(Array)

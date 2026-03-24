@@ -1,81 +1,53 @@
 --!strict
---!native
--- String enum codec. Maps values to u8 indices at definition time.
+--!optimize 2
+-- String enum codec. Maps values to u8 indices at define time.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
-
-local alloc = Channel.alloc
+local Base = require(script.Parent.Parent.Base)
 
 -- Public --------------------------------------------------------------
 
 local EnumCodec = {}
 
-function EnumCodec.define(...: string): Codec<string>
+function EnumCodec.define(...: string): any
     local values = { ... }
     local count = #values
-    if count == 0 then
-        error("[Lync] Enum requires at least one value")
-    end
-    if count > 256 then
-        error(`[Lync] Enum exceeds 256 values: {count}`)
-    end
+    if count == 0 then error("[Lync] Lync.enum: requires at least one value") end
+    if count > 256 then error("[Lync] Lync.enum: exceeds 256 variants") end
 
-    local toIndex = {} :: { [string]: number }
-    local toValue = table.create(count) :: { string }
+    -- Build lookup tables
+    local toIndex: { [string]: number } = {}
+    local toValue = table.create(count)
 
-    for i, value in values do
-        if toIndex[value] ~= nil then
-            error(`[Lync] Duplicate enum value: "{value}"`)
+    for i = 1, count do
+        local val = values[i]
+        if toIndex[val] then
+            error(`[Lync] Lync.enum: duplicate value "{val}"`)
         end
-        toIndex[value] = i - 1
-        toValue[i] = value
+        toIndex[val] = i - 1
+        toValue[i] = val
     end
 
     table.freeze(toIndex)
     table.freeze(toValue)
 
-    return table.freeze({
-        _size = 1,
-        _directWrite = function(b: buffer, offset: number, value: string): ()
+    return Base.define(1,
+        function(b: buffer, off: number, value: string): ()
             local idx = toIndex[value]
             if idx == nil then
-                error(`[Lync] Invalid enum value: "{value}"`)
+                error(`[Lync] Enum: invalid value "{value}"`)
             end
-            buffer.writeu8(b, offset, idx)
+            buffer.writeu8(b, off, idx)
         end,
-        _directRead = function(b: buffer, offset: number): string
-            local idx = buffer.readu8(b, offset)
-            local value = toValue[idx + 1]
-            if value == nil then
-                error(`[Lync] Invalid enum index: {idx}`)
+        function(b: buffer, off: number): string
+            local idx = buffer.readu8(b, off)
+            local val = toValue[idx + 1]
+            if val == nil then
+                error(`[Lync] Enum: invalid index {idx}`)
             end
-            return value
+            return val
         end,
-        write = function(ch: ChannelState, value: string): ()
-            local idx = toIndex[value]
-            if idx == nil then
-                error(`[Lync] Invalid enum value: "{value}"`)
-            end
-            local c = ch.cursor
-            if c + 1 > ch.size then
-                alloc(ch, 1)
-            end
-            buffer.writeu8(ch.buff, c, idx)
-            ch.cursor = c + 1
-        end,
-        read = function(src: buffer, pos: number, _refs: { Instance }?): (string, number)
-            local idx = buffer.readu8(src, pos)
-            local value = toValue[idx + 1]
-            if value == nil then
-                error(`[Lync] Invalid enum index: {idx}`)
-            end
-            return value, 1
-        end,
-    })
+        { _typeCheck = "string" }
+    )
 end
 
 return table.freeze(EnumCodec)

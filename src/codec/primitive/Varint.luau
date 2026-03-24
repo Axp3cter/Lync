@@ -1,76 +1,90 @@
 --!strict
 --!native
--- LEB128 variable-length integer encoding and decoding.
+-- Dense prefix-varint encoding with single-branch decode.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
-
-local alloc = Channel.alloc
+local Base  = require(script.Parent.Parent.Base)
 
 -- Constants -----------------------------------------------------------
 
-local CONT = 0x80
-local MASK = 0x7F
-local MAX_BYTES = 5
-local MAX_VALUE = 4294967295
+local INLINE_MAX = 0xBF
 
-local band = bit32.band
-local bor = bit32.bor
-local rshift = bit32.rshift
-local lshift = bit32.lshift
+-- Private -------------------------------------------------------------
+
+local alloc   = Base.alloc
+local band    = bit32.band
+local bor     = bit32.bor
+local rshift  = bit32.rshift
+local writeu8  = buffer.writeu8
+local writeu16 = buffer.writeu16
+local writeu32 = buffer.writeu32
+local readu8   = buffer.readu8
+local readu16  = buffer.readu16
+local readu32  = buffer.readu32
 
 -- Public --------------------------------------------------------------
 
 local Varint = {}
 
-function Varint.write(ch: ChannelState, value: number): ()
-    if value < 0 or value > MAX_VALUE then
-        error(`[Lync] Varint value out of range: {value}`)
+Varint.INLINE_MAX = INLINE_MAX
+
+function Varint.write(ch: Types.ChannelState, value: number): ()
+    if value < 0 or value > 0xFFFFFFFF or value % 1 ~= 0 then
+        error(`[Lync] Varint: value must be an integer in [0, 4294967295], got {value}`)
     end
 
-    -- Fast path: ~80%+ of real-world varints are single-byte(lengths, counts)
-    if value < CONT then
-        local c = ch.cursor
-        if c + 1 > ch.size then
-            alloc(ch, 1)
-        end
-        buffer.writeu8(ch.buff, c, value)
-        ch.cursor = c + 1
-        return
-    end
-
-    local c = ch.cursor
-    if c + MAX_BYTES > ch.size then
-        alloc(ch, MAX_BYTES)
-    end
+    local cursor = ch.cursor
     local b = ch.buff
 
-    while value >= CONT do
-        buffer.writeu8(b, c, bor(band(value, MASK), CONT))
-        value = rshift(value, 7)
-        c += 1
-    end
+    if value <= INLINE_MAX then
+        if cursor + 1 > ch.size then alloc(ch, 1) end
+        writeu8(b, cursor, value)
+        ch.cursor = cursor + 1
 
-    buffer.writeu8(b, c, value)
-    ch.cursor = c + 1
+    elseif value <= 8383 then
+        if cursor + 2 > ch.size then alloc(ch, 2) end
+        local adjusted = value - 192
+        b = ch.buff -- alloc may have replaced the buffer
+        writeu8(b, cursor, bor(0xC0, rshift(adjusted, 8)))
+        writeu8(b, cursor + 1, band(adjusted, 0xFF))
+        ch.cursor = cursor + 2
+
+    elseif value <= 1056959 then
+        if cursor + 3 > ch.size then alloc(ch, 3) end
+        local adjusted = value - 8384
+        b = ch.buff
+        writeu8(b, cursor, bor(0xE0, rshift(adjusted, 16)))
+        writeu16(b, cursor + 1, band(adjusted, 0xFFFF))
+        ch.cursor = cursor + 3
+
+    else
+        if cursor + 5 > ch.size then alloc(ch, 5) end
+        b = ch.buff
+        writeu8(b, cursor, 0xF0)
+        writeu32(b, cursor + 1, value)
+        ch.cursor = cursor + 5
+    end
 end
 
--- Reads rely on buffer.readu8 throwing on OOB. MAX_BYTES rejects malformed loops.
 function Varint.read(src: buffer, pos: number): (number, number)
-    local result = 0
+    local b0 = readu8(src, pos)
 
-    for offset = 0, MAX_BYTES - 1 do
-        local byte = buffer.readu8(src, pos + offset)
-        result = bor(result, lshift(band(byte, MASK), offset * 7))
-
-        if band(byte, CONT) == 0 then
-            return result, offset + 1
-        end
+    if b0 <= INLINE_MAX then
+        return b0, 1
+    elseif b0 <= 0xDF then
+        return band(b0, 0x1F) * 256 + readu8(src, pos + 1) + 192, 2
+    elseif b0 <= 0xEF then
+        return band(b0, 0x0F) * 65536 + readu16(src, pos + 1) + 8384, 3
+    else
+        return readu32(src, pos + 1), 5
     end
+end
 
-    error(`[Lync] Varint exceeds {MAX_BYTES} bytes at position {pos}`)
+function Varint.writeInline(ch: Types.ChannelState, value: number): ()
+    local cursor = ch.cursor
+    if cursor + 1 > ch.size then alloc(ch, 1) end
+    writeu8(ch.buff, cursor, value)
+    ch.cursor = cursor + 1
 end
 
 return table.freeze(Varint)

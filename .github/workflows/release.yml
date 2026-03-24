@@ -2,41 +2,49 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+    tags: ["v*"]
 
 jobs:
-  build:
+  publish-wally:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rokit
         uses: CompeyDev/setup-rokit@v0.1.2
 
-      - name: Check formatting
-        run: stylua --check src/ test/ bench/
+      - name: Publish to Wally
+        env:
+          WALLY_AUTH: ${{ secrets.WALLY_AUTH }}
+        run: wally publish
 
-      - name: Build Lync.rbxm
-        run: rojo build default.project.json -o Lync.rbxm
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build Lync-dev.rbxl
-        run: rojo build dev.project.json -o Lync-dev.rbxl
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
 
-      - name: Build Lync-bench.rbxl
-        run: rojo build bench.project.json -o Lync-bench.rbxl
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Release
+  github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rokit
+        uses: CompeyDev/setup-rokit@v0.1.2
+
+      - name: Build rbxm
+        run: rojo build default.project.json -o lync.rbxm
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Lync ${{ github.ref_name }}
-          files: |
-            Lync.rbxm
-            Lync-dev.rbxl
-            Lync-bench.rbxl
-          generate_release_notes: false
+          files: lync.rbxm
+          generate_release_notes: true

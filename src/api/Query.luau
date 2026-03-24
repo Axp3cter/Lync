@@ -1,348 +1,285 @@
 --!strict
 --!optimize 2
--- Bidirectional request-reply over RemoteEvents.
+-- Query definition: handle, request with correlation IDs and timeout.
 
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Players    = game:GetService("Players")
 
-local Client = require(script.Parent.Parent.transport.Client)
+local Types    = require(script.Parent.Parent.Types)
 local Registry = require(script.Parent.Parent.internal.Registry)
-local Server = require(script.Parent.Parent.transport.Server)
-local Signal = require(script.Parent.Signal)
-local Types = require(script.Parent.Parent.Types)
-
-type Connection = Types.Connection
-type QueryConfig<R, S> = Types.QueryConfig<R, S>
-type Registration = Types.Registration
+local Channel  = require(script.Parent.Parent.internal.Channel)
+local Baseline = require(script.Parent.Parent.internal.Baseline)
 
 -- Constants -----------------------------------------------------------
 
-local IS_SERVER = RunService:IsServer()
-
--- Wire ceiling: correlationId is u16 in Channel.writeQuery / Reader.process.
-local POOL_SIZE = 65536
+local IS_SERVER      = RunService:IsServer()
+local DEFAULT_TIMEOUT = 5
 
 -- State ---------------------------------------------------------------
 
-type PendingQuery = {
-    thread: thread?,
-    callback: ((data: any) -> ())?,
-    timeout: thread?,
-    source: Player?,
-}
-
-local _pending = {} :: { [number]: PendingQuery }
-local _nextId = 0
-local _activeCount = 0
-
--- Private -------------------------------------------------------------
-
-local function allocCorrelation(): number
-    if _activeCount >= POOL_SIZE then
-        error("[Lync] All 65536 query correlation slots exhausted")
-    end
-
-    local id = _nextId
-
-    -- Skip occupied slots. With 65536 capacity and typical single-digit
-    -- concurrency, this loop body almost never executes.
-    while _pending[id] do
-        id = (id + 1) % POOL_SIZE
-    end
-
-    _nextId = (id + 1) % POOL_SIZE
-    _activeCount += 1
-    return id
-end
-
--- Decrements the active correlation counter. Does not free a specific slot;
--- that is handled by nil-ing _pending[id] at the call site.
-local function releaseCorrelation(): ()
-    _activeCount -= 1
-end
-
-local function completeQuery(id: number, data: any, source: Player?): ()
-    local entry = _pending[id]
-    if not entry then
-        return
-    end
-
-    -- Reject responses from wrong player (prevents correlation spoofing)
-    if source ~= nil and entry.source ~= nil and source ~= entry.source then
-        return
-    end
-
-    _pending[id] = nil
-    releaseCorrelation()
-
-    if entry.timeout then
-        task.cancel(entry.timeout)
-    end
-
-    if entry.callback then
-        entry.callback(data)
-    elseif entry.thread then
-        coroutine.resume(entry.thread :: thread, data)
-    end
-end
-
-local function onTimeout(correlation: number): ()
-    completeQuery(correlation, nil)
-end
-
-type QueryFields = {
-    _name: string,
-    _reqReg: Registration,
-    _respReg: Registration,
-    _timeout: number,
-}
-
-local QueryImpl = {}
-QueryImpl.__index = QueryImpl
-
-export type Query = typeof(setmetatable({} :: QueryFields, QueryImpl))
-
--- Send a query to multiple players and yield. Returns { [Player]: response? }.
-local function requestMulti(self: Query, players: { Player }, data: any): { [Player]: any? }
-    if not IS_SERVER then
-        error("[Lync] Multi-request is server-only")
-    end
-
-    local count = #players
-    if count == 0 then
-        return {}
-    end
-
-    if count == 1 then
-        local correlation = allocCorrelation()
-        local thread = coroutine.running()
-        local entry: PendingQuery = { thread = thread, timeout = nil, source = players[1] }
-        _pending[correlation] = entry
-
-        Server.writeQuery(
-            players[1],
-            self._reqReg.id,
-            self._name,
-            correlation,
-            self._reqReg.codec,
-            data
-        )
-
-        entry.timeout = task.delay(self._timeout, onTimeout, correlation)
-        local result = coroutine.yield()
-        return { [players[1]] = result }
-    end
-
-    local thread = coroutine.running()
-    local results = {} :: { [Player]: any? }
-    local remaining = count
-    local correlations = table.create(count) :: { number }
-    local finished = false
-
-    local reqId = self._reqReg.id
-    local reqName = self._name
-    local reqCodec = self._reqReg.codec
-    local timeout = self._timeout
-
-    for i = 1, count do
-        local player = players[i]
-        local correlation = allocCorrelation()
-        correlations[i] = correlation
-
-        local entry: PendingQuery = {
-            thread = nil,
-            callback = function(resp: any): ()
-                results[player] = resp
-                remaining -= 1
-                if remaining == 0 and not finished then
-                    finished = true
-                    task.spawn(thread, results)
-                end
-            end,
-            timeout = nil,
-            source = player,
-        }
-
-        _pending[correlation] = entry
-        Server.writeQuery(player, reqId, reqName, correlation, reqCodec, data)
-    end
-
-    local timeoutThread = task.delay(timeout, function(): ()
-        if finished then
-            return
-        end
-        finished = true
-
-        for i = 1, count do
-            local cid = correlations[i]
-            if _pending[cid] then
-                _pending[cid] = nil
-                releaseCorrelation()
-            end
-        end
-
-        task.spawn(thread, results)
-    end)
-
-    for i = 1, count do
-        local cid = correlations[i]
-        local entry = _pending[cid]
-        if entry then
-            entry.timeout = timeoutThread
-        end
-    end
-
-    return coroutine.yield()
-end
-
-function QueryImpl.listen(self: Query, callback: (...any) -> any): Connection
-    local respId = self._respReg.id
-    local respName = self._name
-    local respCodec = self._respReg.codec
-
-    if IS_SERVER then
-        return self._reqReg.signal:connect(
-            function(request: any, player: Player, correlation: number): ()
-                local results = table.pack(pcall(callback, request, player))
-                if not results[1] then
-                    warn(`[Lync] Query handler error on "{respName}": {results[2]}`)
-                    Server.writeQueryNil(player, respId, respName, correlation)
-                    return
-                end
-
-                local response = if results.n > 2
-                    then table.move(results, 2, results.n, 1, table.create(results.n - 1))
-                    else results[2]
-
-                if response ~= nil then
-                    Server.writeQuery(player, respId, respName, correlation, respCodec, response)
-                else
-                    Server.writeQueryNil(player, respId, respName, correlation)
-                end
-            end
-        )
-    else
-        return self._reqReg.signal:connect(
-            function(request: any, _player: Player?, correlation: number): ()
-                local results = table.pack(pcall(callback, request))
-                if not results[1] then
-                    warn(`[Lync] Query handler error on "{respName}": {results[2]}`)
-                    Client.writeQueryNil(respId, respName, correlation)
-                    return
-                end
-
-                local response = if results.n > 2
-                    then table.move(results, 2, results.n, 1, table.create(results.n - 1))
-                    else results[2]
-
-                if response ~= nil then
-                    Client.writeQuery(respId, respName, correlation, respCodec, response)
-                else
-                    Client.writeQueryNil(respId, respName, correlation)
-                end
-            end
-        )
-    end
-end
-
--- Client: send request to server, yield until response.
-function QueryImpl.request(self: Query, data: any): any
-    if IS_SERVER then
-        error("[Lync] query:request is client-only. Use query:requestFrom on server")
-    end
-
-    local correlation = allocCorrelation()
-    local thread = coroutine.running()
-    local entry: PendingQuery = { thread = thread, timeout = nil }
-    _pending[correlation] = entry
-
-    Client.writeQuery(self._reqReg.id, self._name, correlation, self._reqReg.codec, data)
-
-    entry.timeout = task.delay(self._timeout, onTimeout, correlation)
-    return coroutine.yield()
-end
-
--- Server: send request to one player, yield until response.
-function QueryImpl.requestFrom(self: Query, player: Player, data: any): any
-    if not IS_SERVER then
-        error("[Lync] query:requestFrom is server-only. Use query:request on client")
-    end
-
-    local correlation = allocCorrelation()
-    local thread = coroutine.running()
-    local entry: PendingQuery = { thread = thread, timeout = nil, source = player }
-    _pending[correlation] = entry
-
-    Server.writeQuery(player, self._reqReg.id, self._name, correlation, self._reqReg.codec, data)
-
-    entry.timeout = task.delay(self._timeout, onTimeout, correlation)
-    return coroutine.yield()
-end
-
--- Server: send request to all players, yield until all respond or timeout.
-function QueryImpl.requestAll(self: Query, data: any): { [Player]: any? }
-    return requestMulti(self, Players:GetPlayers(), data)
-end
-
--- Server: send request to a list of players.
-function QueryImpl.requestList(self: Query, players: { Player }, data: any): { [Player]: any? }
-    return requestMulti(self, players, data)
-end
-
--- Server: send request to all players in a group.
-function QueryImpl.requestGroup(self: Query, group: any, data: any): { [Player]: any? }
-    local set = group:getSet()
-    local players = {} :: { Player }
-    for player in set do
-        table.insert(players, player)
-    end
-    return requestMulti(self, players, data)
-end
-
-table.freeze(QueryImpl)
+local _nextCorrId = 0
+local _pending: { [number]: thread } = {}
 
 -- Public --------------------------------------------------------------
 
-local QueryModule = {}
+local Query = {}
 
-function QueryModule.define(name: string, config: QueryConfig<any, any>): Query
-    if not config.request then
-        error(`[Lync] Query requires a request codec: "{name}"`)
-    end
-    if not config.response then
-        error(`[Lync] Query requires a response codec: "{name}"`)
-    end
+export type QueryHandle = {
+    handle: (self: QueryHandle, fn: (request: any, player: Player?) -> any) -> Types.Connection,
+    request: (self: QueryHandle, data: any, target: any?) -> any,
+    name: (self: QueryHandle) -> string,
+    stats: (self: QueryHandle) -> Types.PacketStats,
+}
 
-    local reqSignal = Signal.create()
-    local respSignal = Signal.create()
+function Query.define(
+    name: string,
+    requestCodec: Types.InternalCodec<any>,
+    responseCodec: Types.InternalCodec<any>,
+    options: Types.QueryOptions?
+): QueryHandle
+    local opts = options or {} :: Types.QueryOptions
+    local timeout = opts.timeout or DEFAULT_TIMEOUT
 
-    local rateLimit = config.rateLimit or { maxPerSecond = 30 }
-
-    local reqReg, respReg = Registry.registerQueryPair(
+    -- Register request channel
+    local reqOpenFn = Channel.resolveOpenFn(Channel.TS_NONE, name)
+    local reqReg = Registry.register(
         name,
-        config.request,
-        config.response,
-        reqSignal,
-        respSignal,
-        rateLimit,
-        config.validate
+        Registry.KIND_REQUEST,
+        requestCodec,
+        false,
+        nil,
+        IS_SERVER,
+        1,
+        Channel.TS_NONE,
+        reqOpenFn,
+        opts.rateLimit or { maxPerSecond = 30 },
+        opts.validate,
+        nil
     )
 
-    respSignal:connect(function(resp: any, source: Player?, correlation: number): ()
-        completeQuery(correlation, resp, source)
+    -- Register response channel (paired)
+    local respOpenFn = Channel.resolveOpenFn(Channel.TS_NONE, `{name}_resp`)
+    local respReg = Registry.register(
+        `{name}_resp`,
+        Registry.KIND_RESPONSE,
+        responseCodec,
+        false,
+        reqReg.id,
+        false,
+        1,
+        Channel.TS_NONE,
+        respOpenFn,
+        nil,
+        nil,
+        nil
+    )
+
+    reqReg.partner = respReg.id
+
+    -- Lazy-require to avoid circular deps
+    local _server: any = nil
+    local _client: any = nil
+
+    local function getServer(): any
+        if not _server then
+            _server = require(script.Parent.Parent.transport.Server)
+        end
+        return _server
+    end
+
+    local function getClient(): any
+        if not _client then
+            _client = require(script.Parent.Parent.transport.Client)
+        end
+        return _client
+    end
+
+    -- Listen for incoming responses and resolve pending requests
+    respReg.signal:connect(function(value: any, sender: Player?, corrId: number)
+        local waiting = _pending[corrId]
+        if waiting then
+            _pending[corrId] = nil
+            task.spawn(waiting, value)
+        end
     end)
 
-    return setmetatable({
-        _name = name,
-        _reqReg = reqReg,
-        _respReg = respReg,
-        _timeout = config.timeout or 5,
-    }, QueryImpl)
+    -- Listen for incoming requests and auto-respond
+    local _handler: ((any, Player?) -> any)? = nil
+
+    reqReg.signal:connect(function(value: any, sender: Player?, corrId: number)
+        if not _handler then return end
+
+        -- Run handler, get response
+        local ok, response = pcall(_handler :: any, value, sender)
+
+        if IS_SERVER then
+            if sender then
+                local Server = getServer()
+                local ch = Server.getChannel(sender, false)
+                if ok then
+                    Channel.writeQuery(ch, respReg.id, corrId, responseCodec, response)
+                else
+                    Channel.writeQuery(ch, respReg.id, corrId, nil, nil)
+                end
+            end
+        else
+            local Client = getClient()
+            local ch = Client.getChannel(false)
+            if ok then
+                Channel.writeQuery(ch, respReg.id, corrId, responseCodec, response)
+            else
+                Channel.writeQuery(ch, respReg.id, corrId, nil, nil)
+            end
+        end
+    end)
+
+    local handle: any = {}
+
+    function handle.handle(
+        _self: QueryHandle,
+        fn: (request: any, player: Player?) -> any
+    ): Types.Connection
+        _handler = fn
+
+        -- Return a connection that clears the handler on disconnect
+        return table.freeze({
+            connected = true,
+            disconnect = function(self: Types.Connection): ()
+                if not (self :: any).connected then return end
+                ;(self :: any).connected = false
+                _handler = nil
+            end,
+        } :: any)
+    end
+
+    function handle.request(
+        _self: QueryHandle,
+        data: any,
+        target: any?
+    ): any
+        _nextCorrId += 1
+        local corrId = _nextCorrId
+
+        if IS_SERVER then
+            if target == nil then
+                error(`[Lync] Query "{name}": server request requires a target`)
+            end
+
+            local Server = getServer()
+
+            -- Single player
+            if typeof(target) == "Instance" and target:IsA("Player") then
+                local ch = Server.getChannel(target :: Player, false)
+                Channel.writeQuery(ch, reqReg.id, corrId, requestCodec, data)
+
+                -- Wait for response
+                local running = coroutine.running()
+                _pending[corrId] = running
+
+                task.delay(timeout, function()
+                    if _pending[corrId] == running then
+                        _pending[corrId] = nil
+                        task.spawn(running, nil)
+                    end
+                end)
+
+                return coroutine.yield()
+            end
+
+            -- Multi-target: collect responses into { [Player]: response? }
+            local targets: { Player } = {}
+
+            if typeof(target) == "table" then
+                local tbl = target :: any
+                if tbl._lyncAll then
+                    targets = Players:GetPlayers()
+                elseif tbl._lyncGroup then
+                    for player in tbl._members do
+                        table.insert(targets, player)
+                    end
+                else
+                    for _, p in tbl do
+                        if typeof(p) == "Instance" and (p :: Instance):IsA("Player") then
+                            table.insert(targets, p :: Player)
+                        end
+                    end
+                end
+            end
+
+            if #targets == 0 then return {} end
+
+            local results: { [Player]: any } = {}
+            local remaining = #targets
+            local running = coroutine.running()
+
+            for _, player in targets do
+                _nextCorrId += 1
+                local playerCorrId = _nextCorrId
+                local ch = Server.getChannel(player, false)
+                Channel.writeQuery(ch, reqReg.id, playerCorrId, requestCodec, data)
+
+                local playerRef = player
+                _pending[playerCorrId] = coroutine.create(function(response: any)
+                    results[playerRef] = response
+                    remaining -= 1
+                    if remaining == 0 then
+                        task.spawn(running, results)
+                    end
+                end)
+            end
+
+            -- Timeout
+            task.delay(timeout, function()
+                if remaining > 0 then
+                    remaining = 0
+                    task.spawn(running, results)
+                end
+            end)
+
+            return coroutine.yield()
+        else
+            -- Client → server
+            local Client = getClient()
+            local ch = Client.getChannel(false)
+            Channel.writeQuery(ch, reqReg.id, corrId, requestCodec, data)
+
+            local running = coroutine.running()
+            _pending[corrId] = running
+
+            task.delay(timeout, function()
+                if _pending[corrId] == running then
+                    _pending[corrId] = nil
+                    task.spawn(running, nil)
+                end
+            end)
+
+            return coroutine.yield()
+        end
+    end
+
+    function handle.name(_self: QueryHandle): string
+        return name
+    end
+
+    function handle.stats(_self: QueryHandle): Types.PacketStats
+        return {
+            bytesSent = reqReg.bytesSent + respReg.bytesSent,
+            bytesReceived = reqReg.bytesReceived + respReg.bytesReceived,
+            fires = reqReg.fires + respReg.fires,
+            recvFires = reqReg.recvFires + respReg.recvFires,
+            drops = reqReg.drops + respReg.drops,
+        }
+    end
+
+    return table.freeze(handle)
 end
 
--- Returns the number of queries currently awaiting a response.
-function QueryModule.pendingCount(): number
-    return _activeCount
+function Query.pendingCount(): number
+    local count = 0
+    for _ in _pending do
+        count += 1
+    end
+    return count
 end
 
-return table.freeze(QueryModule)
+return table.freeze(Query)

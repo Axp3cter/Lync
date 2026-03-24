@@ -1,128 +1,126 @@
 --!strict
---!native
--- NumberSequence and ColorSequence codecs with varint length prefix.
+--!optimize 2
+-- NumberSequence and ColorSequence codecs with varint count.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
-type ChannelState = Types.ChannelState
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
-
--- Constants -----------------------------------------------------------
-
-local NS_STRIDE = 12
-local CS_STRIDE = 7
-
+local alloc = Base.alloc
 local round = math.round
 local clamp = math.clamp
 
 -- Public --------------------------------------------------------------
 
-local Sequence = {}
+local SequenceCodec = {}
 
-Sequence.numberSequence = table.freeze({
-    write = function(ch: ChannelState, value: NumberSequence): ()
+SequenceCodec.numberSequence = table.freeze({
+    _typeCheck = "NumberSequence",
+
+    write = function(ch: Types.ChannelState, value: NumberSequence): ()
         local keypoints = value.Keypoints
         local count = #keypoints
         Varint.write(ch, count)
 
-        if count == 0 then
-            return
-        end
+        if count == 0 then return end
 
-        local totalBytes = count * NS_STRIDE
-        local c = ch.cursor
-        if c + totalBytes > ch.size then
-            alloc(ch, totalBytes)
-        end
-
+        local bytes = count * 12
+        local cursor = ch.cursor
+        if cursor + bytes > ch.size then alloc(ch, bytes) end
         local b = ch.buff
+
         for i = 1, count do
             local kp = keypoints[i]
-            buffer.writef32(b, c, kp.Time)
-            buffer.writef32(b, c + 4, kp.Value)
-            buffer.writef32(b, c + 8, kp.Envelope)
-            c += NS_STRIDE
+            local off = cursor + (i - 1) * 12
+            buffer.writef32(b, off, kp.Time)
+            buffer.writef32(b, off + 4, kp.Value)
+            buffer.writef32(b, off + 8, kp.Envelope)
         end
 
-        ch.cursor = c
+        ch.cursor = cursor + bytes
     end,
+
     read = function(src: buffer, pos: number, _refs: { Instance }?): (NumberSequence, number)
         local count, lenBytes = Varint.read(src, pos)
-        local absPos = pos + lenBytes
+        if count == 0 then return NumberSequence.new(0), lenBytes end
 
-        if count == 0 then
-            return NumberSequence.new(0), lenBytes
+        local bytes = count * 12
+        local dataStart = pos + lenBytes
+        if dataStart + bytes > buffer.len(src) then
+            error("[Lync] NumberSequence: data exceeds buffer")
         end
 
         local keypoints = table.create(count)
         for i = 1, count do
+            local off = dataStart + (i - 1) * 12
             keypoints[i] = NumberSequenceKeypoint.new(
-                buffer.readf32(src, absPos),
-                buffer.readf32(src, absPos + 4),
-                buffer.readf32(src, absPos + 8)
+                buffer.readf32(src, off),
+                buffer.readf32(src, off + 4),
+                buffer.readf32(src, off + 8)
             )
-            absPos += NS_STRIDE
         end
 
-        return NumberSequence.new(keypoints), absPos - pos
+        return NumberSequence.new(keypoints), lenBytes + bytes
     end,
-})
+} :: any)
 
-Sequence.colorSequence = table.freeze({
-    write = function(ch: ChannelState, value: ColorSequence): ()
+SequenceCodec.colorSequence = table.freeze({
+    _typeCheck = "ColorSequence",
+
+    write = function(ch: Types.ChannelState, value: ColorSequence): ()
         local keypoints = value.Keypoints
         local count = #keypoints
         Varint.write(ch, count)
 
-        if count == 0 then
-            return
-        end
+        if count == 0 then return end
 
-        local totalBytes = count * CS_STRIDE
-        local c = ch.cursor
-        if c + totalBytes > ch.size then
-            alloc(ch, totalBytes)
-        end
-
+        local bytes = count * 7
+        local cursor = ch.cursor
+        if cursor + bytes > ch.size then alloc(ch, bytes) end
         local b = ch.buff
+
         for i = 1, count do
             local kp = keypoints[i]
-            local color = kp.Value
-            buffer.writef32(b, c, kp.Time)
-            buffer.writeu8(b, c + 4, round(clamp(color.R, 0, 1) * 255))
-            buffer.writeu8(b, c + 5, round(clamp(color.G, 0, 1) * 255))
-            buffer.writeu8(b, c + 6, round(clamp(color.B, 0, 1) * 255))
-            c += CS_STRIDE
+            local off = cursor + (i - 1) * 7
+            local c = kp.Value
+            buffer.writef32(b, off, kp.Time)
+            buffer.writeu8(b, off + 4, round(clamp(c.R, 0, 1) * 255))
+            buffer.writeu8(b, off + 5, round(clamp(c.G, 0, 1) * 255))
+            buffer.writeu8(b, off + 6, round(clamp(c.B, 0, 1) * 255))
         end
 
-        ch.cursor = c
+        ch.cursor = cursor + bytes
     end,
+
     read = function(src: buffer, pos: number, _refs: { Instance }?): (ColorSequence, number)
         local count, lenBytes = Varint.read(src, pos)
-        local absPos = pos + lenBytes
-
         if count == 0 then
             return ColorSequence.new(Color3.new()), lenBytes
         end
 
-        local keypoints = table.create(count)
-        for i = 1, count do
-            keypoints[i] = ColorSequenceKeypoint.new(
-                buffer.readf32(src, absPos),
-                Color3.fromRGB(
-                    buffer.readu8(src, absPos + 4),
-                    buffer.readu8(src, absPos + 5),
-                    buffer.readu8(src, absPos + 6)
-                )
-            )
-            absPos += CS_STRIDE
+        local bytes = count * 7
+        local dataStart = pos + lenBytes
+        if dataStart + bytes > buffer.len(src) then
+            error("[Lync] ColorSequence: data exceeds buffer")
         end
 
-        return ColorSequence.new(keypoints), absPos - pos
-    end,
-})
+        local keypoints = table.create(count)
+        for i = 1, count do
+            local off = dataStart + (i - 1) * 7
+            keypoints[i] = ColorSequenceKeypoint.new(
+                buffer.readf32(src, off),
+                Color3.fromRGB(
+                    buffer.readu8(src, off + 4),
+                    buffer.readu8(src, off + 5),
+                    buffer.readu8(src, off + 6)
+                )
+            )
+        end
 
-return table.freeze(Sequence)
+        return ColorSequence.new(keypoints), lenBytes + bytes
+    end,
+} :: any)
+
+return table.freeze(SequenceCodec)

@@ -1,134 +1,75 @@
 --!strict
 --!optimize 2
-local Lync = require(script.Parent.Parent.Parent)
+local Signal = require(script.Parent.Parent.Parent.api.Signal)
+local Scope = require(script.Parent.Parent.Parent.api.Scope)
 local Runner = require(script.Parent.Parent.Runner)
 local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 
-describe("Scope create", function(): ()
-    it("returns object", function(): ()
-        local s = Lync.scope()
-        expect(s):toBeTruthy()
+local function makeSource(): (any, any)
+    local sig = Signal.create()
+    local source = {
+        on = function(_self: any, fn: any): any return sig:connect(fn) end,
+        once = function(_self: any, fn: any): any return sig:once(fn) end,
+    }
+    return source, sig
+end
+
+describe("Scope: on tracks and returns connection", function(): ()
+    it("listener fires", function(): ()
+        local scope = Scope.create(); local source, sig = makeSource(); local count = 0
+        scope:on(source, function(): () count += 1 end)
+        sig:fireSync(); expect(count):toBe(1)
+    end)
+    it("returns the connection", function(): ()
+        local scope = Scope.create(); local source, _ = makeSource()
+        local conn = scope:on(source, function(): () end)
+        expect(conn.connected):toBe(true)
+    end)
+    it("destroy disconnects", function(): ()
+        local scope = Scope.create(); local source, sig = makeSource(); local count = 0
+        scope:on(source, function(): () count += 1 end)
+        sig:fireSync(); expect(count):toBe(1)
+        scope:destroy(); sig:fireSync(); expect(count):toBe(1)
     end)
 end)
 
-describe("Scope add + destroy", function(): ()
-    it("disconnects lync connections", function(): ()
-        local s = Lync.scope()
-        local disconnected = false
-        s:add({
-            disconnect = function(): ()
-                disconnected = true
-            end,
-        })
-        s:destroy()
-        expect(disconnected):toBe(true)
+describe("Scope: once", function(): ()
+    it("fires once and tracks", function(): ()
+        local scope = Scope.create(); local source, sig = makeSource(); local count = 0
+        scope:once(source, function(): () count += 1 end)
+        sig:fireSync(); sig:fireSync(); expect(count):toBe(1)
     end)
+end)
 
-    it("handles multiple connections", function(): ()
-        local s = Lync.scope()
-        local count = 0
-        for _ = 1, 5 do
-            s:add({
-                disconnect = function(): ()
-                    count += 1
-                end,
-            })
+describe("Scope: add external connections", function(): ()
+    it("disconnects added connection on destroy", function(): ()
+        local scope = Scope.create(); local sig = Signal.create(); local count = 0
+        local conn = sig:connect(function(): () count += 1 end)
+        scope:add(conn)
+        sig:fireSync(); expect(count):toBe(1)
+        scope:destroy(); expect(conn.connected):toBe(false)
+        sig:fireSync(); expect(count):toBe(1)
+    end)
+end)
+
+describe("Scope: multiple connections", function(): ()
+    it("manages 50 connections", function(): ()
+        local scope = Scope.create(); local sigs: { any } = {}; local total = 0
+        for _ = 1, 50 do
+            local source, sig = makeSource(); table.insert(sigs, sig)
+            scope:on(source, function(): () total += 1 end)
         end
-        s:destroy()
-        expect(count):toBe(5)
-    end)
-
-    it("double destroy is safe", function(): ()
-        local s = Lync.scope()
-        s:add({ disconnect = function(): () end })
-        s:destroy()
-        expect(function(): ()
-            s:destroy()
-        end).never:toThrow()
-    end)
-
-    it("destroy on empty is safe", function(): ()
-        local s = Lync.scope()
-        expect(function(): ()
-            s:destroy()
-        end).never:toThrow()
-    end)
-
-    it("add nil is safe", function(): ()
-        local s = Lync.scope()
-        expect(function(): ()
-            s:add(nil)
-        end).never:toThrow()
-        s:destroy()
+        for _, sig in sigs do sig:fireSync() end
+        expect(total):toBe(50)
+        scope:destroy(); total = 0
+        for _, sig in sigs do sig:fireSync() end
+        expect(total):toBe(0)
     end)
 end)
 
-describe("Scope listen shortcut", function(): ()
-    it("calls listen on source and tracks", function(): ()
-        local s = Lync.scope()
-        local disconnected = false
-        local received = false
-
-        local mockPacket = {
-            listen = function(_self: any, fn: any): any
-                fn("test")
-                return {
-                    disconnect = function(): ()
-                        disconnected = true
-                    end,
-                }
-            end,
-        }
-
-        s:listen(mockPacket, function(data: any): ()
-            received = true
-        end)
-
-        expect(received):toBe(true)
-        s:destroy()
-        expect(disconnected):toBe(true)
-    end)
-end)
-
-describe("Scope once shortcut", function(): ()
-    it("calls once on source and tracks", function(): ()
-        local s = Lync.scope()
-        local disconnected = false
-
-        local mockPacket = {
-            once = function(_self: any, fn: any): any
-                return {
-                    disconnect = function(): ()
-                        disconnected = true
-                    end,
-                }
-            end,
-        }
-
-        s:once(mockPacket, function(): () end)
-        s:destroy()
-        expect(disconnected):toBe(true)
-    end)
-end)
-
-describe("Scope listenAll shortcut", function(): ()
-    it("calls listenAll on namespace and tracks", function(): ()
-        local s = Lync.scope()
-        local disconnected = false
-
-        local mockNs = {
-            listenAll = function(_self: any, fn: any): any
-                return {
-                    disconnect = function(): ()
-                        disconnected = true
-                    end,
-                }
-            end,
-        }
-
-        s:listenAll(mockNs, function(): () end)
-        s:destroy()
-        expect(disconnected):toBe(true)
+describe("Scope: destroy idempotent", function(): ()
+    it("safe to call multiple times", function(): ()
+        local scope = Scope.create(); scope:destroy(); scope:destroy(); scope:destroy()
     end)
 end)
 

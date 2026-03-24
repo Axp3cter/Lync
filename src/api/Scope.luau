@@ -4,84 +4,73 @@
 
 local Types = require(script.Parent.Parent.Types)
 
-type Connection = Types.Connection
+-- Public --------------------------------------------------------------
 
--- Private -------------------------------------------------------------
+local Scope = {}
 
-type ScopeFields = {
-    _entries: { any }, -- Connection | RBXScriptConnection
-    _count: number,
+export type ScopeHandle = {
+    on: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
+    once: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
+    add: (self: ScopeHandle, connection: any) -> (),
+    destroy: (self: ScopeHandle) -> (),
 }
 
-local ScopeImpl = {}
-ScopeImpl.__index = ScopeImpl
+local ScopeMeta = {}
+ScopeMeta.__index = ScopeMeta
 
-export type Scope = typeof(setmetatable({} :: ScopeFields, ScopeImpl))
-
-function ScopeImpl.add(self: Scope, conn: any): ()
-    if not conn then
-        return
-    end
-
-    local entries = self._entries
-    local count = self._count + 1
-    self._count = count
-    entries[count] = conn
+function ScopeMeta.on(self: any, source: any, fn: (...any) -> ()): Types.Connection
+    local conn = source:on(fn)
+    local conns = self._connections
+    local idx = self._count + 1
+    self._count = idx
+    conns[idx] = conn
+    return conn
 end
 
-function ScopeImpl.listen(self: Scope, source: any, callback: (...any) -> ()): ()
-    local conn = source:listen(callback)
-    local entries = self._entries
-    local count = self._count + 1
-    self._count = count
-    entries[count] = conn
+function ScopeMeta.once(self: any, source: any, fn: (...any) -> ()): Types.Connection
+    local conn = source:once(fn)
+    local conns = self._connections
+    local idx = self._count + 1
+    self._count = idx
+    conns[idx] = conn
+    return conn
 end
 
-function ScopeImpl.once(self: Scope, source: any, callback: (...any) -> ()): ()
-    local conn = source:once(callback)
-    local entries = self._entries
-    local count = self._count + 1
-    self._count = count
-    entries[count] = conn
+function ScopeMeta.add(self: any, connection: any): ()
+    local idx = self._count + 1
+    self._count = idx
+    self._connections[idx] = connection
 end
 
-function ScopeImpl.listenAll(self: Scope, namespace: any, callback: (...any) -> ()): ()
-    local conn = namespace:listenAll(callback)
-    local entries = self._entries
-    local count = self._count + 1
-    self._count = count
-    entries[count] = conn
-end
-
-function ScopeImpl.destroy(self: Scope): ()
-    local entries = self._entries
+function ScopeMeta.destroy(self: any): ()
+    local conns = self._connections
     local count = self._count
 
     for i = 1, count do
-        local conn = entries[i]
-        entries[i] = nil
+        local conn = conns[i]
+        conns[i] = nil :: any
 
-        if typeof(conn) == "RBXScriptConnection" then
-            conn:Disconnect()
-        elseif conn.disconnect then
-            conn:disconnect()
+        --[[
+            Support both Lync Connection (conn:disconnect())
+            and RBXScriptConnection (conn:Disconnect()).
+        ]]
+        if typeof(conn) == "table" then
+            if conn.disconnect then
+                conn:disconnect()
+            end
+        elseif typeof(conn) == "RBXScriptConnection" then
+            (conn :: RBXScriptConnection):Disconnect()
         end
     end
 
     self._count = 0
 end
 
-table.freeze(ScopeImpl)
-
--- Public --------------------------------------------------------------
-
-local ScopeModule = {}
-
-function ScopeModule.create(): Scope
+function Scope.create(): ScopeHandle
     return setmetatable({
-        _entries = {},
+        _connections = {},
         _count = 0,
-    }, ScopeImpl)
+    }, ScopeMeta) :: any
 end
 
-return table.freeze(ScopeModule)
+return table.freeze(Scope)

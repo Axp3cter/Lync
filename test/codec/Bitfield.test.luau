@@ -5,57 +5,78 @@ local Runner = require(script.Parent.Parent.Runner)
 local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
 
 describe("bitfield", function(): ()
-    it("single flag", function(): ()
-        local c = Lync.bitfield({ isAlive = { type = "bool" } })
-        local r = roundTrip(c, { isAlive = true })
-        expect(r.isAlive):toBe(true)
+    it("single bool = 1 byte", function(): ()
+        local c = Lync.bitfield({ flag = { type = "bool" } })
+        local r, w = roundTrip(c, { flag = true })
+        expect(r.flag):toBe(true); expect(w):toBe(1)
     end)
-    it("multiple flags", function(): ()
-        local c = Lync.bitfield({
-            a = { type = "bool" },
-            b = { type = "bool" },
-            c = { type = "bool" },
-            d = { type = "bool" },
-        })
-        local r = roundTrip(c, { a = true, b = false, c = true, d = false })
-        expect(r.a):toBe(true)
-        expect(r.b):toBe(false)
-        expect(r.c):toBe(true)
-        expect(r.d):toBe(false)
+    it("bool false", function(): ()
+        expect(roundTrip(Lync.bitfield({ x = { type = "bool" } }), { x = false }).x):toBe(false)
     end)
-    it("8 flags = 1 byte", function(): ()
-        local fields = {}
-        for i = 1, 8 do
-            fields["b" .. i] = { type = "bool" }
-        end
-        local c = Lync.bitfield(fields)
-        local data = {}
-        for i = 1, 8 do
-            data["b" .. i] = true
-        end
-        local _, w = roundTrip(c, data)
-        expect(w):toBe(1)
+    it("3 bools in 1 byte", function(): ()
+        local c = Lync.bitfield({ a = { type = "bool" }, b = { type = "bool" }, c = { type = "bool" } })
+        local r, w = roundTrip(c, { a = true, b = false, c = true })
+        expect(r.a):toBe(true); expect(r.b):toBe(false); expect(r.c):toBe(true); expect(w):toBe(1)
     end)
-    it("9 flags = 2 bytes", function(): ()
-        local fields = {}
-        for i = 1, 9 do
-            fields["b" .. i] = { type = "bool" }
-        end
-        local c = Lync.bitfield(fields)
-        local data = {}
-        for i = 1, 9 do
-            data["b" .. i] = true
-        end
-        local _, w = roundTrip(c, data)
-        expect(w):toBe(2)
+    it("uint field", function(): ()
+        local c = Lync.bitfield({ level = { type = "uint", width = 5 } })
+        expect(roundTrip(c, { level = 31 }).level):toBe(31)
+        expect(roundTrip(c, { level = 0 }).level):toBe(0)
     end)
-    it("all false", function(): ()
-        local c =
-            Lync.bitfield({ a = { type = "bool" }, b = { type = "bool" }, c = { type = "bool" } })
-        local r = roundTrip(c, { a = false, b = false, c = false })
-        expect(r.a):toBe(false)
-        expect(r.b):toBe(false)
-        expect(r.c):toBe(false)
+    it("uint max value", function(): ()
+        local c = Lync.bitfield({ val = { type = "uint", width = 8 } })
+        expect(roundTrip(c, { val = 255 }).val):toBe(255)
+    end)
+    it("signed int positive", function(): ()
+        expect(roundTrip(Lync.bitfield({ d = { type = "int", width = 4 } }), { d = 7 }).d):toBe(7)
+    end)
+    it("signed int negative", function(): ()
+        expect(roundTrip(Lync.bitfield({ d = { type = "int", width = 4 } }), { d = -5 }).d):toBe(-5)
+    end)
+    it("signed int zero", function(): ()
+        expect(roundTrip(Lync.bitfield({ d = { type = "int", width = 4 } }), { d = 0 }).d):toBe(0)
+    end)
+    it("signed int min", function(): ()
+        expect(roundTrip(Lync.bitfield({ d = { type = "int", width = 4 } }), { d = -8 }).d):toBe(-8)
+    end)
+    it("mixed bool + uint + int = 2 bytes", function(): ()
+        local c = Lync.bitfield({ alive = { type = "bool" }, hp = { type = "uint", width = 7 }, dir = { type = "int", width = 4 } })
+        local r, w = roundTrip(c, { alive = true, hp = 100, dir = -3 })
+        expect(r.alive):toBe(true); expect(r.hp):toBe(100); expect(r.dir):toBe(-3); expect(w):toBe(2)
+    end)
+    it("8 bits total = 1 byte", function(): ()
+        local c = Lync.bitfield({ a = { type = "uint", width = 4 }, b = { type = "uint", width = 4 } })
+        local _, w = roundTrip(c, { a = 15, b = 15 }); expect(w):toBe(1)
+    end)
+    it("9 bits total = 2 bytes", function(): ()
+        local c = Lync.bitfield({ a = { type = "uint", width = 5 }, b = { type = "uint", width = 4 } })
+        local _, w = roundTrip(c, { a = 31, b = 15 }); expect(w):toBe(2)
+    end)
+    it("16 bits = 2 bytes", function(): ()
+        local c = Lync.bitfield({ a = { type = "uint", width = 8 }, b = { type = "uint", width = 8 } })
+        local _, w = roundTrip(c, { a = 255, b = 128 }); expect(w):toBe(2)
+    end)
+    it("17 bits = 4 bytes", function(): ()
+        local c = Lync.bitfield({ a = { type = "uint", width = 9 }, b = { type = "uint", width = 8 } })
+        local _, w = roundTrip(c, { a = 511, b = 128 }); expect(w):toBe(4)
+    end)
+    it("32 bits exactly = 4 bytes", function(): ()
+        local c = Lync.bitfield({ a = { type = "uint", width = 16 }, b = { type = "uint", width = 16 } })
+        local r, w = roundTrip(c, { a = 65535, b = 32768 })
+        expect(r.a):toBe(65535); expect(r.b):toBe(32768); expect(w):toBe(4)
+    end)
+    it("rejects > 32 bits", function(): ()
+        expect(function(): () Lync.bitfield({ a = { type = "uint", width = 20 }, b = { type = "uint", width = 20 } }) end):toThrow("exceeds 32")
+    end)
+    it("rejects empty", function(): () expect(function(): () Lync.bitfield({}) end):toThrow("at least one") end)
+    it("rejects unknown type", function(): ()
+        expect(function(): () Lync.bitfield({ x = { type = "float", width = 8 } } :: any) end):toThrow("unknown field type")
+    end)
+    it("rejects uint width 0", function(): ()
+        expect(function(): () Lync.bitfield({ x = { type = "uint", width = 0 } }) end):toThrow("width")
+    end)
+    it("rejects int width 1 (need sign bit)", function(): ()
+        expect(function(): () Lync.bitfield({ x = { type = "int", width = 1 } }) end):toThrow("width")
     end)
 end)
 

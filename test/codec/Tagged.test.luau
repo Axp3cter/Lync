@@ -1,49 +1,44 @@
 --!strict
 --!optimize 2
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Lync = require(script.Parent.Parent.Parent)
 local Runner = require(script.Parent.Parent.Runner)
 local describe, it, expect, roundTrip = Runner.describe, Runner.it, Runner.expect, Runner.roundTrip
 
 describe("tagged", function(): ()
-    it("variant A", function(): ()
-        local c = Lync.tagged("type", {
-            Move = Lync.struct({ x = Lync.f32, y = Lync.f32 }),
-            Chat = Lync.struct({ msg = Lync.string }),
-        })
-        local r = roundTrip(c, { type = "Move", x = 1.5, y = 2.5 })
-        expect(r.type):toBe("Move")
-        expect(r.x):toBeCloseTo(1.5)
+    local c = Lync.tagged("type", {
+        damage = Lync.struct({ amount = Lync.int(0, 255) }),
+        heal   = Lync.struct({ amount = Lync.int(0, 255), source = Lync.string }),
+    })
+    it("damage variant", function(): ()
+        local r = roundTrip(c, { type = "damage", amount = 50 })
+        expect(r.type):toBe("damage"); expect(r.amount):toBe(50)
     end)
-    it("variant B", function(): ()
-        local c = Lync.tagged("type", {
-            Move = Lync.struct({ x = Lync.f32, y = Lync.f32 }),
-            Chat = Lync.struct({ msg = Lync.string }),
-        })
-        local r = roundTrip(c, { type = "Chat", msg = "hi" })
-        expect(r.type):toBe("Chat")
-        expect(r.msg):toBe("hi")
+    it("heal variant", function(): ()
+        local r = roundTrip(c, { type = "heal", amount = 30, source = "potion" })
+        expect(r.type):toBe("heal"); expect(r.amount):toBe(30); expect(r.source):toBe("potion")
     end)
-    it("throws unknown variant", function(): ()
-        local c = Lync.tagged("type", { A = Lync.struct({ v = Lync.u8 }) })
-        expect(function(): ()
-            local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-            local ch = Channel.create()
-            c.write(ch, { type = "B", v = 1 })
-        end):toThrow("Unknown variant")
+    it("variant tag = u8 (1 byte overhead)", function(): ()
+        local simple = Lync.tagged("t", { a = Lync.struct({ v = Lync.int(0, 255) }) })
+        local _, w = roundTrip(simple, { t = "a", v = 42 })
+        expect(w):toBe(2) -- 1 tag + 1 u8
+    end)
+    it("unknown variant errors on write", function(): ()
+        expect(function(): () c.write(Channel.create(), { type = "nope" }) end):toThrow("unknown variant")
+    end)
+    it("missing tag field errors", function(): ()
+        expect(function(): () c.write(Channel.create(), { amount = 10 }) end):toThrow("missing tagField")
+    end)
+    it("single variant", function(): ()
+        local s = Lync.tagged("kind", { only = Lync.struct({ x = Lync.int(0, 255) }) })
+        local r = roundTrip(s, { kind = "only", x = 7 })
+        expect(r.kind):toBe("only"); expect(r.x):toBe(7)
     end)
 end)
 
-describe("tagged with bools", function(): ()
-    it("variant with bool fields", function(): ()
-        local c = Lync.tagged("type", {
-            State = Lync.struct({ alive = Lync.bool, hp = Lync.u8 }),
-            Name = Lync.struct({ value = Lync.string }),
-        })
-        local r = roundTrip(c, { type = "State", alive = true, hp = 50 })
-        expect(r.type):toBe("State")
-        expect(r.alive):toBe(true)
-        expect(r.hp):toBe(50)
-    end)
+describe("tagged define-time errors", function(): ()
+    it("empty tagField", function(): () expect(function(): () Lync.tagged("", { a = Lync.bool }) end):toThrow("empty") end)
+    it("no variants", function(): () expect(function(): () Lync.tagged("t", {}) end):toThrow("at least one") end)
 end)
 
 return nil

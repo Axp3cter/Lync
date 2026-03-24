@@ -15,18 +15,6 @@
             "$className": "ServerScriptService",
             "RunTests": {
                 "$path": "test/Run.server.luau"
-            },
-            "RunIntegration": {
-                "$path": "test/integration/Run.server.luau"
-            }
-        },
-        "StarterPlayer": {
-            "$className": "StarterPlayer",
-            "StarterPlayerScripts": {
-                "$className": "StarterPlayerScripts",
-                "IntegrationClient": {
-                    "$path": "test/integration/Listen.client.luau"
-                }
             }
         }
     }

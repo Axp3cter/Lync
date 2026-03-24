@@ -1,45 +1,48 @@
 --!strict
 --!optimize 2
--- Read-side baseline cache keyed by source(player or client sentinel).
+-- Read-side delta cache for delta codecs.
 
 -- State ---------------------------------------------------------------
 
-local _readKey = false :: any
-local _readCaches = {} :: { [any]: { [number]: any } }
+local _caches: { [number]: { [any]: any } } = {}
+local _currentKey: any = false
+local _hasDelta = false
 
 -- Public --------------------------------------------------------------
 
 local Baseline = {}
 
--- One-way latch: set to true on first delta write, never reset. This
--- avoids a setReadKey call on every non-delta frame at the cost of a
--- cheap branch once deltas are first used in the session.
-Baseline.hasDelta = false
-
 function Baseline.setReadKey(key: any): ()
-    _readKey = key
+    _currentKey = key
 end
 
-function Baseline.getCache(deltaId: number): any
-    local map = _readCaches[_readKey]
-    return map and map[deltaId]
+function Baseline.getCache(deltaId: number): any?
+    local perPlayer = _caches[deltaId]
+    if not perPlayer then return nil end
+    return perPlayer[_currentKey]
 end
 
-function Baseline.setCache(deltaId: number, data: any): ()
-    if not Baseline.hasDelta then
-        Baseline.hasDelta = true
+function Baseline.setCache(deltaId: number, value: any): ()
+    local perPlayer = _caches[deltaId]
+    if not perPlayer then
+        perPlayer = {}
+        _caches[deltaId] = perPlayer
     end
-    local map = _readCaches[_readKey]
-    if not map then
-        map = {}
-        _readCaches[_readKey] = map
+    perPlayer[_currentKey] = value
+end
+
+function Baseline.clearPlayer(key: any): ()
+    for _, perPlayer in _caches do
+        perPlayer[key] = nil
     end
-    map[deltaId] = data
 end
 
-function Baseline.clearSource(key: any): ()
-    _readCaches[key] = nil
+function Baseline.markHasDelta(): ()
+    _hasDelta = true
 end
 
--- Not frozen: hasDelta is mutated at runtime by setCache.
-return Baseline
+function Baseline.hasDelta(): boolean
+    return _hasDelta
+end
+
+return table.freeze(Baseline)

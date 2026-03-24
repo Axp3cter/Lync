@@ -1,67 +1,54 @@
 --!strict
 --!optimize 2
--- Stack-based ChannelState pool with warmup support.
+-- Stack-based ChannelState pool for per-player channel reuse.
 
+local Types   = require(script.Parent.Parent.Types)
 local Channel = require(script.Parent.Channel)
-local Types = require(script.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
 
 -- Constants -----------------------------------------------------------
 
-local DEFAULT_MAX = 16
+local DEFAULT_SIZE = 16
 
 -- State ---------------------------------------------------------------
 
-local _stack = {} :: { ChannelState }
+local _stack: { Types.ChannelState } = {}
 local _depth = 0
-local _maxSize = DEFAULT_MAX
+local _maxSize = DEFAULT_SIZE
 
 -- Public --------------------------------------------------------------
 
 local Pool = {}
 
--- Override the max idle ChannelStates in the pool. Default 16. Range: 2-128.
-function Pool.setMaxSize(count: number): ()
-    if count < 2 or count > 128 then
-        error(`[Lync] Pool max size must be 2-128, got {count}`)
-    end
-    _maxSize = count
-end
-
-function Pool.getMaxSize(): number
-    return _maxSize
-end
-
-function Pool.acquire(): ChannelState
+function Pool.acquire(): Types.ChannelState
     if _depth > 0 then
         local ch = _stack[_depth]
         _stack[_depth] = nil :: any
         _depth -= 1
+        Channel.reset(ch)
         return ch
     end
 
     return Channel.create()
 end
 
-function Pool.release(ch: ChannelState): ()
-    ch.cursor = 0
-    ch.lastId = -1
-    ch.countPos = 0
-    ch.itemCount = 0
-    table.clear(ch.refs)
-    table.clear(ch.deltas)
-    ch.prevDump = nil
-
-    if _depth >= _maxSize then
-        return -- discard; GC will reclaim
-    end
+function Pool.release(ch: Types.ChannelState): ()
+    if _depth >= _maxSize then return end
 
     _depth += 1
     _stack[_depth] = ch
 end
 
-function Pool.size(): number
+function Pool.setMaxSize(size: number): ()
+    _maxSize = size
+
+    -- Trim excess
+    while _depth > _maxSize do
+        _stack[_depth] = nil :: any
+        _depth -= 1
+    end
+end
+
+function Pool.count(): number
     return _depth
 end
 

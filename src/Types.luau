@@ -7,11 +7,16 @@ export type ChannelState = {
     cursor: number,
     size: number,
     refs: { Instance },
+    refCount: number,
     lastId: number,
     countPos: number,
     itemCount: number,
-    deltas: { [number]: any }, -- per-codec delta caches; shape varies by codec kind
+    singleMode: boolean,
+    singlePos: number,
+    deltas: { [number]: any },
     prevDump: buffer?,
+    prevDumpLen: number,
+    currentPacket: string?,
 }
 
 export type Codec<T> = {
@@ -19,7 +24,6 @@ export type Codec<T> = {
     read: (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
 }
 
--- Extended codec exposing internal fast-path metadata used by composite codecs.
 export type InternalCodec<T> = {
     write: (ch: ChannelState, value: T) -> (),
     read: (src: buffer, pos: number, refs: { Instance }?) -> (T, number),
@@ -28,49 +32,46 @@ export type InternalCodec<T> = {
     _directRead: ((b: buffer, offset: number) -> T)?,
     _isDelta: boolean?,
     _isBool: boolean?,
+    _hasUnknown: boolean?,
+    _min: number?,
+    _max: number?,
+    _isInteger: boolean?,
+    _schema: { [string]: InternalCodec<any> }?,
+    _typeCheck: string?,
+}
+
+export type RateLimitState = {
+    tokens: number,
+    lastRefill: number,
+    lastAccepted: number,
 }
 
 export type RateLimitConfig = {
-    maxPerSecond: number,
-    burstAllowance: number?,
+    maxPerSecond: number?,
+    burst: number?,
+    cooldown: number?,
 }
 
-export type PacketConfig<T> = {
-    value: Codec<T>,
+export type PacketOptions = {
     unreliable: boolean?,
     rateLimit: RateLimitConfig?,
-    validate: ((data: T, player: Player) -> (boolean, string?))?,
+    validate: ((data: any, player: Player) -> (boolean, string?))?,
     maxPayloadBytes: number?,
-    timestamp: ("frame" | "offset" | "full")?,
+    timestamp: string?,
 }
 
-export type QueryConfig<Req, Resp> = {
-    request: Codec<Req>,
-    response: Codec<Resp>,
+export type QueryOptions = {
     timeout: number?,
     rateLimit: RateLimitConfig?,
-    validate: ((data: Req, player: Player) -> (boolean, string?))?,
-}
-
-export type NamespaceConfig = {
-    packets: { [string]: PacketConfig<any> }?,
-    queries: { [string]: QueryConfig<any, any> }?,
-}
-
--- Minimal signal interface for Registration. Avoids circular dependency
--- with Signal.luau while typing the two methods consumers actually call.
-export type SignalLike = {
-    fire: (self: SignalLike, ...any) -> (),
-    connect: (self: SignalLike, callback: (...any) -> ()) -> Connection,
+    validate: ((data: any, player: Player) -> (boolean, string?))?,
 }
 
 export type Registration = {
     id: number,
     name: string,
-    baseName: string,
-    codec: Codec<any>,
-    isUnreliable: boolean,
     kind: number,
+    codec: InternalCodec<any>,
+    isUnreliable: boolean,
     partner: number?,
     signal: SignalLike,
     rateLimit: RateLimitConfig?,
@@ -78,9 +79,8 @@ export type Registration = {
     needsGate: boolean,
     maxPayloadBytes: number?,
     timestampMode: number,
-    _openFn: (ch: ChannelState, id: number, name: string) -> (), -- resolved at define time (#2)
-
-    -- Stats counters (mutable, incremented at runtime)
+    headerSize: number,
+    _openFn: (ch: ChannelState, id: number) -> (),
     bytesSent: number,
     bytesReceived: number,
     fires: number,
@@ -88,9 +88,41 @@ export type Registration = {
     drops: number,
 }
 
+export type SignalLike = {
+    fire: (self: SignalLike, ...any) -> (),
+    connect: (self: SignalLike, callback: (...any) -> ()) -> Connection,
+}
+
 export type Connection = {
-    disconnect: (self: Connection) -> (),
     connected: boolean,
+    disconnect: (self: Connection) -> (),
+}
+
+export type ConfigureOptions = {
+    channelMaxSize: number?,
+    validationDepth: number?,
+    poolSize: number?,
+    bandwidthLimit: {
+        softLimit: number,
+        maxStrikes: number,
+    }?,
+    globalRateLimit: {
+        maxPerSecond: number,
+    }?,
+    stats: boolean?,
+}
+
+export type PacketStats = {
+    bytesSent: number,
+    bytesReceived: number,
+    fires: number,
+    recvFires: number,
+    drops: number,
+}
+
+export type PlayerStats = {
+    bytesSent: number,
+    bytesReceived: number,
 }
 
 return nil

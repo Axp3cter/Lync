@@ -2,89 +2,93 @@
 --!optimize 2
 local Gate = require(script.Parent.Parent.Parent.transport.Gate)
 local Runner = require(script.Parent.Parent.Runner)
-local describe, it, expect, fakePlayer =
-    Runner.describe, Runner.it, Runner.expect, Runner.fakePlayer
+local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 
 local nan = 0 / 0
 
-local function reg(): any
-    return {
-        id = 80000,
-        name = "__nan",
-        baseName = "__nan",
-        codec = { write = function() end, read = function() end },
-        isUnreliable = false,
-        kind = 0,
-        partner = nil,
-        signal = nil,
-        rateLimit = nil,
-        validate = nil,
-        needsGate = false,
-        maxPayloadBytes = nil,
-    }
-end
+describe("NaN rejection: primitives", function(): ()
+    it("NaN", function(): () expect(Gate.scan(nan)):toBe(false) end)
+    it("inf", function(): () expect(Gate.scan(math.huge)):toBe(false) end)
+    it("-inf", function(): () expect(Gate.scan(-math.huge)):toBe(false) end)
+    it("clean number", function(): () expect(Gate.scan(42)):toBe(true) end)
+    it("zero", function(): () expect(Gate.scan(0)):toBe(true) end)
+    it("negative", function(): () expect(Gate.scan(-100)):toBe(true) end)
+    it("string", function(): () expect(Gate.scan("hello")):toBe(true) end)
+    it("empty string", function(): () expect(Gate.scan("")):toBe(true) end)
+    it("true", function(): () expect(Gate.scan(true)):toBe(true) end)
+    it("false", function(): () expect(Gate.scan(false)):toBe(true) end)
+    it("nil", function(): () expect(Gate.scan(nil)):toBe(true) end)
+end)
 
-describe("NaN rejection", function(): ()
-    local p = fakePlayer("NaN", 4000)
-    Gate.onPlayerAdded(p)
-    local r = reg()
+describe("NaN rejection: Vector2", function(): ()
+    it("clean", function(): () expect(Gate.scan(Vector2.new(1, 2))):toBe(true) end)
+    it("NaN X", function(): () expect(Gate.scan(Vector2.new(nan, 0))):toBe(false) end)
+    it("NaN Y", function(): () expect(Gate.scan(Vector2.new(0, nan))):toBe(false) end)
+    it("inf X", function(): () expect(Gate.scan(Vector2.new(math.huge, 0))):toBe(false) end)
+end)
 
-    it("rejects NaN", function(): ()
-        expect(Gate.check(nan, r, p)):toBe(false)
-    end)
-    it("inf", function(): ()
-        expect(Gate.check(math.huge, r, p)):toBe(false)
-    end)
-    it("-inf", function(): ()
-        expect(Gate.check(-math.huge, r, p)):toBe(false)
-    end)
-    it("rejects NaN Vector2", function(): ()
-        expect(Gate.check(Vector2.new(nan, 0), r, p)):toBe(false)
-    end)
-    it("rejects NaN Vector3", function(): ()
-        expect(Gate.check(Vector3.new(0, nan, 0), r, p)):toBe(false)
-    end)
-    it("rejects NaN Color3", function(): ()
-        expect(Gate.check(Color3.new(nan, 0, 0), r, p)):toBe(false)
-    end)
-    it("rejects NaN UDim", function(): ()
-        expect(Gate.check(UDim.new(nan, 0), r, p)):toBe(false)
-    end)
-    it("rejects NaN UDim2", function(): ()
-        expect(Gate.check(UDim2.new(UDim.new(nan, 0), UDim.new(0, 0)), r, p)):toBe(false)
-    end)
-    it("rejects NaN NumberRange", function(): ()
-        expect(Gate.check(NumberRange.new(nan, 1), r, p)):toBe(false)
-    end)
-    it("rejects NaN Rect", function(): ()
-        expect(Gate.check(Rect.new(nan, 0, 1, 1), r, p)):toBe(false)
-    end)
-    it("rejects NaN Ray origin", function(): ()
-        expect(Gate.check(Ray.new(Vector3.new(nan, 0, 0), Vector3.yAxis), r, p)):toBe(false)
-    end)
-    it("rejects NaN Ray direction", function(): ()
-        expect(Gate.check(Ray.new(Vector3.zero, Vector3.new(0, nan, 0)), r, p)):toBe(false)
-    end)
-    it("rejects NaN Region3", function(): ()
-        expect(Gate.check(Region3.new(Vector3.new(nan, 0, 0), Vector3.one), r, p)):toBe(false)
-    end)
-    it("rejects NaN in table", function(): ()
-        expect(Gate.check({ x = nan }, r, p)):toBe(false)
-    end)
-    it("rejects deep nested NaN", function(): ()
-        expect(Gate.check({ a = { b = { c = nan } } }, r, p)):toBe(false)
-    end)
-    it("accepts number", function(): ()
-        expect(Gate.check(42, r, p)):toBe(true)
-    end)
-    it("accepts string", function(): ()
-        expect(Gate.check("hi", r, p)):toBe(true)
-    end)
-    it("accepts table", function(): ()
-        expect(Gate.check({ x = 1 }, r, p)):toBe(true)
-    end)
+describe("NaN rejection: Vector3", function(): ()
+    it("clean", function(): () expect(Gate.scan(Vector3.new(1, 2, 3))):toBe(true) end)
+    it("NaN X", function(): () expect(Gate.scan(Vector3.new(nan, 0, 0))):toBe(false) end)
+    it("NaN Y", function(): () expect(Gate.scan(Vector3.new(0, nan, 0))):toBe(false) end)
+    it("NaN Z", function(): () expect(Gate.scan(Vector3.new(0, 0, nan))):toBe(false) end)
+end)
 
-    Gate.onPlayerRemoved(p)
+describe("NaN rejection: Color3", function(): ()
+    it("clean", function(): () expect(Gate.scan(Color3.new(1, 0, 0))):toBe(true) end)
+    it("NaN R", function(): () expect(Gate.scan(Color3.new(nan, 0, 0))):toBe(false) end)
+    it("NaN G", function(): () expect(Gate.scan(Color3.new(0, nan, 0))):toBe(false) end)
+    it("NaN B", function(): () expect(Gate.scan(Color3.new(0, 0, nan))):toBe(false) end)
+end)
+
+describe("NaN rejection: UDim", function(): ()
+    it("clean", function(): () expect(Gate.scan(UDim.new(0.5, 10))):toBe(true) end)
+    it("NaN scale", function(): () expect(Gate.scan(UDim.new(nan, 0))):toBe(false) end)
+    -- Offset is i32; Roblox coerces NaN to 0 in the constructor, so this can't be tested
+end)
+
+describe("NaN rejection: UDim2", function(): ()
+    it("clean", function(): () expect(Gate.scan(UDim2.new(UDim.new(0.5, 10), UDim.new(1, 20)))):toBe(true) end)
+    it("NaN X scale", function(): () expect(Gate.scan(UDim2.new(UDim.new(nan, 0), UDim.new(0, 0)))):toBe(false) end)
+    -- Y offset is i32; Roblox coerces NaN to 0 in the constructor
+end)
+
+describe("NaN rejection: NumberRange", function(): ()
+    it("clean", function(): () expect(Gate.scan(NumberRange.new(0, 1))):toBe(true) end)
+    it("NaN min", function(): () expect(Gate.scan(NumberRange.new(nan, 1))):toBe(false) end)
+    it("NaN max", function(): () expect(Gate.scan(NumberRange.new(0, nan))):toBe(false) end)
+end)
+
+describe("NaN rejection: Rect", function(): ()
+    it("clean", function(): () expect(Gate.scan(Rect.new(0, 0, 100, 100))):toBe(true) end)
+    it("NaN minX", function(): () expect(Gate.scan(Rect.new(nan, 0, 1, 1))):toBe(false) end)
+    -- Roblox coerces NaN in maxY position during Rect construction
+end)
+
+describe("NaN rejection: Ray", function(): ()
+    it("clean", function(): () expect(Gate.scan(Ray.new(Vector3.one, Vector3.yAxis))):toBe(true) end)
+    it("NaN origin", function(): () expect(Gate.scan(Ray.new(Vector3.new(nan, 0, 0), Vector3.yAxis))):toBe(false) end)
+    it("NaN direction", function(): () expect(Gate.scan(Ray.new(Vector3.zero, Vector3.new(0, nan, 0)))):toBe(false) end)
+end)
+
+describe("NaN rejection: Region3", function(): ()
+    it("clean", function(): () expect(Gate.scan(Region3.new(Vector3.zero, Vector3.one))):toBe(true) end)
+    -- Region3.new internally computes CFrame+Size, which coerces NaN away in Roblox
+end)
+
+describe("NaN rejection: CFrame", function(): ()
+    it("clean", function(): () expect(Gate.scan(CFrame.new(1, 2, 3))):toBe(true) end)
+    it("NaN position", function(): () expect(Gate.scan(CFrame.new(nan, 0, 0))):toBe(false) end)
+end)
+
+describe("NaN rejection: tables", function(): ()
+    it("clean table", function(): () expect(Gate.scan({ x = 1, y = "hi" })):toBe(true) end)
+    it("NaN in value", function(): () expect(Gate.scan({ x = nan })):toBe(false) end)
+    it("deep nested NaN", function(): () expect(Gate.scan({ a = { b = { c = nan } } })):toBe(false) end)
+    it("deep clean", function(): () expect(Gate.scan({ a = { b = { c = 42 } } })):toBe(true) end)
+    it("empty table", function(): () expect(Gate.scan({})):toBe(true) end)
+    it("mixed types clean", function(): () expect(Gate.scan({ 1, "hi", true, Vector3.zero })):toBe(true) end)
+    it("NaN in array position", function(): () expect(Gate.scan({ 1, nan, 3 })):toBe(false) end)
 end)
 
 return nil

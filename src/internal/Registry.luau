@@ -1,79 +1,71 @@
 --!strict
 --!optimize 2
--- Deterministic ID assignment for packets and queries.
+-- Deterministic packet/query ID assignment. Sequential 7-bit IDs.
 
-local Channel = require(script.Parent.Channel)
-local Types = require(script.Parent.Parent.Types)
-
-type Codec<T> = Types.Codec<T>
-type Registration = Types.Registration
-type RateLimitConfig = Types.RateLimitConfig
+local Types  = require(script.Parent.Parent.Types)
+local Signal = require(script.Parent.Parent.api.Signal)
 
 -- Constants -----------------------------------------------------------
 
-local KIND_PACKET = 0
-local KIND_REQUEST = 1
+local KIND_PACKET   = 0
+local KIND_REQUEST  = 1
 local KIND_RESPONSE = 2
-local MAX_PACKETS = 255
+local MAX_ID        = 127
 
 -- State ---------------------------------------------------------------
 
-local _entries = {} :: { Registration }
-local _names = {} :: { [string]: number }
-local _nextId = 1
+local _nextId = 0
+local _byId: { [number]: Types.Registration } = {}
+local _byName: { [string]: Types.Registration } = {}
 
--- Private -------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local function assign(
+local Registry = {}
+
+Registry.KIND_PACKET   = KIND_PACKET
+Registry.KIND_REQUEST  = KIND_REQUEST
+Registry.KIND_RESPONSE = KIND_RESPONSE
+
+function Registry.register(
     name: string,
-    baseName: string,
-    codec: Codec<any>,
-    isUnreliable: boolean,
     kind: number,
-    signal: any,
-    rateLimit: RateLimitConfig?,
+    codec: Types.InternalCodec<any>,
+    isUnreliable: boolean,
+    partner: number?,
+    needsGate: boolean,
+    headerSize: number,
+    timestampMode: number,
+    openFn: (ch: Types.ChannelState, id: number) -> (),
+    rateLimit: Types.RateLimitConfig?,
     validate: ((data: any, player: Player) -> (boolean, string?))?,
-    maxPayloadBytes: number?,
-    timestampMode: number?
-): Registration
-    if _names[name] then
-        error(`[Lync] Duplicate registration: "{name}"`)
-    end
-    if _nextId > MAX_PACKETS then
-        error(`[Lync] Registration limit reached: {MAX_PACKETS} max`)
-    end
-
-    if rateLimit then
-        if rateLimit.maxPerSecond <= 0 then
-            error(`[Lync] maxPerSecond must be positive: "{name}"`)
-        end
-        if rateLimit.burstAllowance and rateLimit.burstAllowance <= 0 then
-            error(`[Lync] burstAllowance must be positive: "{name}"`)
-        end
-    end
-
-    if maxPayloadBytes and maxPayloadBytes <= 0 then
-        error(`[Lync] maxPayloadBytes must be positive: "{name}"`)
-    end
-
-    local id = _nextId
+    maxPayloadBytes: number?
+): Types.Registration
     _nextId += 1
+    local id = _nextId
 
-    local reg: Registration = {
+    if id > MAX_ID then
+        error(`[Lync] Registry: ID limit exceeded ({MAX_ID}), too many packets/queries`)
+    end
+
+    if _byName[name] and kind ~= KIND_RESPONSE then
+        error(`[Lync] Registry: duplicate name "{name}"`)
+    end
+
+    local reg: Types.Registration = {
         id = id,
         name = name,
-        baseName = baseName,
+        kind = kind,
         codec = codec,
         isUnreliable = isUnreliable,
-        kind = kind,
-        partner = nil,
-        signal = signal,
+        partner = partner,
+        signal = Signal.create(),
         rateLimit = rateLimit,
         validate = validate,
-        needsGate = rateLimit ~= nil or validate ~= nil,
+        needsGate = needsGate,
         maxPayloadBytes = maxPayloadBytes,
-        timestampMode = timestampMode or 0,
-        _openFn = Channel.resolveOpenFn(timestampMode or 0),
+        timestampMode = timestampMode,
+        headerSize = headerSize,
+        _openFn = openFn,
         bytesSent = 0,
         bytesReceived = 0,
         fires = 0,
@@ -81,83 +73,34 @@ local function assign(
         drops = 0,
     }
 
-    _entries[id] = reg
-    _names[name] = id
+    _byId[id] = reg
+    if kind ~= KIND_RESPONSE then
+        _byName[name] = reg
+    end
+
     return reg
 end
 
--- Public --------------------------------------------------------------
-
-local Registry = {
-    KIND_PACKET = KIND_PACKET,
-    KIND_REQUEST = KIND_REQUEST,
-    KIND_RESPONSE = KIND_RESPONSE,
-}
-
-function Registry.register(
-    name: string,
-    codec: Codec<any>,
-    isUnreliable: boolean,
-    signal: any,
-    rateLimit: RateLimitConfig?,
-    validate: ((data: any, player: Player) -> (boolean, string?))?,
-    maxPayloadBytes: number?,
-    timestampMode: number?
-): Registration
-    return assign(
-        name,
-        name,
-        codec,
-        isUnreliable,
-        KIND_PACKET,
-        signal,
-        rateLimit,
-        validate,
-        maxPayloadBytes,
-        timestampMode
-    )
+function Registry.get(id: number): Types.Registration?
+    return _byId[id]
 end
 
-function Registry.registerQueryPair(
-    name: string,
-    requestCodec: Codec<any>,
-    responseCodec: Codec<any>,
-    requestSignal: any,
-    responseSignal: any,
-    rateLimit: RateLimitConfig?,
-    validate: ((data: any, player: Player) -> (boolean, string?))?
-): (Registration, Registration)
-    local req = assign(
-        `{name}:req`,
-        name,
-        requestCodec,
-        false,
-        KIND_REQUEST,
-        requestSignal,
-        rateLimit,
-        validate
-    )
-    local resp =
-        assign(`{name}:resp`, name, responseCodec, false, KIND_RESPONSE, responseSignal, nil, nil)
-
-    req.partner = resp.id
-    resp.partner = req.id
-    return req, resp
+function Registry.getByName(name: string): Types.Registration?
+    return _byName[name]
 end
 
-function Registry.get(id: number): Registration?
-    return _entries[id]
+function Registry.count(): number
+    return _nextId
 end
 
-function Registry.getByName(name: string): Registration?
-    local id = _names[name]
-    return if id then _entries[id] else nil
-end
-
-function Registry.forEach(fn: (reg: Registration) -> ()): ()
-    for _, reg in _entries do
-        fn(reg)
+function Registry.all(): { Types.Registration }
+    local result = table.create(_nextId)
+    for i = 1, _nextId do
+        if _byId[i] then
+            table.insert(result, _byId[i])
+        end
     end
+    return result
 end
 
 return table.freeze(Registry)

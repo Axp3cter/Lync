@@ -1,119 +1,86 @@
 --!strict
 --!optimize 2
--- Ordered intercept chains for send and receive.
+-- Ordered intercept chains returning Connection objects.
 
-type Handler = (data: any, name: string, player: Player?) -> any?
-
-type Chain = {
-    handlers: { Handler },
-    snapshot: { Handler }?,
-}
-
--- Constants -----------------------------------------------------------
-
-local DROP = table.freeze({ _tag = "drop" })
+local Types  = require(script.Parent.Parent.Types)
+local Signal = require(script.Parent.Parent.api.Signal)
 
 -- State ---------------------------------------------------------------
 
-local _send: Chain = { handlers = {}, snapshot = nil }
-local _receive: Chain = { handlers = {}, snapshot = nil }
-
--- Private -------------------------------------------------------------
-
-local function runChain(chain: { Handler }, data: any, name: string, player: Player?): any?
-    local current = data
-    for i = 1, #chain do
-        local result = chain[i](current, name, player)
-        if result == nil or result == DROP then
-            return nil
-        end
-        current = result
-    end
-    return current
-end
-
-local function run(chain: Chain, data: any, name: string, player: Player?): any?
-    local handlers = chain.handlers
-    local count = #handlers
-    if count == 0 then
-        return data
-    end
-
-    local snapshot = chain.snapshot
-    if not snapshot then
-        snapshot = table.clone(handlers)
-        chain.snapshot = snapshot
-    end
-
-    local ok: boolean
-    local result: any
-
-    if count == 1 then
-        ok, result = pcall(snapshot[1], data, name, player)
-    else
-        ok, result = pcall(runChain, snapshot, data, name, player)
-    end
-
-    if not ok then
-        warn(`[Lync] Middleware error on "{name}": {result}`)
-        return nil
-    end
-
-    if result == DROP then
-        return nil
-    end
-
-    return result
-end
-
-local function addTo(chain: Chain, fn: Handler): () -> ()
-    table.insert(chain.handlers, fn)
-    chain.snapshot = nil
-
-    return function(): ()
-        local pos = table.find(chain.handlers, fn)
-        if pos then
-            table.remove(chain.handlers, pos)
-            chain.snapshot = nil
-        end
-    end
-end
+local _sendSignal = Signal.create()
+local _receiveSignal = Signal.create()
+local _dropSignal = Signal.create()
 
 -- Public --------------------------------------------------------------
 
 local Middleware = {}
 
-Middleware.hasSend = false
-Middleware.hasReceive = false
-Middleware.DROP = DROP
+function Middleware.onSend(fn: (data: any, name: string, player: Player?) -> any): Types.Connection
+    return _sendSignal:connect(fn)
+end
 
-function Middleware.addSend(fn: Handler): () -> ()
-    local remover = addTo(_send, fn)
-    Middleware.hasSend = true
+function Middleware.onReceive(fn: (data: any, name: string, player: Player?) -> any): Types.Connection
+    return _receiveSignal:connect(fn)
+end
 
-    return function(): ()
-        remover()
-        Middleware.hasSend = #_send.handlers > 0
+function Middleware.onDrop(fn: (player: Player, reason: string, name: string, data: any?) -> ()): Types.Connection
+    return _dropSignal:connect(fn)
+end
+
+--[[
+    Runs send middleware chain. Returns transformed data, or DROP sentinel.
+    If no hooks, returns data unchanged (zero overhead).
+]]
+function Middleware.runSend(data: any, name: string, player: Player?): any
+    local count = _sendSignal._count[1]
+    if count == 0 then return data end
+
+    local entries = _sendSignal._entries
+    local result = data
+
+    for i = 1, count do
+        local entry = entries[i]
+        if entry._state ~= 0 then -- not disconnected
+            local returned = entry.fn(result, name, player)
+            if returned ~= nil then
+                result = returned
+            end
+        end
     end
+
+    return result
 end
 
-function Middleware.addReceive(fn: Handler): () -> ()
-    local remover = addTo(_receive, fn)
-    Middleware.hasReceive = true
+function Middleware.runReceive(data: any, name: string, player: Player?): any
+    local count = _receiveSignal._count[1]
+    if count == 0 then return data end
 
-    return function(): ()
-        remover()
-        Middleware.hasReceive = #_receive.handlers > 0
+    local entries = _receiveSignal._entries
+    local result = data
+
+    for i = 1, count do
+        local entry = entries[i]
+        if entry._state ~= 0 then
+            local returned = entry.fn(result, name, player)
+            if returned ~= nil then
+                result = returned
+            end
+        end
     end
+
+    return result
 end
 
-function Middleware.runSend(data: any, name: string, player: Player?): any?
-    return run(_send, data, name, player)
+function Middleware.fireDrop(player: Player, reason: string, name: string, data: any?): ()
+    _dropSignal:fireSync(player, reason, name, data)
 end
 
-function Middleware.runReceive(data: any, name: string, player: Player?): any?
-    return run(_receive, data, name, player)
+function Middleware.hasSendHooks(): boolean
+    return _sendSignal._count[1] > 0
 end
 
--- Not frozen: hasSend and hasReceive are mutated at runtime.
-return Middleware
+function Middleware.hasReceiveHooks(): boolean
+    return _receiveSignal._count[1] > 0
+end
+
+return table.freeze(Middleware)

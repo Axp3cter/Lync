@@ -1,6 +1,6 @@
 [package]
 name = "axp3cter/lync"
-version = "2.0.0"
+version = "2.1.0"
 description = "Buffer networking for Roblox. Delta compression, XOR framing, built-in security"
 license = "MIT"
 authors = ["Axp3cter"]

@@ -1,9 +1,13 @@
 --!strict
---!native
--- Zero-byte codec. Reads nil. Good for fire-and-forget signals.
+--!optimize 2
+-- Zero-byte codec. Reads nil. For fire-and-forget signals.
 
 local Base = require(script.Parent.Parent.Base)
 
-return table.freeze({
-    nothing = Base.zero(),
-})
+-- Public --------------------------------------------------------------
+
+local Nothing = {}
+
+Nothing.nothing = Base.zero()
+
+return table.freeze(Nothing)

@@ -4,113 +4,66 @@ local Middleware = require(script.Parent.Parent.Parent.internal.Middleware)
 local Runner = require(script.Parent.Parent.Runner)
 local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 
-describe("Middleware passthrough", function(): ()
-    it("send unchanged", function(): ()
-        expect(Middleware.runSend(42, "t", nil)):toBe(42)
+describe("Middleware: onSend chain", function(): ()
+    it("transforms data", function(): ()
+        local c = Middleware.onSend(function(d: any): any return (d :: number) * 2 end)
+        expect(Middleware.runSend(5, "t", nil)):toBe(10); c:disconnect()
     end)
-    it("receive unchanged", function(): ()
-        expect(Middleware.runReceive("hi", "t", nil)):toBe("hi")
+    it("chains in order", function(): ()
+        local c1 = Middleware.onSend(function(d: any): any return (d :: number) + 1 end)
+        local c2 = Middleware.onSend(function(d: any): any return (d :: number) * 10 end)
+        expect(Middleware.runSend(5, "t", nil)):toBe(60); c1:disconnect(); c2:disconnect()
     end)
-end)
-
-describe("Middleware send chain", function(): ()
-    it("transforms in order", function(): ()
-        local r1 = Middleware.addSend(function(d: any): any
-            return d * 2
-        end)
-        local r2 = Middleware.addSend(function(d: any): any
-            return d + 1
-        end)
-        expect(Middleware.runSend(5, "t", nil)):toBe(11)
-        r1()
-        r2()
+    it("nil return passes through", function(): ()
+        local c = Middleware.onSend(function(_d: any): any return nil end)
+        expect(Middleware.runSend(42, "t", nil)):toBe(42); c:disconnect()
     end)
-    it("nil short-circuits", function(): ()
-        local r1 = Middleware.addSend(function(): any
-            return nil
-        end)
-        local r2 = Middleware.addSend(function(d: any): any
-            return d * 100
-        end)
-        expect(Middleware.runSend(5, "t", nil)):toBeNil()
-        r1()
-        r2()
+    it("disconnect removes hook", function(): ()
+        local c = Middleware.onSend(function(): any return 999 end)
+        c:disconnect(); expect(Middleware.runSend(42, "t", nil)):toBe(42)
+    end)
+    it("hasSendHooks true when active", function(): ()
+        local c = Middleware.onSend(function(d: any): any return d end)
+        expect(Middleware.hasSendHooks()):toBe(true); c:disconnect()
     end)
 end)
 
-describe("Middleware removal", function(): ()
-    it("disconnects", function(): ()
-        local rm = Middleware.addSend(function(d: any): any
-            return d * 10
-        end)
-        expect(Middleware.runSend(5, "t", nil)):toBe(50)
-        rm()
-        expect(Middleware.runSend(5, "t", nil)):toBe(5)
+describe("Middleware: onReceive chain", function(): ()
+    it("transforms received data", function(): ()
+        local c = Middleware.onReceive(function(d: any): any return `got: {d}` end)
+        expect(Middleware.runReceive("hello", "t", nil)):toBe("got: hello"); c:disconnect()
     end)
-    it("double remove safe", function(): ()
-        local rm = Middleware.addSend(function(d: any): any
-            return d
-        end)
-        rm()
-        rm()
+    it("hasReceiveHooks true when active", function(): ()
+        local c = Middleware.onReceive(function(d: any): any return d end)
+        expect(Middleware.hasReceiveHooks()):toBe(true); c:disconnect()
+    end)
+    it("disconnect removes hook", function(): ()
+        local c = Middleware.onReceive(function(): any return "nope" end)
+        c:disconnect(); expect(Middleware.runReceive("ok", "t", nil)):toBe("ok")
     end)
 end)
 
-describe("Middleware flags", function(): ()
-    it("hasSend true after add", function(): ()
-        local r = Middleware.addSend(function(d: any): any
-            return d
+describe("Middleware: onDrop", function(): ()
+    it("fires handler", function(): ()
+        local got: any = nil
+        local c = Middleware.onDrop(function(_p: Player, reason: string, name: string): ()
+            got = { reason = reason, name = name }
         end)
-        expect(Middleware.hasSend):toBe(true)
-        r()
+        Middleware.fireDrop({} :: any, "rate", "Hit", nil)
+        expect(got.reason):toBe("rate"); expect(got.name):toBe("Hit"); c:disconnect()
     end)
-    it("hasSend false after remove", function(): ()
-        local r = Middleware.addSend(function(d: any): any
-            return d
-        end)
-        r()
-        expect(Middleware.hasSend):toBe(false)
+    it("multiple handlers all fire", function(): ()
+        local a, b = 0, 0
+        local c1 = Middleware.onDrop(function(): () a += 1 end)
+        local c2 = Middleware.onDrop(function(): () b += 1 end)
+        Middleware.fireDrop({} :: any, "t", "n", nil)
+        expect(a):toBe(1); expect(b):toBe(1); c1:disconnect(); c2:disconnect()
     end)
-    it("hasReceive true after add", function(): ()
-        local r = Middleware.addReceive(function(d: any): any
-            return d
-        end)
-        expect(Middleware.hasReceive):toBe(true)
-        r()
-    end)
-end)
-
-describe("Middleware DROP sentinel", function(): ()
-    it("DROP is frozen", function(): ()
-        expect(table.isfrozen(Middleware.DROP)):toBe(true)
-    end)
-    it("DROP drops packet", function(): ()
-        local r = Middleware.addSend(function(): any
-            return Middleware.DROP
-        end)
-        expect(Middleware.runSend(42, "t", nil)):toBeNil()
-        r()
-    end)
-    it("nil still drops(backward compat)", function(): ()
-        local r = Middleware.addSend(function(): any
-            return nil
-        end)
-        expect(Middleware.runSend(42, "t", nil)):toBeNil()
-        r()
-    end)
-    it("DROP stops chain early", function(): ()
-        local reached = false
-        local r1 = Middleware.addSend(function(): any
-            return Middleware.DROP
-        end)
-        local r2 = Middleware.addSend(function(d: any): any
-            reached = true
-            return d
-        end)
-        Middleware.runSend(42, "t", nil)
-        expect(reached):toBe(false)
-        r1()
-        r2()
+    it("disconnect stops handler", function(): ()
+        local count = 0
+        local c = Middleware.onDrop(function(): () count += 1 end)
+        Middleware.fireDrop({} :: any, "t", "n", nil); expect(count):toBe(1)
+        c:disconnect(); Middleware.fireDrop({} :: any, "t", "n", nil); expect(count):toBe(1)
     end)
 end)
 

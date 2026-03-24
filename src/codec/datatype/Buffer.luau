@@ -1,45 +1,67 @@
 --!strict
---!native
--- Raw buffer codec with varint length prefix.
+--!optimize 2
+-- Raw buffer codec with dense-prefix-varint length prefix.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
-type ChannelState = Types.ChannelState
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
+local alloc  = Base.alloc
+local INLINE = Varint.INLINE_MAX
 
 -- Public --------------------------------------------------------------
 
-local Buffer = {}
+local BufferCodec = {}
 
-Buffer.buff = table.freeze({
-    write = function(ch: ChannelState, value: buffer): ()
+BufferCodec.buff = table.freeze({
+    _typeCheck = "buffer",
+
+    write = function(ch: Types.ChannelState, value: buffer): ()
         local len = buffer.len(value)
-        Varint.write(ch, len)
-        local c = ch.cursor
-        if c + len > ch.size then
-            alloc(ch, len)
+        local cursor = ch.cursor
+
+        if len <= INLINE then
+            if cursor + 1 + len > ch.size then alloc(ch, 1 + len) end
+            local b = ch.buff
+            buffer.writeu8(b, cursor, len)
+            if len > 0 then
+                buffer.copy(b, cursor + 1, value, 0, len)
+            end
+            ch.cursor = cursor + 1 + len
+        else
+            Varint.write(ch, len)
+            cursor = ch.cursor
+            if cursor + len > ch.size then alloc(ch, len) end
+            buffer.copy(ch.buff, cursor, value, 0, len)
+            ch.cursor = cursor + len
         end
-        buffer.copy(ch.buff, c, value, 0, len)
-        ch.cursor = c + len
     end,
+
     read = function(src: buffer, pos: number, _refs: { Instance }?): (buffer, number)
-        local len, lenBytes = Varint.read(src, pos)
-        if len == 0 then
-            return buffer.create(0), lenBytes
+        local b0 = buffer.readu8(src, pos)
+        local len: number
+        local lenBytes: number
+
+        if b0 <= INLINE then
+            len = b0
+            lenBytes = 1
+        else
+            len, lenBytes = Varint.read(src, pos)
         end
 
-        local remaining = buffer.len(src) - pos - lenBytes
-        if len > remaining then
-            error(`[Lync] Buffer length exceeds remaining: {len} > {remaining}`)
+        if len == 0 then return buffer.create(0), lenBytes end
+
+        local dataStart = pos + lenBytes
+        if dataStart + len > buffer.len(src) then
+            error("[Lync] Buffer: length exceeds remaining buffer")
         end
 
         local out = buffer.create(len)
-        buffer.copy(out, 0, src, pos + lenBytes, len)
+        buffer.copy(out, 0, src, dataStart, len)
         return out, lenBytes + len
     end,
-})
+} :: any)
 
-return table.freeze(Buffer)
+return table.freeze(BufferCodec)

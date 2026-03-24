@@ -1,192 +1,151 @@
 --!strict
 --!native
--- Pack booleans, unsigned and signed integers at the bit level.
+-- Sub-byte packing. 1 to 32 bits across bool/uint/int fields.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
-
-type ChannelState = Types.ChannelState
-type Codec<T> = Types.Codec<T>
-
-local alloc = Channel.alloc
-
--- Constants -----------------------------------------------------------
-
-local band = bit32.band
-local bor = bit32.bor
-local lshift = bit32.lshift
-local rshift = bit32.rshift
+local Base = require(script.Parent.Parent.Base)
 
 -- Private -------------------------------------------------------------
 
-type FieldSpec = {
-    type: "bool" | "uint" | "int",
-    width: number?,
-}
+local band   = bit32.band
+local bor    = bit32.bor
+local lshift = bit32.lshift
+local rshift = bit32.rshift
 
-local function selectIO(bytes: number): ((b: buffer, offset: number, v: number) -> (), (
-    b: buffer,
-    offset: number
-) -> number)
-    if bytes == 1 then
-        return buffer.writeu8, buffer.readu8
-    end
-    if bytes == 2 then
-        return buffer.writeu16, buffer.readu16
-    end
-    return buffer.writeu32, buffer.readu32
-end
+-- Field type constants
+local TYPE_BOOL = 0
+local TYPE_UINT = 1
+local TYPE_INT  = 2
 
 -- Public --------------------------------------------------------------
 
 local Bitfield = {}
 
-function Bitfield.define(schema: { [string]: FieldSpec }): Codec<any>
-    local sortedKeys = {} :: { string }
-
+function Bitfield.define(schema: { [string]: { type: string, width: number? } }): any
+    -- Collect and sort keys alphabetically
+    local keys = {}
     for key in schema do
-        table.insert(sortedKeys, key)
+        table.insert(keys, key)
+    end
+    table.sort(keys)
+
+    if #keys == 0 then
+        error("[Lync] Lync.bitfield: requires at least one field")
     end
 
-    table.sort(sortedKeys)
+    local fieldCount   = #keys
+    local fieldKeys    = table.create(fieldCount)
+    local fieldTypes   = table.create(fieldCount)
+    local fieldOffsets = table.create(fieldCount)
+    local fieldMasks   = table.create(fieldCount)
+    local fieldSignBit = table.create(fieldCount)
+    local fieldSignExt = table.create(fieldCount)
+    local totalBits    = 0
 
-    local count = #sortedKeys
-    if count == 0 then
-        error("[Lync] Bitfield requires at least one field")
-    end
-
-    local keys = table.create(count) :: { string }
-    local isBool = table.create(count) :: { boolean }
-    local offsets = table.create(count) :: { number }
-    local masks = table.create(count) :: { number }
-
-    local hasSigned = false
-    local signBits = nil :: { number }?
-    local signExtends = nil :: { number }?
-
-    local totalBits = 0
-    for i = 1, count do
-        local key = sortedKeys[i]
+    for i = 1, fieldCount do
+        local key  = keys[i]
         local spec = schema[key]
-        local specIsBool = spec.type == "bool"
-        local specIsSigned = spec.type == "int"
-        local width: number
+        fieldKeys[i] = key
+        fieldOffsets[i] = totalBits
 
-        if specIsBool then
-            width = 1
+        if spec.type == "bool" then
+            fieldTypes[i] = TYPE_BOOL
+            fieldMasks[i] = 1
+            fieldSignBit[i] = 0
+            fieldSignExt[i] = 0
+            totalBits += 1
+        elseif spec.type == "uint" then
+            local width = spec.width
+            if not width or width < 1 or width > 32 then
+                error(`[Lync] Lync.bitfield: field "{key}" uint width must be 1-32`)
+            end
+            fieldTypes[i] = TYPE_UINT
+            fieldMasks[i] = lshift(1, width) - 1
+            fieldSignBit[i] = 0
+            fieldSignExt[i] = 0
+            totalBits += width
+        elseif spec.type == "int" then
+            local width = spec.width
+            if not width or width < 2 or width > 32 then
+                error(`[Lync] Lync.bitfield: field "{key}" int width must be 2-32`)
+            end
+            fieldTypes[i] = TYPE_INT
+            fieldMasks[i] = lshift(1, width) - 1
+            fieldSignBit[i] = lshift(1, width - 1)
+            fieldSignExt[i] = lshift(1, width)
+            totalBits += width
         else
-            if not spec.width then
-                error(`[Lync] Bitfield field requires a width: "{key}"`)
-            end
-            width = spec.width
-            if width < 1 or width > 32 then
-                error(`[Lync] Bitfield width must be 1-32: "{key}" got {width}`)
-            end
+            error(`[Lync] Lync.bitfield: unknown field type "{spec.type}"`)
         end
-
-        if specIsSigned then
-            hasSigned = true
-        end
-
-        keys[i] = key
-        isBool[i] = specIsBool
-        offsets[i] = totalBits
-        masks[i] = lshift(1, width) - 1
-        totalBits += width
     end
 
     if totalBits > 32 then
-        error(`[Lync] Bitfield exceeds 32 bits: {totalBits}`)
+        error(`[Lync] Lync.bitfield: total exceeds 32 bits ({totalBits})`)
     end
 
-    -- Only build sign tables when at least one field is signed
-    if hasSigned then
-        signBits = table.create(count) :: { number }
-        signExtends = table.create(count) :: { number }
+    -- Determine wire size
+    local wireBytes: number
+    local wfn: (buffer, number, number) -> ()
+    local rfn: (buffer, number) -> number
 
-        for i = 1, count do
-            local spec = schema[sortedKeys[i]]
-            if spec.type == "int" then
-                (signBits :: { number })[i] = lshift(1, (spec.width :: number) - 1);
-                (signExtends :: { number })[i] = lshift(1, spec.width :: number)
-            else
-                (signBits :: { number })[i] = 0
-                (signExtends :: { number })[i] = 0
-            end
-        end
-
-        table.freeze(signBits :: { number })
-        table.freeze(signExtends :: { number })
+    if totalBits <= 8 then
+        wireBytes = 1
+        wfn = buffer.writeu8
+        rfn = buffer.readu8
+    elseif totalBits <= 16 then
+        wireBytes = 2
+        wfn = buffer.writeu16
+        rfn = buffer.readu16
+    else
+        wireBytes = 4
+        wfn = buffer.writeu32
+        rfn = buffer.readu32
     end
 
-    table.freeze(keys)
-    table.freeze(isBool)
-    table.freeze(offsets)
-    table.freeze(masks)
+    -- Freeze all descriptor arrays
+    table.freeze(fieldKeys)
+    table.freeze(fieldTypes)
+    table.freeze(fieldOffsets)
+    table.freeze(fieldMasks)
+    table.freeze(fieldSignBit)
+    table.freeze(fieldSignExt)
 
-    local bytes = if totalBits <= 8 then 1 elseif totalBits <= 16 then 2 else 4
-    local wfn, rfn = selectIO(bytes)
-
-    -- Shared pack logic
-    local function packValue(value: any): number
-        local packed = 0
-        for i = 1, count do
-            local bits = if isBool[i]
-                then (if value[keys[i]] then 1 else 0)
-                else band(value[keys[i]], masks[i])
-            packed = bor(packed, lshift(bits, offsets[i]))
-        end
-        return packed
-    end
-
-    -- Shared unpack logic
-    local function unpackValue(packed: number): any
-        local result = {}
-
-        if hasSigned then
-            local sb = signBits :: { number }
-            local se = signExtends :: { number }
-
-            for i = 1, count do
-                local raw = band(rshift(packed, offsets[i]), masks[i])
-                if isBool[i] then
-                    result[keys[i]] = raw ~= 0
-                elseif sb[i] > 0 and raw >= sb[i] then
-                    result[keys[i]] = raw - se[i]
+    return Base.define(wireBytes,
+        function(b: buffer, off: number, value: any): ()
+            local packed = 0
+            for i = 1, fieldCount do
+                local v = value[fieldKeys[i]]
+                if fieldTypes[i] == TYPE_BOOL then
+                    if v then
+                        packed = bor(packed, lshift(1, fieldOffsets[i]))
+                    end
                 else
-                    result[keys[i]] = raw
+                    packed = bor(packed, lshift(band(v, fieldMasks[i]), fieldOffsets[i]))
                 end
             end
-        else
-            for i = 1, count do
-                local raw = band(rshift(packed, offsets[i]), masks[i])
-                result[keys[i]] = if isBool[i] then raw ~= 0 else raw
+            wfn(b, off, packed)
+        end,
+        function(b: buffer, off: number): any
+            local packed = rfn(b, off)
+            local result: { [string]: any } = {}
+
+            for i = 1, fieldCount do
+                local raw = band(rshift(packed, fieldOffsets[i]), fieldMasks[i])
+                if fieldTypes[i] == TYPE_BOOL then
+                    result[fieldKeys[i]] = raw ~= 0
+                elseif fieldTypes[i] == TYPE_INT then
+                    if raw >= fieldSignBit[i] then
+                        result[fieldKeys[i]] = raw - fieldSignExt[i]
+                    else
+                        result[fieldKeys[i]] = raw
+                    end
+                else
+                    result[fieldKeys[i]] = raw
+                end
             end
+
+            return result
         end
-
-        return result
-    end
-
-    return table.freeze({
-        _size = bytes,
-        _directWrite = function(b: buffer, offset: number, value: any): ()
-            wfn(b, offset, packValue(value))
-        end,
-        _directRead = function(b: buffer, offset: number): any
-            return unpackValue(rfn(b, offset))
-        end,
-        write = function(ch: ChannelState, value: any): ()
-            local c = ch.cursor
-            if c + bytes > ch.size then
-                alloc(ch, bytes)
-            end
-            wfn(ch.buff, c, packValue(value))
-            ch.cursor = c + bytes
-        end,
-        read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
-            return unpackValue(rfn(src, pos)), bytes
-        end,
-    })
+    )
 end
 
 return table.freeze(Bitfield)

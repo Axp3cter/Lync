@@ -1,84 +1,114 @@
 --!strict
 --!native
--- Variable-length string codec with varint length prefix.
+-- Variable-length string codec with __call for bounded variant.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
-type ChannelState = Types.ChannelState
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
+local alloc    = Base.alloc
+local writeu8  = buffer.writeu8
+local readu8   = buffer.readu8
+local INLINE   = Varint.INLINE_MAX
 
--- Public --------------------------------------------------------------
+local function writeString(ch: Types.ChannelState, value: string): ()
+    local len = #value
+    local cursor = ch.cursor
 
-local String = {}
-
-String.string = table.freeze({
-    write = function(ch: ChannelState, value: string): ()
-        local len = #value
-
-        if len < 128 then
-            local total = 1 + len
-            local c = ch.cursor
-            if c + total > ch.size then
-                alloc(ch, total)
-            end
-            local b = ch.buff
-            buffer.writeu8(b, c, len)
-            if len > 0 then
-                buffer.writestring(b, c + 1, value)
-            end
-            ch.cursor = c + total
-        else
-            Varint.write(ch, len)
-            local c = ch.cursor
-            if c + len > ch.size then
-                alloc(ch, len)
-            end
-            buffer.writestring(ch.buff, c, value)
-            ch.cursor = c + len
+    if len <= INLINE then
+        -- Short strings (<= 191 bytes) use a single-byte prefix, avoiding Varint.write overhead
+        if cursor + 1 + len > ch.size then alloc(ch, 1 + len) end
+        local b = ch.buff
+        writeu8(b, cursor, len)
+        if len > 0 then
+            buffer.writestring(b, cursor + 1, value)
         end
-    end,
-    read = function(src: buffer, pos: number, _refs: { Instance }?): (string, number)
-        local len, lenBytes = Varint.read(src, pos)
-        if len == 0 then
-            return "", lenBytes
-        end
+        ch.cursor = cursor + 1 + len
+    else
+        -- Long strings need multi-byte length encoding
+        Varint.write(ch, len)
+        cursor = ch.cursor
+        if cursor + len > ch.size then alloc(ch, len) end
+        buffer.writestring(ch.buff, cursor, value)
+        ch.cursor = cursor + len
+    end
+end
 
-        local remaining = buffer.len(src) - pos - lenBytes
-        if len > remaining then
-            error(`[Lync] String length exceeds buffer: {len} > {remaining}`)
-        end
+local function readString(
+    src: buffer,
+    pos: number,
+    _refs: { Instance }?
+): (string, number)
+    local b0 = readu8(src, pos)
+    local len: number
+    local lenBytes: number
 
-        return buffer.readstring(src, pos + lenBytes, len), lenBytes + len
-    end,
-})
+    if b0 <= INLINE then
+        len = b0
+        lenBytes = 1
+    else
+        len, lenBytes = Varint.read(src, pos)
+    end
 
-function String.bounded(maxLength: number): any
-    if maxLength <= 0 or maxLength ~= math.floor(maxLength) then
-        error(`[Lync] boundedString maxLength must be a positive integer, got {maxLength}`)
+    if len == 0 then return "", lenBytes end
+
+    local dataStart = pos + lenBytes
+    if dataStart + len > buffer.len(src) then
+        error("[Lync] String: length exceeds remaining buffer")
+    end
+
+    return buffer.readstring(src, dataStart, len), lenBytes + len
+end
+
+-- Bounded variant shares the write function to avoid per-call closure allocation
+local function boundedFactory(_self: any, maxLength: number): Types.InternalCodec<string>
+    if maxLength <= 0 then
+        error("[Lync] Lync.string: maxLength must be positive")
     end
 
     return table.freeze({
-        write = String.string.write,
-        read = function(src: buffer, pos: number, _refs: { Instance }?): (string, number)
-            local len, lenBytes = Varint.read(src, pos)
+        write = writeString,
+
+        read = function(
+            src: buffer,
+            pos: number,
+            refs: { Instance }?
+        ): (string, number)
+            local b0 = readu8(src, pos)
+            local len: number
+            local lenBytes: number
+
+            if b0 <= INLINE then
+                len = b0
+                lenBytes = 1
+            else
+                len, lenBytes = Varint.read(src, pos)
+            end
+
             if len > maxLength then
-                error(`[Lync] String length {len} exceeds max {maxLength}`)
-            end
-            if len == 0 then
-                return "", lenBytes
+                error(`[Lync] String: length {len} exceeds max {maxLength}`)
             end
 
-            local remaining = buffer.len(src) - pos - lenBytes
-            if len > remaining then
-                error(`[Lync] String length exceeds buffer: {len} > {remaining}`)
+            if len == 0 then return "", lenBytes end
+
+            local dataStart = pos + lenBytes
+            if dataStart + len > buffer.len(src) then
+                error("[Lync] String: length exceeds remaining buffer")
             end
 
-            return buffer.readstring(src, pos + lenBytes, len), lenBytes + len
+            return buffer.readstring(src, dataStart, len), lenBytes + len
         end,
-    })
+    } :: any)
 end
 
-return table.freeze(String)
+-- Public --------------------------------------------------------------
+
+local StringCodec = setmetatable({
+    write = writeString,
+    read = readString,
+    _typeCheck = "string",
+} :: any, { __call = boundedFactory })
+
+return StringCodec

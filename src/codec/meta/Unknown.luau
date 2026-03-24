@@ -1,40 +1,46 @@
 --!strict
---!native
--- Sidecar codec. Bypasses buffer serialization, uses Roblox remote refs.
+--!optimize 2
+-- Bypasses buffer serialization. Uses Roblox remote sidecar refs.
 
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
+local Base  = require(script.Parent.Parent.Base)
 
-type ChannelState = Types.ChannelState
+-- Private -------------------------------------------------------------
 
-local alloc = Channel.alloc
+local alloc    = Base.alloc
+local writeu16 = buffer.writeu16
+local readu16  = buffer.readu16
 
-return table.freeze({
-    unknown = table.freeze({
-        _hasUnknown = true,
-        write = function(ch: ChannelState, value: any): ()
-            local refs = ch.refs
-            local idx = #refs + 1
-            if idx > 65535 then
-                error(`[Lync] Unknown ref overflow: {idx} exceeds u16 max`)
-            end
+-- Public --------------------------------------------------------------
 
-            refs[idx] = value
+local Unknown = {}
 
-            local c = ch.cursor
-            if c + 2 > ch.size then
-                alloc(ch, 2)
-            end
-            buffer.writeu16(ch.buff, c, idx)
-            ch.cursor = c + 2
-        end,
-        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            if not refs then
-                error("[Lync] Unknown read requires refs array")
-            end
+Unknown.unknown = table.freeze({
+    _hasUnknown = true,
 
-            local idx = buffer.readu16(src, pos)
-            return refs[idx], 2
-        end,
-    }),
-})
+    write = function(ch: Types.ChannelState, value: any): ()
+        local idx = ch.refCount + 1
+        if idx > 0xFFFF then
+            error("[Lync] Unknown: ref overflow (>65535)")
+        end
+
+        ch.refs[idx] = value :: any
+        ch.refCount = idx
+
+        local cursor = ch.cursor
+        if cursor + 2 > ch.size then alloc(ch, 2) end
+        writeu16(ch.buff, cursor, idx)
+        ch.cursor = cursor + 2
+    end,
+
+    read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+        if not refs then
+            error("[Lync] Unknown: read requires refs array")
+        end
+
+        local idx = readu16(src, pos)
+        return (refs :: any)[idx], 2
+    end,
+} :: any)
+
+return table.freeze(Unknown)

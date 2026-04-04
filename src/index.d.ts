@@ -139,56 +139,57 @@ declare namespace Lync {
 interface LyncModule {
     // ── Lifecycle ────────────────────────────────────────────────────
 
-    configure(options: Lync.ConfigureOptions): void;
-    start(): void;
+    configure(this: void, options: Lync.ConfigureOptions): void;
+    start(this: void): void;
     readonly started: boolean;
 
     // ── Definitions ─────────────────────────────────────────────────
 
-    packet<T>(name: string, codec: Lync.Codec<T>, options?: Lync.PacketOptions<T>): Lync.Packet<T>;
+    packet<T>(this: void, name: string, codec: Lync.Codec<T>, options?: Lync.PacketOptions<T>): Lync.Packet<T>;
 
     query<Req, Resp>(
+        this: void,
         name: string,
         requestCodec: Lync.Codec<Req>,
         responseCodec: Lync.Codec<Resp>,
         options?: Lync.QueryOptions<Req>,
     ): Lync.Query<Req, Resp>;
 
-    group(name: string): Lync.Group;
-    scope(): Lync.Scope;
+    group(this: void, name: string): Lync.Group;
+    scope(this: void): Lync.Scope;
 
     // ── Targeting ───────────────────────────────────────────────────
 
     readonly all: Lync.AllTarget;
-    except(...args: Array<Player | Lync.Group>): Lync.ExceptTarget;
+    except(this: void, ...args: Array<Player | Lync.Group>): Lync.ExceptTarget;
     readonly DROP: Lync.DropSentinel;
 
     // ── Middleware ───────────────────────────────────────────────────
 
-    onSend(fn: (data: unknown, name: string, player?: Player) => unknown): Lync.Connection;
-    onReceive(fn: (data: unknown, name: string, player?: Player) => unknown): Lync.Connection;
-    onDrop(fn: (player: Player, reason: string, name: string, data?: unknown) => void): Lync.Connection;
+    onSend(this: void, fn: (data: unknown, name: string, player?: Player) => unknown): Lync.Connection;
+    onReceive(this: void, fn: (data: unknown, name: string, player?: Player) => unknown): Lync.Connection;
+    onDrop(this: void, fn: (player: Player, reason: string, name: string, data?: unknown) => void): Lync.Connection;
 
     // ── Runtime Control ─────────────────────────────────────────────
 
-    flush(): void;
-    flushRate(hz: number): void;
+    flush(this: void): void;
+    flushRate(this: void, hz: number): void;
 
     // ── Stats ───────────────────────────────────────────────────────
 
     readonly stats: {
-        player(player: Player): Lync.PlayerStats | undefined;
-        reset(): void;
+        player(this: void, player: Player): Lync.PlayerStats | undefined;
+        reset(this: void): void;
     };
 
     // ── Debug ───────────────────────────────────────────────────────
 
     readonly debug: {
-        capture(label?: string): void;
-        stop(): void;
-        dump(): void;
-        pending(): number;
-        registrations(): ReadonlyArray<{
+        capture(this: void, label?: string): void;
+        stop(this: void): void;
+        dump(this: void): void;
+        pending(this: void): number;
+        registrations(this: void): ReadonlyArray<{
             name: string;
             id: number;
             kind: number;
@@ -198,8 +199,8 @@ interface LyncModule {
 
     // ── Number Codecs ───────────────────────────────────────────────
 
-    int(min: number, max: number): Lync.Codec<number>;
-    float(min: number, max: number, precision: number): Lync.Codec<number>;
+    int(this: void, min: number, max: number): Lync.Codec<number>;
+    float(this: void, min: number, max: number, precision: number): Lync.Codec<number>;
     readonly f16: Lync.Codec<number>;
     readonly f32: Lync.Codec<number>;
     readonly f64: Lync.Codec<number>;
@@ -234,24 +235,25 @@ interface LyncModule {
 
     // ── Composites ──────────────────────────────────────────────────
 
-    struct<S extends Record<string, Lync.Codec<unknown>>>(schema: S): Lync.Codec<Lync.InferSchema<S>>;
-    deltaStruct<S extends Record<string, Lync.Codec<unknown>>>(schema: S): Lync.Codec<Lync.InferSchema<S>>;
-    array<T>(element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
-    deltaArray<T>(element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
-    map<K, V>(keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
-    deltaMap<K, V>(keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
-    optional<T>(codec: Lync.Codec<T>): Lync.Codec<T | undefined>;
-    tuple<T extends Lync.Codec<unknown>[]>(...codecs: T): Lync.Codec<{ [K in keyof T]: Lync.InferCodec<T[K]> }>;
+    struct<S extends Record<string, Lync.Codec<unknown>>>(this: void, schema: S): Lync.Codec<Lync.InferSchema<S>>;
+    deltaStruct<S extends Record<string, Lync.Codec<unknown>>>(this: void, schema: S): Lync.Codec<Lync.InferSchema<S>>;
+    array<T>(this: void, element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
+    deltaArray<T>(this: void, element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
+    map<K, V>(this: void, keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
+    deltaMap<K, V>(this: void, keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
+    optional<T>(this: void, codec: Lync.Codec<T>): Lync.Codec<T | undefined>;
+    tuple<T extends Lync.Codec<unknown>[]>(this: void, ...codecs: T): Lync.Codec<{ [K in keyof T]: Lync.InferCodec<T[K]> }>;
     tagged<Tag extends string, V extends Record<string, Lync.Codec<unknown>>>(
+        this: void,
         tagField: Tag,
         variants: V,
     ): Lync.Codec<{ [K in keyof V]: Lync.InferSchema<{ [F in Tag]: K }> & Lync.InferCodec<V[K]> }[keyof V]>;
 
     // ── Meta ────────────────────────────────────────────────────────
 
-    enum<T extends string[]>(...values: T): Lync.Codec<T[number]>;
-    bitfield(schema: Record<string, { type: "bool" } | { type: "uint"; width: number } | { type: "int"; width: number }>): Lync.Codec<Record<string, boolean | number>>;
-    custom<T>(size: number, write: (b: buffer, offset: number, value: T) => void, read: (b: buffer, offset: number) => T): Lync.Codec<T>;
+    enum<T extends string[]>(this: void, ...values: T): Lync.Codec<T[number]>;
+    bitfield(this: void, schema: Record<string, { type: "bool" } | { type: "uint"; width: number } | { type: "int"; width: number }>): Lync.Codec<Record<string, boolean | number>>;
+    custom<T>(this: void, size: number, write: (b: buffer, offset: number, value: T) => void, read: (b: buffer, offset: number) => T): Lync.Codec<T>;
     readonly nothing: Lync.Codec<undefined>;
     readonly unknown: Lync.Codec<unknown>;
     readonly auto: Lync.Codec<unknown>;

@@ -16,7 +16,7 @@ Lync batches all sends into a single buffer per player per frame, applies XOR co
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@2.1.1"
+Lync = "axp3cter/lync@2.1.2"
 ```
 
 **npm (roblox-ts)**

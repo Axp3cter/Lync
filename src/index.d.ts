@@ -247,7 +247,7 @@ interface LyncModule {
         this: void,
         tagField: Tag,
         variants: V,
-    ): Lync.Codec<{ [K in keyof V]: Lync.InferSchema<{ [F in Tag]: K }> & Lync.InferCodec<V[K]> }[keyof V]>;
+    ): Lync.Codec<{ [K in keyof V & string]: { [F in Tag]: K } & Lync.InferCodec<V[K]> }[keyof V & string]>;
 
     // ── Meta ────────────────────────────────────────────────────────
 

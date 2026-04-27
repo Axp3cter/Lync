@@ -14,17 +14,10 @@ local WARMUP_CAP = 1000
 local SETTLE_SECONDS = 2
 local SAMPLE_INTERVAL = 1
 
---[[
-    Iter count for CPU benches is auto-tuned: probe the operation's
-    per-call cost, then pick a count that runs for ~MEASURE_BUDGET
-    seconds. This makes timings comparable across tests of wildly
-    different cost (a 50ns bool encode vs a 50us 100x-entity encode)
-    without hand-tuned divisors at every call site.
-]]
-local PROBE_ITERS = 256
-local MEASURE_BUDGET = 0.05 -- seconds
-local MIN_ITERS = 1000
-local MAX_ITERS = 1000000
+-- Fixed iter count for every CPU bench. Picked so cheap operations still
+-- get enough samples for stable timings and expensive ones don't drag
+-- the run out — no per-test tuning, no probe, the column is always 1000.
+local ITERS = 1000
 
 -- Column-aligned output formats so every row lines up regardless of
 -- label or value content.
@@ -52,31 +45,6 @@ local format = string.format
 
 local function warmupFor(iterations: number): number
     return minN(WARMUP_CAP, iterations // WARMUP_FRACTION)
-end
-
---[[
-    Run `fn` PROBE_ITERS times, measure how long it took, and return the
-    iter count that fits MEASURE_BUDGET seconds (clamped to a sane range).
-    Avoids the random `// 2`, `// 10`, `// 50` divisors at call sites:
-    every test gets a similarly-sized budget so timings are comparable.
-]]
-local function pickIterCount(fn: () -> ()): number
-    local t0 = clock()
-    for _ = 1, PROBE_ITERS do
-        fn()
-    end
-    local elapsed = clock() - t0
-    if elapsed <= 0 then
-        return MAX_ITERS
-    end
-    local target = floor(PROBE_ITERS * MEASURE_BUDGET / elapsed)
-    if target < MIN_ITERS then
-        return MIN_ITERS
-    end
-    if target > MAX_ITERS then
-        return MAX_ITERS
-    end
-    return target
 end
 
 local function percentile(sorted: { number }, p: number): number
@@ -153,18 +121,14 @@ function Harness.note(text: string): ()
     print(format("%s%s", INDENT, text))
 end
 
---[[
-    Encode-only throughput. Iter count is auto-picked from a probe so
-    every test runs for roughly MEASURE_BUDGET seconds.
-]]
+-- Encode-only throughput. ITERS iterations every test, no auto-tuning.
 function Harness.benchEncode(label: string, fn: () -> ()): ()
-    local iterations = pickIterCount(fn)
-    for _ = 1, warmupFor(iterations) do
+    for _ = 1, warmupFor(ITERS) do
         fn()
     end
 
     local t0 = clock()
-    for _ = 1, iterations do
+    for _ = 1, ITERS do
         fn()
     end
     local elapsed = clock() - t0
@@ -174,9 +138,9 @@ function Harness.benchEncode(label: string, fn: () -> ()): ()
             FMT_ROW_ENC,
             INDENT,
             label,
-            fmtNum(iterations / elapsed),
-            fmtTime(elapsed / iterations * 1e6),
-            fmtNum(iterations)
+            fmtNum(ITERS / elapsed),
+            fmtTime(elapsed / ITERS * 1e6),
+            fmtNum(ITERS)
         )
     )
 end
@@ -253,11 +217,7 @@ function Harness.benchDelta(
     )
 end
 
---[[
-    Full encode + decode round-trip. Iter count is auto-picked from a
-    probe of the combined enc+dec cycle so every test runs for roughly
-    MEASURE_BUDGET seconds.
-]]
+-- Full encode + decode round-trip. ITERS iterations every test.
 function Harness.benchRoundTrip(label: string, codec: any, value: any): ()
     local ch = Channel.create()
     codec.write(ch, value)
@@ -267,32 +227,27 @@ function Harness.benchRoundTrip(label: string, codec: any, value: any): ()
     buffer.copy(buf, 0, ch.buff, 0, written)
     local refs = if ch.refCount > 0 then table.clone(ch.refs) else nil
 
-    local function cycle(): ()
+    for _ = 1, warmupFor(ITERS) do
         ch.cursor = 0
         codec.write(ch, value)
         codec.read(buf, 0, refs)
     end
 
-    local iterations = pickIterCount(cycle)
-    for _ = 1, warmupFor(iterations) do
-        cycle()
-    end
-
     local t0 = clock()
-    for _ = 1, iterations do
+    for _ = 1, ITERS do
         ch.cursor = 0
         codec.write(ch, value)
     end
     local encodeTime = clock() - t0
 
     local t1 = clock()
-    for _ = 1, iterations do
+    for _ = 1, ITERS do
         codec.read(buf, 0, refs)
     end
     local decodeTime = clock() - t1
 
-    local encUs = encodeTime / iterations * 1e6
-    local decUs = decodeTime / iterations * 1e6
+    local encUs = encodeTime / ITERS * 1e6
+    local decUs = decodeTime / ITERS * 1e6
 
     print(
         format(
@@ -302,7 +257,7 @@ function Harness.benchRoundTrip(label: string, codec: any, value: any): ()
             fmtTime(encUs),
             fmtTime(decUs),
             fmtTime(encUs + decUs),
-            fmtNum(iterations / (encodeTime + decodeTime))
+            fmtNum(ITERS / (encodeTime + decodeTime))
         )
     )
 end

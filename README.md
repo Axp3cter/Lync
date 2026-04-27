@@ -345,7 +345,7 @@ Global per-player: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`.
 
 `rojo serve bench.project.json` with one server + one client.
 
-CPU benches auto-tune iter count to ~50 ms per case so timings are comparable across operations of wildly different cost.
+CPU benches run a fixed 1000 iterations per case.
 
 ### Codec throughput
 

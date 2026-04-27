@@ -33,23 +33,29 @@ end
 
 -- Public types -----------------------------------------------------------
 
-export type QueryHandle = {
-    handle: (self: QueryHandle, fn: (request: any, player: Player?) -> any) -> Types.Connection,
-    request: (self: QueryHandle, data: any, target: any?) -> any,
-    name: (self: QueryHandle) -> string,
-    stats: (self: QueryHandle) -> Types.PacketStats,
+--[[
+    Server `request(data, target)` returns `Resp?` for a Player target and
+    `{ [Player]: Resp? }` for a multi-target table; Luau doesn't support
+    overloads on table fields, so the type advertises `Resp?` (the common
+    single-target case). Multi-target callers must cast the return.
+]]
+export type QueryHandle<Req, Resp> = {
+    handle: (self: QueryHandle<Req, Resp>, fn: (request: Req, player: Player?) -> Resp?) -> Types.Connection,
+    request: (self: QueryHandle<Req, Resp>, data: Req, target: any?) -> Resp?,
+    name: (self: QueryHandle<Req, Resp>) -> string,
+    stats: (self: QueryHandle<Req, Resp>) -> Types.PacketStats,
 }
 
 -- Public -----------------------------------------------------------------
 
 local Query = {}
 
-function Query.define(
+function Query.define<Req, Resp>(
     name: string,
-    requestCodec: Types.InternalCodec<any>,
-    responseCodec: Types.InternalCodec<any>,
+    requestCodec: Types.InternalCodec<Req>,
+    responseCodec: Types.InternalCodec<Resp>,
     options: Types.QueryOptions?
-): QueryHandle
+): QueryHandle<Req, Resp>
     local opts = options or ({} :: Types.QueryOptions)
     local timeout = opts.timeout or DEFAULT_TIMEOUT
 
@@ -228,14 +234,13 @@ function Query.define(
         return coroutine.yield()
     end
 
+    type Self = QueryHandle<Req, Resp>
+
     local handle = {
-        handle = function(
-            _self: QueryHandle,
-            fn: (request: any, player: Player?) -> any
-        ): Types.Connection
+        handle = function(_self: Self, fn: (request: Req, player: Player?) -> Resp?): Types.Connection
             handlerToken += 1
             local myToken = handlerToken
-            activeHandler = fn
+            activeHandler = fn :: any
 
             local conn = { connected = true }
             function conn.disconnect(self): ()
@@ -250,18 +255,18 @@ function Query.define(
             return conn :: Types.Connection
         end,
 
-        request = function(_self: QueryHandle, data: any, target: any?): any
+        request = function(_self: Self, data: Req, target: any?): Resp?
             if IS_SERVER then
                 return requestFromServer(data, target)
             end
             return requestFromClient(data)
         end,
 
-        name = function(_self: QueryHandle): string
+        name = function(_self: Self): string
             return name
         end,
 
-        stats = function(_self: QueryHandle): Types.PacketStats
+        stats = function(_self: Self): Types.PacketStats
             return {
                 bytesSent = reqReg.bytesSent + respReg.bytesSent,
                 bytesReceived = reqReg.bytesReceived + respReg.bytesReceived,
@@ -272,7 +277,7 @@ function Query.define(
         end,
     }
 
-    return table.freeze(handle) :: QueryHandle
+    return table.freeze(handle) :: QueryHandle<Req, Resp>
 end
 
 function Query.pendingCount(): number

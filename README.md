@@ -17,7 +17,7 @@ Packets, queries, groups, validation, and rate limiting — all batched into one
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@2.2.0"
+Lync = "axp3cter/lync@2.2.1"
 ```
 
 **npm (roblox-ts)**

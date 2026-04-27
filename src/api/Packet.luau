@@ -39,24 +39,24 @@ end
 
 -- Public types -----------------------------------------------------------
 
-export type PacketHandle = {
-    send: (self: PacketHandle, data: any, target: any?) -> (),
-    on: (self: PacketHandle, fn: (...any) -> ()) -> Types.Connection,
-    once: (self: PacketHandle, fn: (...any) -> ()) -> Types.Connection,
-    wait: (self: PacketHandle) -> ...any,
-    name: (self: PacketHandle) -> string,
-    stats: (self: PacketHandle) -> Types.PacketStats,
+export type PacketHandle<T> = {
+    send: (self: PacketHandle<T>, data: T, target: any?) -> (),
+    on: (self: PacketHandle<T>, fn: (data: T, sender: Player?, timestamp: number?) -> ()) -> Types.Connection,
+    once: (self: PacketHandle<T>, fn: (data: T, sender: Player?, timestamp: number?) -> ()) -> Types.Connection,
+    wait: (self: PacketHandle<T>) -> (T, Player?, number?),
+    name: (self: PacketHandle<T>) -> string,
+    stats: (self: PacketHandle<T>) -> Types.PacketStats,
 }
 
 -- Public -----------------------------------------------------------------
 
 local Packet = {}
 
-function Packet.define(
+function Packet.define<T>(
     name: string,
-    codec: Types.InternalCodec<any>,
+    codec: Types.InternalCodec<T>,
     options: Types.PacketOptions?
-): PacketHandle
+): PacketHandle<T>
     local opts = options or ({} :: Types.PacketOptions)
     local isUnreliable = opts.unreliable or false
 
@@ -189,8 +189,11 @@ function Packet.define(
         bumpFires()
     end
 
+    type Self = PacketHandle<T>
+    type Listener = (data: T, sender: Player?, timestamp: number?) -> ()
+
     local handle = {
-        send = function(_self: PacketHandle, data: any, target: any?): ()
+        send = function(_self: Self, data: T, target: any?): ()
             if IS_SERVER then
                 sendFromServer(data, target)
             else
@@ -198,11 +201,11 @@ function Packet.define(
             end
         end,
 
-        on = function(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
-            return reg.signal:connect(fn)
+        on = function(_self: Self, fn: Listener): Types.Connection
+            return reg.signal:connect(fn :: any)
         end,
 
-        once = function(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
+        once = function(_self: Self, fn: Listener): Types.Connection
             local conn: Types.Connection
             conn = reg.signal:connect(function(...: any)
                 conn:disconnect()
@@ -211,15 +214,15 @@ function Packet.define(
             return conn
         end,
 
-        wait = function(_self: PacketHandle): ...any
+        wait = function(_self: Self): (T, Player?, number?)
             return reg.signal:wait()
         end,
 
-        name = function(_self: PacketHandle): string
+        name = function(_self: Self): string
             return reg.name
         end,
 
-        stats = function(_self: PacketHandle): Types.PacketStats
+        stats = function(_self: Self): Types.PacketStats
             return {
                 bytesSent = reg.bytesSent,
                 bytesReceived = reg.bytesReceived,
@@ -230,7 +233,7 @@ function Packet.define(
         end,
     }
 
-    return table.freeze(handle) :: PacketHandle
+    return table.freeze(handle) :: PacketHandle<T>
 end
 
 return table.freeze(Packet)

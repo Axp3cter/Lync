@@ -48,6 +48,21 @@ local UDimC = require(script.codec.datatype.UDim)
 local UnknownC = require(script.codec.meta.Unknown)
 local VectorC = require(script.codec.datatype.Vector)
 
+-- Public types (re-exported so users can write `Lync.Packet<MyData>`) ---
+
+export type Codec<T>          = Types.Codec<T>
+export type Connection        = Types.Connection
+export type Packet<T>         = Packet.PacketHandle<T>
+export type Query<Req, Resp>  = Query.QueryHandle<Req, Resp>
+export type Group             = Group.GroupHandle
+export type Scope             = Scope.ScopeHandle
+export type PacketOptions     = Types.PacketOptions
+export type QueryOptions      = Types.QueryOptions
+export type ConfigureOptions  = Types.ConfigureOptions
+export type RateLimitConfig   = Types.RateLimitConfig
+export type PacketStats       = Types.PacketStats
+export type PlayerStats       = Types.PlayerStats
+
 -- Constants --------------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer()

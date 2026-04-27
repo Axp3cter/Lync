@@ -40,7 +40,10 @@ end
     single-target case). Multi-target callers must cast the return.
 ]]
 export type QueryHandle<Req, Resp> = {
-    handle: (self: QueryHandle<Req, Resp>, fn: (request: Req, player: Player?) -> Resp?) -> Types.Connection,
+    handle: (
+        self: QueryHandle<Req, Resp>,
+        fn: (request: Req, player: Player?) -> Resp?
+    ) -> Types.Connection,
     request: (self: QueryHandle<Req, Resp>, data: Req, target: any?) -> Resp?,
     name: (self: QueryHandle<Req, Resp>) -> string,
     stats: (self: QueryHandle<Req, Resp>) -> Types.PacketStats,
@@ -237,7 +240,10 @@ function Query.define<Req, Resp>(
     type Self = QueryHandle<Req, Resp>
 
     local handle = {
-        handle = function(_self: Self, fn: (request: Req, player: Player?) -> Resp?): Types.Connection
+        handle = function(
+            _self: Self,
+            fn: (request: Req, player: Player?) -> Resp?
+        ): Types.Connection
             handlerToken += 1
             local myToken = handlerToken
             activeHandler = fn :: any

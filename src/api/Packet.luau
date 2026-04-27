@@ -41,8 +41,14 @@ end
 
 export type PacketHandle<T> = {
     send: (self: PacketHandle<T>, data: T, target: any?) -> (),
-    on: (self: PacketHandle<T>, fn: (data: T, sender: Player?, timestamp: number?) -> ()) -> Types.Connection,
-    once: (self: PacketHandle<T>, fn: (data: T, sender: Player?, timestamp: number?) -> ()) -> Types.Connection,
+    on: (
+        self: PacketHandle<T>,
+        fn: (data: T, sender: Player?, timestamp: number?) -> ()
+    ) -> Types.Connection,
+    once: (
+        self: PacketHandle<T>,
+        fn: (data: T, sender: Player?, timestamp: number?) -> ()
+    ) -> Types.Connection,
     wait: (self: PacketHandle<T>) -> (T, Player?, number?),
     name: (self: PacketHandle<T>) -> string,
     stats: (self: PacketHandle<T>) -> Types.PacketStats,

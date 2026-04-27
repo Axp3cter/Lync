@@ -136,11 +136,11 @@ packet:send(data, group)
 packet:send(data)
 
 -- Both
-packet:on(function(data, sender, timestamp?) end)  -- returns Connection
+local conn = packet:on(function(data, sender, timestamp) end)
 packet:once(fn)
-packet:wait()                                       -- yields, returns data, sender, timestamp?
+local data, sender, timestamp = packet:wait()
 packet:name()
-packet:stats()                                      -- requires stats=true
+packet:stats() -- requires stats=true
 ```
 
 | Option | Type | Description |
@@ -160,12 +160,12 @@ Request-response on top of two packet IDs.
 ```luau
 -- Server
 query:handle(function(data, player) return response end)
-query:request(data, player)             -- → response?
-query:request(data, target)             -- → { [Player]: response? }
+local resp = query:request(data, player) -- response?
+local map  = query:request(data, target) -- { [Player]: response? }
 
 -- Client
 query:handle(function(data) return response end)
-query:request(data)                     -- yields, → response? (nil on timeout)
+local resp = query:request(data) -- yields; nil on timeout
 ```
 
 | Option | Default | Description |
@@ -212,7 +212,8 @@ Server-side `:send` second arg.
 ### Middleware
 
 ```luau
-Lync.onSend(function(data, name, player)    return data end)  -- return Lync.DROP to discard
+-- Return Lync.DROP from onSend to discard a packet.
+Lync.onSend(function(data, name, player) return data end)
 Lync.onReceive(function(data, name, player) return data end)
 Lync.onDrop(function(player, reason, name, data) end)
 ```
@@ -324,10 +325,8 @@ Sends 1 byte when unchanged.
 
 Per-packet, pick one mode:
 
-```luau
-{ maxPerSecond = N, burst = M }   -- token bucket
-{ cooldown = seconds }             -- cooldown
-```
+- Token bucket: `{ maxPerSecond = N, burst = M }`
+- Cooldown: `{ cooldown = seconds }`
 
 Global per-player: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`.
 

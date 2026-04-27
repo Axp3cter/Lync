@@ -4,10 +4,10 @@
 
 local Base = require(script.Parent.Parent.Base)
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Nothing = {}
 
-Nothing.nothing = Base.zero()
+Nothing.nothing = Base.constant(nil :: nil)
 
 return table.freeze(Nothing)

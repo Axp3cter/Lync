@@ -1,17 +1,47 @@
 --!strict
 --!optimize 2
--- Ordered intercept chains returning Connection objects.
+-- Ordered intercept chains for send/receive/drop hooks.
 
 local Signal = require(script.Parent.Parent.api.Signal)
 local Types = require(script.Parent.Parent.Types)
 
--- State ---------------------------------------------------------------
+-- State ------------------------------------------------------------------
 
 local _sendSignal = Signal.create()
 local _receiveSignal = Signal.create()
 local _dropSignal = Signal.create()
 
--- Public --------------------------------------------------------------
+-- Private ----------------------------------------------------------------
+
+--[[
+    Walk a transform chain in order. Each callback returns a transformed
+    value or nil to keep the previous value. A fresh snapshot guards
+    against disconnect-during-fire reentry.
+]]
+local function runChain(signal: any, value: any, name: string, player: Player?): any
+    local count = signal._count[1]
+    if count == 0 then
+        return value
+    end
+
+    local entries = signal._entries
+    local snapshot = table.create(count)
+    table.move(entries, 1, count, 1, snapshot)
+
+    local result = value
+    for i = 1, count do
+        local entry = snapshot[i]
+        if entry._state ~= 0 then
+            local returned = entry.fn(result, name, player)
+            if returned ~= nil then
+                result = returned
+            end
+        end
+    end
+    return result
+end
+
+-- Public -----------------------------------------------------------------
 
 local Middleware = {}
 
@@ -31,52 +61,12 @@ function Middleware.onDrop(
     return _dropSignal:connect(fn)
 end
 
---[[
-    Runs send middleware chain. Returns transformed data, or DROP sentinel.
-    If no hooks, returns data unchanged (zero overhead).
-]]
 function Middleware.runSend(data: any, name: string, player: Player?): any
-    local count = _sendSignal._count[1]
-    if count == 0 then
-        return data
-    end
-
-    local entries = _sendSignal._entries
-    local result = data
-
-    for i = 1, count do
-        local entry = entries[i]
-        if entry._state ~= 0 then -- not disconnected
-            local returned = entry.fn(result, name, player)
-            if returned ~= nil then
-                result = returned
-            end
-        end
-    end
-
-    return result
+    return runChain(_sendSignal, data, name, player)
 end
 
 function Middleware.runReceive(data: any, name: string, player: Player?): any
-    local count = _receiveSignal._count[1]
-    if count == 0 then
-        return data
-    end
-
-    local entries = _receiveSignal._entries
-    local result = data
-
-    for i = 1, count do
-        local entry = entries[i]
-        if entry._state ~= 0 then
-            local returned = entry.fn(result, name, player)
-            if returned ~= nil then
-                result = returned
-            end
-        end
-    end
-
-    return result
+    return runChain(_receiveSignal, data, name, player)
 end
 
 function Middleware.fireDrop(player: Player, reason: string, name: string, data: any?): ()
@@ -84,11 +74,11 @@ function Middleware.fireDrop(player: Player, reason: string, name: string, data:
 end
 
 function Middleware.hasSendHooks(): boolean
-    return _sendSignal._count[1] > 0
+    return _sendSignal:hasListeners()
 end
 
 function Middleware.hasReceiveHooks(): boolean
-    return _receiveSignal._count[1] > 0
+    return _receiveSignal:hasListeners()
 end
 
 return table.freeze(Middleware)

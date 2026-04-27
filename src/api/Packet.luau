@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Packet definition, send, on, once, wait, stats.
+-- Packet definition: send, on, once, wait, stats.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -9,31 +9,35 @@ local Baseline = require(script.Parent.Parent.internal.Baseline)
 local Channel = require(script.Parent.Parent.internal.Channel)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
 local Registry = require(script.Parent.Parent.internal.Registry)
+local Transport = require(script.Parent.Parent.internal.Transport)
 local Types = require(script.Parent.Parent.Types)
+local Util = require(script.Parent.Parent.internal.Util)
 
--- Constants -----------------------------------------------------------
+-- Constants --------------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer()
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
-local function resolveTimestampMode(ts: string?): (number, number)
+local isPlayer = Util.isPlayer
+
+local function resolveTimestampMode(ts: ("frame" | "offset" | "full")?): (number, number)
     if ts == "frame" then
         Channel.enableTimestamps()
         return Channel.TS_FRAME, 2
-    elseif ts == "offset" then
+    end
+    if ts == "offset" then
         Channel.enableTimestamps()
         return Channel.TS_OFFSET, 3
-    elseif ts == "full" then
+    end
+    if ts == "full" then
         Channel.enableTimestamps()
         return Channel.TS_FULL, 9
     end
     return Channel.TS_NONE, 1
 end
 
--- Public --------------------------------------------------------------
-
-local Packet = {}
+-- Public types -----------------------------------------------------------
 
 export type PacketHandle = {
     send: (self: PacketHandle, data: any, target: any?) -> (),
@@ -44,191 +48,189 @@ export type PacketHandle = {
     stats: (self: PacketHandle) -> Types.PacketStats,
 }
 
+-- Public -----------------------------------------------------------------
+
+local Packet = {}
+
 function Packet.define(
     name: string,
     codec: Types.InternalCodec<any>,
     options: Types.PacketOptions?
 ): PacketHandle
-    local opts = options or {} :: Types.PacketOptions
+    local opts = options or ({} :: Types.PacketOptions)
     local isUnreliable = opts.unreliable or false
 
-    if isUnreliable and (codec :: any)._isDelta then
+    if isUnreliable and codec._isDelta then
         error(`[Lync] Lync.packet: "{name}" cannot use delta codecs with unreliable transport`)
     end
 
-    if (codec :: any)._hasUnknown and not opts.validate then
+    if codec._hasUnknown and not opts.validate then
         warn(
-            `[Lync] Lync.packet: "{name}" uses unknown codec without validate — data bypasses schema validation`
+            `[Lync] Lync.packet: "{name}" uses unknown codec without validate; data bypasses schema validation`
         )
     end
 
-    if (codec :: any)._isDelta then
+    if codec._isDelta then
         Baseline.markHasDelta()
     end
 
     local tsMode, headerSize = resolveTimestampMode(opts.timestamp)
-    local needsGate = IS_SERVER
-
     local openFn = Channel.resolveOpenFn(tsMode, name)
 
-    local reg = Registry.register(
-        name,
-        Registry.KIND_PACKET,
-        codec,
-        isUnreliable,
-        nil,
-        needsGate,
-        headerSize,
-        tsMode,
-        openFn,
-        opts.rateLimit,
-        opts.validate,
-        opts.maxPayloadBytes
-    )
+    local reg = Registry.register({
+        name = name,
+        kind = Registry.KIND_PACKET,
+        codec = codec,
+        isUnreliable = isUnreliable,
+        partner = nil,
+        needsGate = IS_SERVER,
+        headerSize = headerSize,
+        timestampMode = tsMode,
+        openFn = openFn,
+        rateLimit = opts.rateLimit,
+        validate = opts.validate,
+        maxPayloadBytes = opts.maxPayloadBytes,
+    })
 
-    -- Lazy-require Server/Client to avoid circular dependency
-    local _server: any = nil
-    local _client: any = nil
-
-    local function getServer(): any
-        if not _server then
-            _server = require(script.Parent.Parent.transport.Server)
-        end
-        return _server
+    local function sendToPlayer(player: Player, data: any): ()
+        local ch = Transport.server().getChannel(player, isUnreliable)
+        Channel.writeBatch(ch, reg, data)
     end
 
-    local function getClient(): any
-        if not _client then
-            _client = require(script.Parent.Parent.transport.Client)
+    local function bumpFires(): ()
+        if Channel.statsEnabled() then
+            reg.fires += 1
         end
-        return _client
     end
 
-    local handle: any = {}
-
-    function handle.send(self: PacketHandle, data: any, target: any?): ()
-        if Middleware.hasSendHooks() then
-            data = Middleware.runSend(data, name, nil)
-            if typeof(data) == "table" and (data :: any)._lyncDrop then
-                return
-            end
+    local function applySend(data: any, player: Player?): any?
+        if not Middleware.hasSendHooks() then
+            return data
         end
 
-        if IS_SERVER then
-            if target == nil then
-                error(`[Lync] Packet "{name}": server send requires a target`)
-            end
+        local sendData = Middleware.runSend(data, name, player)
+        if typeof(sendData) == "table" and sendData._lyncDrop then
+            return nil
+        end
+        return sendData
+    end
 
-            local Server = getServer()
+    local function sendFromServer(data: any, target: any): ()
+        if target == nil then
+            error(`[Lync] Packet.send: "{name}" server send requires a target`)
+        end
 
-            if typeof(target) == "Instance" and target:IsA("Player") then
-                local ch = Server.getChannel(target :: Player, isUnreliable)
-                Channel.writeBatch(ch, reg, data)
-                if Channel.statsEnabled() then
-                    reg.fires += 1
-                end
+        if isPlayer(target) then
+            local sendData = applySend(data, target :: Player)
+            if sendData == nil then
                 return
             end
+            sendToPlayer(target :: Player, sendData)
+            bumpFires()
+            return
+        end
 
-            if typeof(target) == "table" then
-                local tbl = target :: any
-
-                if tbl._lyncAll then
-                    for _, player in Players:GetPlayers() do
-                        local ch = Server.getChannel(player, isUnreliable)
-                        Channel.writeBatch(ch, reg, data)
-                    end
-                    if Channel.statsEnabled() then
-                        reg.fires += 1
-                    end
-                    return
-                end
-
-                if tbl._lyncExcept then
-                    local excluded = tbl._excluded :: { [Player]: boolean }
-                    for _, player in Players:GetPlayers() do
-                        if not excluded[player] then
-                            local ch = Server.getChannel(player, isUnreliable)
-                            Channel.writeBatch(ch, reg, data)
-                        end
-                    end
-                    if Channel.statsEnabled() then
-                        reg.fires += 1
-                    end
-                    return
-                end
-
-                if tbl._lyncGroup then
-                    local members = tbl._members :: { [Player]: boolean }
-                    for player in members do
-                        local ch = Server.getChannel(player, isUnreliable)
-                        Channel.writeBatch(ch, reg, data)
-                    end
-                    if Channel.statsEnabled() then
-                        reg.fires += 1
-                    end
-                    return
-                end
-
-                for _, player in tbl do
-                    if typeof(player) == "Instance" and (player :: Instance):IsA("Player") then
-                        local ch = Server.getChannel(player :: Player, isUnreliable)
-                        Channel.writeBatch(ch, reg, data)
-                    end
-                end
-                if Channel.statsEnabled() then
-                    reg.fires += 1
-                end
+        if typeof(target) == "table" then
+            local sendData = applySend(data, nil)
+            if sendData == nil then
                 return
             end
 
-            error(
-                `[Lync] Packet "{name}": expected Player, table, Group, or Lync.all as target, got {typeof(
-                    target
-                )}`
-            )
-        else
-            local Client = getClient()
-            local ch = Client.getChannel(isUnreliable)
-            Channel.writeBatch(ch, reg, data)
-            if Channel.statsEnabled() then
-                reg.fires += 1
+            if target._lyncAll then
+                for _, player in Players:GetPlayers() do
+                    sendToPlayer(player, sendData)
+                end
+                bumpFires()
+                return
             end
+
+            if target._lyncExcept then
+                local excluded = target._excluded :: { [Player]: boolean }
+                for _, player in Players:GetPlayers() do
+                    if not excluded[player] then
+                        sendToPlayer(player, sendData)
+                    end
+                end
+                bumpFires()
+                return
+            end
+
+            if target._lyncGroup then
+                for player in target._members :: { [Player]: boolean } do
+                    sendToPlayer(player, sendData)
+                end
+                bumpFires()
+                return
+            end
+
+            for _, player in target do
+                if isPlayer(player) then
+                    sendToPlayer(player :: Player, sendData)
+                end
+            end
+            bumpFires()
+            return
         end
+
+        error(
+            `[Lync] Packet.send: "{name}" expected Player, table, Group, or Lync.all as target, got {typeof(
+                target
+            )}`
+        )
     end
 
-    function handle.on(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
-        return reg.signal:connect(fn)
+    local function sendFromClient(data: any): ()
+        local sendData = applySend(data, nil)
+        if sendData == nil then
+            return
+        end
+        local ch = Transport.client().getChannel(isUnreliable)
+        Channel.writeBatch(ch, reg, sendData)
+        bumpFires()
     end
 
-    function handle.once(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
-        local conn: Types.Connection
-        conn = reg.signal:connect(function(...: any)
-            conn:disconnect()
-            fn(...)
-        end)
-        return conn
-    end
+    local handle = {
+        send = function(_self: PacketHandle, data: any, target: any?): ()
+            if IS_SERVER then
+                sendFromServer(data, target)
+            else
+                sendFromClient(data)
+            end
+        end,
 
-    function handle.wait(_self: PacketHandle): ...any
-        return reg.signal:wait()
-    end
+        on = function(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
+            return reg.signal:connect(fn)
+        end,
 
-    function handle.name(_self: PacketHandle): string
-        return reg.name
-    end
+        once = function(_self: PacketHandle, fn: (...any) -> ()): Types.Connection
+            local conn: Types.Connection
+            conn = reg.signal:connect(function(...: any)
+                conn:disconnect()
+                fn(...)
+            end)
+            return conn
+        end,
 
-    function handle.stats(_self: PacketHandle): Types.PacketStats
-        return {
-            bytesSent = reg.bytesSent,
-            bytesReceived = reg.bytesReceived,
-            fires = reg.fires,
-            recvFires = reg.recvFires,
-            drops = reg.drops,
-        }
-    end
+        wait = function(_self: PacketHandle): ...any
+            return reg.signal:wait()
+        end,
 
-    return table.freeze(handle)
+        name = function(_self: PacketHandle): string
+            return reg.name
+        end,
+
+        stats = function(_self: PacketHandle): Types.PacketStats
+            return {
+                bytesSent = reg.bytesSent,
+                bytesReceived = reg.bytesReceived,
+                fires = reg.fires,
+                recvFires = reg.recvFires,
+                drops = reg.drops,
+            }
+        end,
+    }
+
+    return table.freeze(handle) :: PacketHandle
 end
 
 return table.freeze(Packet)

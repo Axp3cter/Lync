@@ -1,18 +1,22 @@
 --!strict
 --!optimize 2
--- Boolean codec with bitpacking flag for struct and array codecs.
+-- Single-byte boolean codec. _isBool flag enables struct/array bit packing.
 
 local Base = require(script.Parent.Parent.Base)
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Bool = {}
 
-Bool.bool = Base.define(1, function(b: buffer, off: number, value: boolean): ()
+local function writeBool(b: buffer, off: number, value: boolean): ()
     buffer.writeu8(b, off, if value then 1 else 0)
-end, function(b: buffer, off: number): boolean
+end
+
+local function readBool(b: buffer, off: number): boolean
     return buffer.readu8(b, off) ~= 0
-end, {
+end
+
+Bool.bool = Base.define(1, writeBool, readBool, {
     _isBool = true,
     _typeCheck = "boolean",
 })

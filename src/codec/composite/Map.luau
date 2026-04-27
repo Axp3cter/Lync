@@ -1,25 +1,28 @@
 --!strict
 --!native
--- map and deltaMap codecs.
+-- Map and deltaMap codecs.
 
 local Base = require(script.Parent.Parent.Base)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Shared = require(script.Parent.Shared)
 local Types = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
 local alloc = Base.alloc
-local writeu8 = buffer.writeu8
+local writeByte = Channel.writeByte
 local readu8 = buffer.readu8
 
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
 local rangeEqual = Shared.rangeEqual
+local snapshot = Shared.snapshot
 local allocDeltaId = Shared.allocDeltaId
 local DELTA_UNCHANGED = Shared.DELTA_UNCHANGED
+local DELTA_FULL = Shared.DELTA_FULL
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Map = {}
 
@@ -28,9 +31,16 @@ function Map.map(
     valueCodec: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
+    local fixedKey = keyCodec._size
+    local fixedValue = valueCodec._size
+
     return table.freeze({
-        write = function(ch: Types.ChannelState, value: any): ()
-            -- Count entries
+        _isMap = true,
+        _keyCodec = keyCodec,
+        _valueCodec = valueCodec,
+        _maxCount = maxCount,
+
+        write = function(ch: Types.ChannelState, value: { [any]: any }): ()
             local count = 0
             for _ in value do
                 count += 1
@@ -41,11 +51,8 @@ function Map.map(
                 return
             end
 
-            -- Pre-alloc if both fixed size
-            local kAny = keyCodec :: any
-            local vAny = valueCodec :: any
-            if kAny._size and vAny._size then
-                local entrySize = kAny._size + vAny._size
+            if fixedKey and fixedValue then
+                local entrySize = fixedKey + fixedValue
                 local cursor = ch.cursor
                 if cursor + count * entrySize > ch.size then
                     alloc(ch, count * entrySize)
@@ -58,26 +65,27 @@ function Map.map(
             end
         end,
 
-        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
             local count, lenBytes = Varint.read(src, pos)
             if maxCount and count > maxCount then
-                error(`[Lync] Map: count {count} exceeds max {maxCount}`)
+                error(`[Lync] Map.read: count {count} exceeds max {maxCount}`)
             end
 
             local result: { [any]: any } = {}
             local total = lenBytes
-
-            for _ = 1, count do
+            for i = 1, count do
                 local k, kc = keyCodec.read(src, pos + total, refs)
                 total += kc
                 local v, vc = valueCodec.read(src, pos + total, refs)
                 total += vc
+                if kc == 0 and vc == 0 then
+                    error(`[Lync] Map.read: zero-byte entry at index {i}`)
+                end
                 result[k] = v
             end
-
             return result, total
         end,
-    } :: any)
+    })
 end
 
 function Map.deltaMap(
@@ -91,24 +99,17 @@ function Map.deltaMap(
     return table.freeze({
         _isDelta = true,
 
-        write = function(ch: Types.ChannelState, value: any): ()
+        write = function(ch: Types.ChannelState, value: { [any]: any }): ()
             local cache = ch.deltas[deltaId]
 
             if not cache then
-                local cursor = ch.cursor
-                if cursor + 1 > ch.size then
-                    alloc(ch, 1)
-                end
-                writeu8(ch.buff, cursor, 3) -- FLAG_FULL
-                ch.cursor = cursor + 1
+                writeByte(ch, DELTA_FULL)
 
                 local scratch = acquireScratch()
                 innerMap.write(scratch, value)
                 local snapLen = scratch.cursor
-                local snapBuf = buffer.create(snapLen)
-                buffer.copy(snapBuf, 0, scratch.buff, 0, snapLen)
 
-                ch.deltas[deltaId] = { raw = snapBuf, len = snapLen }
+                ch.deltas[deltaId] = { raw = snapshot(scratch.buff, snapLen), len = snapLen }
                 innerMap.write(ch, value)
                 releaseScratch()
                 return
@@ -117,49 +118,32 @@ function Map.deltaMap(
             local scratch = acquireScratch()
             innerMap.write(scratch, value)
             local scratchLen = scratch.cursor
-            local cachedLen = cache.len
 
             if
-                scratchLen == cachedLen and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen)
+                scratchLen == cache.len
+                and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen)
             then
-                local cursor = ch.cursor
-                if cursor + 1 > ch.size then
-                    alloc(ch, 1)
-                end
-                writeu8(ch.buff, cursor, DELTA_UNCHANGED)
-                ch.cursor = cursor + 1
+                writeByte(ch, DELTA_UNCHANGED)
                 releaseScratch()
                 return
             end
 
-            -- Changed: full re-send
-            local cursor = ch.cursor
-            if cursor + 1 > ch.size then
-                alloc(ch, 1)
-            end
-            writeu8(ch.buff, cursor, 3) -- FLAG_FULL
-            ch.cursor = cursor + 1
+            writeByte(ch, DELTA_FULL)
             innerMap.write(ch, value)
 
-            local newBuf = buffer.create(scratchLen)
-            buffer.copy(newBuf, 0, scratch.buff, 0, scratchLen)
-            cache.raw = newBuf
+            cache.raw = snapshot(scratch.buff, scratchLen)
             cache.len = scratchLen
-
             releaseScratch()
         end,
 
-        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local flag = readu8(src, pos)
-
-            if flag == DELTA_UNCHANGED then
-                return {} :: any, 1
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
+            if readu8(src, pos) == DELTA_UNCHANGED then
+                return {}, 1
             end
-
             local value, consumed = innerMap.read(src, pos + 1, refs)
             return value, 1 + consumed
         end,
-    } :: any)
+    })
 end
 
 return table.freeze(Map)

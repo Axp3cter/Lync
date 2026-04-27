@@ -1,38 +1,54 @@
 --!strict
 --!native
--- Sub-byte packing. 1 to 32 bits across bool/uint/int fields.
+-- Sub-byte packing. 1 to 32 bits across bool / uint / int fields.
 
 local Base = require(script.Parent.Parent.Base)
+local Types = require(script.Parent.Parent.Parent.Types)
 
--- Private -------------------------------------------------------------
+-- Constants --------------------------------------------------------------
+
+local TYPE_BOOL = 0
+local TYPE_UINT = 1
+local TYPE_INT = 2
+
+-- Private ----------------------------------------------------------------
 
 local band = bit32.band
 local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
--- Field type constants
-local TYPE_BOOL = 0
-local TYPE_UINT = 1
-local TYPE_INT = 2
+--[[
+    Width-aware mask: bit32.lshift(1, 32) returns 0, so 32-bit fields
+    need the all-ones mask explicitly. Sign-extension constants for int
+    fields use 2^(width-1) and 2^width via numeric exponentiation so
+    width=32 still produces 0x80000000 / 0x100000000 correctly.
+]]
+local function widthMask(width: number): number
+    if width >= 32 then
+        return 0xFFFFFFFF
+    end
+    return lshift(1, width) - 1
+end
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Bitfield = {}
 
-function Bitfield.define(schema: { [string]: { type: string, width: number? } }): any
-    -- Collect and sort keys alphabetically
-    local keys = {}
+export type FieldSpec = { type: "bool" | "uint" | "int", width: number? }
+
+function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<any>
+    local keys: { string } = {}
     for key in schema do
         table.insert(keys, key)
     end
     table.sort(keys)
 
-    if #keys == 0 then
+    local fieldCount = #keys
+    if fieldCount == 0 then
         error("[Lync] Lync.bitfield: requires at least one field")
     end
 
-    local fieldCount = #keys
     local fieldKeys = table.create(fieldCount)
     local fieldTypes = table.create(fieldCount)
     local fieldOffsets = table.create(fieldCount)
@@ -59,7 +75,7 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
                 error(`[Lync] Lync.bitfield: field "{key}" uint width must be 1-32`)
             end
             fieldTypes[i] = TYPE_UINT
-            fieldMasks[i] = lshift(1, width) - 1
+            fieldMasks[i] = widthMask(width)
             fieldSignBit[i] = 0
             fieldSignExt[i] = 0
             totalBits += width
@@ -69,12 +85,12 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
                 error(`[Lync] Lync.bitfield: field "{key}" int width must be 2-32`)
             end
             fieldTypes[i] = TYPE_INT
-            fieldMasks[i] = lshift(1, width) - 1
-            fieldSignBit[i] = lshift(1, width - 1)
-            fieldSignExt[i] = lshift(1, width)
+            fieldMasks[i] = widthMask(width)
+            fieldSignBit[i] = 2 ^ (width - 1)
+            fieldSignExt[i] = 2 ^ width
             totalBits += width
         else
-            error(`[Lync] Lync.bitfield: unknown field type "{spec.type}"`)
+            error(`[Lync] Lync.bitfield: field "{key}" has unknown type "{spec.type}"`)
         end
     end
 
@@ -82,26 +98,17 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
         error(`[Lync] Lync.bitfield: total exceeds 32 bits ({totalBits})`)
     end
 
-    -- Determine wire size
     local wireBytes: number
     local wfn: (buffer, number, number) -> ()
     local rfn: (buffer, number) -> number
-
     if totalBits <= 8 then
-        wireBytes = 1
-        wfn = buffer.writeu8
-        rfn = buffer.readu8
+        wireBytes, wfn, rfn = 1, buffer.writeu8, buffer.readu8
     elseif totalBits <= 16 then
-        wireBytes = 2
-        wfn = buffer.writeu16
-        rfn = buffer.readu16
+        wireBytes, wfn, rfn = 2, buffer.writeu16, buffer.readu16
     else
-        wireBytes = 4
-        wfn = buffer.writeu32
-        rfn = buffer.readu32
+        wireBytes, wfn, rfn = 4, buffer.writeu32, buffer.readu32
     end
 
-    -- Freeze all descriptor arrays
     table.freeze(fieldKeys)
     table.freeze(fieldTypes)
     table.freeze(fieldOffsets)
@@ -125,22 +132,16 @@ function Bitfield.define(schema: { [string]: { type: string, width: number? } })
     end, function(b: buffer, off: number): any
         local packed = rfn(b, off)
         local result: { [string]: any } = {}
-
         for i = 1, fieldCount do
             local raw = band(rshift(packed, fieldOffsets[i]), fieldMasks[i])
             if fieldTypes[i] == TYPE_BOOL then
                 result[fieldKeys[i]] = raw ~= 0
             elseif fieldTypes[i] == TYPE_INT then
-                if raw >= fieldSignBit[i] then
-                    result[fieldKeys[i]] = raw - fieldSignExt[i]
-                else
-                    result[fieldKeys[i]] = raw
-                end
+                result[fieldKeys[i]] = if raw >= fieldSignBit[i] then raw - fieldSignExt[i] else raw
             else
                 result[fieldKeys[i]] = raw
             end
         end
-
         return result
     end)
 end

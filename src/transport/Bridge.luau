@@ -1,21 +1,39 @@
 --!strict
 --!optimize 2
--- Remote instance creation and access.
+-- RemoteEvent / UnreliableRemoteEvent thin wrapper.
 
 local RunService = game:GetService("RunService")
 
--- Constants -----------------------------------------------------------
+-- Constants --------------------------------------------------------------
 
 local RELIABLE_NAME = "LyncReliable"
 local UNRELIABLE_NAME = "LyncUnreliable"
 
--- State ---------------------------------------------------------------
+-- State ------------------------------------------------------------------
 
 local _reliable: RemoteEvent? = nil
 local _unreliable: UnreliableRemoteEvent? = nil
 local _isServer = RunService:IsServer()
 
--- Public --------------------------------------------------------------
+-- Private ----------------------------------------------------------------
+
+local function ensureReliable(): RemoteEvent
+    local re = _reliable
+    if not re then
+        error("[Lync] Bridge.reliable: not set up; call Lync.start() first")
+    end
+    return re
+end
+
+local function ensureUnreliable(): UnreliableRemoteEvent
+    local ure = _unreliable
+    if not ure then
+        error("[Lync] Bridge.unreliable: not set up; call Lync.start() first")
+    end
+    return ure
+end
+
+-- Public -----------------------------------------------------------------
 
 local Bridge = {}
 
@@ -29,28 +47,18 @@ function Bridge.setup(container: Instance): ()
         ure.Name = UNRELIABLE_NAME
         ure.Parent = container
 
-        _reliable = re
-        _unreliable = ure
-    else
-        _reliable = container:WaitForChild(RELIABLE_NAME) :: RemoteEvent
-        _unreliable = container:WaitForChild(UNRELIABLE_NAME) :: UnreliableRemoteEvent
+        _reliable, _unreliable = re, ure
+        return
     end
+    _reliable = container:WaitForChild(RELIABLE_NAME) :: RemoteEvent
+    _unreliable = container:WaitForChild(UNRELIABLE_NAME) :: UnreliableRemoteEvent
 end
 
-function Bridge.reliable(): RemoteEvent
-    return _reliable :: RemoteEvent
-end
-
-function Bridge.unreliable(): UnreliableRemoteEvent
-    return _unreliable :: UnreliableRemoteEvent
-end
-
-function Bridge.isServer(): boolean
-    return _isServer
-end
+Bridge.reliable = ensureReliable
+Bridge.unreliable = ensureUnreliable
 
 function Bridge.fireServer(data: buffer, refs: { Instance }): ()
-    local re = _reliable :: RemoteEvent
+    local re = ensureReliable()
     if #refs > 0 then
         re:FireServer(data, refs)
     else
@@ -59,7 +67,7 @@ function Bridge.fireServer(data: buffer, refs: { Instance }): ()
 end
 
 function Bridge.fireClient(player: Player, data: buffer, refs: { Instance }): ()
-    local re = _reliable :: RemoteEvent
+    local re = ensureReliable()
     if #refs > 0 then
         re:FireClient(player, data, refs)
     else
@@ -68,7 +76,7 @@ function Bridge.fireClient(player: Player, data: buffer, refs: { Instance }): ()
 end
 
 function Bridge.fireServerUnreliable(data: buffer, refs: { Instance }): ()
-    local ure = _unreliable :: UnreliableRemoteEvent
+    local ure = ensureUnreliable()
     if #refs > 0 then
         ure:FireServer(data, refs)
     else
@@ -77,7 +85,7 @@ function Bridge.fireServerUnreliable(data: buffer, refs: { Instance }): ()
 end
 
 function Bridge.fireClientUnreliable(player: Player, data: buffer, refs: { Instance }): ()
-    local ure = _unreliable :: UnreliableRemoteEvent
+    local ure = ensureUnreliable()
     if #refs > 0 then
         ure:FireClient(player, data, refs)
     else

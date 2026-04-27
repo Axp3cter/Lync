@@ -141,7 +141,7 @@ interface LyncModule {
 
     configure(this: void, options: Lync.ConfigureOptions): void;
     start(this: void): void;
-    readonly started: boolean;
+    isStarted(this: void): boolean;
 
     // ── Definitions ─────────────────────────────────────────────────
 
@@ -253,7 +253,13 @@ interface LyncModule {
 
     enum<T extends string[]>(this: void, ...values: T): Lync.Codec<T[number]>;
     bitfield(this: void, schema: Record<string, { type: "bool" } | { type: "uint"; width: number } | { type: "int"; width: number }>): Lync.Codec<Record<string, boolean | number>>;
-    custom<T>(this: void, size: number, write: (b: buffer, offset: number, value: T) => void, read: (b: buffer, offset: number) => T): Lync.Codec<T>;
+    custom<T>(
+        this: void,
+        size: number,
+        write: (b: buffer, offset: number, value: T) => void,
+        read: (b: buffer, offset: number) => T,
+        typeCheck?: string,
+    ): Lync.Codec<T>;
     readonly nothing: Lync.Codec<undefined>;
     readonly unknown: Lync.Codec<unknown>;
     readonly auto: Lync.Codec<unknown>;

@@ -83,4 +83,114 @@ describe("MSB: interleaved packets", function(): ()
     end)
 end)
 
+describe("MSB: large multi-item batches (wire-size formula)", function(): ()
+    --[[
+        Wire-size invariant for N >= 2 fires of a fixed-size codec:
+            cursor == 1 (id) + 2 (count) + N * payloadSize
+        N == 1 stays in single-mode and is 1 + payloadSize. These tests
+        verify the upgrade memmove and count finalization don't drop or
+        duplicate bytes at scale — the bench fires 1000+ per frame.
+    ]]
+    it("100 fires of 1B payload: cursor = 3 + 100", function(): ()
+        local reg = makeReg(7, "__msb_n100")
+        local ch = Channel.create()
+        for i = 1, 100 do
+            Channel.writeBatch(ch, reg, i % 256)
+        end
+        expect(ch.cursor):toBe(1 + 2 + 100)
+    end)
+    it("1000 fires of 1B payload: cursor = 3 + 1000", function(): ()
+        local reg = makeReg(8, "__msb_n1000")
+        local ch = Channel.create()
+        for i = 1, 1000 do
+            Channel.writeBatch(ch, reg, i % 256)
+        end
+        expect(ch.cursor):toBe(1 + 2 + 1000)
+    end)
+    it("65535 fires (max u16 count): cursor = 3 + 65535", function(): ()
+        local reg = makeReg(9, "__msb_max_count")
+        local ch = Channel.create()
+        for i = 1, 65535 do
+            Channel.writeBatch(ch, reg, i % 256)
+        end
+        expect(ch.cursor):toBe(1 + 2 + 65535)
+    end)
+    it("65536 fires: opens a second batch (3 + 65535 + 2 + 1)", function(): ()
+        --[[
+            writeBatch's `itemCount >= 0xFFFF` guard opens a fresh batch
+            once the previous one hits 65535 items. The 65536th fire
+            therefore produces: 3 + 65535 (first batch) + 2 (single-mode
+            header for second batch since itemCount=1) = 65541.
+        ]]
+        local reg = makeReg(10, "__msb_overflow")
+        local ch = Channel.create()
+        for i = 1, 65536 do
+            Channel.writeBatch(ch, reg, i % 256)
+        end
+        expect(ch.cursor):toBe(1 + 2 + 65535 + 1 + 1)
+    end)
+    it("count u16 at byte 1 finalizes to N after seal", function(): ()
+        local reg = makeReg(11, "__msb_count_finalized")
+        local ch = Channel.create()
+        for i = 1, 1000 do
+            Channel.writeBatch(ch, reg, i % 256)
+        end
+        local snap, _, _ = Channel.sealAndDump(ch)
+        expect(buffer.readu16(snap, 1)):toBe(1000)
+    end)
+end)
+
+describe("MSB: variable-size payloads stay aligned at scale", function(): ()
+    --[[
+        Multi-fire of a variable-size codec (array(bool)) is the bench
+        case that triggers the "unknown packet ID at byte 34003" warning.
+        Each fire writes: varint(len)=2B + ceil(len/8) packed bytes.
+        For len=1000 that's 127B per fire. Verify the cursor and the
+        count placeholder stay correct.
+    ]]
+    it("1000 fires of array(bool, 1000) — cursor = 3 + 1000*127", function(): ()
+        local Lync = require(script.Parent.Parent.Parent)
+        local Registry = require(script.Parent.Parent.Parent.internal.Registry)
+
+        Lync.packet("__msb_blink_bools", Lync.array(Lync.bool))
+        local reg = Registry.getByName("__msb_blink_bools") :: any
+        local data = table.create(1000, true)
+
+        local ch = Channel.create()
+        for _ = 1, 1000 do
+            Channel.writeBatch(ch, reg, data)
+        end
+        expect(ch.cursor):toBe(1 + 2 + 1000 * 127)
+    end)
+    it("each fire offset = 3 + (i-1)*127 (no drift)", function(): ()
+        local Lync = require(script.Parent.Parent.Parent)
+        local Registry = require(script.Parent.Parent.Parent.internal.Registry)
+
+        Lync.packet("__msb_drift", Lync.array(Lync.bool))
+        local reg = Registry.getByName("__msb_drift") :: any
+        local data = table.create(1000, true)
+
+        local ch = Channel.create()
+        for _ = 1, 300 do
+            Channel.writeBatch(ch, reg, data)
+        end
+
+        local snap, _, _ = Channel.sealAndDump(ch)
+        --[[
+            Every fire's first byte is the varint for 1000 = 0xC3.
+            If the upgrade memmove dropped or duplicated bytes, one of
+            these checks would fail.
+        ]]
+        for fire = 1, 300 do
+            local off = 3 + (fire - 1) * 127
+            local b0 = buffer.readu8(snap, off)
+            if b0 ~= 0xC3 then
+                error(
+                    `fire #{fire} at byte {off}: expected 0xC3, got 0x{string.format("%02X", b0)}`
+                )
+            end
+        end
+    end)
+end)
+
 return nil

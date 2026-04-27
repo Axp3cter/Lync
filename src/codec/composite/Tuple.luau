@@ -1,15 +1,15 @@
 --!strict
 --!optimize 2
--- Positional ordered codec. Like struct but indexed, not keyed.
+-- Positional ordered codec. Like struct but indexed.
 
 local Base = require(script.Parent.Parent.Base)
 local Types = require(script.Parent.Parent.Parent.Types)
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
 local alloc = Base.alloc
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Tuple = {}
 
@@ -20,46 +20,41 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
         error("[Lync] Lync.tuple: requires at least one codec")
     end
 
-    -- Check if all codecs are direct
-    local allDirect = true
-    local totalSize = 0
-    local hasUnknown = false
-
+    local allDirect, totalSize, hasUnknown = true, 0, false
     for i = 1, count do
-        local c = codecs[i] :: any
+        local c = codecs[i]
         if c._hasUnknown then
             hasUnknown = true
         end
         if not c._size or not c._directWrite or not c._directRead then
             allDirect = false
-        else
+        elseif allDirect then
             totalSize += c._size
         end
     end
-
     table.freeze(codecs)
 
     if allDirect then
-        -- Build precomputed offsets
         local offsets = table.create(count)
         local directWrites = table.create(count)
         local directReads = table.create(count)
         local cursor = 0
 
         for i = 1, count do
-            local c = codecs[i] :: any
+            local c = codecs[i]
             offsets[i] = cursor
             directWrites[i] = c._directWrite
             directReads[i] = c._directRead
-            cursor += c._size
+            cursor += c._size :: number
         end
-
         table.freeze(offsets)
         table.freeze(directWrites)
         table.freeze(directReads)
 
-        local codec: any = {
+        local codec: Types.InternalCodec<any> = {
             _size = totalSize,
+            _isTuple = true,
+            _elements = codecs,
 
             _directWrite = function(b: buffer, off: number, value: any): ()
                 for i = 1, count do
@@ -95,15 +90,16 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
                 return result, totalSize
             end,
         }
-
         if hasUnknown then
             codec._hasUnknown = true
         end
         return table.freeze(codec)
     end
 
-    -- Generic path
-    local codec: any = {
+    local codec: Types.InternalCodec<any> = {
+        _isTuple = true,
+        _elements = codecs,
+
         write = function(ch: Types.ChannelState, value: any): ()
             for i = 1, count do
                 codecs[i].write(ch, value[i])
@@ -121,7 +117,6 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
             return result, total
         end,
     }
-
     if hasUnknown then
         codec._hasUnknown = true
     end

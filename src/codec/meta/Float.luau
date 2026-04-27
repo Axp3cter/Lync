@@ -1,22 +1,27 @@
 --!strict
 --!native
--- Fixed-point quantization codec. Maps float ranges to integer ranges.
+-- Fixed-point quantization codec. Maps a float range to u8/u16/u32.
 
 local Base = require(script.Parent.Parent.Base)
+local Types = require(script.Parent.Parent.Parent.Types)
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
 local ceil = math.ceil
 local clamp = math.clamp
 local round = math.round
-local max = math.max
-local min = math.min
+local maxN = math.max
+local minN = math.min
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Float = {}
 
-function Float.float(rangeMin: number, rangeMax: number, precision: number): any
+function Float.float(
+    rangeMin: number,
+    rangeMax: number,
+    precision: number
+): Types.InternalCodec<number>
     if rangeMin > rangeMax then
         error(`[Lync] Lync.float: min ({rangeMin}) must be <= max ({rangeMax})`)
     end
@@ -25,30 +30,21 @@ function Float.float(rangeMin: number, rangeMax: number, precision: number): any
     end
 
     local delta = rangeMax - rangeMin
-
-    -- Constant value: zero bytes
     if delta == 0 then
-        return Base.zero()
+        return Base.constant(rangeMin)
     end
 
-    local maxInt = min(0xFFFFFFFF, max(1, ceil(delta / precision)))
+    local maxInt = minN(0xFFFFFFFF, maxN(1, ceil(delta / precision)))
 
     local compBytes: number
     local wfn: (buffer, number, number) -> ()
     local rfn: (buffer, number) -> number
-
     if maxInt <= 0xFF then
-        compBytes = 1
-        wfn = buffer.writeu8
-        rfn = buffer.readu8
+        compBytes, wfn, rfn = 1, buffer.writeu8, buffer.readu8
     elseif maxInt <= 0xFFFF then
-        compBytes = 2
-        wfn = buffer.writeu16
-        rfn = buffer.readu16
+        compBytes, wfn, rfn = 2, buffer.writeu16, buffer.readu16
     else
-        compBytes = 4
-        wfn = buffer.writeu32
-        rfn = buffer.readu32
+        compBytes, wfn, rfn = 4, buffer.writeu32, buffer.readu32
     end
 
     local scale = maxInt / delta

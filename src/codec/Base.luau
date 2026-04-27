@@ -1,23 +1,33 @@
 --!strict
 --!optimize 2
--- Fixed-size codec factory with buffer allocation.
+-- Fixed-size codec factory and channel buffer-grow primitive.
 
 local Types = require(script.Parent.Parent.Types)
 
--- Constants -----------------------------------------------------------
+-- Constants --------------------------------------------------------------
 
 local DEFAULT_MAX = 262144
+local INITIAL_BUF = 1024
 
--- State ---------------------------------------------------------------
+-- State ------------------------------------------------------------------
 
 local _maxSize = DEFAULT_MAX
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
 local countlz = bit32.countlz
 local lshift = bit32.lshift
 
+--[[
+    Grow `ch.buff` so `ch.cursor + bytes` fits. New size is the next
+    power of two >= needed, capped by _maxSize. Caller MUST re-read
+    `ch.buff` after this returns: the buffer reference is replaced.
+]]
 local function alloc(ch: Types.ChannelState, bytes: number): ()
+    if bytes == 0 then
+        return
+    end
+
     local needed = ch.cursor + bytes
     if needed <= ch.size then
         return
@@ -25,11 +35,10 @@ local function alloc(ch: Types.ChannelState, bytes: number): ()
 
     if needed > _maxSize then
         local name = ch.currentPacket
-        error(
-            if name
-                then `[Lync] Channel: buffer overflow ({needed}B, max {_maxSize}B) in "{name}"`
-                else `[Lync] Channel: buffer overflow ({needed}B, max {_maxSize}B)`
-        )
+        if name then
+            error(`[Lync] Channel.alloc("{name}"): buffer overflow ({needed}B, max {_maxSize}B)`)
+        end
+        error(`[Lync] Channel.alloc: buffer overflow ({needed}B, max {_maxSize}B)`)
     end
 
     local newSize = lshift(1, 32 - countlz(needed - 1))
@@ -39,25 +48,31 @@ local function alloc(ch: Types.ChannelState, bytes: number): ()
     ch.size = newSize
 end
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Base = {}
 
-function Base.alloc(ch: Types.ChannelState, bytes: number): ()
-    alloc(ch, bytes)
-end
+Base.INITIAL_BUF = INITIAL_BUF
+
+Base.alloc = alloc
 
 function Base.setMaxSize(bytes: number): ()
     _maxSize = bytes
 end
 
+--[[
+    Build a fixed-size codec. The codec exposes channel-level write/read
+    (which handles buffer growth and cursor bookkeeping) plus the raw
+    _directWrite / _directRead primitives composite codecs use in their
+    pre-sized fast paths.
+]]
 function Base.define<T>(
     size: number,
     directWrite: (b: buffer, offset: number, value: T) -> (),
     directRead: (b: buffer, offset: number) -> T,
     meta: { [string]: any }?
 ): Types.InternalCodec<T>
-    local codec: any = {
+    local codec: { [string]: any } = {
         _size = size,
         _directWrite = directWrite,
         _directRead = directRead,
@@ -82,21 +97,26 @@ function Base.define<T>(
         end
     end
 
-    return table.freeze(codec)
+    return table.freeze(codec) :: Types.InternalCodec<T>
 end
 
-function Base.zero(): Types.InternalCodec<nil>
+--[[
+    Constant codec: zero bytes wire, decode always returns `value`. Used
+    by quantizers when min == max so the wire emits nothing yet decode
+    still produces a type-faithful value.
+]]
+function Base.constant<T>(value: T): Types.InternalCodec<T>
     return table.freeze({
         _size = 0,
-        _directWrite = function(_b: buffer, _off: number, _v: nil): () end,
-        _directRead = function(_b: buffer, _off: number): nil
-            return nil
+        _directWrite = function(_b: buffer, _off: number, _v: T): () end,
+        _directRead = function(_b: buffer, _off: number): T
+            return value
         end,
-        write = function(_ch: Types.ChannelState, _v: nil): () end,
-        read = function(_src: buffer, _pos: number, _refs: { Instance }?): (nil, number)
-            return nil, 0
+        write = function(_ch: Types.ChannelState, _v: T): () end,
+        read = function(_src: buffer, _pos: number, _refs: { Instance }?): (T, number)
+            return value, 0
         end,
-    } :: any)
+    }) :: Types.InternalCodec<T>
 end
 
 return table.freeze(Base)

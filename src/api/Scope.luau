@@ -1,76 +1,74 @@
 --!strict
 --!optimize 2
--- Batched connection lifecycle management.
+-- Batched connection lifecycle. Accepts Lync Connection,
+-- RBXScriptConnection, and any object with :disconnect() / :Disconnect().
 
 local Types = require(script.Parent.Parent.Types)
 
--- Public --------------------------------------------------------------
-
-local Scope = {}
+-- Public types -----------------------------------------------------------
 
 export type ScopeHandle = {
     on: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
     once: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
     add: (self: ScopeHandle, connection: any) -> (),
+    size: (self: ScopeHandle) -> number,
     destroy: (self: ScopeHandle) -> (),
 }
+
+type Scope = ScopeHandle & { _connections: { any }, _count: number }
+
+-- Private ----------------------------------------------------------------
+
+local function pushConnection(self: Scope, conn: any): ()
+    local idx = self._count + 1
+    self._count = idx
+    self._connections[idx] = conn
+end
+
+-- Public -----------------------------------------------------------------
 
 local ScopeMeta = {}
 ScopeMeta.__index = ScopeMeta
 
-function ScopeMeta.on(self: any, source: any, fn: (...any) -> ()): Types.Connection
+function ScopeMeta.on(self: Scope, source: any, fn: (...any) -> ()): Types.Connection
     local conn = source:on(fn)
-    local conns = self._connections
-    local idx = self._count + 1
-    self._count = idx
-    conns[idx] = conn
+    pushConnection(self, conn)
     return conn
 end
 
-function ScopeMeta.once(self: any, source: any, fn: (...any) -> ()): Types.Connection
+function ScopeMeta.once(self: Scope, source: any, fn: (...any) -> ()): Types.Connection
     local conn = source:once(fn)
-    local conns = self._connections
-    local idx = self._count + 1
-    self._count = idx
-    conns[idx] = conn
+    pushConnection(self, conn)
     return conn
 end
 
-function ScopeMeta.add(self: any, connection: any): ()
-    local idx = self._count + 1
-    self._count = idx
-    self._connections[idx] = connection
+ScopeMeta.add = pushConnection
+
+function ScopeMeta.size(self: Scope): number
+    return self._count
 end
 
-function ScopeMeta.destroy(self: any): ()
+function ScopeMeta.destroy(self: Scope): ()
     local conns = self._connections
     local count = self._count
-
     for i = 1, count do
         local conn = conns[i]
-        conns[i] = nil :: any
-
-        --[[
-            Support both Lync Connection (conn:disconnect())
-            and RBXScriptConnection (conn:Disconnect()).
-        ]]
-        if typeof(conn) == "table" then
-            if conn.disconnect then
-                conn:disconnect()
-            end
-        elseif typeof(conn) == "RBXScriptConnection" then
+        conns[i] = nil
+        if typeof(conn) == "RBXScriptConnection" then
             (conn :: RBXScriptConnection):Disconnect()
+        elseif typeof(conn) == "table" and conn.disconnect then
+            conn:disconnect()
         end
     end
-
     self._count = 0
 end
 
-function Scope.create(): ScopeHandle
-    return setmetatable({
-        _connections = {},
-        _count = 0,
-    }, ScopeMeta) :: any
+table.freeze(ScopeMeta)
+
+local ScopeModule = {}
+
+function ScopeModule.create(): ScopeHandle
+    return (setmetatable({ _connections = {}, _count = 0 }, ScopeMeta) :: any) :: ScopeHandle
 end
 
-return table.freeze(Scope)
+return table.freeze(ScopeModule)

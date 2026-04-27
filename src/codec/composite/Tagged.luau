@@ -2,16 +2,15 @@
 --!optimize 2
 -- Discriminated union codec. u8 variant tag + variant payload.
 
-local Base = require(script.Parent.Parent.Base)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Types = require(script.Parent.Parent.Parent.Types)
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
-local writeu8 = buffer.writeu8
+local writeByte = Channel.writeByte
 local readu8 = buffer.readu8
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Tagged = {}
 
@@ -37,7 +36,6 @@ function Tagged.define(
         error("[Lync] Lync.tagged: exceeds 256 variants")
     end
 
-    -- Build lookup tables
     local nameToTag: { [string]: number } = {}
     local tagToCodec = table.create(variantCount)
     local tagToName = table.create(variantCount)
@@ -49,7 +47,7 @@ function Tagged.define(
         nameToTag[name] = i - 1
         tagToCodec[i] = codec
         tagToName[i] = name
-        if (codec :: any)._hasUnknown then
+        if codec._hasUnknown then
             hasUnknown = true
         end
     end
@@ -58,25 +56,22 @@ function Tagged.define(
     table.freeze(tagToCodec)
     table.freeze(tagToName)
 
-    local codec: any = {
+    local codec: Types.InternalCodec<any> = {
+        _isTagged = true,
+        _tagField = tagField,
+        _variants = variants,
+
         write = function(ch: Types.ChannelState, value: any): ()
             local name = value[tagField]
             if name == nil then
-                error(`[Lync] Tagged: missing tagField "{tagField}" in value`)
+                error(`[Lync] Tagged.write: missing tagField "{tagField}"`)
             end
-
             local tag = nameToTag[name]
             if tag == nil then
-                error(`[Lync] Tagged: unknown variant "{name}"`)
+                error(`[Lync] Tagged.write: unknown variant "{name}"`)
             end
 
-            local cursor = ch.cursor
-            if cursor + 1 > ch.size then
-                alloc(ch, 1)
-            end
-            writeu8(ch.buff, cursor, tag)
-            ch.cursor = cursor + 1
-
+            writeByte(ch, tag)
             tagToCodec[tag + 1].write(ch, value)
         end,
 
@@ -84,21 +79,16 @@ function Tagged.define(
             local tag = readu8(src, pos)
             local varCodec = tagToCodec[tag + 1]
             if not varCodec then
-                error(`[Lync] Tagged: unknown tag {tag}`)
+                error(`[Lync] Tagged.read: unknown tag {tag}`)
             end
 
-            local name = tagToName[tag + 1]
             local data, consumed = varCodec.read(src, pos + 1, refs)
-
-            -- Caller needs the tag field to discriminate the union
             if type(data) == "table" then
-                data[tagField] = name
+                data[tagField] = tagToName[tag + 1]
             end
-
             return data, 1 + consumed
         end,
     }
-
     if hasUnknown then
         codec._hasUnknown = true
     end

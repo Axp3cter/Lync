@@ -4,11 +4,12 @@
   <a href="https://github.com/Axp3cter/Lync/releases/latest">Releases</a> ·
   <a href="#install">Install</a> ·
   <a href="#example">Example</a> ·
+  <a href="#api">API</a> ·
   <a href="#codecs">Codecs</a> ·
   <a href="#benchmarks">Benchmarks</a>
 </p>
 
-Lync batches all sends into a single buffer per player per frame, applies XOR compression across frames, validates and rate-limits every incoming payload, and does it all without code generation.
+Packets, queries, groups, validation, and rate limiting — all batched into one buffer per player per frame. No code generation.
 
 ## Install
 
@@ -16,7 +17,7 @@ Lync batches all sends into a single buffer per player per frame, applies XOR co
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@2.1.2"
+Lync = "axp3cter/lync@2.2.0"
 ```
 
 **npm (roblox-ts)**
@@ -36,41 +37,29 @@ Or grab the `.rbxm` from [Releases](https://github.com/Axp3cter/Lync/releases/la
 
 ## Example
 
-**Shared** (`ReplicatedStorage.Net`)
+**Shared** — `ReplicatedStorage.Net`
 
 ```luau
 local Lync = require(game.ReplicatedStorage.Lync)
 
-local Net = {}
+return table.freeze({
+    State = Lync.packet("State", Lync.deltaStruct({
+        position = Lync.vec3,
+        health   = Lync.float(0, 100, 0.5),
+        status   = Lync.enum("idle", "moving", "attacking", "dead"),
+        alive    = Lync.bool,
+    })),
 
-Net.State = Lync.packet("State", Lync.deltaStruct({
-    position = Lync.vec3,
-    health   = Lync.float(0, 100, 0.5),
-    shield   = Lync.float(0, 100, 0.5),
-    status   = Lync.enum("idle", "moving", "attacking", "dead"),
-    alive    = Lync.bool,
-}))
+    Hit = Lync.packet("Hit", Lync.struct({
+        targetId = Lync.int(0, 65535),
+        damage   = Lync.float(0, 200, 0.1),
+    }), {
+        rateLimit = { maxPerSecond = 30, burst = 5 },
+        validate  = function(data) return data.damage <= 200, "damage" end,
+    }),
 
-Net.Hit = Lync.packet("Hit", Lync.struct({
-    targetId = Lync.int(0, 65535),
-    damage   = Lync.float(0, 200, 0.1),
-    headshot = Lync.bool,
-}), {
-    rateLimit = { maxPerSecond = 30, burst = 5 },
-    validate = function(data, player)
-        if data.damage > 200 then return false, "damage" end
-        return true
-    end,
+    Ping = Lync.query("Ping", Lync.nothing, Lync.f64, { timeout = 3 }),
 })
-
-Net.Chat = Lync.packet("Chat", Lync.struct({
-    msg     = Lync.string(200),
-    channel = Lync.int(0, 255),
-}))
-
-Net.Ping = Lync.query("Ping", Lync.nothing, Lync.f64, { timeout = 3 })
-
-return table.freeze(Net)
 ```
 
 **Server**
@@ -81,33 +70,16 @@ local Net     = require(game.ReplicatedStorage.Net)
 local Players = game:GetService("Players")
 
 local alive = Lync.group("alive")
+Players.PlayerAdded:Connect(function(p) alive:add(p) end)
 
-Lync.onDrop(function(player, reason, name)
-    warn(player.Name, "dropped", name, reason)
-end)
+Net.Hit:on(function(data, sender) -- ... end)
+Net.Ping:handle(function() return os.clock() end)
 
 Lync.start()
 
-Players.PlayerAdded:Connect(function(player) alive:add(player) end)
-
 game:GetService("RunService").Heartbeat:Connect(function()
-    Net.State:send({
-        position = Vector3.new(0, 5, 0),
-        health   = 100,
-        shield   = 50,
-        status   = "idle",
-        alive    = true,
-    }, alive)
+    Net.State:send(getState(), alive)
 end)
-
-Net.Hit:on(function(data, player)
-    local target = Players:GetPlayerByUserId(data.targetId)
-    if not target then return end
-    alive:remove(target)
-    Net.Chat:send({ msg = player.Name .. " eliminated " .. target.Name, channel = 0 }, Lync.all)
-end)
-
-Net.Ping:handle(function(_, player) return os.clock() end)
 ```
 
 **Client**
@@ -119,36 +91,38 @@ local Net  = require(game.ReplicatedStorage.Net)
 Lync.start()
 
 local scope = Lync.scope()
+scope:on(Net.State, function(state) -- ... end)
 
-scope:on(Net.State, function(state)
-    local character = game.Players.LocalPlayer.Character
-    if not character then return end
-    character:PivotTo(CFrame.new(state.position))
-end)
-
-scope:on(Net.Chat, function(data) print("[chat]", data.msg) end)
-
-Net.Hit:send({ targetId = 123, damage = 45.5, headshot = true })
-
+Net.Hit:send({ targetId = 123, damage = 45 })
 local serverTime = Net.Ping:request(nil)
-if serverTime then print("server clock:", serverTime) end
 ```
 
-## Packets
+## API
+
+### Lifecycle
+
+| Function | Description |
+|:---|:---|
+| `Lync.configure(opts)` | Set options. Must precede `start()`. |
+| `Lync.start()` | Initialize transport. Call once. |
+| `Lync.isStarted()` | `true` after `start()`. |
+| `Lync.flush()` | Force an immediate send. |
+| `Lync.flushRate(hz)` | 1–60. Default 60. |
+
+### Configure options
+
+| Option | Default | Range | Description |
+|:---|---:|:---|:---|
+| `channelMaxSize` | 262144 | 4 KB – 1 MB | Max buffer bytes per frame. |
+| `validationDepth` | 16 | 4–32 | Max recursion depth for input validation. |
+| `poolSize` | 16 | 2–128 | Reusable channel-state pool. |
+| `bandwidthLimit` | none | — | `{ softLimit, maxStrikes }` per-player throttle. |
+| `globalRateLimit` | none | — | `{ maxPerSecond }` across all packets per player. |
+| `stats` | `false` | — | Enables `:stats()` and `Lync.stats.player()`. |
+
+### Packets
 
 `Lync.packet(name, codec, options?)`
-
-### Options
-
-| Field | Type | Default | Description |
-|:------|:-----|:--------|:------------|
-| `unreliable` | `boolean` | `false` | Send over `UnreliableRemoteEvent`. Cannot use with delta codecs. |
-| `rateLimit` | `RateLimitConfig` | none | Server-side rate limiting. |
-| `validate` | `(data, player) → (bool, string?)` | none | Server-side validation. Return `false, "reason"` to drop. |
-| `maxPayloadBytes` | `number` | none | Max bytes per payload. |
-| `timestamp` | `"frame"`, `"offset"`, or `"full"` | none | Appends a timestamp. `"frame"` = 1B counter. `"offset"` = 2B ms. `"full"` = 8B clock. Received as third argument. |
-
-### Sending
 
 ```luau
 -- Server
@@ -160,365 +134,283 @@ packet:send(data, group)
 
 -- Client
 packet:send(data)
+
+-- Both
+packet:on(function(data, sender, timestamp?) end)  -- returns Connection
+packet:once(fn)
+packet:wait()                                       -- yields, returns data, sender, timestamp?
+packet:name()
+packet:stats()                                      -- requires stats=true
 ```
 
-### Receiving
+| Option | Type | Description |
+|:---|:---|:---|
+| `unreliable` | boolean | Use `UnreliableRemoteEvent`. Disallowed with delta codecs. |
+| `rateLimit` | `RateLimitConfig` | Server-side per-player limit. |
+| `validate` | `(data, player) → (bool, string?)` | Drop on `false`. |
+| `maxPayloadBytes` | number | Reject oversize incoming payloads. |
+| `timestamp` | `"frame"` / `"offset"` / `"full"` | Append 1B / 2B / 8B timestamp. Read as third arg. |
 
-| Method | Description |
-|:-------|:------------|
-| `packet:on(fn)` | `fn(data, sender, timestamp?)`. Returns a Connection. |
-| `packet:once(fn)` | Fires once, then disconnects. |
-| `packet:wait()` | Yields until next fire. Returns `data, sender, timestamp?`. |
-| `packet:name()` | Returns the packet name. |
-| `packet:stats()` | Returns `{ bytesSent, bytesReceived, fires, recvFires, drops }`. Requires stats enabled. |
-
-## Queries
+### Queries
 
 `Lync.query(name, requestCodec, responseCodec, options?)`
 
-Request-response built on packets. Returns `nil` on timeout.
+Request-response on top of two packet IDs.
 
-### Options
+```luau
+-- Server
+query:handle(function(data, player) return response end)
+query:request(data, player)             -- → response?
+query:request(data, target)             -- → { [Player]: response? }
 
-| Field | Type | Default | Description |
-|:------|:-----|:--------|:------------|
-| `timeout` | `number` | 5 | Seconds before yielding `nil`. |
-| `rateLimit` | `RateLimitConfig` | `{ maxPerSecond = 30 }` | Server-side rate limiting. |
-| `validate` | `(data, player) → (bool, string?)` | none | Server-side validation. |
+-- Client
+query:handle(function(data) return response end)
+query:request(data)                     -- yields, → response? (nil on timeout)
+```
 
-### Methods
+| Option | Default | Description |
+|:---|:---|:---|
+| `timeout` | 5 | Seconds before yielding `nil`. |
+| `rateLimit` | `{ maxPerSecond = 30 }` | Server-side. |
+| `validate` | none | `(data, player) → (bool, string?)` |
 
-| Method | Context | Description |
-|:-------|:--------|:------------|
-| `query:handle(fn)` | Both | Register handler. Server: `fn(request, player) → response`. Client: `fn(request) → response`. |
-| `query:request(data)` | Client | Send to server, yield for response. |
-| `query:request(data, player)` | Server | Send to one client. |
-| `query:request(data, target)` | Server | Send to multiple. Returns `{ [Player]: response? }`. |
-| `query:name()` | Both | Returns the query name. |
-| `query:stats()` | Both | Combined stats for request and response channels. |
+### Groups
 
-Each query consumes two packet IDs internally.
-
-## Groups
-
-`Lync.group(name)`
-
-Named player sets. Members auto-removed on `PlayerRemoving`. Iterable with `for player in group do`.
+`Lync.group(name)` — named player set. Members auto-removed on `PlayerRemoving`. Iterable: `for player in group do`.
 
 | Method | Returns | Description |
-|:-------|:--------|:------------|
-| `group:add(player)` | `boolean` | `true` if added. |
-| `group:remove(player)` | `boolean` | `true` if removed. |
-| `group:has(player)` | `boolean` | Membership check. |
-| `group:count()` | `number` | Member count. |
-| `group:destroy()` | — | Clears members, frees name. |
+|:---|:---|:---|
+| `group:add(p)` / `:remove(p)` | boolean | `true` if changed. |
+| `group:has(p)` | boolean | Membership. |
+| `group:count()` | number | |
+| `group:destroy()` | — | Clear and free name. |
 
-## Scope
+### Scope
 
-`Lync.scope()`
-
-Batches connections for cleanup.
+`Lync.scope()` — batches connections for cleanup.
 
 ```luau
 local scope = Lync.scope()
-scope:on(packetA, fnA)
-scope:on(packetB, fnB)
-scope:add(someRBXScriptConnection)
-scope:destroy()  -- disconnects everything
+scope:on(packet, fn)
+scope:once(packet, fn)
+scope:add(rbxConnection)
+scope:destroy()
 ```
 
-| Method | Description |
-|:-------|:------------|
-| `scope:on(source, fn)` | Connect and track. |
-| `scope:once(source, fn)` | Connect once and track. |
-| `scope:add(connection)` | Track an existing connection. |
-| `scope:destroy()` | Disconnect all. Safe to call multiple times. |
+### Targets
 
-## Connection
-
-Returned by `packet:on()`, `packet:once()`, `query:handle()`, and middleware functions.
-
-| Field / Method | Description |
-|:---------------|:------------|
-| `connection.connected` | `boolean` |
-| `connection:disconnect()` | Stops the listener. Safe mid-fire, safe to call multiple times. |
-
-## Middleware
-
-```luau
-Lync.onSend(function(data, name, player)
-    return data  -- or return Lync.DROP to discard
-end)
-
-Lync.onReceive(function(data, name, player)
-    return data
-end)
-
-Lync.onDrop(function(player, reason, name, data)
-    warn(player.Name, "dropped", name, reason)
-end)
-```
-
-All three return a Connection.
-
-## Targets
-
-Server-side second argument to `packet:send()`.
+Server-side `:send` second arg.
 
 | Target | Description |
-|:-------|:------------|
-| `player` | Single player. |
-| `Lync.all` | All connected players. |
-| `Lync.except(...)` | Everyone except specified players or groups. |
-| `{ p1, p2, ... }` | Array of players. |
-| `group` | All members of a group. |
+|:---|:---|
+| `Player` | One player. |
+| `Lync.all` | All connected. |
+| `Lync.except(...)` | Everyone except given players or groups. |
+| `{ p1, p2 }` | Array of players. |
+| `group` | All members. |
+
+### Middleware
+
+```luau
+Lync.onSend(function(data, name, player)    return data end)  -- return Lync.DROP to discard
+Lync.onReceive(function(data, name, player) return data end)
+Lync.onDrop(function(player, reason, name, data) end)
+```
+
+All return a `Connection`.
+
+### Connection
+
+| | |
+|:---|:---|
+| `c.connected` | boolean |
+| `c:disconnect()` | Idempotent. |
+
+### Stats
+
+`Lync.configure({ stats = true })`.
+
+| Function | Description |
+|:---|:---|
+| `Lync.stats.player(p)` | `{ bytesSent, bytesReceived }`. Server only. |
+| `Lync.stats.reset()` | Zero all counters. |
+| `packet:stats()` | `{ bytesSent, bytesReceived, fires, recvFires, drops }` |
+
+### Debug
+
+| Function | Description |
+|:---|:---|
+| `Lync.debug.pending()` | In-flight query requests. |
+| `Lync.debug.registrations()` | Frozen array of `{ name, id, kind, isUnreliable }`. |
 
 ## Codecs
 
 ### Numbers
 
-`Lync.int(min, max)` picks the smallest wire type for your range.
+| Codec | Bytes | Notes |
+|:---|---:|:---|
+| `int(min, max)` | 1 / 2 / 4 | Picks smallest u8/u16/u32/i8/i16/i32. |
+| `f16` / `f32` / `f64` | 2 / 4 / 8 | f16: ±65504, ~3 digits. |
+| `float(min, max, precision)` | 1–4 | Quantized. Clamped. |
+| `bool` | 1 | Auto-bitpacked inside `struct` and `array`. |
 
-| Codec | Bytes | Description |
-|:------|------:|:------------|
-| `Lync.int(0, 255)` | 1 | u8 |
-| `Lync.int(0, 65535)` | 2 | u16 |
-| `Lync.int(0, 4294967295)` | 4 | u32 |
-| `Lync.int(-128, 127)` | 1 | i8 |
-| `Lync.int(-32768, 32767)` | 2 | i16 |
-| `Lync.int(-2147483648, 2147483647)` | 4 | i32 |
-| `Lync.f16` | 2 | Half-precision float. ~3 digits. ±65504. |
-| `Lync.f32` | 4 | Single-precision float. |
-| `Lync.f64` | 8 | Double-precision float. |
-| `Lync.bool` | 1 | Bitpacked inside structs and arrays (8 per byte). |
-| `Lync.float(min, max, precision)` | 1–4 | Quantized float. Clamped to range. |
+### Strings & buffers
 
-### Strings & Buffers
+| Codec | Notes |
+|:---|:---|
+| `string` | Variable length. Binary-safe. |
+| `string(maxLength)` | Bounded. Rejects on read if exceeded. |
+| `buff` | Variable-length buffer. |
 
-| Codec | Description |
-|:------|:------------|
-| `Lync.string` | Variable length. Binary-safe. |
-| `Lync.string(maxLength)` | Same, but rejects on read if length exceeds `maxLength`. |
-| `Lync.buff` | Variable-length buffer. |
-
-### Roblox Types
+### Roblox types
 
 | Codec | Bytes |
-|:------|------:|
-| `Lync.vec2` | 8 |
-| `Lync.vec3` | 12 |
-| `Lync.cframe` | 24 |
-| `Lync.color3` | 3 |
-| `Lync.inst` | 2 |
-| `Lync.udim` | 8 |
-| `Lync.udim2` | 16 |
-| `Lync.numberRange` | 8 |
-| `Lync.rect` | 16 |
-| `Lync.ray` | 24 |
-| `Lync.vec2int16` | 4 |
-| `Lync.vec3int16` | 6 |
-| `Lync.region3` | 24 |
-| `Lync.region3int16` | 12 |
-| `Lync.numberSequence` | variable |
-| `Lync.colorSequence` | variable |
+|:---|---:|
+| `vec2` / `vec3` | 8 / 12 |
+| `cframe` | 24 |
+| `color3` | 3 |
+| `inst` | 2 |
+| `udim` / `udim2` | 8 / 16 |
+| `numberRange` | 8 |
+| `rect` | 16 |
+| `ray` | 24 |
+| `vec2int16` / `vec3int16` | 4 / 6 |
+| `region3` / `region3int16` | 24 / 12 |
+| `numberSequence` / `colorSequence` | variable |
 
-### Quantized Variants
+### Quantized variants
 
-Call the codec to get a quantized version.
+Call as a function for compression.
 
-| Codec | Bytes | Description |
-|:------|------:|:------------|
-| `Lync.vec2(min, max, precision)` | 2–8 | Per-component quantization. |
-| `Lync.vec3(min, max, precision)` | 3–12 | Per-component quantization. |
-| `Lync.cframe()` | 16 | Compressed rotation. ≤0.16° angular error. Saves 8B vs lossless. |
+| Codec | Bytes | Notes |
+|:---|---:|:---|
+| `vec2(min, max, precision)` | 2–8 | Per-component. |
+| `vec3(min, max, precision)` | 3–12 | Per-component. |
+| `cframe()` | 16 | Smallest-three quaternion. ≤0.16° rotation error. |
 
 ### Composites
 
-| Codec | Description |
-|:------|:------------|
-| `Lync.struct({ key = codec })` | Named fields. Bools are automatically bitpacked. |
-| `Lync.array(codec, maxCount?)` | Variable-length list. Bool arrays are bitpacked. |
-| `Lync.map(keyCodec, valueCodec, maxCount?)` | Key-value pairs. |
-| `Lync.optional(codec)` | 1-byte nil flag + value if present. |
-| `Lync.tuple(...)` | Ordered positional values. |
-| `Lync.tagged(tagField, { name = codec })` | Discriminated union with 1-byte tag. |
+| Codec | Notes |
+|:---|:---|
+| `struct({k = c})` | Named fields. Bools auto-bitpacked. |
+| `array(c, max?)` | List. Bool arrays bitpacked. |
+| `map(k, v, max?)` | Key-value pairs. |
+| `optional(c)` | 1B nil flag + value. |
+| `tuple(...)` | Positional. |
+| `tagged(field, {name = c})` | Discriminated union. 1B tag. ≤256 variants. |
 
-### Delta
+### Delta — reliable only
 
-Only works with reliable transport. Sends 1 byte when data hasn't changed.
+Sends 1 byte when unchanged.
 
-| Codec | Description |
-|:------|:------------|
-| `Lync.deltaStruct(schema)` | Delta-compressed struct. |
-| `Lync.deltaArray(codec, maxCount?)` | Delta-compressed array. |
-| `Lync.deltaMap(keyCodec, valueCodec, maxCount?)` | Delta-compressed map. |
+| Codec |
+|:---|
+| `deltaStruct(schema)` |
+| `deltaArray(c, max?)` |
+| `deltaMap(k, v, max?)` |
 
 ### Meta
 
-| Codec | Description |
-|:------|:------------|
-| `Lync.enum(...)` | String enum. Up to 256 variants. 1 byte. |
-| `Lync.bitfield(schema)` | Sub-byte packing. 1–32 bits. |
-| `Lync.custom(size, write, read)` | User-defined fixed-size codec. |
-| `Lync.nothing` | Zero bytes. Reads `nil`. |
-| `Lync.unknown` | Bypasses serialization entirely. Use with `validate`. |
-| `Lync.auto` | Self-describing. Supports nil, bool, numbers, strings, buffers, and Roblox types. |
+| Codec | Notes |
+|:---|:---|
+| `enum(...)` | String enum. ≤256 variants. 1B. |
+| `bitfield(schema)` | 1–32 bits. Sub-byte packing. |
+| `custom(size, write, read, typeCheck?)` | User-defined fixed-size. |
+| `nothing` | 0 bytes. Reads `nil`. |
+| `unknown` | Bypass serialization. Use with `validate`. |
+| `auto` | Self-describing. nil/bool/numbers/strings/buffers/Roblox types. |
 
-## Rate Limiting
+## Rate limiting
 
-Two modes (pick one per packet):
+Per-packet, pick one mode:
 
-**Token bucket:** `{ maxPerSecond = N, burst = M }`
+```luau
+{ maxPerSecond = N, burst = M }   -- token bucket
+{ cooldown = seconds }             -- cooldown
+```
 
-**Cooldown:** `{ cooldown = seconds }`
-
-Global limit across all packets: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`
-
-## Configuration
-
-`Lync.configure(options)` — call before `Lync.start()`.
-
-| Option | Default | Description |
-|:-------|--------:|:------------|
-| `channelMaxSize` | 262,144 | Max buffer bytes per frame (4,096–1,048,576). |
-| `validationDepth` | 16 | Max recursion depth for input validation (4–32). |
-| `poolSize` | 16 | Buffer pool size (2–128). |
-| `bandwidthLimit` | none | `{ softLimit, maxStrikes }`. Per-player bandwidth throttle. |
-| `globalRateLimit` | none | `{ maxPerSecond }`. Global per-player rate limit. |
-| `stats` | `false` | Enables `packet:stats()` and `Lync.stats.player()`. |
-
-### Lifecycle
-
-| Function | Description |
-|:---------|:------------|
-| `Lync.configure(options)` | Set options before start. |
-| `Lync.start()` | Initialize transport. Call once after all definitions. |
-| `Lync.started` | Read-only boolean. `true` after `start()`. |
-| `Lync.flush()` | Force an immediate send. |
-| `Lync.flushRate(hz)` | Set flush rate. 1–60. Default 60. |
-
-### Stats
-
-Enable with `Lync.configure({ stats = true })`.
-
-| Function | Description |
-|:---------|:------------|
-| `packet:stats()` | `{ bytesSent, bytesReceived, fires, recvFires, drops }` |
-| `Lync.stats.player(player)` | `{ bytesSent, bytesReceived }` — server only. |
-| `Lync.stats.reset()` | Zeros all counters. |
-
-### Debug
-
-| Function | Description |
-|:---------|:------------|
-| `Lync.debug.pending()` | Number of in-flight query requests. Useful for detecting leaks. |
-| `Lync.debug.registrations()` | Frozen array of `{ name, id, kind, isUnreliable }` for all registered packets and queries. |
+Global per-player: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`.
 
 ## Limits
 
-| Constraint | Limit |
-|:-----------|------:|
-| Packet + query registrations | 127 |
-| Buffer per frame | 256 KB default, 1 MB max |
-| Concurrent query requests | 65,536 |
-| Enum variants | 256 |
-| Bitfield bits | 32 |
-| Tagged variants | 256 |
+| | |
+|:---|---:|
+| Packet + query IDs | 127 |
+| Buffer per frame | 1 MB max |
+| In-flight queries | 65,536 |
+| Enum / tagged variants | 256 |
+| Bitfield total bits | 32 |
 
 ## Benchmarks
 
-Run `rojo serve bench.project.json` with one server + one client.
+`rojo serve bench.project.json` with one server + one client.
 
-### Wire Sizes
+CPU benches auto-tune iter count to ~50 ms per case so timings are comparable across operations of wildly different cost.
+
+### Codec throughput
+
+| Codec | Encode | Decode | RT/s |
+|:---|---:|---:|---:|
+| `bool` | 53 ns | 28 ns | 12.4 M |
+| `int(0, 255)` | 40 ns | 25 ns | 15.3 M |
+| `int(0, 65535)` | 40 ns | 25 ns | 15.4 M |
+| `f16` | 60 ns | 42 ns | 9.8 M |
+| `f32` | 40 ns | 27 ns | 14.9 M |
+| `f64` | 41 ns | 24 ns | 15.5 M |
+| `string` (10 chars) | 48 ns | 71 ns | 8.5 M |
+| `string` (1000 chars) | 72 ns | 243 ns | 3.2 M |
+| `vec3` | 53 ns | 27 ns | 12.5 M |
+| `vec3` quantized | 133 ns | 83 ns | 4.6 M |
+| `cframe` | 86 ns | 146 ns | 4.3 M |
+| `cframe()` | 118 ns | 168 ns | 3.5 M |
+| entity struct (6 fields) | 231 ns | 408 ns | 1.6 M |
+| 100× entities | 14.8 µs | 34.4 µs | 20 K |
+| 1000× bools (bitpacked) | 4.2 µs | 5.9 µs | 99 K |
+
+### Wire sizes
 
 | Codec | Bytes |
-|:------|------:|
-| `bool` | 1 |
-| `int(0, 255)` | 1 |
-| `int(0, 65535)` | 2 |
-| `f16` | 2 |
-| `f32` | 4 |
-| `f64` | 8 |
-| `string` (5 chars) | 6 |
-| `string` (1000 chars) | 1002 |
-| `vec3` | 12 |
-| `vec3(0, 100, 1)` | 3 |
-| `cframe` | 24 |
-| `cframe()` | 16 |
-| `color3` | 3 |
-| entity struct (6 fields) | 34 |
+|:---|---:|
+| entity struct (6 fields, lossless) | 34 |
 | entity compact (quantized) | 13 |
-| bitfield | 2 |
 | 100× entities | 601 |
 | 1000× bools (bitpacked) | 127 |
+| bitfield flags | 2 |
+| `tuple(u8, vec3, bool)` | 14 |
 
-### Codec Throughput
+### Delta savings
 
-100k iterations, isolated CPU. No networking.
+| Codec | Full | Unchanged |
+|:---|---:|---:|
+| `deltaStruct` (entity) | 35 B | 1 B |
+| `deltaStruct` (compact) | 14 B | 1 B |
+| `deltaArray` (100× entity) | 602 B | 1 B |
+| `deltaArray` (1000× bool) | 128 B | 1 B |
+| `deltaMap` (string → u8) | 19 B | 1 B |
 
-| Codec | Encode | Decode | Round-trips/sec |
-|:------|-------:|-------:|----------------:|
-| `bool` | 44ns | 29ns | 13.9M |
-| `int(0, 255)` | 42ns | 28ns | 14.4M |
-| `f32` | 41ns | 25ns | 15.0M |
-| `f64` | 41ns | 26ns | 14.8M |
-| `string` (10 chars) | 46ns | 60ns | 9.4M |
-| `string` (1000 chars) | 76ns | 238ns | 3.2M |
-| `vec3` | 53ns | 27ns | 12.4M |
-| `cframe` | 92ns | 144ns | 4.2M |
-| `cframe()` | 123ns | 170ns | 3.4M |
-| entity struct | 239ns | 395ns | 1.6M |
-| 100× entities | 15.2µs | 34.1µs | 20K |
-| 1000× bools | 4.3µs | 5.1µs | 107K |
+### Cross-library comparison
 
-### Delta Savings
-
-| Codec | Full | Unchanged | Savings |
-|:------|-----:|----------:|--------:|
-| `deltaStruct` (entity) | 35B | 1B | 97% |
-| `deltaStruct` (compact) | 14B | 1B | 93% |
-| `deltaArray` (100× entity) | 602B | 1B | 100% |
-| `deltaArray` (1000× bool) | 128B | 1B | 99% |
-| `deltaMap` (string → u8) | 19B | 1B | 95% |
-
-### Network Throughput
-
-1000 fires/frame, 8 seconds, one player.
-
-| Packet | FPS | Kbps |
-|:-------|----:|-----:|
-| booleans | 60 | 2.5 |
-| entity struct | 60 | 2.3 |
-| entity compact | 60 | 2.4 |
-| bitfield flags | 60 | 2.4 |
-| cframe lossless | 60 | 2.5 |
-| cframe compressed | 60 | 2.3 |
-
-### Cross-Library Comparison
-
-Same methodology as [Blink's benchmarks](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md): 1,000 fires/frame, same data every frame, 10 seconds.
-
-Other tool numbers from [Blink v0.17.1](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md) (2025-04-30).
+Same methodology as [Blink](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md): 1000 fires/frame, identical data, 10 s. Other-tool numbers from Blink v0.17.1.
 
 > [!NOTE]
-> Lync batches all sends into one buffer per frame. Other tools fire one RemoteEvent per send. Lync also includes server-side validation and bool bitpacking (1000 bools = 127B vs ~1002B). Delta compression is not exercised here — see [Delta Savings](#delta-savings).
+> Lync batches all sends into one buffer per frame and bitpacks bools (1000 = 127 B vs ~1002 B). Delta compression isn't exercised here.
 
-#### Entities — 100× struct(6× u8)
+**100× struct(6× u8) entities**
 
 | Tool | FPS | Kbps |
-|:-----|----:|-----:|
+|:---|---:|---:|
 | roblox | 16 | 559,364 |
-| **lync** | **60** | **3.68** |
+| **lync** | **60** | **3.47** |
 | blink | 42 | 41.81 |
 | zap | 39 | 41.71 |
 | bytenet | 32 | 41.64 |
 
-#### Booleans — 1000× bool
+**1000× bool**
 
 | Tool | FPS | Kbps |
-|:-----|----:|-----:|
+|:---|---:|---:|
 | roblox | 21 | 353,107 |
-| **lync** | **60** | **2.49** |
+| **lync** | **60** | **2.33** |
 | blink | 97 | 7.91 |
 | zap | 52 | 8.10 |
 | bytenet | 35 | 8.11 |

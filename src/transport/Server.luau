@@ -1,8 +1,10 @@
 --!strict
 --!optimize 2
 -- Server-side transport: per-player channels, broadcast, flush.
+-- Decodes inbound XOR delta against a per-player baseline.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Baseline = require(script.Parent.Parent.internal.Baseline)
 local Bridge = require(script.Parent.Parent.transport.Bridge)
@@ -12,186 +14,189 @@ local Pool = require(script.Parent.Parent.internal.Pool)
 local Reader = require(script.Parent.Parent.transport.Reader)
 local Types = require(script.Parent.Parent.Types)
 
--- State ---------------------------------------------------------------
+-- Constants --------------------------------------------------------------
+
+local CONTAINER_NAME = "LyncRemotes"
+
+-- State ------------------------------------------------------------------
 
 local _reliableChannels: { [Player]: Types.ChannelState } = {}
 local _unreliableChannels: { [Player]: Types.ChannelState } = {}
 local _playerStats: { [Player]: Types.PlayerStats } = {}
+local _prevIncoming: { [Player]: buffer } = {}
+local _prevIncomingLen: { [Player]: number } = {}
+
 local _statsEnabled = false
 
--- Private -------------------------------------------------------------
+-- Private ----------------------------------------------------------------
 
-local function getReliable(player: Player): Types.ChannelState
-    local ch = _reliableChannels[player]
+local function getOrCreateChannel(
+    map: { [Player]: Types.ChannelState },
+    player: Player
+): Types.ChannelState
+    local ch = map[player]
     if not ch then
         ch = Pool.acquire()
-        _reliableChannels[player] = ch
+        map[player] = ch
     end
     return ch
 end
 
-local function getUnreliable(player: Player): Types.ChannelState
-    local ch = _unreliableChannels[player]
-    if not ch then
-        ch = Pool.acquire()
-        _unreliableChannels[player] = ch
+local function flushReliable(player: Player): ()
+    local rCh = _reliableChannels[player]
+    if not rCh or rCh.cursor == 0 then
+        return
     end
-    return ch
+
+    local snapshot, refs, byteLen = Channel.sealAndDump(rCh)
+    local xored = Channel.xorApply(snapshot, byteLen, rCh.prevDump, rCh.prevDumpLen)
+    rCh.prevDump = snapshot
+    rCh.prevDumpLen = byteLen
+
+    Bridge.fireClient(player, xored, refs)
+    Channel.reset(rCh)
+
+    if _statsEnabled then
+        local ps = _playerStats[player]
+        if ps then
+            ps.bytesSent += byteLen
+        end
+    end
+end
+
+local function flushUnreliable(player: Player): ()
+    local uCh = _unreliableChannels[player]
+    if not uCh or uCh.cursor == 0 then
+        return
+    end
+
+    local snapshot, refs, byteLen = Channel.sealAndDump(uCh)
+    Bridge.fireClientUnreliable(player, snapshot, refs)
+    Channel.reset(uCh)
+
+    if _statsEnabled then
+        local ps = _playerStats[player]
+        if ps then
+            ps.bytesSent += byteLen
+        end
+    end
 end
 
 local function flushPlayer(player: Player): ()
-    -- Reliable channel
-    local rCh = _reliableChannels[player]
-    if rCh and rCh.cursor > 0 then
-        local snapshot, refs, byteLen, refCount = Channel.sealAndDump(rCh)
+    flushReliable(player)
+    flushUnreliable(player)
+end
 
-        -- XOR against previous frame
-        local xored = Channel.xorApply(snapshot, byteLen, rCh.prevDump, rCh.prevDumpLen)
-        rCh.prevDump = snapshot
-        rCh.prevDumpLen = byteLen
-
-        Bridge.fireClient(player, xored, refs)
-        Channel.reset(rCh)
-
-        if _statsEnabled then
-            local ps = _playerStats[player]
-            if ps then
-                ps.bytesSent += byteLen
-            end
-        end
+local function handleIncomingReliable(player: Player, data: any, refs: any?): ()
+    local incoming = Reader.decodeIncoming(data)
+    if not incoming then
+        return
     end
 
-    -- Unreliable channel (no XOR, no delta)
-    local uCh = _unreliableChannels[player]
-    if uCh and uCh.cursor > 0 then
-        local snapshot, refs, byteLen, _ = Channel.sealAndDump(uCh)
+    local incomingLen = buffer.len(incoming)
+    if not Gate.checkBandwidth(player, incomingLen) then
+        return
+    end
 
-        Bridge.fireClientUnreliable(player, snapshot, refs)
-        Channel.reset(uCh)
+    local prev = _prevIncoming[player]
+    local decoded = if prev
+        then Channel.xorApply(incoming, incomingLen, prev, _prevIncomingLen[player])
+        else incoming
+    _prevIncoming[player] = decoded
+    _prevIncomingLen[player] = incomingLen
 
-        if _statsEnabled then
-            local ps = _playerStats[player]
-            if ps then
-                ps.bytesSent += byteLen
-            end
+    local ok, err = pcall(Reader.process, decoded, incomingLen, refs, player, true)
+    if not ok then
+        warn(`[Lync] Server.receive: {player.Name}: {err}`)
+    end
+
+    if _statsEnabled then
+        local ps = _playerStats[player]
+        if ps then
+            ps.bytesReceived += incomingLen
         end
     end
 end
 
--- Public --------------------------------------------------------------
+local function handleIncomingUnreliable(player: Player, data: any, refs: any?): ()
+    local incoming = Reader.decodeIncoming(data)
+    if not incoming then
+        return
+    end
+
+    local incomingLen = buffer.len(incoming)
+    local ok, err = pcall(Reader.process, incoming, incomingLen, refs, player, true)
+    if not ok then
+        warn(`[Lync] Server.receiveUnreliable: {player.Name}: {err}`)
+    end
+
+    if _statsEnabled then
+        local ps = _playerStats[player]
+        if ps then
+            ps.bytesReceived += incomingLen
+        end
+    end
+end
+
+local function clearPlayerState(player: Player): ()
+    local rCh = _reliableChannels[player]
+    if rCh then
+        _reliableChannels[player] = nil
+        Pool.release(rCh)
+    end
+    local uCh = _unreliableChannels[player]
+    if uCh then
+        _unreliableChannels[player] = nil
+        Pool.release(uCh)
+    end
+
+    _playerStats[player] = nil
+    _prevIncoming[player] = nil
+    _prevIncomingLen[player] = nil
+
+    Gate.clearPlayer(player)
+    Baseline.clearPlayer(player)
+end
+
+-- Public -----------------------------------------------------------------
 
 local Server = {}
 
 function Server.getChannel(player: Player, isUnreliable: boolean): Types.ChannelState
-    return if isUnreliable then getUnreliable(player) else getReliable(player)
+    return getOrCreateChannel(
+        if isUnreliable then _unreliableChannels else _reliableChannels,
+        player
+    )
 end
 
 function Server.flush(): ()
     if Channel.hasTimestamps() then
         Channel.updateTimestamp()
     end
-
-    for player in _reliableChannels do
+    for _, player in Players:GetPlayers() do
         flushPlayer(player)
     end
-
-    for player in _unreliableChannels do
-        if not _reliableChannels[player] then
-            flushPlayer(player)
-        end
-    end
 end
 
-function Server.flushPlayer(player: Player): ()
-    flushPlayer(player)
-end
+Server.flushPlayer = flushPlayer
 
 function Server.start(): ()
     local container = Instance.new("Folder")
-    container.Name = "LyncRemotes"
-    container.Parent = game:GetService("ReplicatedStorage")
+    container.Name = CONTAINER_NAME
+    container.Parent = ReplicatedStorage
 
     Bridge.setup(container)
 
-    local reliable = Bridge.reliable()
-    local unreliable = Bridge.unreliable()
+    Bridge.reliable().OnServerEvent:Connect(handleIncomingReliable)
+    Bridge.unreliable().OnServerEvent:Connect(handleIncomingUnreliable)
 
-    -- Incoming reliable
-    reliable.OnServerEvent:Connect(function(player: Player, data: any, refs: any?)
-        local incoming = Reader.decodeIncoming(data)
-        if not incoming then
-            return
-        end
-
-        local incomingLen = buffer.len(incoming)
-
-        -- Bandwidth check
-        if not Gate.checkBandwidth(player, incomingLen) then
-            return
-        end
-
-        -- XOR decode against player's previous outbound (client→server has no XOR)
-        local ok, err = pcall(Reader.process, incoming, incomingLen, refs :: any, player, true)
-        if not ok then
-            warn(`[Lync] Server: read error from {player.Name}: {err}`)
-        end
-
-        if _statsEnabled then
-            local ps = _playerStats[player]
-            if ps then
-                ps.bytesReceived += incomingLen
-            end
-        end
-    end)
-
-    -- Incoming unreliable
-    unreliable.OnServerEvent:Connect(function(player: Player, data: any, refs: any?)
-        local incoming = Reader.decodeIncoming(data)
-        if not incoming then
-            return
-        end
-
-        local incomingLen = buffer.len(incoming)
-
-        local ok, err = pcall(Reader.process, incoming, incomingLen, refs :: any, player, true)
-        if not ok then
-            warn(`[Lync] Server: read error (unreliable) from {player.Name}: {err}`)
-        end
-
-        if _statsEnabled then
-            local ps = _playerStats[player]
-            if ps then
-                ps.bytesReceived += incomingLen
-            end
-        end
-    end)
-
-    -- Player lifecycle
     Players.PlayerAdded:Connect(function(player: Player)
         if _statsEnabled then
             _playerStats[player] = { bytesSent = 0, bytesReceived = 0 }
         end
     end)
+    Players.PlayerRemoving:Connect(clearPlayerState)
 
-    Players.PlayerRemoving:Connect(function(player: Player)
-        local rCh = _reliableChannels[player]
-        if rCh then
-            _reliableChannels[player] = nil
-            Pool.release(rCh)
-        end
-
-        local uCh = _unreliableChannels[player]
-        if uCh then
-            _unreliableChannels[player] = nil
-            Pool.release(uCh)
-        end
-
-        _playerStats[player] = nil
-        Gate.clearPlayer(player)
-        Baseline.clearPlayer(player)
-    end)
-
-    -- Initialize stats for existing players
     if _statsEnabled then
         for _, player in Players:GetPlayers() do
             _playerStats[player] = { bytesSent = 0, bytesReceived = 0 }
@@ -208,7 +213,7 @@ function Server.getPlayerStats(player: Player): Types.PlayerStats?
 end
 
 function Server.resetStats(): ()
-    for player, ps in _playerStats do
+    for _, ps in _playerStats do
         ps.bytesSent = 0
         ps.bytesReceived = 0
     end

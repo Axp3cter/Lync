@@ -6,116 +6,57 @@ local Registry = require(script.Parent.Parent.Parent.internal.Registry)
 local Runner = require(script.Parent.Parent.Runner)
 local describe, it, expect = Runner.describe, Runner.it, Runner.expect
 
+-- Private ----------------------------------------------------------------
+
+--[[
+    Build a RegisterOptions table for a u8 packet. Caller supplies a
+    unique name; everything else gets reasonable defaults so each test
+    can call Registry.register(makeOpts("...")).
+]]
+local function makeOpts(name: string): any
+    return {
+        name = name,
+        kind = Registry.KIND_PACKET,
+        codec = Lync.int(0, 255),
+        isUnreliable = false,
+        partner = nil,
+        needsGate = false,
+        headerSize = 1,
+        timestampMode = Channel.TS_NONE,
+        openFn = Channel.resolveOpenFn(Channel.TS_NONE, name),
+        rateLimit = nil,
+        validate = nil,
+        maxPayloadBytes = nil,
+    }
+end
+
+-- Tests ------------------------------------------------------------------
+
 describe("Registry: sequential IDs", function(): ()
     it("first ID > 0", function(): ()
-        local before = Registry.count()
-        local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__rseq1")
-        local reg = Registry.register(
-            "__rseq1",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openFn,
-            nil,
-            nil,
-            nil
-        )
+        local reg = Registry.register(makeOpts("__rseq1"))
         expect(reg.id):toBeGreaterThan(0)
     end)
     it("count increments", function(): ()
         local before = Registry.count()
-        local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__rseq2")
-        Registry.register(
-            "__rseq2",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openFn,
-            nil,
-            nil,
-            nil
-        )
+        Registry.register(makeOpts("__rseq2"))
         expect(Registry.count()):toBe(before + 1)
     end)
     it("IDs are sequential", function(): ()
-        local openA = Channel.resolveOpenFn(Channel.TS_NONE, "__rseq3a")
-        local openB = Channel.resolveOpenFn(Channel.TS_NONE, "__rseq3b")
-        local a = Registry.register(
-            "__rseq3a",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openA,
-            nil,
-            nil,
-            nil
-        )
-        local b = Registry.register(
-            "__rseq3b",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openB,
-            nil,
-            nil,
-            nil
-        )
+        local a = Registry.register(makeOpts("__rseq3a"))
+        local b = Registry.register(makeOpts("__rseq3b"))
         expect(b.id):toBe(a.id + 1)
     end)
 end)
 
 describe("Registry: lookup", function(): ()
     it("get by ID", function(): ()
-        local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__rget")
-        local reg = Registry.register(
-            "__rget",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openFn,
-            nil,
-            nil,
-            nil
-        )
+        local reg = Registry.register(makeOpts("__rget"))
         expect(Registry.get(reg.id)):toBeTruthy()
         expect((Registry.get(reg.id) :: any).name):toBe("__rget")
     end)
     it("getByName", function(): ()
-        local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__rname")
-        Registry.register(
-            "__rname",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openFn,
-            nil,
-            nil,
-            nil
-        )
+        Registry.register(makeOpts("__rname"))
         expect(Registry.getByName("__rname")):toBeTruthy()
     end)
     it("get unknown ID = nil", function(): ()
@@ -128,36 +69,9 @@ end)
 
 describe("Registry: duplicate name errors", function(): ()
     it("throws", function(): ()
-        local openFn = Channel.resolveOpenFn(Channel.TS_NONE, "__rdup")
-        Registry.register(
-            "__rdup",
-            0,
-            Lync.int(0, 255),
-            false,
-            nil,
-            false,
-            1,
-            0,
-            openFn,
-            nil,
-            nil,
-            nil
-        )
+        Registry.register(makeOpts("__rdup"))
         expect(function(): ()
-            Registry.register(
-                "__rdup",
-                0,
-                Lync.int(0, 255),
-                false,
-                nil,
-                false,
-                1,
-                0,
-                openFn,
-                nil,
-                nil,
-                nil
-            )
+            Registry.register(makeOpts("__rdup"))
         end):toThrow("duplicate")
     end)
 end)

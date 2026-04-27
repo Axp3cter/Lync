@@ -21,8 +21,8 @@
             "$className": "StarterPlayer",
             "StarterPlayerScripts": {
                 "$className": "StarterPlayerScripts",
-                "BenchReceiver": {
-                    "$path": "bench/Receive.client.luau"
+                "RunBench": {
+                    "$path": "bench/Run.client.luau"
                 }
             }
         }

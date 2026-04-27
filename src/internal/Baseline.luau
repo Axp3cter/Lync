@@ -2,40 +2,39 @@
 --!optimize 2
 -- Read-side delta cache for delta codecs.
 
--- State ---------------------------------------------------------------
+local Types = require(script.Parent.Parent.Types)
 
-local _caches: { [number]: { [any]: any } } = {}
-local _currentKey: any = false
+-- State ------------------------------------------------------------------
+
+local _caches: { [number]: { [Types.BaselineKey]: any } } = {}
+local _currentKey: Types.BaselineKey = false
 local _hasDelta = false
 
--- Public --------------------------------------------------------------
+-- Public -----------------------------------------------------------------
 
 local Baseline = {}
 
-function Baseline.setReadKey(key: any): ()
+function Baseline.setReadKey(key: Types.BaselineKey): ()
     _currentKey = key
 end
 
 function Baseline.getCache(deltaId: number): any?
-    local perPlayer = _caches[deltaId]
-    if not perPlayer then
-        return nil
-    end
-    return perPlayer[_currentKey]
+    local perKey = _caches[deltaId]
+    return if perKey then perKey[_currentKey] else nil
 end
 
 function Baseline.setCache(deltaId: number, value: any): ()
-    local perPlayer = _caches[deltaId]
-    if not perPlayer then
-        perPlayer = {}
-        _caches[deltaId] = perPlayer
+    local perKey = _caches[deltaId]
+    if not perKey then
+        perKey = {}
+        _caches[deltaId] = perKey
     end
-    perPlayer[_currentKey] = value
+    perKey[_currentKey] = value
 end
 
-function Baseline.clearPlayer(key: any): ()
-    for _, perPlayer in _caches do
-        perPlayer[key] = nil
+function Baseline.clearPlayer(key: Types.BaselineKey): ()
+    for _, perKey in _caches do
+        perKey[key] = nil
     end
 end
 

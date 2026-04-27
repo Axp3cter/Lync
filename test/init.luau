@@ -43,9 +43,11 @@ require(script.adversarial["SchemaValidation.test"])
 require(script.pipeline["Xor.test"])
 require(script.pipeline["MSB.test"])
 require(script.pipeline["Delta.test"])
+require(script.pipeline["EndToEnd.test"])
 
 -- Transport
 require(script.transport["Gate.test"])
+require(script.transport["Reader.test"])
 
 -- API
 require(script.api["Signal.test"])

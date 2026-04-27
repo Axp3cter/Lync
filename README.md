@@ -351,21 +351,21 @@ CPU benches run a fixed 1000 iterations per case.
 
 | Codec | Encode | Decode | RT/s |
 |:---|---:|---:|---:|
-| `bool` | 53 ns | 28 ns | 12.4 M |
-| `int(0, 255)` | 40 ns | 25 ns | 15.3 M |
-| `int(0, 65535)` | 40 ns | 25 ns | 15.4 M |
-| `f16` | 60 ns | 42 ns | 9.8 M |
-| `f32` | 40 ns | 27 ns | 14.9 M |
-| `f64` | 41 ns | 24 ns | 15.5 M |
-| `string` (10 chars) | 48 ns | 71 ns | 8.5 M |
-| `string` (1000 chars) | 72 ns | 243 ns | 3.2 M |
-| `vec3` | 53 ns | 27 ns | 12.5 M |
-| `vec3` quantized | 133 ns | 83 ns | 4.6 M |
-| `cframe` | 86 ns | 146 ns | 4.3 M |
-| `cframe()` | 118 ns | 168 ns | 3.5 M |
-| entity struct (6 fields) | 231 ns | 408 ns | 1.6 M |
-| 100× entities | 14.8 µs | 34.4 µs | 20 K |
-| 1000× bools (bitpacked) | 4.2 µs | 5.9 µs | 99 K |
+| `bool` | 43 ns | 28 ns | 14.1 M |
+| `int(0, 255)` | 41 ns | 25 ns | 15.2 M |
+| `int(0, 65535)` | 40 ns | 25 ns | 15.3 M |
+| `f16` | 60 ns | 42 ns | 9.7 M |
+| `f32` | 41 ns | 26 ns | 14.9 M |
+| `f64` | 41 ns | 25 ns | 15.3 M |
+| `string` (10 chars) | 45 ns | 73 ns | 8.4 M |
+| `string` (1000 chars) | 74 ns | 250 ns | 3.1 M |
+| `vec3` | 56 ns | 27 ns | 12.1 M |
+| `vec3` quantized | 121 ns | 85 ns | 4.9 M |
+| `cframe` | 88 ns | 186 ns | 3.6 M |
+| `cframe()` | 118 ns | 214 ns | 3.0 M |
+| entity struct (6 fields) | 234 ns | 476 ns | 1.4 M |
+| 100× entities | 15.3 µs | 34.6 µs | 20 K |
+| 1000× bools (bitpacked) | 4.3 µs | 5.3 µs | 104 K |
 
 ### Wire sizes
 

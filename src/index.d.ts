@@ -141,7 +141,7 @@ interface LyncModule {
 
     configure(this: void, options: Lync.ConfigureOptions): void;
     start(this: void): void;
-    isStarted(this: void): boolean;
+    readonly started: boolean;
 
     // ── Definitions ─────────────────────────────────────────────────
 
@@ -242,24 +242,19 @@ interface LyncModule {
     map<K, V>(this: void, keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
     deltaMap<K, V>(this: void, keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;
     optional<T>(this: void, codec: Lync.Codec<T>): Lync.Codec<T | undefined>;
+    nullable<T, S>(this: void, codec: Lync.Codec<T>, sentinel: S): Lync.Codec<T | S>;
     tuple<T extends Lync.Codec<unknown>[]>(this: void, ...codecs: T): Lync.Codec<{ [K in keyof T]: Lync.InferCodec<T[K]> }>;
     tagged<Tag extends string, V extends Record<string, Lync.Codec<unknown>>>(
         this: void,
         tagField: Tag,
         variants: V,
-    ): Lync.Codec<{ [K in keyof V & string]: { [F in Tag]: K } & Lync.InferCodec<V[K]> }[keyof V & string]>;
+    ): Lync.Codec<{ [K in keyof V]: Lync.InferSchema<{ [F in Tag]: K }> & Lync.InferCodec<V[K]> }[keyof V]>;
 
     // ── Meta ────────────────────────────────────────────────────────
 
     enum<T extends string[]>(this: void, ...values: T): Lync.Codec<T[number]>;
     bitfield(this: void, schema: Record<string, { type: "bool" } | { type: "uint"; width: number } | { type: "int"; width: number }>): Lync.Codec<Record<string, boolean | number>>;
-    custom<T>(
-        this: void,
-        size: number,
-        write: (b: buffer, offset: number, value: T) => void,
-        read: (b: buffer, offset: number) => T,
-        typeCheck?: string,
-    ): Lync.Codec<T>;
+    custom<T>(this: void, size: number, write: (b: buffer, offset: number, value: T) => void, read: (b: buffer, offset: number) => T): Lync.Codec<T>;
     readonly nothing: Lync.Codec<undefined>;
     readonly unknown: Lync.Codec<unknown>;
     readonly auto: Lync.Codec<unknown>;

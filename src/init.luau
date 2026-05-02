@@ -15,8 +15,8 @@ local Query = require(script.api.Query)
 local Registry = require(script.internal.Registry)
 local Scope = require(script.api.Scope)
 local Types = require(script.Types)
-local Util = require(script.internal.Util)
 
+-- Codecs
 local ArrayC = require(script.codec.composite.Array)
 local AutoC = require(script.codec.meta.Auto)
 local BitfieldC = require(script.codec.meta.Bitfield)
@@ -48,138 +48,108 @@ local UDimC = require(script.codec.datatype.UDim)
 local UnknownC = require(script.codec.meta.Unknown)
 local VectorC = require(script.codec.datatype.Vector)
 
--- Public types (re-exported so users can write `Lync.Packet<MyData>`) ---
-
-export type Codec<T> = Types.Codec<T>
-export type Connection = Types.Connection
-export type Packet<T> = Packet.PacketHandle<T>
-export type Query<Req, Resp> = Query.QueryHandle<Req, Resp>
-export type Group = Group.GroupHandle
-export type Scope = Scope.ScopeHandle
-export type PacketOptions = Types.PacketOptions
-export type QueryOptions = Types.QueryOptions
-export type ConfigureOptions = Types.ConfigureOptions
-export type RateLimitConfig = Types.RateLimitConfig
-export type PacketStats = Types.PacketStats
-export type PlayerStats = Types.PlayerStats
-
--- Constants --------------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer()
 
+-- State ---------------------------------------------------------------
+
+local _started = false
+local _flushRate = 60
+local _flushAccum = 0
+local _flushConn: RBXScriptConnection? = nil
+
+-- Private -------------------------------------------------------------
+
 local DROP = table.freeze({ _lyncDrop = true })
 local ALL = table.freeze({ _lyncAll = true })
-
-local CHANNEL_MAX_MIN, CHANNEL_MAX_MAX = 4096, 1048576
-local DEPTH_MIN, DEPTH_MAX = 4, 32
-local POOL_MIN, POOL_MAX = 2, 128
-local FLUSH_HZ_MIN, FLUSH_HZ_MAX = 1, 60
-
--- State ------------------------------------------------------------------
-
---[[
-    Wrap mutable flush state in one table so the Heartbeat closure
-    captures a single LCT_VAL upvalue instead of separate LCT_REF
-    upvalues for each field.
-]]
-local _flushState = {
-    started = false,
-    rate = FLUSH_HZ_MAX,
-    accum = 0,
-    conn = nil :: RBXScriptConnection?,
-    transport = nil :: { flush: () -> () }?,
-}
-
--- Private ----------------------------------------------------------------
-
-local isPlayer = Util.isPlayer
 
 local function except(...: any): any
     local excluded: { [Player]: boolean } = {}
 
     for i = 1, select("#", ...) do
         local arg = select(i, ...)
-        if isPlayer(arg) then
+        if typeof(arg) == "Instance" and (arg :: Instance):IsA("Player") then
             excluded[arg :: Player] = true
-        elseif typeof(arg) == "table" and arg._lyncGroup then
-            for player in arg._members :: { [Player]: boolean } do
+        elseif typeof(arg) == "table" and (arg :: any)._lyncGroup then
+            for player in (arg :: any)._members do
                 excluded[player] = true
             end
         else
-            error("[Lync] Lync.except: argument must be a Player or Group")
+            error("[Lync] except: argument must be a Player or Group")
         end
     end
 
-    return table.freeze({
-        _lyncExcept = true,
-        _excluded = table.freeze(excluded),
-    })
+    return table.freeze({ _lyncExcept = true, _excluded = excluded })
 end
 
 local function setupFlush(): ()
-    local transport: { flush: () -> () }
+    local flushFn: () -> ()
+
     if IS_SERVER then
         local Server = require(script.transport.Server)
-        transport = { flush = Server.flush }
+        flushFn = function(): ()
+            Server.flush()
+        end
     else
         local Client = require(script.transport.Client)
-        transport = { flush = Client.flush }
+        flushFn = function(): ()
+            Client.flush()
+        end
     end
-    _flushState.transport = transport
 
-    _flushState.conn = RunService.Heartbeat:Connect(function(dt: number)
-        local rate = _flushState.rate
-        if rate >= FLUSH_HZ_MAX then
-            transport.flush()
-            return
+    _flushConn = RunService.Heartbeat:Connect(function(dt: number)
+        if _flushRate >= 60 then
+            flushFn()
+        else
+            _flushAccum += dt
+            local interval = 1 / _flushRate
+            if _flushAccum >= interval then
+                _flushAccum -= interval
+                -- Prevent drift accumulation
+                if _flushAccum >= interval then
+                    _flushAccum = 0
+                end
+                flushFn()
+            end
         end
-
-        local accum = _flushState.accum + dt
-        local interval = 1 / rate
-        if accum >= interval then
-            -- Drift guard: if we're more than one interval behind (frame
-            -- stall) zero the accumulator instead of catching up.
-            accum = if accum >= 2 * interval then 0 else accum - interval
-            transport.flush()
-        end
-        _flushState.accum = accum
     end)
 end
 
--- Public -----------------------------------------------------------------
+-- Public --------------------------------------------------------------
 
-local Lync = {}
+local Lync: any = {}
+
+-- Lifecycle -----------------------------------------------------------
 
 function Lync.configure(options: Types.ConfigureOptions): ()
-    if _flushState.started then
+    if _started then
         error("[Lync] Lync.configure: must be called before Lync.start()")
     end
 
-    local size = options.channelMaxSize
-    if size then
-        if size < CHANNEL_MAX_MIN or size > CHANNEL_MAX_MAX then
-            error(
-                `[Lync] Lync.configure: channelMaxSize must be {CHANNEL_MAX_MIN}-{CHANNEL_MAX_MAX}`
-            )
+    if options.channelMaxSize then
+        local size = options.channelMaxSize
+        if size < 4096 or size > 1048576 then
+            error("[Lync] Lync.configure: channelMaxSize must be 4096-1048576")
         end
         Channel.setMaxSize(size)
         Base.setMaxSize(size)
     end
 
-    local depth = options.validationDepth
-    if depth then
-        if depth < DEPTH_MIN or depth > DEPTH_MAX then
-            error(`[Lync] Lync.configure: validationDepth must be {DEPTH_MIN}-{DEPTH_MAX}`)
+    if options.validationDepth then
+        local depth = options.validationDepth
+        if depth < 4 or depth > 32 then
+            error("[Lync] Lync.configure: validationDepth must be 4-32")
         end
         Gate.setDepth(depth)
     end
 
-    local poolSize = options.poolSize
-    if poolSize then
-        if poolSize < POOL_MIN or poolSize > POOL_MAX then
-            error(`[Lync] Lync.configure: poolSize must be {POOL_MIN}-{POOL_MAX}`)
+    if options.poolSize then
+        local size = options.poolSize
+        if size < 2 or size > 128 then
+            error("[Lync] Lync.configure: poolSize must be 2-128")
         end
-        Pool.setMaxSize(poolSize)
+        Pool.setMaxSize(size)
     end
 
     if options.bandwidthLimit then
@@ -200,10 +170,10 @@ function Lync.configure(options: Types.ConfigureOptions): ()
 end
 
 function Lync.start(): ()
-    if _flushState.started then
+    if _started then
         error("[Lync] Lync.start: already started")
     end
-    _flushState.started = true
+    _started = true
 
     if IS_SERVER then
         local Server = require(script.transport.Server)
@@ -216,39 +186,56 @@ function Lync.start(): ()
     setupFlush()
 end
 
-function Lync.flush(): ()
-    if not _flushState.started then
-        error("[Lync] Lync.flush: must call Lync.start() first")
-    end
-    -- start() is the only path that sets transport, so it's non-nil here.
-    (_flushState.transport :: { flush: () -> () }).flush()
-    _flushState.accum = 0
-end
+-- `Lync.started` is a read-only property backed by _started
+Lync.started = false
 
-function Lync.flushRate(hz: number): ()
-    if hz < FLUSH_HZ_MIN or hz > FLUSH_HZ_MAX then
-        error(`[Lync] Lync.flushRate: hz must be {FLUSH_HZ_MIN}-{FLUSH_HZ_MAX}`)
-    end
-    _flushState.rate = hz
-    _flushState.accum = 0
-end
-
-function Lync.isStarted(): boolean
-    return _flushState.started
-end
+-- Definitions ---------------------------------------------------------
 
 Lync.packet = Packet.define
 Lync.query = Query.define
 Lync.group = Group.create
 Lync.scope = Scope.create
 
+-- Targeting -----------------------------------------------------------
+
 Lync.all = ALL
 Lync.except = except
 Lync.DROP = DROP
 
+-- Middleware ----------------------------------------------------------
+
 Lync.onSend = Middleware.onSend
 Lync.onReceive = Middleware.onReceive
 Lync.onDrop = Middleware.onDrop
+
+-- Runtime control -----------------------------------------------------
+
+function Lync.flush(): ()
+    if not _started then
+        error("[Lync] Lync.flush: must call Lync.start() first")
+    end
+
+    if IS_SERVER then
+        local Server = require(script.transport.Server)
+        Server.flush()
+    else
+        local Client = require(script.transport.Client)
+        Client.flush()
+    end
+
+    -- Reset accumulator to prevent double-flush
+    _flushAccum = 0
+end
+
+function Lync.flushRate(hz: number): ()
+    if hz < 1 or hz > 60 then
+        error("[Lync] Lync.flushRate: hz must be 1-60")
+    end
+    _flushRate = hz
+    _flushAccum = 0
+end
+
+-- Stats ---------------------------------------------------------------
 
 Lync.stats = table.freeze({
     player = function(player: Player): Types.PlayerStats?
@@ -264,47 +251,55 @@ Lync.stats = table.freeze({
             local Server = require(script.transport.Server)
             Server.resetStats()
         end
-        for i = 1, Registry.count() do
-            local reg = Registry.get(i)
-            if reg then
-                reg.bytesSent = 0
-                reg.bytesReceived = 0
-                reg.fires = 0
-                reg.recvFires = 0
-                reg.drops = 0
-            end
+
+        -- Reset per-registration stats
+        for _, reg in Registry.all() do
+            reg.bytesSent = 0
+            reg.bytesReceived = 0
+            reg.fires = 0
+            reg.recvFires = 0
+            reg.drops = 0
         end
     end,
 })
 
+-- Debug ---------------------------------------------------------------
+
 Lync.debug = table.freeze({
-    capture = function(_label: string?): () end,
-    stop = function(): () end,
-    dump = function(): () end,
+    capture = function(_label: string?): ()
+        -- TODO: Implement capture recording
+    end,
+
+    stop = function(): ()
+        -- TODO: Implement capture stop
+    end,
+
+    dump = function(): ()
+        -- TODO: Implement capture dump
+    end,
 
     pending = function(): number
         return Query.pendingCount()
     end,
 
     registrations = function(): { any }
-        local count = Registry.count()
-        local result = table.create(count)
-        local n = 0
-        for i = 1, count do
-            local reg = Registry.get(i)
-            if reg then
-                n += 1
-                result[n] = table.freeze({
-                    name = reg.name,
-                    id = reg.id,
-                    kind = reg.kind,
-                    isUnreliable = reg.isUnreliable,
-                })
-            end
+        local regs = Registry.all()
+        local result = table.create(#regs)
+
+        for i, reg in regs do
+            result[i] = table.freeze({
+                name = reg.name,
+                id = reg.id,
+                kind = reg.kind,
+                isUnreliable = reg.isUnreliable,
+            })
         end
+
         return table.freeze(result)
     end,
 })
+
+-- Codecs --------------------------------------------------------------
 
 Lync.int = IntC.int
 Lync.float = FloatC.float
@@ -337,6 +332,7 @@ Lync.deltaArray = ArrayC.deltaArray
 Lync.map = MapC.map
 Lync.deltaMap = MapC.deltaMap
 Lync.optional = OptionalC.optional
+Lync.nullable = OptionalC.nullable
 Lync.tuple = TupleC.define
 Lync.tagged = TaggedC.define
 Lync.enum = EnumC.define
@@ -346,4 +342,19 @@ Lync.nothing = NothingC.nothing
 Lync.unknown = UnknownC.unknown
 Lync.auto = AutoC.auto
 
-return table.freeze(Lync)
+-- Wrap in metatable for `Lync.started` property -----------------------
+
+local LyncProxy = setmetatable({}, {
+    __index = function(_self: any, key: string): any
+        if key == "started" then
+            return _started
+        end
+        return Lync[key]
+    end,
+
+    __newindex = function(): ()
+        error("[Lync] Lync: module table is read-only")
+    end,
+})
+
+return LyncProxy

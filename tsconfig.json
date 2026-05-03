@@ -7,8 +7,10 @@
         "noEmit": true,
         "skipLibCheck": true,
         "target": "ESNext",
-        "moduleResolution": "node",
-        "types": ["@rbxts/compiler-types", "@rbxts/types"]
+        "module": "commonjs",
+        "moduleResolution": "node10",
+        "ignoreDeprecations": "6.0",
+        "typeRoots": ["node_modules/@rbxts"]
     },
     "include": ["src/index.d.ts"]
 }

@@ -58,23 +58,16 @@ end
 function Optional.nullable(inner: Types.InternalCodec<any>, sentinel: any): Types.InternalCodec<any>
     local codec: any = {
         write = function(ch: Types.ChannelState, value: any): ()
-            local cursor = ch.cursor
-            if cursor + 1 > ch.size then
-                alloc(ch, 1)
-            end
             if deepEqual(value, sentinel) then
-                writeu8(ch.buff, cursor, 0)
-                ch.cursor = cursor + 1
-            else
-                writeu8(ch.buff, cursor, 1)
-                ch.cursor = cursor + 1
-                inner.write(ch, value)
+                writeByte(ch, 0)
+                return
             end
+            writeByte(ch, 1)
+            inner.write(ch, value)
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local flag = readu8(src, pos)
-            if flag == 0 then
+            if readu8(src, pos) == 0 then
                 return sentinel, 1
             end
             local value, consumed = inner.read(src, pos + 1, refs)

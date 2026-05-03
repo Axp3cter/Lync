@@ -1,6 +1,0 @@
-make a list of every comment and every documentation, and come up with a way to co nsistensize them, maek them as consistent and predictable as possible with structure, keep in this file the rules
-
-
-check for places where we are missing some prints,warns,errors,asserts and wahtnot that could help with debugging and places where we silently fail or degrade also the msgs are very inconsistent in structure and design, encourage it to make them mroe consistnet and make a structure of rules to follow, keep in this file
-
-bring test folder back up to date with src, see what files need testing, which ones are yet to be added to test and more, we want to ensure thorough testing of all src

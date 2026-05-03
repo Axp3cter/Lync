@@ -2,28 +2,28 @@
 --!optimize 2
 -- Query definition: handle, request with correlation IDs and timeout.
 
-local Players    = game:GetService("Players")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Channel   = require(script.Parent.Parent.internal.Channel)
-local Log       = require(script.Parent.Parent.util.Log)
-local Player    = require(script.Parent.Parent.util.Player)
-local Registry  = require(script.Parent.Parent.internal.Registry)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Log = require(script.Parent.Parent.util.Log)
+local Player = require(script.Parent.Parent.util.Player)
+local Registry = require(script.Parent.Parent.internal.Registry)
 local Transport = require(script.Parent.Parent.internal.Transport)
-local Types     = require(script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
-local IS_SERVER       = RunService:IsServer()
+local IS_SERVER = RunService:IsServer()
 local DEFAULT_TIMEOUT = 5
 
 local EMPTY_OPTIONS: Types.QueryOptions = table.freeze({})
 
 -- State ------------------------------------------------------------------
 
-local _nextCorrId    = 0
+local _nextCorrId = 0
 -- Correlation -> waiting thread / completion closure. Cleared on resolve or timeout.
-local _pending:       { [number]: thread }      = {}
+local _pending: { [number]: thread } = {}
 local _pendingGather: { [number]: (any) -> () } = {}
 
 -- Private ----------------------------------------------------------------
@@ -222,7 +222,9 @@ function Query.define<Req, Resp>(
             keeps `results`/`remaining`/`resolveOnce` alive: a slow leak.
         ]]
         local function resolveOnce(): ()
-            if resolved then return end
+            if resolved then
+                return
+            end
             resolved = true
             for i = 1, targetCount do
                 _pendingGather[corrIds[i]] = nil
@@ -285,7 +287,9 @@ function Query.define<Req, Resp>(
             conn = {
                 connected = true,
                 disconnect = function(self): ()
-                    if not self.connected then return end
+                    if not self.connected then
+                        return
+                    end
                     self.connected = false
                     if handlerToken == myToken then
                         activeHandler = nil

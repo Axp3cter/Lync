@@ -18,7 +18,9 @@ local beforeEach = Env.beforeEach
 ]]
 local function captureError(fn: () -> ()): string?
     local ok, err = pcall(fn)
-    if ok then return nil end
+    if ok then
+        return nil
+    end
     return tostring(err)
 end
 
@@ -170,7 +172,7 @@ describe("util.Log", function(): ()
         it("setSilent(false) does not throw", function(): ()
             Log.setSilent(true)
             Log.setSilent(false)
-            Log.setSilent(true)  -- re-silence before the warn that follows
+            Log.setSilent(true) -- re-silence before the warn that follows
             expect(function(): ()
                 Log.warn("post-setSilent")
             end).never:toThrow()
@@ -178,7 +180,7 @@ describe("util.Log", function(): ()
         it("reset clears silent state without throwing", function(): ()
             Log.setSilent(true)
             Log.reset()
-            Log.setSilent(true)  -- re-silence after reset
+            Log.setSilent(true) -- re-silence after reset
             expect(function(): ()
                 Log.warn("post-reset")
             end).never:toThrow()

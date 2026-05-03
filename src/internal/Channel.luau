@@ -2,60 +2,60 @@
 --!native
 -- Per-channel buffer state with MSB batch framing, XOR delta, timestamps.
 
-local Base      = require(script.Parent.Parent.codec.Base)
-local Buf       = require(script.Parent.Parent.util.Buffer)
+local Base = require(script.Parent.Parent.codec.Base)
+local Buf = require(script.Parent.Parent.util.Buffer)
 local Constants = require(script.Parent.Parent.util.Constants)
-local Log       = require(script.Parent.Parent.util.Log)
-local Types     = require(script.Parent.Parent.Types)
-local Varint    = require(script.Parent.Parent.codec.primitive.Varint)
+local Log = require(script.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.codec.primitive.Varint)
 
 -- Constants --------------------------------------------------------------
 
-local TS_NONE   = 0
-local TS_FRAME  = 1
+local TS_NONE = 0
+local TS_FRAME = 1
 local TS_OFFSET = 2
-local TS_FULL   = 3
+local TS_FULL = 3
 
-local INITIAL_BUF     = 1024
-local HEADER_BYTE     = 1
-local FRAME_MSB       = Constants.FRAME_MSB
-local U8_MAX          = Constants.U8_MAX
-local U16_MAX         = Constants.U16_MAX
+local INITIAL_BUF = 1024
+local HEADER_BYTE = 1
+local FRAME_MSB = Constants.FRAME_MSB
+local U8_MAX = Constants.U8_MAX
+local U16_MAX = Constants.U16_MAX
 local MAX_BATCH_ITEMS = Constants.MAX_BATCH_ITEMS
 
 -- 65.535s window so round((clock % win) * 1000) cannot overflow u16.
 local OFFSET_WIN = 65.535
 
 local TS_BYTES = table.freeze({
-    [TS_NONE]   = 0,
-    [TS_FRAME]  = 1,
+    [TS_NONE] = 0,
+    [TS_FRAME] = 1,
     [TS_OFFSET] = 2,
-    [TS_FULL]   = 8,
+    [TS_FULL] = 8,
 })
 
 -- State ------------------------------------------------------------------
 
 local _timestampsEnabled = false
-local _statsEnabled      = false
+local _statsEnabled = false
 
 -- Refreshed by updateTimestamp once per flush.
 local _frameCounter = 0
-local _offsetMs     = 0
-local _clock        = 0.0
+local _offsetMs = 0
+local _clock = 0.0
 
 local EMPTY_REFS = table.freeze({}) :: { Instance }
 
 -- Private ----------------------------------------------------------------
 
-local alloc    = Base.alloc
-local band     = bit32.band
-local bor      = bit32.bor
-local bufCopy  = buffer.copy
-local writeu8  = buffer.writeu8
+local alloc = Base.alloc
+local band = bit32.band
+local bor = bit32.bor
+local bufCopy = buffer.copy
+local writeu8 = buffer.writeu8
 local writeu16 = buffer.writeu16
 local writef64 = buffer.writef64
-local round    = math.round
-local osClock  = os.clock
+local round = math.round
+local osClock = os.clock
 
 local function ensure(ch: Types.ChannelState, n: number): ()
     if ch.cursor + n > ch.size then
@@ -83,8 +83,8 @@ local function upgradeSingleToMulti(ch: Types.ChannelState, regId: number, heade
     local headerPos = ch.singlePos
     writeu8(ch.buff, headerPos, regId)
 
-    local afterTs    = headerPos + headerSize
-    local cursor     = ch.cursor
+    local afterTs = headerPos + headerSize
+    local cursor = ch.cursor
     local payloadLen = cursor - afterTs
     ensure(ch, 2)
     -- Re-bind: ensure() may have realloced the buffer.
@@ -96,7 +96,7 @@ local function upgradeSingleToMulti(ch: Types.ChannelState, regId: number, heade
 
     ch.countPos = afterTs
     writeu16(b, afterTs, 0)
-    ch.cursor     = cursor + 2
+    ch.cursor = cursor + 2
     ch.singleMode = false
 end
 
@@ -135,26 +135,26 @@ end
 -- Module table is intentionally unfrozen: enableStats() hot-swaps writeBatch.
 local Channel = {}
 
-Channel.TS_NONE   = TS_NONE
-Channel.TS_FRAME  = TS_FRAME
+Channel.TS_NONE = TS_NONE
+Channel.TS_FRAME = TS_FRAME
 Channel.TS_OFFSET = TS_OFFSET
-Channel.TS_FULL   = TS_FULL
+Channel.TS_FULL = TS_FULL
 
 function Channel.create(): Types.ChannelState
     return {
-        buff          = buffer.create(INITIAL_BUF),
-        cursor        = 0,
-        size          = INITIAL_BUF,
-        refs          = {},
-        refCount      = 0,
-        lastId        = -1,
-        countPos      = -1,
-        itemCount     = 0,
-        singleMode    = false,
-        singlePos     = 0,
-        deltas        = {},
-        prevDump      = nil,
-        prevDumpLen   = 0,
+        buff = buffer.create(INITIAL_BUF),
+        cursor = 0,
+        size = INITIAL_BUF,
+        refs = {},
+        refCount = 0,
+        lastId = -1,
+        countPos = -1,
+        itemCount = 0,
+        singleMode = false,
+        singlePos = 0,
+        deltas = {},
+        prevDump = nil,
+        prevDumpLen = 0,
         currentPacket = nil,
     }
 end
@@ -173,7 +173,7 @@ function Channel.pushRef(ch: Types.ChannelState, value: any): ()
     local idx = ch.refCount + 1
     Log.assert(idx <= U16_MAX, "ref overflow, max 65535")
     ch.refs[idx] = value
-    ch.refCount  = idx
+    ch.refCount = idx
 
     local cursor = ch.cursor
     if cursor + 2 > ch.size then
@@ -188,12 +188,12 @@ end
     ch.deltas (delta caches): both must outlive flushes for the same owner.
 ]]
 function Channel.reset(ch: Types.ChannelState): ()
-    ch.cursor        = 0
-    ch.lastId        = -1
-    ch.countPos      = -1
-    ch.itemCount     = 0
-    ch.singleMode    = false
-    ch.singlePos     = 0
+    ch.cursor = 0
+    ch.lastId = -1
+    ch.countPos = -1
+    ch.itemCount = 0
+    ch.singleMode = false
+    ch.singlePos = 0
     ch.currentPacket = nil
     if ch.refCount > 0 then
         table.clear(ch.refs)
@@ -207,7 +207,7 @@ end
 ]]
 function Channel.fullReset(ch: Types.ChannelState): ()
     Channel.reset(ch)
-    ch.prevDump    = nil
+    ch.prevDump = nil
     ch.prevDumpLen = 0
     table.clear(ch.deltas)
 end
@@ -234,8 +234,8 @@ function Channel.resolveOpenFn(
         end
 
         ch.currentPacket = name
-        ch.lastId        = id
-        ch.itemCount     = 0
+        ch.lastId = id
+        ch.itemCount = 0
 
         local cursor = ch.cursor
         if cursor + headerLen > ch.size then
@@ -246,8 +246,8 @@ function Channel.resolveOpenFn(
         writeTimestamp(b, cursor + 1, timestampMode)
 
         ch.singleMode = true
-        ch.singlePos  = cursor
-        ch.cursor     = cursor + headerLen
+        ch.singlePos = cursor
+        ch.cursor = cursor + headerLen
     end
 end
 
@@ -262,12 +262,12 @@ function Channel.sealAndDump(ch: Types.ChannelState): (buffer, { Instance }, num
         writeu16(ch.buff, ch.countPos, ch.itemCount)
     end
 
-    local cursor   = ch.cursor
+    local cursor = ch.cursor
     local snapshot = buffer.create(cursor)
     bufCopy(snapshot, 0, ch.buff, 0, cursor)
 
     local refCount = ch.refCount
-    local refs     = if refCount > 0 then table.clone(ch.refs) else EMPTY_REFS
+    local refs = if refCount > 0 then table.clone(ch.refs) else EMPTY_REFS
     return snapshot, refs, cursor, refCount
 end
 
@@ -319,9 +319,9 @@ end
 
 function Channel.updateTimestamp(): ()
     _frameCounter = band(_frameCounter + 1, U8_MAX)
-    local now     = osClock()
-    _offsetMs     = round((now % OFFSET_WIN) * 1000)
-    _clock        = now
+    local now = osClock()
+    _offsetMs = round((now % OFFSET_WIN) * 1000)
+    _clock = now
 end
 
 function Channel.enableTimestamps(): ()
@@ -333,7 +333,7 @@ function Channel.hasTimestamps(): boolean
 end
 
 function Channel.enableStats(): ()
-    _statsEnabled      = true
+    _statsEnabled = true
     Channel.writeBatch = writeBatchStats
 end
 
@@ -345,10 +345,10 @@ end
 function Channel.resetGlobals(): ()
     Base.reset()
     _timestampsEnabled = false
-    _statsEnabled      = false
-    _frameCounter      = 0
-    _offsetMs          = 0
-    _clock             = 0.0
+    _statsEnabled = false
+    _frameCounter = 0
+    _offsetMs = 0
+    _clock = 0.0
     Channel.writeBatch = writeBatchPlain
 end
 

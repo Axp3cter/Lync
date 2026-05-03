@@ -7,9 +7,9 @@ local Types = require(script.Parent.Parent.Types)
 -- State ------------------------------------------------------------------
 
 -- Per-deltaId map keyed by BaselineKey: server uses Player, client uses `false`.
-local _caches:    { [number]: { [Types.BaselineKey]: any } } = {}
+local _caches: { [number]: { [Types.BaselineKey]: any } } = {}
 local _currentKey: Types.BaselineKey = false
-local _hasDelta    = false
+local _hasDelta = false
 
 -- Public -----------------------------------------------------------------
 
@@ -51,7 +51,7 @@ end
 function Baseline.reset(): ()
     table.clear(_caches)
     _currentKey = false
-    _hasDelta   = false
+    _hasDelta = false
 end
 
 return table.freeze(Baseline)

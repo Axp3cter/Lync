@@ -2,28 +2,28 @@
 --!native
 -- struct() and deltaStruct(). Bool fields bit-pack into a tail block.
 
-local Base     = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
-local Channel  = require(script.Parent.Parent.Parent.internal.Channel)
-local Log      = require(script.Parent.Parent.Parent.util.Log)
-local Shared   = require(script.Parent.Parent.composite.Shared)
-local Types    = require(script.Parent.Parent.Parent.Types)
+local Channel = require(script.Parent.Parent.Parent.internal.Channel)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
-local alloc     = Base.alloc
+local alloc = Base.alloc
 local writeByte = Channel.writeByte
-local writeu8   = buffer.writeu8
-local writeu16  = buffer.writeu16
-local writeu32  = buffer.writeu32
-local readu8    = buffer.readu8
-local readu16   = buffer.readu16
-local readu32   = buffer.readu32
-local band      = bit32.band
-local bor       = bit32.bor
-local lshift    = bit32.lshift
-local rshift    = bit32.rshift
-local countrz   = bit32.countrz
+local writeu8 = buffer.writeu8
+local writeu16 = buffer.writeu16
+local writeu32 = buffer.writeu32
+local readu8 = buffer.readu8
+local readu16 = buffer.readu16
+local readu32 = buffer.readu32
+local band = bit32.band
+local bor = bit32.bor
+local lshift = bit32.lshift
+local rshift = bit32.rshift
+local countrz = bit32.countrz
 
 -- 1/2/4-byte direct writes; 3-byte case splits into u16 + u8 (no native u24).
 local function writeBitmap(b: buffer, off: number, mask: number, bitmapBytes: number): ()
@@ -50,15 +50,15 @@ local function readBitmap(b: buffer, off: number, bitmapBytes: number): number
     return bor(readu16(b, off), lshift(readu8(b, off + 2), 16))
 end
 
-local extractFields     = Shared.extractFields
-local packBools         = Shared.packBools
-local unpackBools       = Shared.unpackBools
-local rangeEqual        = Shared.rangeEqual
-local snapshot          = Shared.snapshot
-local acquireScratch    = Shared.acquireScratch
-local releaseScratch    = Shared.releaseScratch
-local allocDeltaId      = Shared.allocDeltaId
-local DELTA_UNCHANGED   = Shared.DELTA_UNCHANGED
+local extractFields = Shared.extractFields
+local packBools = Shared.packBools
+local unpackBools = Shared.unpackBools
+local rangeEqual = Shared.rangeEqual
+local snapshot = Shared.snapshot
+local acquireScratch = Shared.acquireScratch
+local releaseScratch = Shared.releaseScratch
+local allocDeltaId = Shared.allocDeltaId
+local DELTA_UNCHANGED = Shared.DELTA_UNCHANGED
 local DELTA_FULL_OFFSET = Shared.DELTA_FULL_OFFSET
 local DELTA_MULTI_OFFSET = Shared.DELTA_MULTI_OFFSET
 
@@ -106,19 +106,19 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
         end
     end
 
-    local totalFixed   = fixedSize + boolBytes
+    local totalFixed = fixedSize + boolBytes
     local frozenSchema = buildFrozenSchema(dataKeys, boolKeys, schema)
 
     if allDirect and dataCount > 0 then
-        local offsets       = table.create(dataCount)
-        local directWrites  = table.create(dataCount)
-        local directReads   = table.create(dataCount)
+        local offsets = table.create(dataCount)
+        local directWrites = table.create(dataCount)
+        local directReads = table.create(dataCount)
         local runningOffset = 0
         for i = 1, dataCount do
             local c = dataCodecs[i]
-            offsets[i]      = runningOffset
+            offsets[i] = runningOffset
             directWrites[i] = c._directWrite
-            directReads[i]  = c._directRead
+            directReads[i] = c._directRead
             runningOffset += c._size :: number
         end
         table.freeze(offsets)
@@ -245,8 +245,8 @@ function Struct.deltaStruct(
     local dataCount = #dataKeys
     local boolCount = #boolKeys
     local hasBoolSeg = boolCount > 0
-    local segCount   = dataCount + (if hasBoolSeg then 1 else 0)
-    local FLAG_FULL  = segCount + DELTA_FULL_OFFSET
+    local segCount = dataCount + (if hasBoolSeg then 1 else 0)
+    local FLAG_FULL = segCount + DELTA_FULL_OFFSET
     local FLAG_MULTI = segCount + DELTA_MULTI_OFFSET
     local boolSegIdx = segCount
 
@@ -257,8 +257,8 @@ function Struct.deltaStruct(
         Log.error(`dirty bitmask is u32, segCount {segCount} exceeds 32`)
     end
 
-    local deltaId      = allocDeltaId()
-    local innerStruct  = Struct.struct(schema)
+    local deltaId = allocDeltaId()
+    local innerStruct = Struct.struct(schema)
     -- Reuse innerStruct's frozen schema; avoids a second buildFrozenSchema.
     local frozenSchema = innerStruct._schema :: { [string]: Types.InternalCodec<any> }
 
@@ -274,7 +274,7 @@ function Struct.deltaStruct(
         fixedSize += c._size :: number
     end
 
-    local boolBytes   = Shared.boolBytes(boolCount)
+    local boolBytes = Shared.boolBytes(boolCount)
     local bitmapBytes = Shared.boolBytes(segCount)
 
     local staticSegOff: { number }? = nil
@@ -313,12 +313,7 @@ function Struct.deltaStruct(
     end
 
     -- Splice `src[srcOff..srcOff+len)` into the channel's main buffer.
-    local function writeBytes(
-        ch: Types.ChannelState,
-        src: buffer,
-        srcOff: number,
-        len: number
-    ): ()
+    local function writeBytes(ch: Types.ChannelState, src: buffer, srcOff: number, len: number): ()
         if len == 0 then
             return
         end
@@ -427,9 +422,9 @@ function Struct.deltaStruct(
             end
 
             cache.raw = snapshot(scratch.buff, scratchLen)
-            cache.len = scratchLen
-            ;(cache :: any).segOff = segOff
-            ;(cache :: any).segLen = segLen
+            cache.len = scratchLen;
+            (cache :: any).segOff = segOff;
+            (cache :: any).segLen = segLen
             releaseScratch()
         end,
 
@@ -453,7 +448,9 @@ function Struct.deltaStruct(
             if flag <= segCount then
                 local cached = Baseline.getCache(deltaId)
                 if cached == nil then
-                    Log.error(`per-field update (seg {flag}) before any FULL frame; baseline missing`)
+                    Log.error(
+                        `per-field update (seg {flag}) before any FULL frame; baseline missing`
+                    )
                 end
                 local newValue = table.clone(cached)
                 local consumed = applySegmentRead(newValue, flag, src, pos + 1, refs)

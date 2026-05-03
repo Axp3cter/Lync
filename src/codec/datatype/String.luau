@@ -2,18 +2,18 @@
 --!native
 -- UTF-8 string codec. __call yields a length-bounded variant.
 
-local Base   = require(script.Parent.Parent.Base)
-local Log    = require(script.Parent.Parent.Parent.util.Log)
-local Types  = require(script.Parent.Parent.Parent.Types)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private ----------------------------------------------------------------
 
-local alloc      = Base.alloc
+local alloc = Base.alloc
 local INLINE_MAX = Varint.INLINE_MAX
 
 local function writeString(ch: Types.ChannelState, value: string): ()
-    local len    = #value
+    local len = #value
     local cursor = ch.cursor
 
     -- Single-byte length fast path skips the full varint encode.

@@ -257,10 +257,18 @@ describe("property.Composite", function(): ()
                     neg = rng:int(-128, 127),
                 }
                 local decoded = Channel.roundTripStrict(c, input)
-                if decoded.flag ~= input.flag then error("flag") end
-                if decoded.small ~= input.small then error("small") end
-                if decoded.med ~= input.med then error("med") end
-                if decoded.neg ~= input.neg then error("neg") end
+                if decoded.flag ~= input.flag then
+                    error("flag")
+                end
+                if decoded.small ~= input.small then
+                    error("small")
+                end
+                if decoded.med ~= input.med then
+                    error("med")
+                end
+                if decoded.neg ~= input.neg then
+                    error("neg")
+                end
             end
             expect(true):toBe(true)
         end)

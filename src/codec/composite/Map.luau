@@ -2,12 +2,12 @@
 --!native
 -- map() and deltaMap(). Keys sorted at encode for stable wire bytes.
 
-local Base     = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
-local Log      = require(script.Parent.Parent.Parent.util.Log)
-local Shared   = require(script.Parent.Parent.composite.Shared)
-local Types    = require(script.Parent.Parent.Parent.Types)
-local Varint   = require(script.Parent.Parent.primitive.Varint)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- State ------------------------------------------------------------------
 
@@ -21,13 +21,15 @@ local _keyDepth = 0
 
 -- Private ----------------------------------------------------------------
 
-local alloc        = Base.alloc
+local alloc = Base.alloc
 local allocDeltaId = Shared.allocDeltaId
 
 local function acquireKeys(): { any }
     _keyDepth += 1
     local keys = _keyStacks[_keyDepth]
-    if keys then return keys end
+    if keys then
+        return keys
+    end
     keys = {}
     _keyStacks[_keyDepth] = keys
     return keys
@@ -51,7 +53,7 @@ function Map.map(
     valueCodec: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
-    local fixedKey   = keyCodec._size
+    local fixedKey = keyCodec._size
     local fixedValue = valueCodec._size
     local hasUnknown = keyCodec._hasUnknown or valueCodec._hasUnknown
 
@@ -60,7 +62,7 @@ function Map.map(
         vector, mixed-type via Auto) routes through tostring. Pinned at codec
         creation so writes don't re-sniff the key type.
     ]]
-    local typeCheck     = keyCodec._typeCheck
+    local typeCheck = keyCodec._typeCheck
     local canSortDirect = typeCheck == "number" or typeCheck == "string"
 
     local codec: Types.InternalCodec<any> = {

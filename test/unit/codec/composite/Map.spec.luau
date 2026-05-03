@@ -161,7 +161,9 @@ describe("codec.composite.Map", function(): ()
             local c = Lync.map(Lync.string, Lync.int(0, 255))
             local v = Channel.roundTripStrict(c, {})
             local n = 0
-            for _ in v do n += 1 end
+            for _ in v do
+                n += 1
+            end
             expect(n):toBe(0)
         end)
     end)

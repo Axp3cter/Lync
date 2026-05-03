@@ -18,16 +18,11 @@ describe("codec.Base", function(): ()
 
     describe("define wraps direct primitives into a codec", function(): ()
         local function makeU8(): any
-            return Base.define(
-                1,
-                function(b: buffer, off: number, value: number): ()
-                    buffer.writeu8(b, off, value)
-                end,
-                function(b: buffer, off: number): number
-                    return buffer.readu8(b, off)
-                end,
-                { _typeCheck = "number" }
-            )
+            return Base.define(1, function(b: buffer, off: number, value: number): ()
+                buffer.writeu8(b, off, value)
+            end, function(b: buffer, off: number): number
+                return buffer.readu8(b, off)
+            end, { _typeCheck = "number" })
         end
 
         it("exposes _size", function(): ()

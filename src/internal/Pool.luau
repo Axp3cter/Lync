@@ -3,8 +3,8 @@
 -- ChannelState pool. Acquire fullResets to wipe prior owner state.
 
 local Channel = require(script.Parent.Channel)
-local Log     = require(script.Parent.Parent.util.Log)
-local Types   = require(script.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -12,8 +12,8 @@ local DEFAULT_SIZE = 16
 
 -- State ------------------------------------------------------------------
 
-local _stack:   { Types.ChannelState } = {}
-local _depth   = 0
+local _stack: { Types.ChannelState } = {}
+local _depth = 0
 local _maxSize = DEFAULT_SIZE
 
 -- Public -----------------------------------------------------------------
@@ -58,7 +58,7 @@ end
 
 function Pool.reset(): ()
     table.clear(_stack)
-    _depth   = 0
+    _depth = 0
     _maxSize = DEFAULT_SIZE
 end
 

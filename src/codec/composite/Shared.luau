@@ -2,11 +2,11 @@
 --!native
 -- Shared composite-codec helpers: delta flags, scratch pool, bool packing.
 
-local Base    = require(script.Parent.Parent.Base)
-local Buf     = require(script.Parent.Parent.Parent.util.Buffer)
+local Base = require(script.Parent.Parent.Base)
+local Buf = require(script.Parent.Parent.Parent.util.Buffer)
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Log     = require(script.Parent.Parent.Parent.util.Log)
-local Types   = require(script.Parent.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -17,38 +17,38 @@ local Types   = require(script.Parent.Parent.Parent.Types)
     Struct's per-segment scheme uses [1..segCount] as a single-dirty-segment
     index, then segCount + DELTA_FULL_OFFSET / + DELTA_MULTI_OFFSET.
 ]]
-local DELTA_UNCHANGED    = 0
-local DELTA_FULL         = 1
-local DELTA_FULL_OFFSET  = 1
+local DELTA_UNCHANGED = 0
+local DELTA_FULL = 1
+local DELTA_FULL_OFFSET = 1
 local DELTA_MULTI_OFFSET = 2
 
 -- State ------------------------------------------------------------------
 
-local _nextDeltaId  = 0
+local _nextDeltaId = 0
 local _scratchDepth = 0
 local _scratchStack: { Types.ChannelState } = {}
 
 -- Private ----------------------------------------------------------------
 
-local alloc      = Base.alloc
-local band       = bit32.band
-local bor        = bit32.bor
-local lshift     = bit32.lshift
-local readu8     = buffer.readu8
-local writeu8    = buffer.writeu8
-local bufCopy    = buffer.copy
+local alloc = Base.alloc
+local band = bit32.band
+local bor = bit32.bor
+local lshift = bit32.lshift
+local readu8 = buffer.readu8
+local writeu8 = buffer.writeu8
+local bufCopy = buffer.copy
 local rangeEqual = Buf.rangeEqual
-local snapshot   = Buf.snapshot
+local snapshot = Buf.snapshot
 
 -- Public -----------------------------------------------------------------
 
 local Shared = {}
 
-Shared.DELTA_UNCHANGED    = DELTA_UNCHANGED
-Shared.DELTA_FULL_OFFSET  = DELTA_FULL_OFFSET
+Shared.DELTA_UNCHANGED = DELTA_UNCHANGED
+Shared.DELTA_FULL_OFFSET = DELTA_FULL_OFFSET
 Shared.DELTA_MULTI_OFFSET = DELTA_MULTI_OFFSET
-Shared.rangeEqual         = rangeEqual
-Shared.snapshot           = snapshot
+Shared.rangeEqual = rangeEqual
+Shared.snapshot = snapshot
 
 function Shared.allocDeltaId(): number
     _nextDeltaId += 1
@@ -69,7 +69,7 @@ function Shared.acquireScratch(): Types.ChannelState
     _scratchDepth += 1
     local ch = _scratchStack[_scratchDepth]
     if ch then
-        ch.cursor   = 0
+        ch.cursor = 0
         ch.refCount = 0
         return ch
     end
@@ -105,7 +105,7 @@ function Shared.extractFields(
     table.sort(dataKeys)
     table.sort(boolKeys)
 
-    local dataCount  = #dataKeys
+    local dataCount = #dataKeys
     local dataCodecs = table.create(dataCount)
     for i = 1, dataCount do
         dataCodecs[i] = schema[dataKeys[i]]
@@ -128,17 +128,17 @@ function Shared.packBools(
     end
 
     local byteCount = (boolCount + 7) // 8
-    local cursor    = ch.cursor
+    local cursor = ch.cursor
     if cursor + byteCount > ch.size then
         alloc(ch, byteCount)
     end
 
     local idx = 1
-    local b   = ch.buff
+    local b = ch.buff
     for byteIdx = 0, byteCount - 1 do
-        local packed    = 0
+        local packed = 0
         local remaining = boolCount - idx + 1
-        local limit     = if remaining >= 8 then 8 else remaining
+        local limit = if remaining >= 8 then 8 else remaining
         for bit = 0, limit - 1 do
             if value[boolKeys[idx]] then
                 packed = bor(packed, lshift(1, bit))
@@ -155,27 +155,23 @@ end
     Integer-indexed bool-array pack. Split from packBools to skip the
     per-bit string-key getter on the bool-array hot path.
 ]]
-function Shared.packBoolArray(
-    ch: Types.ChannelState,
-    value: { boolean },
-    count: number
-): ()
+function Shared.packBoolArray(ch: Types.ChannelState, value: { boolean }, count: number): ()
     if count == 0 then
         return
     end
 
     local byteCount = (count + 7) // 8
-    local cursor    = ch.cursor
+    local cursor = ch.cursor
     if cursor + byteCount > ch.size then
         alloc(ch, byteCount)
     end
 
     local idx = 1
-    local b   = ch.buff
+    local b = ch.buff
     for byteIdx = 0, byteCount - 1 do
-        local packed    = 0
+        local packed = 0
         local remaining = count - idx + 1
-        local limit     = if remaining >= 8 then 8 else remaining
+        local limit = if remaining >= 8 then 8 else remaining
         for bit = 0, limit - 1 do
             if value[idx] then
                 packed = bor(packed, lshift(1, bit))
@@ -202,9 +198,9 @@ function Shared.unpackBools(
     local byteCount = (boolCount + 7) // 8
     local idx = 1
     for byteIdx = 0, byteCount - 1 do
-        local byte      = readu8(src, pos + byteIdx)
+        local byte = readu8(src, pos + byteIdx)
         local remaining = boolCount - idx + 1
-        local limit     = if remaining >= 8 then 8 else remaining
+        local limit = if remaining >= 8 then 8 else remaining
         for bit = 0, limit - 1 do
             result[boolKeys[idx]] = band(byte, lshift(1, bit)) ~= 0
             idx += 1
@@ -227,9 +223,9 @@ function Shared.unpackBoolArray(
     local byteCount = (count + 7) // 8
     local idx = 1
     for byteIdx = 0, byteCount - 1 do
-        local byte      = readu8(src, pos + byteIdx)
+        local byte = readu8(src, pos + byteIdx)
         local remaining = count - idx + 1
-        local limit     = if remaining >= 8 then 8 else remaining
+        local limit = if remaining >= 8 then 8 else remaining
         for bit = 0, limit - 1 do
             result[idx] = band(byte, lshift(1, bit)) ~= 0
             idx += 1
@@ -248,7 +244,10 @@ end
 function Shared.makeUnchangedOrFullDelta(
     inner: Types.InternalCodec<any>,
     deltaId: number,
-    Baseline: { getCache: (number) -> any, setCache: (number, any) -> () }
+    Baseline: {
+        getCache: (number) -> any,
+        setCache: (number, any) -> (),
+    }
 ): Types.InternalCodec<any>
     return table.freeze({
         _isDelta = true,
@@ -259,7 +258,9 @@ function Shared.makeUnchangedOrFullDelta(
             local scratchLen = scratch.cursor
 
             local cache = ch.deltas[deltaId]
-            if cache and scratchLen == cache.len
+            if
+                cache
+                and scratchLen == cache.len
                 and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen)
             then
                 local cursor = ch.cursor

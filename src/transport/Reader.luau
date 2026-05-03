@@ -2,42 +2,42 @@
 --!native
 -- Inbound buffer parser. Returns false on malformed wire so the transport can drop its XOR baseline.
 
-local Baseline   = require(script.Parent.Parent.internal.Baseline)
-local Channel    = require(script.Parent.Parent.internal.Channel)
-local Constants  = require(script.Parent.Parent.util.Constants)
-local Gate       = require(script.Parent.Parent.transport.Gate)
-local Log        = require(script.Parent.Parent.util.Log)
+local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Constants = require(script.Parent.Parent.util.Constants)
+local Gate = require(script.Parent.Parent.transport.Gate)
+local Log = require(script.Parent.Parent.util.Log)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
-local Registry   = require(script.Parent.Parent.internal.Registry)
-local Types      = require(script.Parent.Parent.Types)
-local Varint     = require(script.Parent.Parent.codec.primitive.Varint)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Types = require(script.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.codec.primitive.Varint)
 
 -- Constants --------------------------------------------------------------
 
-local KIND_PACKET   = Registry.KIND_PACKET
-local KIND_REQUEST  = Registry.KIND_REQUEST
+local KIND_PACKET = Registry.KIND_PACKET
+local KIND_REQUEST = Registry.KIND_REQUEST
 local KIND_RESPONSE = Registry.KIND_RESPONSE
 
-local TS_FRAME  = Channel.TS_FRAME
+local TS_FRAME = Channel.TS_FRAME
 local TS_OFFSET = Channel.TS_OFFSET
-local TS_FULL   = Channel.TS_FULL
+local TS_FULL = Channel.TS_FULL
 
-local FRAME_MSB     = Constants.FRAME_MSB
+local FRAME_MSB = Constants.FRAME_MSB
 local FRAME_ID_MASK = Constants.FRAME_ID_MASK
 
 -- Private ----------------------------------------------------------------
 
-local band         = bit32.band
-local readu8       = buffer.readu8
-local readu16      = buffer.readu16
-local readf64      = buffer.readf64
-local registryGet  = Registry.get
-local checkGlobal  = Gate.checkGlobalRateLimit
-local checkRate    = Gate.checkRateLimit
+local band = bit32.band
+local readu8 = buffer.readu8
+local readu16 = buffer.readu16
+local readf64 = buffer.readf64
+local registryGet = Registry.get
+local checkGlobal = Gate.checkGlobalRateLimit
+local checkRate = Gate.checkRateLimit
 local validateGate = Gate.validate
-local fireDrop     = Middleware.fireDrop
-local runReceive   = Middleware.runReceive
-local varintRead   = Varint.read
+local fireDrop = Middleware.fireDrop
+local runReceive = Middleware.runReceive
+local varintRead = Varint.read
 
 local function recordDrop(
     reg: Types.Registration,
@@ -143,7 +143,7 @@ function Reader.process(
         pos += 1
 
         local msb = band(raw, FRAME_MSB) ~= 0
-        local id  = band(raw, FRAME_ID_MASK)
+        local id = band(raw, FRAME_ID_MASK)
 
         local reg = registryGet(id)
         if not reg then
@@ -202,11 +202,11 @@ function Reader.process(
                 return false
             end
 
-            local maxPayload   = reg.maxPayloadBytes
+            local maxPayload = reg.maxPayloadBytes
             local payloadStart = pos
-            local doGate       = isServer and reg.needsGate and player ~= nil
-            local regSignal    = reg.signal
-            local regName      = reg.name
+            local doGate = isServer and reg.needsGate and player ~= nil
+            local regSignal = reg.signal
+            local regName = reg.name
 
             for _ = 1, count do
                 if pos >= incomingLen then
@@ -229,7 +229,10 @@ function Reader.process(
                     return false
                 end
 
-                if doGate and not gateValue(reg, regCodec, value, player :: Player, statsEnabled, true) then
+                if
+                    doGate
+                    and not gateValue(reg, regCodec, value, player :: Player, statsEnabled, true)
+                then
                     continue
                 end
 
@@ -258,7 +261,7 @@ function Reader.process(
 
             if msb then
                 if statsEnabled then
-                    reg.recvFires    += 1
+                    reg.recvFires += 1
                     reg.bytesReceived += (pos - frameStart)
                 end
                 reg.signal:fire(nil, player, corrId)
@@ -284,7 +287,10 @@ function Reader.process(
                     needsGate so a malicious client can't bypass via the
                     response channel.
                 ]]
-                if isServer and reg.needsGate and player
+                if
+                    isServer
+                    and reg.needsGate
+                    and player
                     and not gateValue(reg, regCodec, value, player, statsEnabled, false)
                 then
                     if statsEnabled then
@@ -298,7 +304,7 @@ function Reader.process(
                 end
 
                 if statsEnabled then
-                    reg.recvFires    += 1
+                    reg.recvFires += 1
                     reg.bytesReceived += (pos - frameStart)
                 end
                 reg.signal:fire(value, player, corrId)
@@ -309,6 +315,6 @@ function Reader.process(
 end
 
 Reader.setSilent = Log.setSilent
-Reader.reset     = Log.reset
+Reader.reset = Log.reset
 
 return table.freeze(Reader)

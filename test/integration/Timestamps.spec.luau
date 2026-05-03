@@ -49,26 +49,20 @@ describe("integration.Timestamps", function(): ()
                 Channel.updateTimestamp()
             end
             -- After 256 increments the masked counter should wrap.
-            local reg, received = definePacket(
-                "ts_frame_wrap",
-                Lync.int(0, 255),
-                { timestamp = "frame" }
-            )
+            local reg, received =
+                definePacket("ts_frame_wrap", Lync.int(0, 255), { timestamp = "frame" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 0)
             sealAndProcess(ch)
             expect(received[1]):toBeType("number")
-            expect((received[1] :: number)):toBeLessThanOrEqual(255)
-            expect((received[1] :: number)):toBeGreaterThanOrEqual(0)
+            expect(received[1] :: number):toBeLessThanOrEqual(255)
+            expect(received[1] :: number):toBeGreaterThanOrEqual(0)
         end)
         it("two writes in the same frame share the timestamp", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "ts_frame_shared",
-                Lync.int(0, 255),
-                { timestamp = "frame" }
-            )
+            local reg, received =
+                definePacket("ts_frame_shared", Lync.int(0, 255), { timestamp = "frame" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 0)
             Channel.writeBatch(ch, reg, 0)
@@ -81,16 +75,13 @@ describe("integration.Timestamps", function(): ()
         it("decoded offset is a non-negative number", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "ts_offset",
-                Lync.int(0, 255),
-                { timestamp = "offset" }
-            )
+            local reg, received =
+                definePacket("ts_offset", Lync.int(0, 255), { timestamp = "offset" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 0)
             sealAndProcess(ch)
-            expect((received[1] :: number)):toBeGreaterThanOrEqual(0)
-            expect((received[1] :: number)):toBeLessThan(65536)
+            expect(received[1] :: number):toBeGreaterThanOrEqual(0)
+            expect(received[1] :: number):toBeLessThan(65536)
         end)
     end)
 
@@ -98,16 +89,12 @@ describe("integration.Timestamps", function(): ()
         it("decoded clock matches updateTimestamp's snapshot", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "ts_full",
-                Lync.int(0, 255),
-                { timestamp = "full" }
-            )
+            local reg, received = definePacket("ts_full", Lync.int(0, 255), { timestamp = "full" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 0)
             sealAndProcess(ch)
             expect(received[1]):toBeType("number")
-            expect((received[1] :: number)):toBeGreaterThan(0)
+            expect(received[1] :: number):toBeGreaterThan(0)
         end)
     end)
 
@@ -126,7 +113,8 @@ describe("integration.Timestamps", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
             local _, recvPlain = definePacket("ts_mix_plain", Lync.int(0, 255), {})
-            local _, recvFrame = definePacket("ts_mix_frame", Lync.int(0, 255), { timestamp = "frame" })
+            local _, recvFrame =
+                definePacket("ts_mix_frame", Lync.int(0, 255), { timestamp = "frame" })
             local plainReg = Registry.getByName("ts_mix_plain") :: any
             local frameReg = Registry.getByName("ts_mix_frame") :: any
             local ch = Channel.create()

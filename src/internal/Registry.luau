@@ -2,14 +2,14 @@
 --!optimize 2
 -- Sequential 7-bit packet/query ID assignment.
 
-local Log    = require(script.Parent.Parent.util.Log)
+local Log = require(script.Parent.Parent.util.Log)
 local Signal = require(script.Parent.Parent.api.Signal)
-local Types  = require(script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
-local KIND_PACKET   = 0
-local KIND_REQUEST  = 1
+local KIND_PACKET = 0
+local KIND_REQUEST = 1
 local KIND_RESPONSE = 2
 
 -- 7-bit id leaves the MSB free for the frame single/multi flag (see Constants.FRAME_MSB).
@@ -18,30 +18,30 @@ local MAX_ID = 127
 -- State ------------------------------------------------------------------
 
 local _nextId = 0
-local _registrationsById:   { [number]: Types.Registration } = {}
+local _registrationsById: { [number]: Types.Registration } = {}
 local _registrationsByName: { [string]: Types.Registration } = {}
 
 -- Public -----------------------------------------------------------------
 
 local Registry = {}
 
-Registry.KIND_PACKET   = KIND_PACKET
-Registry.KIND_REQUEST  = KIND_REQUEST
+Registry.KIND_PACKET = KIND_PACKET
+Registry.KIND_REQUEST = KIND_REQUEST
 Registry.KIND_RESPONSE = KIND_RESPONSE
-Registry.MAX_ID        = MAX_ID
+Registry.MAX_ID = MAX_ID
 
 export type RegisterOptions = {
-    name:            string,
-    kind:            number,
-    codec:           Types.InternalCodec<any>,
-    isUnreliable:    boolean,
-    partner:         number?,
-    needsGate:       boolean,
-    headerSize:      number,
-    timestampMode:   number,
-    openFn:          (ch: Types.ChannelState, id: number) -> (),
-    rateLimit:       Types.RateLimitConfig?,
-    validate:        Types.ValidateFn?,
+    name: string,
+    kind: number,
+    codec: Types.InternalCodec<any>,
+    isUnreliable: boolean,
+    partner: number?,
+    needsGate: boolean,
+    headerSize: number,
+    timestampMode: number,
+    openFn: (ch: Types.ChannelState, id: number) -> (),
+    rateLimit: Types.RateLimitConfig?,
+    validate: Types.ValidateFn?,
     maxPayloadBytes: number?,
 }
 
@@ -61,25 +61,25 @@ function Registry.register(opts: RegisterOptions): Types.Registration
     _nextId = nextCandidate
 
     local reg: Types.Registration = {
-        id              = nextCandidate,
-        name            = opts.name,
-        kind            = opts.kind,
-        codec           = opts.codec,
-        isUnreliable    = opts.isUnreliable,
-        partner         = opts.partner,
-        signal          = Signal.create(),
-        rateLimit       = opts.rateLimit,
-        validate        = opts.validate,
-        needsGate       = opts.needsGate,
+        id = nextCandidate,
+        name = opts.name,
+        kind = opts.kind,
+        codec = opts.codec,
+        isUnreliable = opts.isUnreliable,
+        partner = opts.partner,
+        signal = Signal.create(),
+        rateLimit = opts.rateLimit,
+        validate = opts.validate,
+        needsGate = opts.needsGate,
         maxPayloadBytes = opts.maxPayloadBytes,
-        timestampMode   = opts.timestampMode,
-        headerSize      = opts.headerSize,
-        _openFn         = opts.openFn,
-        bytesSent       = 0,
-        bytesReceived   = 0,
-        fires           = 0,
-        recvFires       = 0,
-        drops           = 0,
+        timestampMode = opts.timestampMode,
+        headerSize = opts.headerSize,
+        _openFn = opts.openFn,
+        bytesSent = 0,
+        bytesReceived = 0,
+        fires = 0,
+        recvFires = 0,
+        drops = 0,
     }
 
     _registrationsById[nextCandidate] = reg

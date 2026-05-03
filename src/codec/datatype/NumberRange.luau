@@ -3,15 +3,15 @@
 -- NumberRange codec. 8B: Min f32 + Max f32.
 
 local Base = require(script.Parent.Parent.Base)
-local Log  = require(script.Parent.Parent.Parent.util.Log)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 
 -- Private ----------------------------------------------------------------
 
 local writef32 = buffer.writef32
-local readf32  = buffer.readf32
+local readf32 = buffer.readf32
 
 local function writeNumberRange(b: buffer, off: number, value: NumberRange): ()
-    writef32(b, off,     value.Min)
+    writef32(b, off, value.Min)
     writef32(b, off + 4, value.Max)
 end
 

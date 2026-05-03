@@ -181,7 +181,7 @@ describe("integration.Multiplayer", function(): ()
             Group as the exclusion source. The Player-arg path is covered
             indirectly by integration runs against actual Players.
         ]]
-        it("except(group) returns a frozen sentinel branded \"except\"", function(): ()
+        it('except(group) returns a frozen sentinel branded "except"', function(): ()
             local g = Lync.group("mp_except_src")
             local p1 = fakePlayer()
             g:add(p1 :: any)
@@ -193,7 +193,8 @@ describe("integration.Multiplayer", function(): ()
             local g = Lync.group("mp_except_members")
             local p1 = fakePlayer()
             local p2 = fakePlayer()
-            g:add(p1 :: any); g:add(p2 :: any)
+            g:add(p1 :: any)
+            g:add(p2 :: any)
             local exc = Lync.except(g)
             local excluded = (exc :: any)._excluded :: { [Instance]: boolean }
             expect(excluded[p1 :: any]):toBe(true)

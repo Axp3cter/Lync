@@ -2,8 +2,8 @@
 --!native
 -- String-keyed enum codec. Maps values to u8 indices at definition time.
 
-local Base  = require(script.Parent.Parent.Base)
-local Log   = require(script.Parent.Parent.Parent.util.Log)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Public -----------------------------------------------------------------

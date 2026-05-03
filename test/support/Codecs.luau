@@ -165,11 +165,13 @@ local function numberSequenceNear(a: NumberSequence, b: NumberSequence): boolean
     end
     for i = 1, #a.Keypoints do
         local ka, kb = a.Keypoints[i], b.Keypoints[i]
-        if not (
-            nearF32(ka.Time, kb.Time)
-            and nearF32(ka.Value, kb.Value)
-            and nearF32(ka.Envelope, kb.Envelope)
-        ) then
+        if
+            not (
+                nearF32(ka.Time, kb.Time)
+                and nearF32(ka.Value, kb.Value)
+                and nearF32(ka.Envelope, kb.Envelope)
+            )
+        then
             return false
         end
     end
@@ -377,7 +379,11 @@ local list: { Entry } = {
         compare = vec3Near,
         wireSize = 12,
         generate = function(rng): Vector3
-            return Vector3.new(rng:float(-1000, 1000), rng:float(-1000, 1000), rng:float(-1000, 1000))
+            return Vector3.new(
+                rng:float(-1000, 1000),
+                rng:float(-1000, 1000),
+                rng:float(-1000, 1000)
+            )
         end,
     },
     {
@@ -532,7 +538,12 @@ local list: { Entry } = {
         compare = rectNear,
         wireSize = 16,
         generate = function(rng): Rect
-            return Rect.new(rng:float(-100, 100), rng:float(-100, 100), rng:float(-100, 100), rng:float(-100, 100))
+            return Rect.new(
+                rng:float(-100, 100),
+                rng:float(-100, 100),
+                rng:float(-100, 100),
+                rng:float(-100, 100)
+            )
         end,
     },
     {
@@ -588,7 +599,11 @@ local list: { Entry } = {
             local minZ = rng:int(-32768, 32767)
             return Region3int16.new(
                 Vector3int16.new(minX, minY, minZ),
-                Vector3int16.new(math.min(32767, minX + rng:int(0, 100)), math.min(32767, minY + rng:int(0, 100)), math.min(32767, minZ + rng:int(0, 100)))
+                Vector3int16.new(
+                    math.min(32767, minX + rng:int(0, 100)),
+                    math.min(32767, minY + rng:int(0, 100)),
+                    math.min(32767, minZ + rng:int(0, 100))
+                )
             )
         end,
     },

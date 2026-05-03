@@ -7,20 +7,20 @@ local Base = require(script.Parent.Parent.Base)
 -- Constants --------------------------------------------------------------
 
 local MAX_FINITE = 65504
-local NAN_BITS   = 0x7E00
-local INF_BITS   = 0x7C00
+local NAN_BITS = 0x7E00
+local INF_BITS = 0x7C00
 
 -- Private ----------------------------------------------------------------
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
-local frexp  = math.frexp
-local ldexp  = math.ldexp
-local round  = math.round
-local huge   = math.huge
-local isnan  = math.isnan
+local frexp = math.frexp
+local ldexp = math.ldexp
+local round = math.round
+local huge = math.huge
+local isnan = math.isnan
 
 local function encode(value: number): number
     if isnan(value) then
@@ -71,7 +71,7 @@ end
 
 local function decode(raw: number): number
     local sign = band(raw, 0x8000)
-    local exp  = band(rshift(raw, 10), 0x1F)
+    local exp = band(rshift(raw, 10), 0x1F)
     local frac = band(raw, 0x03FF)
 
     local value: number

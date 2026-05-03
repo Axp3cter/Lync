@@ -139,9 +139,7 @@ local function build(actual: any, neg: boolean, count: () -> ()): Expectation
             ok = not ok
         end
         if not ok then
-            fail(
-                `Expected {actual} {prefix}within {tol} of {expected} (diff={diff})`
-            )
+            fail(`Expected {actual} {prefix}within {tol} of {expected} (diff={diff})`)
         end
     end
 

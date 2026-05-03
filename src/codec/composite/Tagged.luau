@@ -3,13 +3,13 @@
 -- Discriminated union codec. u8 variant tag + variant payload.
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Log     = require(script.Parent.Parent.Parent.util.Log)
-local Types   = require(script.Parent.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
 local writeByte = Channel.writeByte
-local readu8    = buffer.readu8
+local readu8 = buffer.readu8
 
 -- Public -----------------------------------------------------------------
 
@@ -39,10 +39,10 @@ function Tagged.define(
     local hasUnknown = false
 
     for i = 1, variantCount do
-        local name  = names[i]
+        local name = names[i]
         local codec = variants[name]
         nameToTag[name] = i - 1
-        tagToCodec[i]   = codec
+        tagToCodec[i] = codec
         if codec._hasUnknown then
             hasUnknown = true
         end
@@ -53,9 +53,9 @@ function Tagged.define(
     table.freeze(tagToCodec)
 
     local codec: Types.InternalCodec<any> = {
-        _isTagged  = true,
-        _tagField  = tagField,
-        _variants  = variants,
+        _isTagged = true,
+        _tagField = tagField,
+        _variants = variants,
 
         write = function(ch: Types.ChannelState, value: any): ()
             local name = value[tagField]
@@ -72,7 +72,7 @@ function Tagged.define(
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local tag      = readu8(src, pos)
+            local tag = readu8(src, pos)
             local varCodec = tagToCodec[tag + 1]
             if not varCodec then
                 Log.error(`unknown tag {tag}`)

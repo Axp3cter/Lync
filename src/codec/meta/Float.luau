@@ -2,9 +2,9 @@
 --!native
 -- Fixed-point float quantizer. Maps a float range to u8/u16/u32.
 
-local Base     = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Quantize = require(script.Parent.Parent.Parent.util.Quantize)
-local Types    = require(script.Parent.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 

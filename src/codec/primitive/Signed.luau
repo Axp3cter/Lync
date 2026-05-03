@@ -4,7 +4,7 @@
 
 -- Private ----------------------------------------------------------------
 
-local writeu8  = buffer.writeu8
+local writeu8 = buffer.writeu8
 local writeu16 = buffer.writeu16
 local writeu32 = buffer.writeu32
 
@@ -25,7 +25,7 @@ function Signed.writeI32(b: buffer, off: number, value: number): ()
 end
 
 -- Reads stay on buffer.readi* (already FASTCALL).
-Signed.readI8  = buffer.readi8
+Signed.readI8 = buffer.readi8
 Signed.readI16 = buffer.readi16
 Signed.readI32 = buffer.readi32
 

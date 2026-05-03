@@ -3,8 +3,8 @@
 -- Instance codec via the channel's sidecar reference array.
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Log     = require(script.Parent.Parent.Parent.util.Log)
-local Types   = require(script.Parent.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
@@ -17,7 +17,9 @@ end
 
 local function readInstance(src: buffer, pos: number, refs: { Instance }?): (Instance, number)
     local r = refs
-    if not r then Log.error("refs array is required") end
+    if not r then
+        Log.error("refs array is required")
+    end
 
     local idx = readu16(src, pos)
     if idx < 1 or idx > #r then
@@ -29,7 +31,9 @@ local function readInstance(src: buffer, pos: number, refs: { Instance }?): (Ins
         Unknown codec skips this since it can legitimately hold any sidecar value.
     ]]
     local inst = r[idx]
-    if typeof(inst) ~= "Instance" then Log.error("ref is not an Instance") end
+    if typeof(inst) ~= "Instance" then
+        Log.error("ref is not an Instance")
+    end
     return inst, 2
 end
 

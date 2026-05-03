@@ -122,11 +122,8 @@ describe("transport.Reader", function(): ()
         it("frame timestamp surfaces in handler", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "r_ts_frame",
-                Lync.int(0, 255),
-                { timestamp = "frame" }
-            )
+            local reg, received =
+                definePacket("r_ts_frame", Lync.int(0, 255), { timestamp = "frame" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 1)
             sealAndProcess(ch)
@@ -135,11 +132,8 @@ describe("transport.Reader", function(): ()
         it("offset timestamp surfaces in handler", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "r_ts_offset",
-                Lync.int(0, 255),
-                { timestamp = "offset" }
-            )
+            local reg, received =
+                definePacket("r_ts_offset", Lync.int(0, 255), { timestamp = "offset" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 1)
             sealAndProcess(ch)
@@ -148,11 +142,8 @@ describe("transport.Reader", function(): ()
         it("full timestamp surfaces in handler", function(): ()
             Channel.enableTimestamps()
             Channel.updateTimestamp()
-            local reg, received = definePacket(
-                "r_ts_full",
-                Lync.int(0, 255),
-                { timestamp = "full" }
-            )
+            local reg, received =
+                definePacket("r_ts_full", Lync.int(0, 255), { timestamp = "full" })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 1)
             sealAndProcess(ch)
@@ -176,11 +167,8 @@ describe("transport.Reader", function(): ()
 
     describe("server-side gate path: maxPayloadBytes", function(): ()
         it("packet exceeding payload cap is dropped", function(): ()
-            local reg, received = definePacket(
-                "r_max_payload",
-                Lync.string,
-                { maxPayloadBytes = 5 }
-            )
+            local reg, received =
+                definePacket("r_max_payload", Lync.string, { maxPayloadBytes = 5 })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, "way too long for the cap")
             sealAndProcess(ch, true, Instance.new("Folder"))
@@ -190,30 +178,22 @@ describe("transport.Reader", function(): ()
 
     describe("server-side validate callback", function(): ()
         it("rejects when validate returns false", function(): ()
-            local reg, received = definePacket(
-                "r_validate",
-                Lync.int(0, 100),
-                {
-                    validate = function(_d: any, _p: any): (boolean, string?)
-                        return false, "nope"
-                    end,
-                }
-            )
+            local reg, received = definePacket("r_validate", Lync.int(0, 100), {
+                validate = function(_d: any, _p: any): (boolean, string?)
+                    return false, "nope"
+                end,
+            })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 5)
             sealAndProcess(ch, true, Instance.new("Folder"))
             expect(#received):toBe(0)
         end)
         it("accepts when validate returns true", function(): ()
-            local reg, received = definePacket(
-                "r_validate_pass",
-                Lync.int(0, 100),
-                {
-                    validate = function(_d: any, _p: any): (boolean, string?)
-                        return true, nil
-                    end,
-                }
-            )
+            local reg, received = definePacket("r_validate_pass", Lync.int(0, 100), {
+                validate = function(_d: any, _p: any): (boolean, string?)
+                    return true, nil
+                end,
+            })
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 5)
             sealAndProcess(ch, true, Instance.new("Folder"))

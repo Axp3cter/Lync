@@ -4,51 +4,51 @@
 
 local RunService = game:GetService("RunService")
 
-local Baseline   = require(script.internal.Baseline)
-local Bridge     = require(script.transport.Bridge)
-local Channel    = require(script.internal.Channel)
-local Gate       = require(script.transport.Gate)
-local Group      = require(script.api.Group)
-local Log        = require(script.util.Log)
+local Baseline = require(script.internal.Baseline)
+local Bridge = require(script.transport.Bridge)
+local Channel = require(script.internal.Channel)
+local Gate = require(script.transport.Gate)
+local Group = require(script.api.Group)
+local Log = require(script.util.Log)
 local Middleware = require(script.internal.Middleware)
-local Packet     = require(script.api.Packet)
-local Player     = require(script.util.Player)
-local Pool       = require(script.internal.Pool)
-local Query      = require(script.api.Query)
-local Registry   = require(script.internal.Registry)
-local Scope      = require(script.api.Scope)
-local Types      = require(script.Types)
+local Packet = require(script.api.Packet)
+local Player = require(script.util.Player)
+local Pool = require(script.internal.Pool)
+local Query = require(script.api.Query)
+local Registry = require(script.internal.Registry)
+local Scope = require(script.api.Scope)
+local Types = require(script.Types)
 
-local ArrayC    = require(script.codec.composite.Array)
-local AutoC     = require(script.codec.meta.Auto)
+local ArrayC = require(script.codec.composite.Array)
+local AutoC = require(script.codec.meta.Auto)
 local BitfieldC = require(script.codec.meta.Bitfield)
-local BoolC     = require(script.codec.primitive.Bool)
-local BufferC   = require(script.codec.datatype.Buffer)
-local CFrameC   = require(script.codec.datatype.CFrame)
-local ColorC    = require(script.codec.datatype.Color)
-local CustomC   = require(script.codec.meta.Custom)
-local EnumC     = require(script.codec.meta.Enum)
-local Float16C  = require(script.codec.primitive.Float16)
-local FloatC    = require(script.codec.meta.Float)
-local IVC       = require(script.codec.datatype.IntVector)
+local BoolC = require(script.codec.primitive.Bool)
+local BufferC = require(script.codec.datatype.Buffer)
+local CFrameC = require(script.codec.datatype.CFrame)
+local ColorC = require(script.codec.datatype.Color)
+local CustomC = require(script.codec.meta.Custom)
+local EnumC = require(script.codec.meta.Enum)
+local Float16C = require(script.codec.primitive.Float16)
+local FloatC = require(script.codec.meta.Float)
+local IVC = require(script.codec.datatype.IntVector)
 local InstanceC = require(script.codec.datatype.Instance)
-local IntC      = require(script.codec.primitive.Int)
-local MapC      = require(script.codec.composite.Map)
-local NRC       = require(script.codec.datatype.NumberRange)
-local NothingC  = require(script.codec.meta.Nothing)
-local NumberC   = require(script.codec.primitive.Number)
+local IntC = require(script.codec.primitive.Int)
+local MapC = require(script.codec.composite.Map)
+local NRC = require(script.codec.datatype.NumberRange)
+local NothingC = require(script.codec.meta.Nothing)
+local NumberC = require(script.codec.primitive.Number)
 local OptionalC = require(script.codec.composite.Optional)
-local RayC      = require(script.codec.datatype.Ray)
-local RectC     = require(script.codec.datatype.Rect)
-local RegionC   = require(script.codec.datatype.Region)
-local SeqC      = require(script.codec.datatype.Sequence)
-local StringC   = require(script.codec.datatype.String)
-local StructC   = require(script.codec.composite.Struct)
-local TaggedC   = require(script.codec.composite.Tagged)
-local TupleC    = require(script.codec.composite.Tuple)
-local UDimC     = require(script.codec.datatype.UDim)
-local UnknownC  = require(script.codec.meta.Unknown)
-local VectorC   = require(script.codec.datatype.Vector)
+local RayC = require(script.codec.datatype.Ray)
+local RectC = require(script.codec.datatype.Rect)
+local RegionC = require(script.codec.datatype.Region)
+local SeqC = require(script.codec.datatype.Sequence)
+local StringC = require(script.codec.datatype.String)
+local StructC = require(script.codec.composite.Struct)
+local TaggedC = require(script.codec.composite.Tagged)
+local TupleC = require(script.codec.composite.Tuple)
+local UDimC = require(script.codec.datatype.UDim)
+local UnknownC = require(script.codec.meta.Unknown)
+local VectorC = require(script.codec.datatype.Vector)
 
 -- Public types -----------------------------------------------------------
 
@@ -73,22 +73,22 @@ local IS_SERVER = RunService:IsServer()
     Singleton-string brand on a single `_lyncKind` field: dispatch is one
     hash lookup at the same predicted slot, and the literals narrow on `==`.
 ]]
-local ALL  = table.freeze({ _lyncKind = "all" :: "all" })
+local ALL = table.freeze({ _lyncKind = "all" :: "all" })
 local DROP = table.freeze({ _lyncKind = "drop" :: "drop" })
 
 local CHANNEL_MAX_MIN, CHANNEL_MAX_MAX = 4096, 1048576
-local DEPTH_MIN,       DEPTH_MAX       = 4,    32
-local POOL_MIN,        POOL_MAX        = 2,    128
-local FLUSH_HZ_MIN,    FLUSH_HZ_MAX    = 1,    60
+local DEPTH_MIN, DEPTH_MAX = 4, 32
+local POOL_MIN, POOL_MAX = 2, 128
+local FLUSH_HZ_MIN, FLUSH_HZ_MAX = 1, 60
 
 -- State ------------------------------------------------------------------
 
 -- Single table so the Heartbeat closure captures one LCT_VAL, not N LCT_REFs.
 local flushState = {
-    started   = false,
-    rate      = FLUSH_HZ_MAX,
-    accum     = 0,
-    conn      = nil :: RBXScriptConnection?,
+    started = false,
+    rate = FLUSH_HZ_MAX,
+    accum = 0,
+    conn = nil :: RBXScriptConnection?,
     transport = nil :: { flush: () -> () }?,
 }
 
@@ -149,7 +149,9 @@ local function applyOption(
     max: number,
     apply: (number) -> ()
 ): ()
-    if value == nil then return end
+    if value == nil then
+        return
+    end
     if value < min or value > max then
         Log.error(`{name} must be {min}-{max}`)
     end
@@ -163,7 +165,13 @@ local Lync = {}
 function Lync.configure(options: Types.ConfigureOptions): ()
     Log.assert(not flushState.started, "must be called before Lync.start()")
 
-    applyOption("channelMaxSize", options.channelMaxSize, CHANNEL_MAX_MIN, CHANNEL_MAX_MAX, Channel.setMaxSize)
+    applyOption(
+        "channelMaxSize",
+        options.channelMaxSize,
+        CHANNEL_MAX_MIN,
+        CHANNEL_MAX_MAX,
+        Channel.setMaxSize
+    )
     applyOption("validationDepth", options.validationDepth, DEPTH_MIN, DEPTH_MAX, Gate.setDepth)
     applyOption("poolSize", options.poolSize, POOL_MIN, POOL_MAX, Pool.setMaxSize)
 
@@ -252,7 +260,9 @@ Lync.onDrop = Middleware.onDrop
 
 Lync.stats = table.freeze({
     player = function(player: Player): Types.PlayerStats?
-        if not IS_SERVER then return nil end
+        if not IS_SERVER then
+            return nil
+        end
         local Server = require(script.transport.Server)
         return Server.getPlayerStats(player)
     end,

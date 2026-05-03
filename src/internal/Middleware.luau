@@ -3,13 +3,13 @@
 -- Ordered intercept chains for send/receive/drop hooks.
 
 local Signal = require(script.Parent.Parent.api.Signal)
-local Types  = require(script.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Types)
 
 -- State ------------------------------------------------------------------
 
-local _sendSignal    = Signal.create()
+local _sendSignal = Signal.create()
 local _receiveSignal = Signal.create()
-local _dropSignal    = Signal.create()
+local _dropSignal = Signal.create()
 
 -- Private ----------------------------------------------------------------
 
@@ -32,7 +32,7 @@ local function runChain(
         return value
     end
 
-    local entries  = signal._entries
+    local entries = signal._entries
     local snapshot = table.create(count)
     table.move(entries, 1, count, 1, snapshot)
 
@@ -58,11 +58,15 @@ function Middleware.onSend(fn: (data: any, name: string, player: Player?) -> any
     return _sendSignal:connect(fn)
 end
 
-function Middleware.onReceive(fn: (data: any, name: string, player: Player?) -> any): Types.Connection
+function Middleware.onReceive(
+    fn: (data: any, name: string, player: Player?) -> any
+): Types.Connection
     return _receiveSignal:connect(fn)
 end
 
-function Middleware.onDrop(fn: (player: Player, reason: string, name: string, data: any?) -> ()): Types.Connection
+function Middleware.onDrop(
+    fn: (player: Player, reason: string, name: string, data: any?) -> ()
+): Types.Connection
     return _dropSignal:connect(fn)
 end
 
@@ -88,9 +92,9 @@ function Middleware.hasReceiveHooks(): boolean
 end
 
 function Middleware.reset(): ()
-    _sendSignal    = Signal.create()
+    _sendSignal = Signal.create()
     _receiveSignal = Signal.create()
-    _dropSignal    = Signal.create()
+    _dropSignal = Signal.create()
 end
 
 return table.freeze(Middleware)

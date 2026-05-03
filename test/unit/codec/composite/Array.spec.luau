@@ -54,19 +54,14 @@ describe("codec.composite.Array", function(): ()
             expect(r[50]):toBe(50)
         end)
         it("string elements (generic path)", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.array(Lync.string),
-                { "hello", "world", "foo" }
-            )
+            local r = Channel.roundTripStrict(Lync.array(Lync.string), { "hello", "world", "foo" })
             expect(r[1]):toBe("hello")
             expect(r[3]):toBe("foo")
         end)
         it("struct elements (direct path)", function(): ()
             local elem = Lync.struct({ x = Lync.int(0, 255), y = Lync.int(0, 255) })
-            local r = Channel.roundTripStrict(
-                Lync.array(elem),
-                { { x = 1, y = 2 }, { x = 3, y = 4 } }
-            )
+            local r =
+                Channel.roundTripStrict(Lync.array(elem), { { x = 1, y = 2 }, { x = 3, y = 4 } })
             expect(r[1].x):toBe(1)
             expect(r[2].y):toBe(4)
         end)
@@ -119,10 +114,7 @@ describe("codec.composite.Array", function(): ()
 
     describe("direct path (fixed-size element)", function(): ()
         it("u16 array", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.array(Lync.int(0, 65535)),
-                { 1000, 2000, 3000 }
-            )
+            local r = Channel.roundTripStrict(Lync.array(Lync.int(0, 65535)), { 1000, 2000, 3000 })
             expect(r[1]):toBe(1000)
             expect(r[3]):toBe(3000)
         end)

@@ -44,10 +44,8 @@ describe("codec.composite.Tuple", function(): ()
             expect(r[1]):toBe(42)
         end)
         it("two mixed elements", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.tuple(Lync.int(0, 255), Lync.string),
-                { 42, "hello" }
-            )
+            local r =
+                Channel.roundTripStrict(Lync.tuple(Lync.int(0, 255), Lync.string), { 42, "hello" })
             expect(r[1]):toBe(42)
             expect(r[2]):toBe("hello")
         end)

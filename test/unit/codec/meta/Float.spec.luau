@@ -62,7 +62,10 @@ describe("codec.meta.Float", function(): ()
             expect(Channel.roundTripStrict(c, 50)):toBeCloseTo(50, 1)
         end)
         it("fine precision", function(): ()
-            expect(Channel.roundTripStrict(Lync.float(0, 10, 0.001), 5.555)):toBeCloseTo(5.555, 1e-3)
+            expect(Channel.roundTripStrict(Lync.float(0, 10, 0.001), 5.555)):toBeCloseTo(
+                5.555,
+                1e-3
+            )
         end)
     end)
 

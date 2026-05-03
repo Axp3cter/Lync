@@ -2,22 +2,22 @@
 --!native
 -- array() and deltaArray(). Bool elements are bit-packed.
 
-local Base     = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
-local Log      = require(script.Parent.Parent.Parent.util.Log)
-local Shared   = require(script.Parent.Parent.composite.Shared)
-local Types    = require(script.Parent.Parent.Parent.Types)
-local Varint   = require(script.Parent.Parent.primitive.Varint)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
+local Types = require(script.Parent.Parent.Parent.Types)
+local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private ----------------------------------------------------------------
 
-local alloc           = Base.alloc
-local allocDeltaId    = Shared.allocDeltaId
-local boolBytes       = Shared.boolBytes
-local packBoolArray   = Shared.packBoolArray
+local alloc = Base.alloc
+local allocDeltaId = Shared.allocDeltaId
+local boolBytes = Shared.boolBytes
+local packBoolArray = Shared.packBoolArray
 local unpackBoolArray = Shared.unpackBoolArray
-local varintRead      = Varint.read
-local varintWrite     = Varint.write
+local varintRead = Varint.read
+local varintWrite = Varint.write
 
 -- Bit-packed bool element fast path: 1 bit per entry instead of 1 byte.
 local function makeBoolArray(
@@ -25,9 +25,9 @@ local function makeBoolArray(
     maxCount: number?
 ): Types.InternalCodec<any>
     return {
-        _isArray   = true,
-        _element   = element,
-        _maxCount  = maxCount,
+        _isArray = true,
+        _element = element,
+        _maxCount = maxCount,
 
         write = function(ch: Types.ChannelState, value: { boolean }): ()
             local len = #value
@@ -65,8 +65,8 @@ local function makeDirectArray(
     maxCount: number?
 ): Types.InternalCodec<any>
     return {
-        _isArray  = true,
-        _element  = element,
+        _isArray = true,
+        _element = element,
         _maxCount = maxCount,
 
         write = function(ch: Types.ChannelState, value: { any }): ()
@@ -77,11 +77,11 @@ local function makeDirectArray(
             end
 
             local payloadBytes = len * elemSize
-            local cursor       = ch.cursor
+            local cursor = ch.cursor
             if cursor + payloadBytes > ch.size then
                 alloc(ch, payloadBytes)
             end
-            local b   = ch.buff
+            local b = ch.buff
             local off = cursor
             for i = 1, len do
                 elemDW(b, off, value[i])
@@ -100,13 +100,13 @@ local function makeDirectArray(
             end
 
             local payloadBytes = len * elemSize
-            local dataStart    = pos + lenBytes
+            local dataStart = pos + lenBytes
             if payloadBytes > buffer.len(src) - dataStart then
                 Log.error(`payload {payloadBytes}B exceeds remaining buffer`)
             end
 
             local result = table.create(len)
-            local off    = dataStart
+            local off = dataStart
             for i = 1, len do
                 result[i] = elemDR(src, off)
                 off += elemSize
@@ -122,8 +122,8 @@ local function makeGenericArray(
     maxCount: number?
 ): Types.InternalCodec<any>
     return {
-        _isArray  = true,
-        _element  = element,
+        _isArray = true,
+        _element = element,
         _maxCount = maxCount,
 
         write = function(ch: Types.ChannelState, value: { any }): ()
@@ -144,7 +144,7 @@ local function makeGenericArray(
             end
 
             local result = table.create(len)
-            local total  = lenBytes
+            local total = lenBytes
             for i = 1, len do
                 local v, consumed = element.read(src, pos + total, refs)
                 if consumed == 0 then
@@ -162,17 +162,14 @@ end
 
 local Array = {}
 
-function Array.array(
-    element: Types.InternalCodec<any>,
-    maxCount: number?
-): Types.InternalCodec<any>
+function Array.array(element: Types.InternalCodec<any>, maxCount: number?): Types.InternalCodec<any>
     local codec: Types.InternalCodec<any>
     if element._isBool then
         codec = makeBoolArray(element, maxCount)
     else
         local elemSize = element._size
-        local elemDW   = element._directWrite
-        local elemDR   = element._directRead
+        local elemDW = element._directWrite
+        local elemDR = element._directRead
         if elemSize and elemDW and elemDR then
             codec = makeDirectArray(element, elemSize, elemDW, elemDR, maxCount)
         else
@@ -194,11 +191,7 @@ function Array.deltaArray(
     element: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
-    return Shared.makeUnchangedOrFullDelta(
-        Array.array(element, maxCount),
-        allocDeltaId(),
-        Baseline
-    )
+    return Shared.makeUnchangedOrFullDelta(Array.array(element, maxCount), allocDeltaId(), Baseline)
 end
 
 return table.freeze(Array)

@@ -7,10 +7,10 @@ local Types = require(script.Parent.Parent.Types)
 -- Public types -----------------------------------------------------------
 
 export type ScopeHandle = {
-    on:      (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
-    once:    (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
-    add:     (self: ScopeHandle, connection: any) -> (),
-    size:    (self: ScopeHandle) -> number,
+    on: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
+    once: (self: ScopeHandle, source: any, fn: (...any) -> ()) -> Types.Connection,
+    add: (self: ScopeHandle, connection: any) -> (),
+    size: (self: ScopeHandle) -> number,
     destroy: (self: ScopeHandle) -> (),
 }
 

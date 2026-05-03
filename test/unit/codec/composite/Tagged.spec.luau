@@ -131,7 +131,7 @@ describe("codec.composite.Tagged", function(): ()
                 b = Lync.struct({ x = Lync.int(0, 255) }),
             })
             local c2 = Lync.tagged("t", {
-                b = Lync.struct({ x = Lync.int(0, 255) }),  -- order shouldn't matter
+                b = Lync.struct({ x = Lync.int(0, 255) }), -- order shouldn't matter
                 a = Lync.struct({ x = Lync.int(0, 255) }),
             })
             local r1 = Channel.encode(c1, { t = "a", x = 1 })
@@ -179,7 +179,7 @@ describe("codec.composite.Tagged", function(): ()
                 a = Lync.struct({ x = Lync.int(0, 255) }),
             })
             local b = buffer.create(2)
-            buffer.writeu8(b, 0, 5)  -- tag 5 not assigned
+            buffer.writeu8(b, 0, 5) -- tag 5 not assigned
             buffer.writeu8(b, 1, 0)
             expect(function(): ()
                 c.read(b, 0, nil)

@@ -3,13 +3,13 @@
 -- Optional codec. 1-byte present/absent flag, value only when present.
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Log     = require(script.Parent.Parent.Parent.util.Log)
-local Types   = require(script.Parent.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
 local writeByte = Channel.writeByte
-local readu8    = buffer.readu8
+local readu8 = buffer.readu8
 local bufferLen = buffer.len
 
 -- Public -----------------------------------------------------------------

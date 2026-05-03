@@ -7,8 +7,8 @@ local Types = require(script.Parent.Parent.Types)
 -- Constants --------------------------------------------------------------
 
 local STATE_DISCONNECTED = 0
-local STATE_CONNECTED    = 1
-local STATE_ONCE         = 2
+local STATE_CONNECTED = 1
+local STATE_ONCE = 2
 
 -- State ------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ local _freeThread: thread? = nil
 
 local function passer(fn: (...any) -> (), ...): ()
     local thread = _freeThread
-    _freeThread  = nil
+    _freeThread = nil
     fn(...)
     _freeThread = thread
 end
@@ -39,16 +39,16 @@ local function spawnCallback(fn: (...any) -> (), ...: any): ()
 end
 
 type Entry = {
-    fn:        (...any) -> (),
-    _state:    number,
+    fn: (...any) -> (),
+    _state: number,
     connected: boolean,
-    _signal:   SignalFields,
-    _index:    number,
+    _signal: SignalFields,
+    _index: number,
 }
 
 type SignalFields = {
     _entries: { Entry },
-    _count:   number,
+    _count: number,
 }
 
 local EntryImpl = {}
@@ -60,13 +60,13 @@ local function disconnectEntry(entry: Entry): ()
         return
     end
 
-    entry._state    = STATE_DISCONNECTED
+    entry._state = STATE_DISCONNECTED
     entry.connected = false
 
-    local signal  = entry._signal
+    local signal = entry._signal
     local entries = signal._entries
-    local idx     = entry._index
-    local last    = signal._count
+    local idx = entry._index
+    local last = signal._count
 
     if idx < last then
         local moved = entries[last]
@@ -83,7 +83,9 @@ table.freeze(EntryImpl)
 -- Auto-disconnects ONCE entries before invoking; chooses sync vs spawned thread.
 local function invokeEntry(entry: Entry, sync: boolean, ...: any): ()
     local state = entry._state
-    if state == STATE_DISCONNECTED then return end
+    if state == STATE_DISCONNECTED then
+        return
+    end
     if state == STATE_ONCE then
         disconnectEntry(entry)
     end
@@ -102,11 +104,11 @@ local function newEntry(self: SignalFields, callback: (...any) -> (), state: num
     self._count = idx
 
     local entry: Entry = setmetatable({
-        fn        = callback,
-        _state    = state,
+        fn = callback,
+        _state = state,
         connected = true,
-        _signal   = self,
-        _index    = idx,
+        _signal = self,
+        _index = idx,
     }, EntryImpl) :: any
 
     self._entries[idx] = entry

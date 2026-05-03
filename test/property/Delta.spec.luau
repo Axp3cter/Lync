@@ -98,7 +98,8 @@ describe("property.Delta", function(): ()
             c.write(ch, { hp = 500, mp = 500, level = 50 })
             for _ = 1, 30 do
                 local mutation = rng:int(1, 3)
-                local v = if mutation == 1 then { hp = rng:int(0, 1000), mp = 500, level = 50 }
+                local v = if mutation == 1
+                    then { hp = rng:int(0, 1000), mp = 500, level = 50 }
                     elseif mutation == 2 then { hp = 500, mp = rng:int(0, 1000), level = 50 }
                     else { hp = 500, mp = 500, level = rng:int(0, 100) }
                 ch.cursor = 0
@@ -136,7 +137,7 @@ describe("property.Delta", function(): ()
             local ch = Channel.create()
             c.write(ch, { a = 1, b = 2 })
             ch.cursor = 0
-            c.write(ch, { a = 1 })  -- removed b
+            c.write(ch, { a = 1 }) -- removed b
             expect(ch.cursor > 1):toBe(true)
         end)
         it("adding a key invalidates the cache", function(): ()

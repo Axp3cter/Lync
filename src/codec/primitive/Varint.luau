@@ -2,10 +2,10 @@
 --!native
 -- Dense prefix varint over [0, 2^32 - 1]. Single-branch decode.
 
-local Base      = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local Constants = require(script.Parent.Parent.Parent.util.Constants)
-local Log       = require(script.Parent.Parent.Parent.util.Log)
-local Types     = require(script.Parent.Parent.Parent.Types)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -17,34 +17,34 @@ local Types     = require(script.Parent.Parent.Parent.Types)
       0xF0..0xFF  5 bytes  value = u32                           [..0xFFFFFFFF]
 ]]
 local INLINE_MAX = 0xBF
-local TWO_TAG    = 0xC0
-local TWO_END    = 0xDF
-local TWO_MASK   = 0x1F
-local THREE_TAG  = 0xE0
-local THREE_END  = 0xEF
+local TWO_TAG = 0xC0
+local TWO_END = 0xDF
+local TWO_MASK = 0x1F
+local THREE_TAG = 0xE0
+local THREE_END = 0xEF
 local THREE_MASK = 0x0F
-local FIVE_TAG   = 0xF0
-local TWO_MAX    = 8383
-local THREE_MAX  = 1056959
-local TWO_BIAS   = 192
+local FIVE_TAG = 0xF0
+local TWO_MAX = 8383
+local THREE_MAX = 1056959
+local TWO_BIAS = 192
 local THREE_BIAS = 8384
 
-local U8_MAX  = Constants.U8_MAX
+local U8_MAX = Constants.U8_MAX
 local U16_MAX = Constants.U16_MAX
 local U32_MAX = Constants.U32_MAX
 
 -- Private ----------------------------------------------------------------
 
-local alloc    = Base.alloc
-local band     = bit32.band
-local bor      = bit32.bor
-local rshift   = bit32.rshift
-local writeu8  = buffer.writeu8
+local alloc = Base.alloc
+local band = bit32.band
+local bor = bit32.bor
+local rshift = bit32.rshift
+local writeu8 = buffer.writeu8
 local writeu16 = buffer.writeu16
 local writeu32 = buffer.writeu32
-local readu8   = buffer.readu8
-local readu16  = buffer.readu16
-local readu32  = buffer.readu32
+local readu8 = buffer.readu8
+local readu16 = buffer.readu16
+local readu32 = buffer.readu32
 
 local function ensure(ch: Types.ChannelState, n: number): ()
     if ch.cursor + n > ch.size then

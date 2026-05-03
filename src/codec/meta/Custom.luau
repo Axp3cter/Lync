@@ -2,8 +2,8 @@
 --!optimize 2
 -- User-defined fixed-size codec.
 
-local Base  = require(script.Parent.Parent.Base)
-local Log   = require(script.Parent.Parent.Parent.util.Log)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------

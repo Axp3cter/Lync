@@ -25,9 +25,7 @@ local PREFIX = "[Lync]"
 ]]
 local function format(message: string): string
     local source, line, name = debug.info(3, "sln")
-    local file = source:match("([^.]+)%.spec$")
-        or source:match("[^./\\]+$")
-        or source
+    local file = source:match("([^.]+)%.spec$") or source:match("[^./\\]+$") or source
     if name and name ~= "" then
         return `{PREFIX} {file}:{line} ({name}) {message}`
     end

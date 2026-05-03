@@ -2,20 +2,20 @@
 --!native
 -- Sub-byte packed bool/uint/int fields. Up to 32 bits total per record.
 
-local Base  = require(script.Parent.Parent.Base)
-local Log   = require(script.Parent.Parent.Parent.util.Log)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
 local TYPE_BOOL = 0
 local TYPE_UINT = 1
-local TYPE_INT  = 2
+local TYPE_INT = 2
 
 -- Private ----------------------------------------------------------------
 
-local band   = bit32.band
-local bor    = bit32.bor
+local band = bit32.band
+local bor = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
 
@@ -44,13 +44,13 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<a
     local fieldCount = #keys
     Log.assert(fieldCount > 0, "requires at least one field")
 
-    local fieldKeys    = table.create(fieldCount)
-    local fieldTypes   = table.create(fieldCount)
+    local fieldKeys = table.create(fieldCount)
+    local fieldTypes = table.create(fieldCount)
     local fieldOffsets = table.create(fieldCount)
-    local fieldMasks   = table.create(fieldCount)
+    local fieldMasks = table.create(fieldCount)
     local fieldSignBit = table.create(fieldCount)
     local fieldSignExt = table.create(fieldCount)
-    local totalBits    = 0
+    local totalBits = 0
 
     for i = 1, fieldCount do
         local key = keys[i]
@@ -59,8 +59,8 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<a
         fieldOffsets[i] = totalBits
 
         if spec.type == "bool" then
-            fieldTypes[i]   = TYPE_BOOL
-            fieldMasks[i]   = 1
+            fieldTypes[i] = TYPE_BOOL
+            fieldMasks[i] = 1
             fieldSignBit[i] = 0
             fieldSignExt[i] = 0
             totalBits += 1
@@ -69,8 +69,8 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<a
             if not width or width < 1 or width > 32 then
                 Log.error(`field "{key}" uint width must be 1-32`)
             end
-            fieldTypes[i]   = TYPE_UINT
-            fieldMasks[i]   = widthMask(width)
+            fieldTypes[i] = TYPE_UINT
+            fieldMasks[i] = widthMask(width)
             fieldSignBit[i] = 0
             fieldSignExt[i] = 0
             totalBits += width
@@ -80,8 +80,8 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<a
             if not width or width < 2 or width > 32 then
                 Log.error(`field "{key}" int width must be 2-32`)
             end
-            fieldTypes[i]   = TYPE_INT
-            fieldMasks[i]   = widthMask(width)
+            fieldTypes[i] = TYPE_INT
+            fieldMasks[i] = widthMask(width)
             fieldSignBit[i] = 2 ^ (width - 1)
             fieldSignExt[i] = 2 ^ width
             totalBits += width

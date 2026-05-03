@@ -8,14 +8,14 @@ local Log = require(script.Parent.Parent.util.Log)
 
 -- Constants --------------------------------------------------------------
 
-local RELIABLE_NAME   = "LyncReliable"
+local RELIABLE_NAME = "LyncReliable"
 local UNRELIABLE_NAME = "LyncUnreliable"
 
 -- State ------------------------------------------------------------------
 
-local _reliable:   RemoteEvent?           = nil
+local _reliable: RemoteEvent? = nil
 local _unreliable: UnreliableRemoteEvent? = nil
-local _isServer    = RunService:IsServer()
+local _isServer = RunService:IsServer()
 
 -- Private ----------------------------------------------------------------
 
@@ -25,13 +25,17 @@ local _isServer    = RunService:IsServer()
 ]]
 local function ensureReliable(): RemoteEvent
     local r = _reliable
-    if not r then Log.error("not set up; call Lync.start() first") end
+    if not r then
+        Log.error("not set up; call Lync.start() first")
+    end
     return r
 end
 
 local function ensureUnreliable(): UnreliableRemoteEvent
     local u = _unreliable
-    if not u then Log.error("not set up; call Lync.start() first") end
+    if not u then
+        Log.error("not set up; call Lync.start() first")
+    end
     return u
 end
 

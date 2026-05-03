@@ -96,7 +96,7 @@ describe("codec.meta.Enum", function(): ()
         it("invalid index throws", function(): ()
             local c = Lync.enum("a", "b")
             local b = buffer.create(1)
-            buffer.writeu8(b, 0, 5)  -- only indices 0,1 valid
+            buffer.writeu8(b, 0, 5) -- only indices 0,1 valid
             expect(function(): ()
                 c.read(b, 0, nil)
             end):toThrow("invalid index")

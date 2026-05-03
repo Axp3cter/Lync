@@ -8,8 +8,8 @@ local LyncRoot = Test.Parent
 
 local Lync = require(LyncRoot)
 
-local Runner = require(Test.runner)
 local Random = require(Test.runner.Random)
+local Runner = require(Test.runner)
 
 local ChannelHelper = require(Test.support.Channel)
 local Codecs = require(Test.support.Codecs)

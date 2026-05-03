@@ -26,16 +26,26 @@ end
 
 local function fmtNum(n: number): string
     local s = tostring(floor(n))
-    if #s <= 3 then return s end
+    if #s <= 3 then
+        return s
+    end
     local out, rem = {}, #s % 3
-    if rem > 0 then table.insert(out, s:sub(1, rem)) end
-    for i = rem + 1, #s, 3 do table.insert(out, s:sub(i, i + 2)) end
+    if rem > 0 then
+        table.insert(out, s:sub(1, rem))
+    end
+    for i = rem + 1, #s, 3 do
+        table.insert(out, s:sub(i, i + 2))
+    end
     return table.concat(out, ",")
 end
 
 local function fmtTime(us: number): string
-    if us < 1 then return `{floor(us * 1000 + 0.5)}ns` end
-    if us < 1000 then return `{round1(us)}us` end
+    if us < 1 then
+        return `{floor(us * 1000 + 0.5)}ns`
+    end
+    if us < 1000 then
+        return `{round1(us)}us`
+    end
     return `{round1(us / 1000)}ms`
 end
 
@@ -113,9 +123,12 @@ function Harness.roundTrip(label: string, codec: any, value: any): ()
     local decUs = dec / RT_ITERS * 1e6
     Harness.row(
         format("%s (%dB)", label, n),
-        format("enc=%-9s dec=%-9s rt/s=%s",
-            fmtTime(encUs), fmtTime(decUs),
-            fmtNum(RT_ITERS / (enc + dec)))
+        format(
+            "enc=%-9s dec=%-9s rt/s=%s",
+            fmtTime(encUs),
+            fmtTime(decUs),
+            fmtNum(RT_ITERS / (enc + dec))
+        )
     )
 end
 
@@ -165,7 +178,8 @@ function Harness.throughput(
     sort(kbps)
     Harness.row(
         label,
-        format("fps=%-3d  Kbps=%-9s  p95=%s",
+        format(
+            "fps=%-3d  Kbps=%-9s  p95=%s",
             floor(pct(fps, 50) + 0.5),
             format("%.2f", pct(kbps, 50)),
             format("%.2f", pct(kbps, 95))

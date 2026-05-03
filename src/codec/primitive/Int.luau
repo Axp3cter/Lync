@@ -2,15 +2,15 @@
 --!optimize 2
 -- Range-typed integer codec. Picks the narrowest u8/u16/u32/i8/i16/i32 form.
 
-local Base   = require(script.Parent.Parent.Base)
-local Log    = require(script.Parent.Parent.Parent.util.Log)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 local Signed = require(script.Parent.Signed)
-local Types  = require(script.Parent.Parent.Parent.Types)
+local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
-local floor    = math.floor
-local writeI8  = Signed.writeI8
+local floor = math.floor
+local writeI8 = Signed.writeI8
 local writeI16 = Signed.writeI16
 local writeI32 = Signed.writeI32
 

@@ -2,63 +2,67 @@
 --!native
 -- Self-describing codec. u8 type tag + value payload.
 
-local Base    = require(script.Parent.Parent.Base)
+local Base = require(script.Parent.Parent.Base)
 local BufferC = require(script.Parent.Parent.datatype.Buffer)
 local CFrameC = require(script.Parent.Parent.datatype.CFrame)
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local ColorC  = require(script.Parent.Parent.datatype.Color)
-local IVC     = require(script.Parent.Parent.datatype.IntVector)
-local Log     = require(script.Parent.Parent.Parent.util.Log)
-local NRC     = require(script.Parent.Parent.datatype.NumberRange)
+local ColorC = require(script.Parent.Parent.datatype.Color)
+local IVC = require(script.Parent.Parent.datatype.IntVector)
+local Log = require(script.Parent.Parent.Parent.util.Log)
+local NRC = require(script.Parent.Parent.datatype.NumberRange)
 local NumberC = require(script.Parent.Parent.primitive.Number)
-local RayC    = require(script.Parent.Parent.datatype.Ray)
-local RectC   = require(script.Parent.Parent.datatype.Rect)
+local RayC = require(script.Parent.Parent.datatype.Ray)
+local RectC = require(script.Parent.Parent.datatype.Rect)
 local RegionC = require(script.Parent.Parent.datatype.Region)
-local SeqC    = require(script.Parent.Parent.datatype.Sequence)
-local Signed  = require(script.Parent.Parent.primitive.Signed)
-local Types   = require(script.Parent.Parent.Parent.Types)
-local UDimC   = require(script.Parent.Parent.datatype.UDim)
-local Varint  = require(script.Parent.Parent.primitive.Varint)
-local VecC    = require(script.Parent.Parent.datatype.Vector)
+local SeqC = require(script.Parent.Parent.datatype.Sequence)
+local Signed = require(script.Parent.Parent.primitive.Signed)
+local Types = require(script.Parent.Parent.Parent.Types)
+local UDimC = require(script.Parent.Parent.datatype.UDim)
+local Varint = require(script.Parent.Parent.primitive.Varint)
+local VecC = require(script.Parent.Parent.datatype.Vector)
 
 -- Constants --------------------------------------------------------------
 
-local TAG_NIL      = 0
-local TAG_BOOL     = 1
-local TAG_U8       = 2
-local TAG_U16      = 3
-local TAG_U32      = 4
-local TAG_I8       = 5
-local TAG_I16      = 6
-local TAG_I32      = 7
-local TAG_F32      = 8
-local TAG_F64      = 9
-local TAG_STRING   = 10
-local TAG_VEC2     = 11
-local TAG_VEC3     = 12
-local TAG_COLOR3   = 13
-local TAG_CFRAME   = 14
-local TAG_BUFFER   = 15
-local TAG_UDIM     = 16
-local TAG_UDIM2    = 17
+local TAG_NIL = 0
+local TAG_BOOL = 1
+local TAG_U8 = 2
+local TAG_U16 = 3
+local TAG_U32 = 4
+local TAG_I8 = 5
+local TAG_I16 = 6
+local TAG_I32 = 7
+local TAG_F32 = 8
+local TAG_F64 = 9
+local TAG_STRING = 10
+local TAG_VEC2 = 11
+local TAG_VEC3 = 12
+local TAG_COLOR3 = 13
+local TAG_CFRAME = 14
+local TAG_BUFFER = 15
+local TAG_UDIM = 16
+local TAG_UDIM2 = 17
 local TAG_NUMRANGE = 18
-local TAG_RECT     = 19
-local TAG_V2I16    = 20
-local TAG_V3I16    = 21
-local TAG_REGION3  = 22
-local TAG_R3I16    = 23
-local TAG_RAY      = 24
-local TAG_NUMSEQ   = 25
-local TAG_COLSEQ   = 26
+local TAG_RECT = 19
+local TAG_V2I16 = 20
+local TAG_V3I16 = 21
+local TAG_REGION3 = 22
+local TAG_R3I16 = 23
+local TAG_RAY = 24
+local TAG_NUMSEQ = 25
+local TAG_COLSEQ = 26
 
-local INLINE_MAX  = Varint.INLINE_MAX
+local INLINE_MAX = Varint.INLINE_MAX
 local F32_SCRATCH = NumberC._f32Scratch
 
 -- Tag -> numeric primitive dispatch tables.
 local NUM_SIZE: { [number]: number } = table.freeze({
-    [TAG_U8] = 1, [TAG_I8] = 1,
-    [TAG_U16] = 2, [TAG_I16] = 2,
-    [TAG_U32] = 4, [TAG_I32] = 4, [TAG_F32] = 4,
+    [TAG_U8] = 1,
+    [TAG_I8] = 1,
+    [TAG_U16] = 2,
+    [TAG_I16] = 2,
+    [TAG_U32] = 4,
+    [TAG_I32] = 4,
+    [TAG_F32] = 4,
     [TAG_F64] = 8,
 })
 
@@ -124,12 +128,12 @@ local READ_DISPATCH: { [number]: Types.InternalCodec<any> } = table.freeze({
 
 -- Private ----------------------------------------------------------------
 
-local alloc     = Base.alloc
+local alloc = Base.alloc
 local writeByte = Channel.writeByte
-local writeu8   = buffer.writeu8
-local readu8    = buffer.readu8
-local floor     = math.floor
-local isnan     = math.isnan
+local writeu8 = buffer.writeu8
+local readu8 = buffer.readu8
+local floor = math.floor
+local isnan = math.isnan
 
 --[[
     Pick the narrowest tag for a number. NaN forces F64 (no integer or F32
@@ -144,13 +148,25 @@ local function selectNumberTag(value: number): number
 
     if floor(value) == value then
         if value >= 0 then
-            if value <= 0xFF then return TAG_U8 end
-            if value <= 0xFFFF then return TAG_U16 end
-            if value <= 0xFFFFFFFF then return TAG_U32 end
+            if value <= 0xFF then
+                return TAG_U8
+            end
+            if value <= 0xFFFF then
+                return TAG_U16
+            end
+            if value <= 0xFFFFFFFF then
+                return TAG_U32
+            end
         else
-            if value >= -0x80 then return TAG_I8 end
-            if value >= -0x8000 then return TAG_I16 end
-            if value >= -0x80000000 then return TAG_I32 end
+            if value >= -0x80 then
+                return TAG_I8
+            end
+            if value >= -0x8000 then
+                return TAG_I16
+            end
+            if value >= -0x80000000 then
+                return TAG_I32
+            end
         end
     end
 

@@ -2,17 +2,17 @@
 --!optimize 2
 -- Packet definition: send, on, once, wait, stats.
 
-local Players    = game:GetService("Players")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Baseline   = require(script.Parent.Parent.internal.Baseline)
-local Channel    = require(script.Parent.Parent.internal.Channel)
-local Log        = require(script.Parent.Parent.util.Log)
+local Baseline = require(script.Parent.Parent.internal.Baseline)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Log = require(script.Parent.Parent.util.Log)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
-local Player     = require(script.Parent.Parent.util.Player)
-local Registry   = require(script.Parent.Parent.internal.Registry)
-local Transport  = require(script.Parent.Parent.internal.Transport)
-local Types      = require(script.Parent.Parent.Types)
+local Player = require(script.Parent.Parent.util.Player)
+local Registry = require(script.Parent.Parent.internal.Registry)
+local Transport = require(script.Parent.Parent.internal.Transport)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -20,9 +20,9 @@ local IS_SERVER = RunService:IsServer()
 
 -- mode: TS_* tag; headerSize: 1 (frame byte) + timestamp bytes (1, 2, or 8).
 local TS_MODES: { [string]: { mode: number, headerSize: number } } = table.freeze({
-    frame  = table.freeze({ mode = Channel.TS_FRAME,  headerSize = 2 }),
+    frame = table.freeze({ mode = Channel.TS_FRAME, headerSize = 2 }),
     offset = table.freeze({ mode = Channel.TS_OFFSET, headerSize = 3 }),
-    full   = table.freeze({ mode = Channel.TS_FULL,   headerSize = 9 }),
+    full = table.freeze({ mode = Channel.TS_FULL, headerSize = 9 }),
 })
 
 local EMPTY_OPTIONS: Types.PacketOptions = table.freeze({})
@@ -71,7 +71,9 @@ function Packet.define<T>(
 
     -- Delta + unreliable is unsafe: a dropped frame permanently desyncs the receiver baseline.
     if isUnreliable and codec._isDelta then
-        Log.error(`"{name}" delta codecs need reliable transport (lost packets desync the baseline)`)
+        Log.error(
+            `"{name}" delta codecs need reliable transport (lost packets desync the baseline)`
+        )
     end
 
     if codec._hasUnknown and not opts.validate then
@@ -138,7 +140,9 @@ function Packet.define<T>(
     local function sendToTarget(data: any, target: any): ()
         if isPlayer(target) then
             local dropped, sendData = applySend(data, target :: Player)
-            if dropped then return end
+            if dropped then
+                return
+            end
             sendToPlayer(target :: Player, sendData)
             bumpFires()
             return
@@ -146,7 +150,9 @@ function Packet.define<T>(
 
         if typeof(target) == "table" then
             local dropped, sendData = applySend(data, nil)
-            if dropped then return end
+            if dropped then
+                return
+            end
 
             local kind = target._lyncKind
             if kind == "all" then
@@ -195,7 +201,9 @@ function Packet.define<T>(
 
     local function sendFromClient(data: any): ()
         local dropped, sendData = applySend(data, nil)
-        if dropped then return end
+        if dropped then
+            return
+        end
         local ch = Transport.client().getChannel(isUnreliable)
         Channel.writeBatch(ch, reg, sendData)
         bumpFires()

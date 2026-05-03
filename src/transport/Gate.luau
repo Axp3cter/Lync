@@ -2,12 +2,12 @@
 --!native
 -- Schema-aware validation and rate limiting.
 
-local Log   = require(script.Parent.Parent.util.Log)
+local Log = require(script.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
-local DEFAULT_DEPTH    = 16
+local DEFAULT_DEPTH = 16
 local STRIKE_DECAY_SEC = 5
 
 local VEC2_AXES = table.freeze({ "X", "Y" })
@@ -15,24 +15,24 @@ local VEC3_AXES = table.freeze({ "X", "Y", "Z" })
 
 -- State ------------------------------------------------------------------
 
-local _depth                = DEFAULT_DEPTH
-local _globalMaxPerSecond:  number? = nil
-local _bandwidthSoftLimit:  number? = nil
-local _bandwidthMaxStrikes  = 10
-local _rateLimits:        { [number]: { [Player]: Types.RateLimitState } } = {}
-local _globalLimits:      { [Player]: Types.RateLimitState }               = {}
-local _bandwidthStrikes:  { [Player]: number }                             = {}
-local _bandwidthLastSeen: { [Player]: number }                             = {}
+local _depth = DEFAULT_DEPTH
+local _globalMaxPerSecond: number? = nil
+local _bandwidthSoftLimit: number? = nil
+local _bandwidthMaxStrikes = 10
+local _rateLimits: { [number]: { [Player]: Types.RateLimitState } } = {}
+local _globalLimits: { [Player]: Types.RateLimitState } = {}
+local _bandwidthStrikes: { [Player]: number } = {}
+local _bandwidthLastSeen: { [Player]: number } = {}
 
 -- Private ----------------------------------------------------------------
 
 local isfinite = math.isfinite
-local floor    = math.floor
-local clock    = os.clock
-local minN     = math.min
+local floor = math.floor
+local clock = os.clock
+local minN = math.min
 
 -- Validators return string?: nil = accepted, non-nil = rejection reason.
-local validateWithCodec  -- forward decl (recursive)
+local validateWithCodec -- forward decl (recursive)
 
 local function checkScalarBounds(value: number, minV: number?, maxV: number?): string?
     if not isfinite(value) then
@@ -97,8 +97,10 @@ local function scanValue(value: any, depth: number): boolean
         return isfinite(value.Scale) and isfinite(value.Offset)
     end
     if t == "UDim2" then
-        return isfinite(value.X.Scale) and isfinite(value.X.Offset)
-            and isfinite(value.Y.Scale) and isfinite(value.Y.Offset)
+        return isfinite(value.X.Scale)
+            and isfinite(value.X.Offset)
+            and isfinite(value.Y.Scale)
+            and isfinite(value.Y.Offset)
     end
     if t == "Color3" then
         return isfinite(value.R) and isfinite(value.G) and isfinite(value.B)
@@ -107,13 +109,19 @@ local function scanValue(value: any, depth: number): boolean
         return isfinite(value.Min) and isfinite(value.Max)
     end
     if t == "Rect" then
-        return isfinite(value.Min.X) and isfinite(value.Min.Y)
-            and isfinite(value.Max.X) and isfinite(value.Max.Y)
+        return isfinite(value.Min.X)
+            and isfinite(value.Min.Y)
+            and isfinite(value.Max.X)
+            and isfinite(value.Max.Y)
     end
     if t == "Ray" then
         local o, d = value.Origin, value.Direction
-        return isfinite(o.X) and isfinite(o.Y) and isfinite(o.Z)
-            and isfinite(d.X) and isfinite(d.Y) and isfinite(d.Z)
+        return isfinite(o.X)
+            and isfinite(o.Y)
+            and isfinite(o.Z)
+            and isfinite(d.X)
+            and isfinite(d.Y)
+            and isfinite(d.Z)
     end
     if t == "table" then
         local nextDepth = depth - 1
@@ -252,12 +260,18 @@ end
 function validateWithCodec(value: any, codec: Types.InternalCodec<any>, depth: number): string?
     -- Peel Optional layers in a loop so optional(optional(X)) chains stay flat.
     while codec._isOptional do
-        if depth <= 0 then return nil end
-        if value == nil then return nil end
+        if depth <= 0 then
+            return nil
+        end
+        if value == nil then
+            return nil
+        end
         codec = codec._inner :: Types.InternalCodec<any>
         depth -= 1
     end
-    if depth <= 0 then return nil end
+    if depth <= 0 then
+        return nil
+    end
 
     local typeCheck = codec._typeCheck
     if typeCheck and typeof(value) ~= typeCheck then
@@ -266,7 +280,9 @@ function validateWithCodec(value: any, codec: Types.InternalCodec<any>, depth: n
 
     if typeCheck == "string" then
         local reason = validateString(value, codec)
-        if reason then return reason end
+        if reason then
+            return reason
+        end
     end
 
     if codec._isBool then
@@ -287,11 +303,21 @@ function validateWithCodec(value: any, codec: Types.InternalCodec<any>, depth: n
         return checkScalarBounds(value, codec._min, codec._max)
     end
 
-    if codec._isTagged then return validateTagged(value, codec, depth) end
-    if codec._isArray then return validateArray(value, codec, depth) end
-    if codec._isMap then return validateMap(value, codec, depth) end
-    if codec._isTuple then return validateTuple(value, codec, depth) end
-    if codec._schema then return validateStruct(value, codec, depth) end
+    if codec._isTagged then
+        return validateTagged(value, codec, depth)
+    end
+    if codec._isArray then
+        return validateArray(value, codec, depth)
+    end
+    if codec._isMap then
+        return validateMap(value, codec, depth)
+    end
+    if codec._isTuple then
+        return validateTuple(value, codec, depth)
+    end
+    if codec._schema then
+        return validateStruct(value, codec, depth)
+    end
 
     -- No specific metadata: fall back to a depth-bounded NaN/inf scan.
     if not scanValue(value, depth) then
@@ -314,7 +340,12 @@ local function getOrCreateBucket(
     return state
 end
 
-local function consumeToken(state: Types.RateLimitState, now: number, capacity: number, rate: number): boolean
+local function consumeToken(
+    state: Types.RateLimitState,
+    now: number,
+    capacity: number,
+    rate: number
+): boolean
     local elapsed = now - state.lastRefill
     state.lastRefill = now
     state.tokens = minN(capacity, state.tokens + elapsed * rate)

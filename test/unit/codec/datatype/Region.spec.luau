@@ -118,7 +118,10 @@ describe("codec.datatype.Region", function(): ()
         it("negative-only region", function(): ()
             local r = Channel.roundTripStrict(
                 Lync.region3int16,
-                Region3int16.new(Vector3int16.new(-100, -100, -100), Vector3int16.new(-50, -50, -50))
+                Region3int16.new(
+                    Vector3int16.new(-100, -100, -100),
+                    Vector3int16.new(-50, -50, -50)
+                )
             )
             expect(r.Min.X):toBe(-100)
             expect(r.Max.X):toBe(-50)

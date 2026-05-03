@@ -175,7 +175,9 @@ describe("integration.Pipeline", function(): ()
                 sP, sL, rP, rL = transmit(ch, sP, sL, rP, rL)
                 -- Yield every iteration: 600 transmits at ~16ms each is fine,
                 -- but 600 sequential without yield is far over the 10s budget.
-                if f % 5 == 0 then task.wait() end
+                if f % 5 == 0 then
+                    task.wait()
+                end
             end
 
             do

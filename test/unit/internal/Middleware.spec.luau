@@ -133,19 +133,43 @@ describe("internal.Middleware", function(): ()
     describe("chain depth and ordering", function(): ()
         it("five send hooks all run in order", function(): ()
             local order: { string } = {}
-            Middleware.onSend(function(d: any): any table.insert(order, "1"); return d end)
-            Middleware.onSend(function(d: any): any table.insert(order, "2"); return d end)
-            Middleware.onSend(function(d: any): any table.insert(order, "3"); return d end)
-            Middleware.onSend(function(d: any): any table.insert(order, "4"); return d end)
-            Middleware.onSend(function(d: any): any table.insert(order, "5"); return d end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "1")
+                return d
+            end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "2")
+                return d
+            end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "3")
+                return d
+            end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "4")
+                return d
+            end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "5")
+                return d
+            end)
             Middleware.runSend(0, "t", nil)
             expect(table.concat(order)):toBe("12345")
         end)
         it("disconnecting middle hook preserves earlier and later", function(): ()
             local order: { string } = {}
-            Middleware.onSend(function(d: any): any table.insert(order, "a"); return d end)
-            local mid = Middleware.onSend(function(d: any): any table.insert(order, "b"); return d end)
-            Middleware.onSend(function(d: any): any table.insert(order, "c"); return d end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "a")
+                return d
+            end)
+            local mid = Middleware.onSend(function(d: any): any
+                table.insert(order, "b")
+                return d
+            end)
+            Middleware.onSend(function(d: any): any
+                table.insert(order, "c")
+                return d
+            end)
             mid:disconnect()
             Middleware.runSend(0, "t", nil)
             expect(table.concat(order)):toBe("ac")
@@ -177,14 +201,18 @@ describe("internal.Middleware", function(): ()
 
     describe("disconnect idempotency", function(): ()
         it("disconnect twice is safe", function(): ()
-            local conn = Middleware.onSend(function(d: any): any return d end)
+            local conn = Middleware.onSend(function(d: any): any
+                return d
+            end)
             conn:disconnect()
             expect(function(): ()
                 conn:disconnect()
             end).never:toThrow()
         end)
         it("connected flag flips on disconnect", function(): ()
-            local conn = Middleware.onSend(function(d: any): any return d end)
+            local conn = Middleware.onSend(function(d: any): any
+                return d
+            end)
             expect(conn.connected):toBe(true)
             conn:disconnect()
             expect(conn.connected):toBe(false)
@@ -205,7 +233,9 @@ describe("internal.Middleware", function(): ()
         end)
         it("disconnect removes drop handler", function(): ()
             local count = 0
-            local conn = Middleware.onDrop(function(): () count += 1 end)
+            local conn = Middleware.onDrop(function(): ()
+                count += 1
+            end)
             local p = Instance.new("Folder")
             Middleware.fireDrop(p, "r", "n", nil)
             conn:disconnect()

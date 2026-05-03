@@ -2,7 +2,7 @@
 --!optimize 2
 -- Fixed-size codec factory + channel buffer-grow primitive.
 
-local Log   = require(script.Parent.Parent.util.Log)
+local Log = require(script.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
@@ -17,7 +17,7 @@ local _maxSize = DEFAULT_MAX
 -- Private ----------------------------------------------------------------
 
 local countlz = bit32.countlz
-local lshift  = bit32.lshift
+local lshift = bit32.lshift
 
 --[[
     Grow `ch.buff` so cursor + bytes fits. New size is the next power of two
@@ -54,7 +54,7 @@ end
 local Base = {}
 
 Base.INITIAL_BUF = INITIAL_BUF
-Base.alloc       = alloc
+Base.alloc = alloc
 
 -- Floor is INITIAL_BUF: anything smaller errors on the very first write.
 function Base.setMaxSize(bytes: number): ()

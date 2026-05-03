@@ -4,10 +4,10 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Bridge  = require(script.Parent.Parent.transport.Bridge)
+local Bridge = require(script.Parent.Parent.transport.Bridge)
 local Channel = require(script.Parent.Parent.internal.Channel)
-local Reader  = require(script.Parent.Parent.transport.Reader)
-local Types   = require(script.Parent.Parent.Types)
+local Reader = require(script.Parent.Parent.transport.Reader)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -15,16 +15,16 @@ local CONTAINER_NAME = "LyncRemotes"
 
 -- State ------------------------------------------------------------------
 
-local _reliable:        Types.ChannelState = Channel.create()
-local _unreliable:      Types.ChannelState = Channel.create()
-local _prevIncoming:    buffer?            = nil
-local _prevIncomingLen: number             = 0
+local _reliable: Types.ChannelState = Channel.create()
+local _unreliable: Types.ChannelState = Channel.create()
+local _prevIncoming: buffer? = nil
+local _prevIncomingLen: number = 0
 
 -- Private ----------------------------------------------------------------
 
-local xorApply    = Channel.xorApply
+local xorApply = Channel.xorApply
 local sealAndDump = Channel.sealAndDump
-local resetCh     = Channel.reset
+local resetCh = Channel.reset
 
 local function handleIncomingReliable(data: any, refs: any?): ()
     local incoming = Reader.decodeIncoming(data)
@@ -33,7 +33,7 @@ local function handleIncomingReliable(data: any, refs: any?): ()
     end
 
     local incomingLen = buffer.len(incoming)
-    local decoded     = xorApply(incoming, incomingLen, _prevIncoming, _prevIncomingLen)
+    local decoded = xorApply(incoming, incomingLen, _prevIncoming, _prevIncomingLen)
 
     --[[
         Mirror Server: only adopt `decoded` as the next baseline on success.
@@ -41,10 +41,10 @@ local function handleIncomingReliable(data: any, refs: any?): ()
         every subsequent packet.
     ]]
     if Reader.process(decoded, incomingLen, refs, nil, false) then
-        _prevIncoming    = decoded
+        _prevIncoming = decoded
         _prevIncomingLen = incomingLen
     else
-        _prevIncoming    = nil
+        _prevIncoming = nil
         _prevIncomingLen = 0
     end
 end
@@ -73,7 +73,7 @@ function Client.flush(): ()
     if _reliable.cursor > 0 then
         local snapshot, refs, byteLen = sealAndDump(_reliable)
         local xored = xorApply(snapshot, byteLen, _reliable.prevDump, _reliable.prevDumpLen)
-        _reliable.prevDump    = snapshot
+        _reliable.prevDump = snapshot
         _reliable.prevDumpLen = byteLen
         Bridge.fireServer(xored, refs)
         resetCh(_reliable)

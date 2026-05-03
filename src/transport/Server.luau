@@ -2,16 +2,16 @@
 --!optimize 2
 -- Server transport: per-player channels, broadcast, flush.
 
-local Players           = game:GetService("Players")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Baseline = require(script.Parent.Parent.internal.Baseline)
-local Bridge   = require(script.Parent.Parent.transport.Bridge)
-local Channel  = require(script.Parent.Parent.internal.Channel)
-local Gate     = require(script.Parent.Parent.transport.Gate)
-local Pool     = require(script.Parent.Parent.internal.Pool)
-local Reader   = require(script.Parent.Parent.transport.Reader)
-local Types    = require(script.Parent.Parent.Types)
+local Bridge = require(script.Parent.Parent.transport.Bridge)
+local Channel = require(script.Parent.Parent.internal.Channel)
+local Gate = require(script.Parent.Parent.transport.Gate)
+local Pool = require(script.Parent.Parent.internal.Pool)
+local Reader = require(script.Parent.Parent.transport.Reader)
+local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
@@ -19,18 +19,18 @@ local CONTAINER_NAME = "LyncRemotes"
 
 -- State ------------------------------------------------------------------
 
-local _reliableChannels:   { [Player]: Types.ChannelState } = {}
+local _reliableChannels: { [Player]: Types.ChannelState } = {}
 local _unreliableChannels: { [Player]: Types.ChannelState } = {}
-local _playerStats:        { [Player]: Types.PlayerStats }  = {}
-local _prevIncoming:       { [Player]: buffer }             = {}
-local _prevIncomingLen:    { [Player]: number }             = {}
+local _playerStats: { [Player]: Types.PlayerStats } = {}
+local _prevIncoming: { [Player]: buffer } = {}
+local _prevIncomingLen: { [Player]: number } = {}
 
 -- Private ----------------------------------------------------------------
 
 local statsEnabled = Channel.statsEnabled
-local xorApply     = Channel.xorApply
-local sealAndDump  = Channel.sealAndDump
-local resetCh      = Channel.reset
+local xorApply = Channel.xorApply
+local sealAndDump = Channel.sealAndDump
+local resetCh = Channel.reset
 
 type StatsField = "bytesSent" | "bytesReceived"
 
@@ -64,7 +64,7 @@ local function flushReliable(player: Player): ()
 
     local snapshot, refs, byteLen = sealAndDump(rCh)
     local xored = xorApply(snapshot, byteLen, rCh.prevDump, rCh.prevDumpLen)
-    rCh.prevDump    = snapshot
+    rCh.prevDump = snapshot
     rCh.prevDumpLen = byteLen
 
     Bridge.fireClient(player, xored, refs)
@@ -100,7 +100,7 @@ local function handleIncomingReliable(player: Player, data: any, refs: any?): ()
         return
     end
 
-    local prev    = _prevIncoming[player]
+    local prev = _prevIncoming[player]
     local decoded = xorApply(incoming, incomingLen, prev, _prevIncomingLen[player])
 
     --[[
@@ -109,10 +109,10 @@ local function handleIncomingReliable(player: Player, data: any, refs: any?): ()
         subsequent packet.
     ]]
     if Reader.process(decoded, incomingLen, refs, player, true) then
-        _prevIncoming[player]    = decoded
+        _prevIncoming[player] = decoded
         _prevIncomingLen[player] = incomingLen
     else
-        _prevIncoming[player]    = nil
+        _prevIncoming[player] = nil
         _prevIncomingLen[player] = nil
     end
 
@@ -142,8 +142,8 @@ local function clearPlayerState(player: Player): ()
         Pool.release(uCh)
     end
 
-    _playerStats[player]     = nil
-    _prevIncoming[player]    = nil
+    _playerStats[player] = nil
+    _prevIncoming[player] = nil
     _prevIncomingLen[player] = nil
 
     Gate.clearPlayer(player)
@@ -174,7 +174,7 @@ Server.flushPlayer = flushPlayer
 
 function Server.start(): ()
     local container = Instance.new("Folder")
-    container.Name   = CONTAINER_NAME
+    container.Name = CONTAINER_NAME
     container.Parent = ReplicatedStorage
 
     Bridge.setup(container)
@@ -203,7 +203,7 @@ end
 
 function Server.resetStats(): ()
     for _, ps in _playerStats do
-        ps.bytesSent     = 0
+        ps.bytesSent = 0
         ps.bytesReceived = 0
     end
 end

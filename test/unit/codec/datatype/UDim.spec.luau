@@ -56,19 +56,15 @@ describe("codec.datatype.UDim", function(): ()
             expect(r.Y.Scale):toBe(0)
         end)
         it("positive components", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.udim2,
-                UDim2.new(UDim.new(0.5, 10), UDim.new(1, 20))
-            )
+            local r =
+                Channel.roundTripStrict(Lync.udim2, UDim2.new(UDim.new(0.5, 10), UDim.new(1, 20)))
             expect(r.X.Scale):toBeCloseTo(0.5)
             expect(r.X.Offset):toBe(10)
             expect(r.Y.Offset):toBe(20)
         end)
         it("negative offsets", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.udim2,
-                UDim2.new(UDim.new(0, -100), UDim.new(0, -200))
-            )
+            local r =
+                Channel.roundTripStrict(Lync.udim2, UDim2.new(UDim.new(0, -100), UDim.new(0, -200)))
             expect(r.X.Offset):toBe(-100)
             expect(r.Y.Offset):toBe(-200)
         end)

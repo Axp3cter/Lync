@@ -137,10 +137,7 @@ describe("codec.meta.Auto", function(): ()
             expect(r.Scale):toBeCloseTo(0.5)
         end)
         it("UDim2", function(): ()
-            local r = Channel.roundTripStrict(
-                Lync.auto,
-                UDim2.new(UDim.new(1, 0), UDim.new(0, 50))
-            )
+            local r = Channel.roundTripStrict(Lync.auto, UDim2.new(UDim.new(1, 0), UDim.new(0, 50)))
             expect(r.X.Scale):toBeCloseTo(1)
         end)
         it("NumberRange", function(): ()

@@ -51,28 +51,36 @@ describe("codec.meta.Bitfield", function(): ()
 
     describe("int fields (sign-extended)", function(): ()
         it("positive value round-trips", function(): ()
-            expect(Channel.roundTripStrict(
-                Lync.bitfield({ d = { type = "int", width = 4 } }),
-                { d = 7 }
-            ).d):toBe(7)
+            expect(
+                Channel.roundTripStrict(
+                    Lync.bitfield({ d = { type = "int", width = 4 } }),
+                    { d = 7 }
+                ).d
+            ):toBe(7)
         end)
         it("negative value round-trips", function(): ()
-            expect(Channel.roundTripStrict(
-                Lync.bitfield({ d = { type = "int", width = 4 } }),
-                { d = -5 }
-            ).d):toBe(-5)
+            expect(
+                Channel.roundTripStrict(
+                    Lync.bitfield({ d = { type = "int", width = 4 } }),
+                    { d = -5 }
+                ).d
+            ):toBe(-5)
         end)
         it("zero", function(): ()
-            expect(Channel.roundTripStrict(
-                Lync.bitfield({ d = { type = "int", width = 4 } }),
-                { d = 0 }
-            ).d):toBe(0)
+            expect(
+                Channel.roundTripStrict(
+                    Lync.bitfield({ d = { type = "int", width = 4 } }),
+                    { d = 0 }
+                ).d
+            ):toBe(0)
         end)
         it("min value -8 (4-bit signed)", function(): ()
-            expect(Channel.roundTripStrict(
-                Lync.bitfield({ d = { type = "int", width = 4 } }),
-                { d = -8 }
-            ).d):toBe(-8)
+            expect(
+                Channel.roundTripStrict(
+                    Lync.bitfield({ d = { type = "int", width = 4 } }),
+                    { d = -8 }
+                ).d
+            ):toBe(-8)
         end)
     end)
 

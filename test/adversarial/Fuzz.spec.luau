@@ -40,7 +40,9 @@ describe("adversarial.Fuzz", function(): ()
                 if not ok then
                     crashes += 1
                 end
-                if i % 100 == 0 then task.wait() end
+                if i % 100 == 0 then
+                    task.wait()
+                end
             end
             expect(crashes):toBeLessThanOrEqual(1000)
         end)
@@ -50,7 +52,9 @@ describe("adversarial.Fuzz", function(): ()
                 local len = rng:int(1, 4096)
                 local b = rng:bytes(len)
                 pcall(Reader.process, b, len, nil, nil, false)
-                if i % 25 == 0 then task.wait() end
+                if i % 25 == 0 then
+                    task.wait()
+                end
             end
             expect(true):toBe(true)
         end)
@@ -68,7 +72,9 @@ describe("adversarial.Fuzz", function(): ()
                     buffer.writeu8(b, i, rng:int(0, 255))
                 end
                 pcall(Reader.process, b, len, nil, nil, false)
-                if k % 50 == 0 then task.wait() end
+                if k % 50 == 0 then
+                    task.wait()
+                end
             end
             expect(true):toBe(true)
         end)
@@ -109,7 +115,9 @@ describe("adversarial.Fuzz", function(): ()
                     buffer.writeu8(b, i, rng:int(0, 255))
                 end
                 pcall(Reader.process, b, len, nil, nil, false)
-                if k % 25 == 0 then task.wait() end
+                if k % 25 == 0 then
+                    task.wait()
+                end
             end
             expect(true):toBe(true)
         end)
@@ -121,7 +129,7 @@ describe("adversarial.Fuzz", function(): ()
         end)
         it("0xFF id (unknown) emits warn and returns false (no crash)", function(): ()
             local b = buffer.create(1)
-            buffer.writeu8(b, 0, 0x7F)  -- id=127, MSB clear, but no count u16
+            buffer.writeu8(b, 0, 0x7F) -- id=127, MSB clear, but no count u16
             local ok = pcall(Reader.process, b, 1, nil, nil, false)
             expect(ok):toBe(true)
         end)
@@ -141,7 +149,9 @@ describe("adversarial.Fuzz", function(): ()
                 end
                 pcall(Reader.process, b, len, refs, nil, false)
             end
-            for _, r in refs do r:Destroy() end
+            for _, r in refs do
+                r:Destroy()
+            end
             expect(true):toBe(true)
         end)
     end)

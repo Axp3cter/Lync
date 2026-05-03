@@ -7,14 +7,14 @@ local Base = require(script.Parent.Parent.Base)
 -- Private ----------------------------------------------------------------
 
 local writef32 = buffer.writef32
-local readf32  = buffer.readf32
+local readf32 = buffer.readf32
 
 local function writeRay(b: buffer, off: number, value: Ray): ()
     local o = value.Origin
     local d = value.Direction
-    writef32(b, off,      o.X)
-    writef32(b, off + 4,  o.Y)
-    writef32(b, off + 8,  o.Z)
+    writef32(b, off, o.X)
+    writef32(b, off + 4, o.Y)
+    writef32(b, off + 8, o.Z)
     writef32(b, off + 12, d.X)
     writef32(b, off + 16, d.Y)
     writef32(b, off + 20, d.Z)

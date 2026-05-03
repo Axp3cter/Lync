@@ -96,11 +96,11 @@ describe("integration.Init", function(): ()
             Both sentinels share a single `_lyncKind` string field so target
             dispatch is one hash lookup at the same predicted slot.
         ]]
-        it("Lync.all is a frozen sentinel branded \"all\"", function(): ()
+        it('Lync.all is a frozen sentinel branded "all"', function(): ()
             expect((Lync.all :: any)._lyncKind):toBe("all")
             expect(Lync.all):toBeFrozen()
         end)
-        it("Lync.DROP is a frozen sentinel branded \"drop\"", function(): ()
+        it('Lync.DROP is a frozen sentinel branded "drop"', function(): ()
             expect((Lync.DROP :: any)._lyncKind):toBe("drop")
             expect(Lync.DROP):toBeFrozen()
         end)

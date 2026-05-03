@@ -37,12 +37,11 @@ describe("property.Codec", function(): ()
                         end
                     end)
                     if not ok then
-                        table.insert(
-                            fails,
-                            `seed={SEED + #entry.name} sample={i}: {tostring(err)}`
-                        )
+                        table.insert(fails, `seed={SEED + #entry.name} sample={i}: {tostring(err)}`)
                     end
-                    if i % 25 == 0 then task.wait() end
+                    if i % 25 == 0 then
+                        task.wait()
+                    end
                 end
                 if #fails > 0 then
                     error(`{#fails} property failures: {fails[1]}`)

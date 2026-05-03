@@ -77,7 +77,9 @@ describe("integration.BatchFraming", function(): ()
             local ch = Channel.create()
             for i = 1, 65535 do
                 Channel.writeBatch(ch, r, i % 256)
-                if i % 4096 == 0 then task.wait() end
+                if i % 4096 == 0 then
+                    task.wait()
+                end
             end
             expect(ch.cursor):toBe(1 + 2 + 65535)
         end)
@@ -86,7 +88,9 @@ describe("integration.BatchFraming", function(): ()
             local ch = Channel.create()
             for i = 1, 65536 do
                 Channel.writeBatch(ch, r, i % 256)
-                if i % 4096 == 0 then task.wait() end
+                if i % 4096 == 0 then
+                    task.wait()
+                end
             end
             expect(ch.cursor):toBe(1 + 2 + 65535 + 1 + 1)
         end)

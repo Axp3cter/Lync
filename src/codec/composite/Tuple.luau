@@ -2,8 +2,8 @@
 --!native
 -- Positional ordered codec. Like struct but indexed.
 
-local Base  = require(script.Parent.Parent.Base)
-local Log   = require(script.Parent.Parent.Parent.util.Log)
+local Base = require(script.Parent.Parent.Base)
+local Log = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -38,16 +38,16 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
 
     -- All-direct: pre-compute offsets so write/read avoids the cursor dance per element.
     if allDirect then
-        local offsets       = table.create(count)
-        local directWrites  = table.create(count)
-        local directReads   = table.create(count)
+        local offsets = table.create(count)
+        local directWrites = table.create(count)
+        local directReads = table.create(count)
         local runningOffset = 0
 
         for i = 1, count do
             local c = codecs[i]
-            offsets[i]      = runningOffset
+            offsets[i] = runningOffset
             directWrites[i] = c._directWrite
-            directReads[i]  = c._directRead
+            directReads[i] = c._directRead
             runningOffset += c._size :: number
         end
         table.freeze(offsets)

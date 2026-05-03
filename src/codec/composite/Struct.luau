@@ -240,4 +240,21 @@ function Struct.deltaStruct(
     }) :: Types.InternalCodec<any>
 end
 
+function Struct.partialStruct(codec: Types.InternalCodec<any>, optionalFn: (Types.InternalCodec<any>) -> Types.InternalCodec<any>): Types.InternalCodec<any>
+	local schema = (codec :: any)._schema
+	assert(schema, "Lync.partialStruct: codec must be a struct")
+ 
+	local partialSchema: { [string]: Types.InternalCodec<any> } = {}
+	for key, inner in schema do
+		-- Recurse into nested structs
+		if (inner :: any)._schema then
+			partialSchema[key] = optionalFn(Struct.partialStruct(inner, optionalFn))
+		else
+			partialSchema[key] = optionalFn(inner)
+		end
+	end
+ 
+	return Struct.struct(partialSchema)
+end
+
 return table.freeze(Struct)

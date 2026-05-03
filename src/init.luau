@@ -332,6 +332,9 @@ Lync.numberSequence = SeqC.numberSequence
 Lync.colorSequence = SeqC.colorSequence
 Lync.struct = StructC.struct
 Lync.deltaStruct = StructC.deltaStruct
+Lync.partialStruct = function(codec)
+	return StructC.partialStruct(codec, OptionalC.optional)
+end
 Lync.array = ArrayC.array
 Lync.deltaArray = ArrayC.deltaArray
 Lync.map = MapC.map

@@ -237,6 +237,7 @@ interface LyncModule {
 
     struct<S extends Record<string, Lync.Codec<unknown>>>(this: void, schema: S): Lync.Codec<Lync.InferSchema<S>>;
     deltaStruct<S extends Record<string, Lync.Codec<unknown>>>(this: void, schema: S): Lync.Codec<Lync.InferSchema<S>>;
+    partialStruct<T>(this: void, codec: Lync.Codec<T>): Lync.Codec<Partial<T>>;
     array<T>(this: void, element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
     deltaArray<T>(this: void, element: Lync.Codec<T>, maxCount?: number): Lync.Codec<T[]>;
     map<K, V>(this: void, keyCodec: Lync.Codec<K>, valueCodec: Lync.Codec<V>, maxCount?: number): Lync.Codec<Map<K, V>>;

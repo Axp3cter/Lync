@@ -139,11 +139,9 @@ function Reader.process(
             local payloadStart = pos
 
             for _ = 1, count do
-                local value, consumed = reg.codec.read(incoming, pos, refs)
-                if consumed == 0 then
-                    warn(
-                        `[Lync] Reader.process: codec for "{reg.name}" reported 0 bytes; aborting frame`
-                    )
+               local value, consumed = reg.codec.read(incoming, pos, refs)
+                if consumed == 0 and not reg.codec._isNothing then
+                    warn(`[Lync] Reader.process: codec for "{reg.name}" reported 0 bytes; aborting frame`)
                     return
                 end
                 pos += consumed

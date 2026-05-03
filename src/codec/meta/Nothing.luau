@@ -8,6 +8,14 @@ local Base = require(script.Parent.Parent.Base)
 
 local Nothing = {}
 
-Nothing.nothing = Base.constant(nil :: nil)
+local base = Base.constant(nil :: nil)
+Nothing.nothing = table.freeze({
+    _isNothing = true,
+    _size = base._size,
+    _directWrite = base._directWrite,
+    _directRead = base._directRead,
+    write = base.write,
+    read = base.read,
+})
 
 return table.freeze(Nothing)

@@ -1,13 +1,15 @@
 --!strict
 --!optimize 2
--- Explicit-precision float codecs: f32 and f64.
+-- Explicit-precision float codecs: f32 (4B) and f64 (8B).
 
 local Base = require(script.Parent.Parent.Base)
 
--- Constants --------------------------------------------------------------
+-- State ------------------------------------------------------------------
 
--- Shared scratch for Auto codec's f32 round-trip test. Roblox is
--- single-threaded so a module-level scratch cannot be aliased.
+--[[
+    Roblox is single-threaded, so a module-level scratch is safe to alias.
+    Auto codec uses this to round-trip a float through f32 and check fidelity.
+]]
 local F32_SCRATCH = buffer.create(4)
 
 -- Public -----------------------------------------------------------------

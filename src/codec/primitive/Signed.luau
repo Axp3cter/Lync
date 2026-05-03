@@ -1,11 +1,10 @@
 --!strict
 --!native
--- Signed integer buffer helpers. Reads use FASTCALL2 readi*; writes
--- emulate via writeu* + two's complement (writei* is not FASTCALL).
+-- Signed integer writers via writeu* + two's complement (writei* is not FASTCALL).
 
 -- Private ----------------------------------------------------------------
 
-local writeu8 = buffer.writeu8
+local writeu8  = buffer.writeu8
 local writeu16 = buffer.writeu16
 local writeu32 = buffer.writeu32
 
@@ -25,7 +24,8 @@ function Signed.writeI32(b: buffer, off: number, value: number): ()
     writeu32(b, off, if value < 0 then value + 0x100000000 else value)
 end
 
-Signed.readI8 = buffer.readi8
+-- Reads stay on buffer.readi* (already FASTCALL).
+Signed.readI8  = buffer.readi8
 Signed.readI16 = buffer.readi16
 Signed.readI32 = buffer.readi32
 

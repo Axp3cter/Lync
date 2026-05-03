@@ -9,18 +9,17 @@
   <a href="#benchmarks">Benchmarks</a>
 </p>
 
-Packets, queries, groups, validation, and rate limiting — all batched into one buffer per player per frame. No code generation.
+Schemas, packets, queries, groups, validation, rate limiting. Every send batches into one buffer per player per frame; identical frames XOR to ones already in flight; delta codecs collapse unchanged state to a single byte. No code generation.
 
 ## Install
 
-**Wally**
+Wally — add to your `wally.toml`:
 
 ```toml
-[dependencies]
-Lync = "axp3cter/lync@2.2.1"
+Lync = "axp3cter/lync@2.3.0"
 ```
 
-**npm (roblox-ts)**
+npm (roblox-ts):
 
 ```bash
 npm install @axpecter/lync
@@ -30,10 +29,7 @@ npm install @axpecter/lync
 import Lync from "@axpecter/lync";
 ```
 
-Or grab the `.rbxm` from [Releases](https://github.com/Axp3cter/Lync/releases/latest).
-
-> [!IMPORTANT]
-> Define all packets, queries, and groups before calling `Lync.start()`.
+**Important.** Define every packet, query, and group before `Lync.start()`. Definitions assign sequential 7-bit IDs that both peers must agree on; defining late on one side desyncs the wire.
 
 ## Example
 
@@ -72,7 +68,7 @@ local Players = game:GetService("Players")
 local alive = Lync.group("alive")
 Players.PlayerAdded:Connect(function(p) alive:add(p) end)
 
-Net.Hit:on(function(data, sender) -- ... end)
+Net.Hit:on(function(data, sender) end)
 Net.Ping:handle(function() return os.clock() end)
 
 Lync.start()
@@ -91,7 +87,7 @@ local Net  = require(game.ReplicatedStorage.Net)
 Lync.start()
 
 local scope = Lync.scope()
-scope:on(Net.State, function(state) -- ... end)
+scope:on(Net.State, function(state) end)
 
 Net.Hit:send({ targetId = 123, damage = 45 })
 local serverTime = Net.Ping:request(nil)
@@ -103,18 +99,19 @@ local serverTime = Net.Ping:request(nil)
 
 | Function | Description |
 |:---|:---|
-| `Lync.configure(opts)` | Set options. Must precede `start()`. |
+| `Lync.configure(opts)` | Apply options. Must precede `start()`. |
 | `Lync.start()` | Initialize transport. Call once. |
 | `Lync.isStarted()` | `true` after `start()`. |
 | `Lync.flush()` | Force an immediate send. |
-| `Lync.flushRate(hz)` | 1–60. Default 60. |
+| `Lync.flushRate(hz)` | 1–60 Hz. Default 60. |
+| `Lync.reset()` | Restore module state to post-require defaults. For tests / hot reload. |
 
 ### Configure options
 
 | Option | Default | Range | Description |
 |:---|---:|:---|:---|
-| `channelMaxSize` | 262144 | 4 KB – 1 MB | Max buffer bytes per frame. |
-| `validationDepth` | 16 | 4–32 | Max recursion depth for input validation. |
+| `channelMaxSize` | 262144 | 4 KB – 1 MB | Per-frame buffer cap. |
+| `validationDepth` | 16 | 4–32 | Schema-walk recursion limit. |
 | `poolSize` | 16 | 2–128 | Reusable channel-state pool. |
 | `bandwidthLimit` | none | — | `{ softLimit, maxStrikes }` per-player throttle. |
 | `globalRateLimit` | none | — | `{ maxPerSecond }` across all packets per player. |
@@ -128,14 +125,14 @@ local serverTime = Net.Ping:request(nil)
 -- Server
 packet:send(data, player)
 packet:send(data, Lync.all)
-packet:send(data, Lync.except(p1, p2))
+packet:send(data, Lync.except(p1, group1))
 packet:send(data, { p1, p2, p3 })
 packet:send(data, group)
 
 -- Client
 packet:send(data)
 
--- Both
+-- Both sides
 local conn = packet:on(function(data, sender, timestamp) end)
 packet:once(fn)
 local data, sender, timestamp = packet:wait()
@@ -145,27 +142,27 @@ packet:stats() -- requires stats=true
 
 | Option | Type | Description |
 |:---|:---|:---|
-| `unreliable` | boolean | Use `UnreliableRemoteEvent`. Disallowed with delta codecs. |
-| `rateLimit` | `RateLimitConfig` | Server-side per-player limit. |
-| `validate` | `(data, player) → (bool, string?)` | Drop on `false`. |
-| `maxPayloadBytes` | number | Reject oversize incoming payloads. |
-| `timestamp` | `"frame"` / `"offset"` / `"full"` | Append 1B / 2B / 8B timestamp. Read as third arg. |
+| `unreliable` | boolean | Use `UnreliableRemoteEvent`. Rejected with delta codecs (a dropped frame would desync the baseline). |
+| `rateLimit` | `RateLimitConfig` | Server-side per-player. |
+| `validate` | `(data, player) → (bool, string?)` | Drop on `false`. Reason is forwarded to `onDrop`. |
+| `maxPayloadBytes` | number | Reject oversize incoming payloads early. |
+| `timestamp` | `"frame"`, `"offset"`, `"full"` | Append 1B / 2B / 8B timestamp. Read as the third arg. |
 
 ### Queries
 
 `Lync.query(name, requestCodec, responseCodec, options?)`
 
-Request-response on top of two packet IDs.
+Request-response on top of two paired registrations. Single-target requests yield until reply or timeout; multi-target requests gather a partial map.
 
 ```luau
 -- Server
 query:handle(function(data, player) return response end)
-local resp = query:request(data, player) -- response?
-local map  = query:request(data, target) -- { [Player]: response? }
+local resp = query:request(data, player)        -- response?
+local map  = query:request(data, group)         -- { [Player]: response? }
 
 -- Client
 query:handle(function(data) return response end)
-local resp = query:request(data) -- yields; nil on timeout
+local resp = query:request(data)                -- yields; nil on timeout
 ```
 
 | Option | Default | Description |
@@ -180,14 +177,14 @@ local resp = query:request(data) -- yields; nil on timeout
 
 | Method | Returns | Description |
 |:---|:---|:---|
-| `group:add(p)` / `:remove(p)` | boolean | `true` if changed. |
-| `group:has(p)` | boolean | Membership. |
-| `group:count()` | number | |
-| `group:destroy()` | — | Clear and free name. |
+| `:add(p)` / `:remove(p)` | `boolean` | `true` if membership changed. |
+| `:has(p)` | `boolean` | |
+| `:count()` | `number` | |
+| `:destroy()` | — | Clear members and free the name. |
 
 ### Scope
 
-`Lync.scope()` — batches connections for cleanup.
+`Lync.scope()` — batches connections for a single `:destroy()`.
 
 ```luau
 local scope = Lync.scope()
@@ -205,7 +202,7 @@ Server-side `:send` second arg.
 |:---|:---|
 | `Player` | One player. |
 | `Lync.all` | All connected. |
-| `Lync.except(...)` | Everyone except given players or groups. |
+| `Lync.except(...)` | Everyone except given Players or Groups. |
 | `{ p1, p2 }` | Array of players. |
 | `group` | All members. |
 
@@ -218,31 +215,33 @@ Lync.onReceive(function(data, name, player) return data end)
 Lync.onDrop(function(player, reason, name, data) end)
 ```
 
-All return a `Connection`.
+All return a `Connection`. A throwing hook surfaces to the caller and aborts the chain at that point.
 
 ### Connection
 
 | | |
 |:---|:---|
-| `c.connected` | boolean |
+| `c.connected` | `boolean` |
 | `c:disconnect()` | Idempotent. |
 
 ### Stats
 
-`Lync.configure({ stats = true })`.
+Enable with `Lync.configure({ stats = true })`.
 
 | Function | Description |
 |:---|:---|
 | `Lync.stats.player(p)` | `{ bytesSent, bytesReceived }`. Server only. |
 | `Lync.stats.reset()` | Zero all counters. |
-| `packet:stats()` | `{ bytesSent, bytesReceived, fires, recvFires, drops }` |
+| `packet:stats()` | `{ bytesSent, bytesReceived, fires, recvFires, drops }`. Aggregated across the request + response registrations on queries. |
 
 ### Debug
 
 | Function | Description |
 |:---|:---|
-| `Lync.debug.pending()` | In-flight query requests. |
-| `Lync.debug.registrations()` | Frozen array of `{ name, id, kind, isUnreliable }`. |
+| `Lync.debug.pending()` | In-flight query correlation IDs. |
+| `Lync.debug.registrations()` | Frozen `{ name, id, kind, isUnreliable }` per registration. |
+
+`capture` / `stop` / `dump` are reserved no-ops for capture/replay tooling.
 
 ## Codecs
 
@@ -250,9 +249,9 @@ All return a `Connection`.
 
 | Codec | Bytes | Notes |
 |:---|---:|:---|
-| `int(min, max)` | 1 / 2 / 4 | Picks smallest u8/u16/u32/i8/i16/i32. |
-| `f16` / `f32` / `f64` | 2 / 4 / 8 | f16: ±65504, ~3 digits. |
-| `float(min, max, precision)` | 1–4 | Quantized. Clamped. |
+| `int(min, max)` | 1 / 2 / 4 | Picks narrowest u8/u16/u32/i8/i16/i32. |
+| `f16` / `f32` / `f64` | 2 / 4 / 8 | `f16` ≈ ±65504, ~3 digits. |
+| `float(min, max, precision)` | 1 / 2 / 4 | Quantized; clamped to range. |
 | `bool` | 1 | Auto-bitpacked inside `struct` and `array`. |
 
 ### Strings & buffers
@@ -261,7 +260,7 @@ All return a `Connection`.
 |:---|:---|
 | `string` | Variable length. Binary-safe. |
 | `string(maxLength)` | Bounded. Rejects on read if exceeded. |
-| `buff` | Variable-length buffer. |
+| `buff` | Variable-length raw `buffer`. |
 
 ### Roblox types
 
@@ -270,7 +269,7 @@ All return a `Connection`.
 | `vec2` / `vec3` | 8 / 12 |
 | `cframe` | 24 |
 | `color3` | 3 |
-| `inst` | 2 |
+| `inst` | 2 (sidecar ref index) |
 | `udim` / `udim2` | 8 / 16 |
 | `numberRange` | 8 |
 | `rect` | 16 |
@@ -285,41 +284,41 @@ Call as a function for compression.
 
 | Codec | Bytes | Notes |
 |:---|---:|:---|
-| `vec2(min, max, precision)` | 2–8 | Per-component. |
-| `vec3(min, max, precision)` | 3–12 | Per-component. |
-| `cframe()` | 16 | Smallest-three quaternion. ≤0.16° rotation error. |
+| `vec2(min, max, precision)` | 2 / 4 / 8 | Per-component quantization. |
+| `vec3(min, max, precision)` | 3 / 6 / 12 | Per-component quantization. |
+| `cframe()` | 16 | Smallest-three quaternion. ≤ 0.16° rotation error. |
 
 ### Composites
 
 | Codec | Notes |
 |:---|:---|
-| `struct({k = c})` | Named fields. Bools auto-bitpacked. |
-| `array(c, max?)` | List. Bool arrays bitpacked. |
-| `map(k, v, max?)` | Key-value pairs. |
-| `optional(c)` | 1B nil flag + value. |
-| `tuple(...)` | Positional. |
-| `tagged(field, {name = c})` | Discriminated union. 1B tag. ≤256 variants. |
+| `struct({k = c})` | Named fields. Bools auto-bitpacked into a tail block. |
+| `array(c, max?)` | List. Bool arrays bitpacked. Direct path for fixed-size elements. |
+| `map(k, v, max?)` | Key-value pairs; keys sorted at encode for stable wire bytes. |
+| `optional(c)` | 1B presence flag + value. |
+| `tuple(...)` | Positional. All-direct fast path when every element is fixed-size. |
+| `tagged(field, {name = c})` | Discriminated union. 1B tag. Up to 256 variants. |
 
-### Delta — reliable only
+### Delta — reliable transport only
 
-Sends 1 byte when unchanged.
+Sends 1 byte when the value is byte-equal to the cached previous frame.
 
-| Codec |
-|:---|
-| `deltaStruct(schema)` |
-| `deltaArray(c, max?)` |
-| `deltaMap(k, v, max?)` |
+| Codec | Notes |
+|:---|:---|
+| `deltaStruct(schema)` | Per-segment dirty bitmap; single-segment fast path. |
+| `deltaArray(c, max?)` | Whole-array byte-equality. |
+| `deltaMap(k, v, max?)` | Whole-map byte-equality. |
 
 ### Meta
 
 | Codec | Notes |
 |:---|:---|
-| `enum(...)` | String enum. ≤256 variants. 1B. |
-| `bitfield(schema)` | 1–32 bits. Sub-byte packing. |
-| `custom(size, write, read, typeCheck?)` | User-defined fixed-size. |
-| `nothing` | 0 bytes. Reads `nil`. |
-| `unknown` | Bypass serialization. Use with `validate`. |
-| `auto` | Self-describing. nil/bool/numbers/strings/buffers/Roblox types. |
+| `enum(...)` | String enum. ≤ 256 variants. 1B u8 index. |
+| `bitfield(schema)` | 1–32 bits total. `{ type = "bool" }`, `{ type = "uint", width }`, `{ type = "int", width }`. |
+| `custom(size, write, read, typeCheck?)` | User-defined fixed-size codec. |
+| `nothing` | 0 bytes; reads `nil`. For fire-and-forget signals. |
+| `unknown` | Bypasses serialization through the channel sidecar. Must be paired with `validate`. |
+| `auto` | Self-describing: nil / bool / numbers / strings / buffers / Roblox datatypes. 1B type tag + payload. |
 
 ## Rate limiting
 
@@ -328,91 +327,45 @@ Per-packet, pick one mode:
 - Token bucket: `{ maxPerSecond = N, burst = M }`
 - Cooldown: `{ cooldown = seconds }`
 
-Global per-player: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`.
+Global per-player cap: `Lync.configure({ globalRateLimit = { maxPerSecond = N } })`.
 
 ## Limits
 
 | | |
 |:---|---:|
-| Packet + query IDs | 127 |
+| Packet + query IDs (combined) | 127 |
 | Buffer per frame | 1 MB max |
-| In-flight queries | 65,536 |
+| In-flight queries | 65,535 |
 | Enum / tagged variants | 256 |
 | Bitfield total bits | 32 |
+| Sidecar refs per frame | 65,535 |
 
 ## Benchmarks
 
 `rojo serve bench.project.json` with one server + one client.
 
-CPU benches run a fixed 1000 iterations per case.
+### Cross-library — 1000 fires/frame, 10 s
 
-### Codec throughput
+[Blink's methodology](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md): same payload reused every frame, identical entity / bool shapes. Other tools from Blink v0.17.1.
 
-| Codec | Encode | Decode | RT/s |
-|:---|---:|---:|---:|
-| `bool` | 43 ns | 28 ns | 14.1 M |
-| `int(0, 255)` | 41 ns | 25 ns | 15.2 M |
-| `int(0, 65535)` | 40 ns | 25 ns | 15.3 M |
-| `f16` | 60 ns | 42 ns | 9.7 M |
-| `f32` | 41 ns | 26 ns | 14.9 M |
-| `f64` | 41 ns | 25 ns | 15.3 M |
-| `string` (10 chars) | 45 ns | 73 ns | 8.4 M |
-| `string` (1000 chars) | 74 ns | 250 ns | 3.1 M |
-| `vec3` | 56 ns | 27 ns | 12.1 M |
-| `vec3` quantized | 121 ns | 85 ns | 4.9 M |
-| `cframe` | 88 ns | 186 ns | 3.6 M |
-| `cframe()` | 118 ns | 214 ns | 3.0 M |
-| entity struct (6 fields) | 234 ns | 476 ns | 1.4 M |
-| 100× entities | 15.3 µs | 34.6 µs | 20 K |
-| 1000× bools (bitpacked) | 4.3 µs | 5.3 µs | 104 K |
+| Tool | `array<entity>[100]` | `array<bool>[1000]` |
+|:---|:---|:---|
+| roblox | 16 fps · 559,364 Kbps | 21 fps · 353,107 Kbps |
+| **lync** | **60 fps · 3.44 Kbps** | **60 fps · 2.46 Kbps** |
+| blink | 42 fps · 41.81 Kbps | 97 fps · 7.91 Kbps |
+| zap | 39 fps · 41.71 Kbps | 52 fps · 8.10 Kbps |
+| bytenet | 32 fps · 41.64 Kbps | 35 fps · 8.11 Kbps |
 
-### Wire sizes
+### Network bandwidth — 100 fires/frame, 8 s
 
-| Codec | Bytes |
+| Workload | Kbps |
 |:---|---:|
-| entity struct (6 fields, lossless) | 34 |
-| entity compact (quantized) | 13 |
-| 100× entities | 601 |
-| 1000× bools (bitpacked) | 127 |
-| bitfield flags | 2 |
-| `tuple(u8, vec3, bool)` | 14 |
-
-### Delta savings
-
-| Codec | Full | Unchanged |
-|:---|---:|---:|
-| `deltaStruct` (entity) | 35 B | 1 B |
-| `deltaStruct` (compact) | 14 B | 1 B |
-| `deltaArray` (100× entity) | 602 B | 1 B |
-| `deltaArray` (1000× bool) | 128 B | 1 B |
-| `deltaMap` (string → u8) | 19 B | 1 B |
-
-### Cross-library comparison
-
-Same methodology as [Blink](https://github.com/1Axen/blink/blob/main/benchmark/Benchmarks.md): 1000 fires/frame, identical data, 10 s. Other-tool numbers from Blink v0.17.1.
-
-> [!NOTE]
-> Lync batches all sends into one buffer per frame and bitpacks bools (1000 = 127 B vs ~1002 B). Delta compression isn't exercised here.
-
-**100× struct(6× u8) entities**
-
-| Tool | FPS | Kbps |
-|:---|---:|---:|
-| roblox | 16 | 559,364 |
-| **lync** | **60** | **3.47** |
-| blink | 42 | 41.81 |
-| zap | 39 | 41.71 |
-| bytenet | 32 | 41.64 |
-
-**1000× bool**
-
-| Tool | FPS | Kbps |
-|:---|---:|---:|
-| roblox | 21 | 353,107 |
-| **lync** | **60** | **2.33** |
-| blink | 97 | 7.91 |
-| zap | 52 | 8.10 |
-| bytenet | 35 | 8.11 |
+| `array<entity>[100]` randomised | 3,608 |
+| `array<entity>[100]` reused | **2.4** |
+| `array<bool>[1000]` randomised | 763 |
+| `array<bool>[1000]` 1 bit flipped | **20.5** |
+| `struct(state)` randomised | 201 |
+| `deltaStruct(state)` 1 field mutated | **29.2** |
 
 ## License
 

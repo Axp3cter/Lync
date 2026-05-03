@@ -1,30 +1,29 @@
 --!strict
---!optimize 2
--- Ray codec. 24 bytes: Origin (3x f32) + Direction (3x f32).
+--!native
+-- Ray codec. 24B: Origin (3x f32) + Direction (3x f32).
 
 local Base = require(script.Parent.Parent.Base)
 
 -- Private ----------------------------------------------------------------
 
+local writef32 = buffer.writef32
+local readf32  = buffer.readf32
+
 local function writeRay(b: buffer, off: number, value: Ray): ()
     local o = value.Origin
     local d = value.Direction
-    buffer.writef32(b, off, o.X)
-    buffer.writef32(b, off + 4, o.Y)
-    buffer.writef32(b, off + 8, o.Z)
-    buffer.writef32(b, off + 12, d.X)
-    buffer.writef32(b, off + 16, d.Y)
-    buffer.writef32(b, off + 20, d.Z)
+    writef32(b, off,      o.X)
+    writef32(b, off + 4,  o.Y)
+    writef32(b, off + 8,  o.Z)
+    writef32(b, off + 12, d.X)
+    writef32(b, off + 16, d.Y)
+    writef32(b, off + 20, d.Z)
 end
 
 local function readRay(b: buffer, off: number): Ray
     return Ray.new(
-        Vector3.new(buffer.readf32(b, off), buffer.readf32(b, off + 4), buffer.readf32(b, off + 8)),
-        Vector3.new(
-            buffer.readf32(b, off + 12),
-            buffer.readf32(b, off + 16),
-            buffer.readf32(b, off + 20)
-        )
+        Vector3.new(readf32(b, off), readf32(b, off + 4), readf32(b, off + 8)),
+        Vector3.new(readf32(b, off + 12), readf32(b, off + 16), readf32(b, off + 20))
     )
 end
 

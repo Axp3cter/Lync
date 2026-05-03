@@ -1,47 +1,103 @@
 --!strict
---!optimize 2
+--!native
 -- NumberSequence (12B/keypoint) and ColorSequence (7B/keypoint) codecs.
 
-local Base = require(script.Parent.Parent.Base)
-local Types = require(script.Parent.Parent.Parent.Types)
-local Varint = require(script.Parent.Parent.primitive.Varint)
+local Base      = require(script.Parent.Parent.Base)
+local Constants = require(script.Parent.Parent.Parent.util.Constants)
+local Log       = require(script.Parent.Parent.Parent.util.Log)
+local Types     = require(script.Parent.Parent.Parent.Types)
+local Varint    = require(script.Parent.Parent.primitive.Varint)
 
 -- Constants --------------------------------------------------------------
 
 local NUMSEQ_KP_BYTES = 12
 local COLSEQ_KP_BYTES = 7
-local MAX_KEYPOINTS = 20
+local MAX_KEYPOINTS   = 20
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
-local round = math.round
-local clamp = math.clamp
+local U8_MAX      = Constants.U8_MAX
+local alloc       = Base.alloc
+local writef32    = buffer.writef32
+local readf32     = buffer.readf32
+local writeu8     = buffer.writeu8
+local readu8      = buffer.readu8
+local round       = math.round
+local clamp       = math.clamp
+local varintRead  = Varint.read
+local varintWrite = Varint.write
 
-local function writeNumberSequence(ch: Types.ChannelState, value: NumberSequence): ()
-    local keypoints = value.Keypoints
-    local count = #keypoints
-    Varint.write(ch, count)
+--[[
+    Common write prelude: count cap check, varint count, payload alloc.
+    Returns (cursor, b) for the per-keypoint writer; (nil, nil) when count
+    is 0 so callers short-circuit.
+]]
+local function beginSeqWrite(
+    ch: Types.ChannelState,
+    label: string,
+    count: number,
+    kpBytes: number
+): (number?, buffer?)
+    if count > MAX_KEYPOINTS then
+        Log.error(`{label}.write: keypoint count {count} exceeds Roblox limit {MAX_KEYPOINTS}`)
+    end
+    varintWrite(ch, count)
     if count == 0 then
-        return
+        return nil, nil
     end
 
-    local bytes = count * NUMSEQ_KP_BYTES
+    local bytes  = count * kpBytes
     local cursor = ch.cursor
     if cursor + bytes > ch.size then
         alloc(ch, bytes)
     end
-    local b = ch.buff
+    ch.cursor = cursor + bytes
+    return cursor, ch.buff
+end
 
-    local off = cursor
+--[[
+    Common read prelude: varint count, cap check, bounds check. Returns
+    (count, dataStart, lenBytes) for the per-keypoint reader; (0, _, lenBytes)
+    when payload is empty.
+]]
+local function beginSeqRead(
+    src: buffer,
+    pos: number,
+    label: string,
+    kpBytes: number
+): (number, number, number)
+    local count, lenBytes = varintRead(src, pos)
+    if count == 0 then
+        return 0, pos + lenBytes, lenBytes
+    end
+    if count > MAX_KEYPOINTS then
+        Log.error(`{label}.read: keypoint count {count} exceeds Roblox limit {MAX_KEYPOINTS}`)
+    end
+
+    local bytes     = count * kpBytes
+    local dataStart = pos + lenBytes
+    if dataStart + bytes > buffer.len(src) then
+        Log.error(`{label}.read: payload {bytes}B exceeds remaining buffer`)
+    end
+    return count, dataStart, lenBytes
+end
+
+local function writeNumberSequence(ch: Types.ChannelState, value: NumberSequence): ()
+    local keypoints = value.Keypoints
+    local count     = #keypoints
+    local cursor, b = beginSeqWrite(ch, "NumberSequence", count, NUMSEQ_KP_BYTES)
+    if not cursor then
+        return
+    end
+    local off = cursor :: number
+    local buf = b :: buffer
     for i = 1, count do
         local kp = keypoints[i]
-        buffer.writef32(b, off, kp.Time)
-        buffer.writef32(b, off + 4, kp.Value)
-        buffer.writef32(b, off + 8, kp.Envelope)
+        writef32(buf, off,     kp.Time)
+        writef32(buf, off + 4, kp.Value)
+        writef32(buf, off + 8, kp.Envelope)
         off += NUMSEQ_KP_BYTES
     end
-    ch.cursor = cursor + bytes
 end
 
 local function readNumberSequence(
@@ -49,61 +105,42 @@ local function readNumberSequence(
     pos: number,
     _refs: { Instance }?
 ): (NumberSequence, number)
-    local count, lenBytes = Varint.read(src, pos)
+    local count, dataStart, lenBytes = beginSeqRead(src, pos, "NumberSequence", NUMSEQ_KP_BYTES)
     if count == 0 then
         return NumberSequence.new(0), lenBytes
-    end
-    if count > MAX_KEYPOINTS then
-        error(
-            `[Lync] NumberSequence.read: keypoint count {count} exceeds Roblox limit {MAX_KEYPOINTS}`
-        )
-    end
-
-    local bytes = count * NUMSEQ_KP_BYTES
-    local dataStart = pos + lenBytes
-    if dataStart + bytes > buffer.len(src) then
-        error("[Lync] NumberSequence.read: data exceeds buffer")
     end
 
     local keypoints = table.create(count)
     local off = dataStart
     for i = 1, count do
         keypoints[i] = NumberSequenceKeypoint.new(
-            buffer.readf32(src, off),
-            buffer.readf32(src, off + 4),
-            buffer.readf32(src, off + 8)
+            readf32(src, off),
+            readf32(src, off + 4),
+            readf32(src, off + 8)
         )
         off += NUMSEQ_KP_BYTES
     end
-    return NumberSequence.new(keypoints), lenBytes + bytes
+    return NumberSequence.new(keypoints), lenBytes + count * NUMSEQ_KP_BYTES
 end
 
 local function writeColorSequence(ch: Types.ChannelState, value: ColorSequence): ()
     local keypoints = value.Keypoints
-    local count = #keypoints
-    Varint.write(ch, count)
-    if count == 0 then
+    local count     = #keypoints
+    local cursor, b = beginSeqWrite(ch, "ColorSequence", count, COLSEQ_KP_BYTES)
+    if not cursor then
         return
     end
-
-    local bytes = count * COLSEQ_KP_BYTES
-    local cursor = ch.cursor
-    if cursor + bytes > ch.size then
-        alloc(ch, bytes)
-    end
-    local b = ch.buff
-
-    local off = cursor
+    local off = cursor :: number
+    local buf = b :: buffer
     for i = 1, count do
         local kp = keypoints[i]
-        local c = kp.Value
-        buffer.writef32(b, off, kp.Time)
-        buffer.writeu8(b, off + 4, round(clamp(c.R, 0, 1) * 255))
-        buffer.writeu8(b, off + 5, round(clamp(c.G, 0, 1) * 255))
-        buffer.writeu8(b, off + 6, round(clamp(c.B, 0, 1) * 255))
+        local c  = kp.Value
+        writef32(buf, off,     kp.Time)
+        writeu8(buf, off + 4,  round(clamp(c.R, 0, 1) * U8_MAX))
+        writeu8(buf, off + 5,  round(clamp(c.G, 0, 1) * U8_MAX))
+        writeu8(buf, off + 6,  round(clamp(c.B, 0, 1) * U8_MAX))
         off += COLSEQ_KP_BYTES
     end
-    ch.cursor = cursor + bytes
 end
 
 local function readColorSequence(
@@ -111,36 +148,25 @@ local function readColorSequence(
     pos: number,
     _refs: { Instance }?
 ): (ColorSequence, number)
-    local count, lenBytes = Varint.read(src, pos)
+    local count, dataStart, lenBytes = beginSeqRead(src, pos, "ColorSequence", COLSEQ_KP_BYTES)
     if count == 0 then
         return ColorSequence.new(Color3.new()), lenBytes
-    end
-    if count > MAX_KEYPOINTS then
-        error(
-            `[Lync] ColorSequence.read: keypoint count {count} exceeds Roblox limit {MAX_KEYPOINTS}`
-        )
-    end
-
-    local bytes = count * COLSEQ_KP_BYTES
-    local dataStart = pos + lenBytes
-    if dataStart + bytes > buffer.len(src) then
-        error("[Lync] ColorSequence.read: data exceeds buffer")
     end
 
     local keypoints = table.create(count)
     local off = dataStart
     for i = 1, count do
         keypoints[i] = ColorSequenceKeypoint.new(
-            buffer.readf32(src, off),
+            readf32(src, off),
             Color3.fromRGB(
-                buffer.readu8(src, off + 4),
-                buffer.readu8(src, off + 5),
-                buffer.readu8(src, off + 6)
+                readu8(src, off + 4),
+                readu8(src, off + 5),
+                readu8(src, off + 6)
             )
         )
         off += COLSEQ_KP_BYTES
     end
-    return ColorSequence.new(keypoints), lenBytes + bytes
+    return ColorSequence.new(keypoints), lenBytes + count * COLSEQ_KP_BYTES
 end
 
 -- Public -----------------------------------------------------------------
@@ -149,14 +175,14 @@ local Sequence = {}
 
 Sequence.numberSequence = table.freeze({
     _typeCheck = "NumberSequence",
-    write = writeNumberSequence,
-    read = readNumberSequence,
+    write      = writeNumberSequence,
+    read       = readNumberSequence,
 })
 
 Sequence.colorSequence = table.freeze({
     _typeCheck = "ColorSequence",
-    write = writeColorSequence,
-    read = readColorSequence,
+    write      = writeColorSequence,
+    read       = readColorSequence,
 })
 
 return table.freeze(Sequence)

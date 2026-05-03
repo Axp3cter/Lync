@@ -1,8 +1,9 @@
 --!strict
---!optimize 2
+--!native
 -- String-keyed enum codec. Maps values to u8 indices at definition time.
 
-local Base = require(script.Parent.Parent.Base)
+local Base  = require(script.Parent.Parent.Base)
+local Log   = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Public -----------------------------------------------------------------
@@ -12,11 +13,9 @@ local EnumCodec = {}
 function EnumCodec.define(...: string): Types.InternalCodec<string>
     local values = { ... }
     local count = #values
-    if count == 0 then
-        error("[Lync] Lync.enum: requires at least one value")
-    end
+    Log.assert(count > 0, "requires at least one variant")
     if count > 256 then
-        error("[Lync] Lync.enum: exceeds 256 variants")
+        Log.error(`exceeds 256 variants ({count})`)
     end
 
     local toIndex: { [string]: number } = {}
@@ -24,7 +23,7 @@ function EnumCodec.define(...: string): Types.InternalCodec<string>
     for i = 1, count do
         local val = values[i]
         if toIndex[val] then
-            error(`[Lync] Lync.enum: duplicate value "{val}"`)
+            Log.error(`duplicate value "{val}"`)
         end
         toIndex[val] = i - 1
         toValue[i] = val
@@ -35,13 +34,14 @@ function EnumCodec.define(...: string): Types.InternalCodec<string>
     return Base.define(1, function(b: buffer, off: number, value: string): ()
         local idx = toIndex[value]
         if idx == nil then
-            error(`[Lync] Enum.write: invalid value "{value}"`)
+            Log.error(`invalid value "{value}"`)
         end
         buffer.writeu8(b, off, idx)
     end, function(b: buffer, off: number): string
-        local val = toValue[buffer.readu8(b, off) + 1]
+        local raw = buffer.readu8(b, off)
+        local val = toValue[raw + 1]
         if val == nil then
-            error(`[Lync] Enum.read: invalid index`)
+            Log.error(`invalid index {raw}`)
         end
         return val
     end, { _typeCheck = "string", _isEnum = true, _enumValues = toIndex })

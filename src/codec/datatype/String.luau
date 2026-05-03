@@ -1,21 +1,23 @@
 --!strict
 --!native
--- Variable-length UTF-8 string codec with __call factory for bounded variant.
+-- UTF-8 string codec. __call yields a length-bounded variant.
 
-local Base = require(script.Parent.Parent.Base)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
+local Log    = require(script.Parent.Parent.Parent.util.Log)
+local Types  = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
-local INLINE = Varint.INLINE_MAX
+local alloc      = Base.alloc
+local INLINE_MAX = Varint.INLINE_MAX
 
 local function writeString(ch: Types.ChannelState, value: string): ()
-    local len = #value
+    local len    = #value
     local cursor = ch.cursor
 
-    if len <= INLINE then
+    -- Single-byte length fast path skips the full varint encode.
+    if len <= INLINE_MAX then
         if cursor + 1 + len > ch.size then
             alloc(ch, 1 + len)
         end
@@ -47,23 +49,28 @@ local function readString(src: buffer, pos: number, _refs: { Instance }?): (stri
 
     local dataStart = pos + lenBytes
     if dataStart + len > buffer.len(src) then
-        error("[Lync] String.read: length exceeds remaining buffer")
+        Log.error(`length {len}B exceeds remaining buffer`)
     end
     return buffer.readstring(src, dataStart, len), lenBytes + len
 end
 
+-- _maxStringLength lets Gate.validate reject oversized values send-side.
 local function boundedFactory(_self, maxLength: number): Types.InternalCodec<string>
-    if maxLength <= 0 then
-        error("[Lync] Lync.string: maxLength must be positive")
-    end
+    Log.assert(maxLength > 0, "maxLength must be positive")
 
     return table.freeze({
         _typeCheck = "string",
-        write = writeString,
+        _maxStringLength = maxLength,
+        write = function(ch: Types.ChannelState, value: string): ()
+            if #value > maxLength then
+                Log.error(`length {#value} exceeds max {maxLength}`)
+            end
+            writeString(ch, value)
+        end,
         read = function(src: buffer, pos: number, _refs: { Instance }?): (string, number)
             local len, lenBytes = readLengthPrefix(src, pos)
             if len > maxLength then
-                error(`[Lync] String.read: length {len} exceeds max {maxLength}`)
+                Log.error(`length {len} exceeds max {maxLength}`)
             end
             if len == 0 then
                 return "", lenBytes
@@ -71,7 +78,7 @@ local function boundedFactory(_self, maxLength: number): Types.InternalCodec<str
 
             local dataStart = pos + lenBytes
             if dataStart + len > buffer.len(src) then
-                error("[Lync] String.read: length exceeds remaining buffer")
+                Log.error(`length {len}B exceeds remaining buffer`)
             end
             return buffer.readstring(src, dataStart, len), lenBytes + len
         end,

@@ -1,24 +1,25 @@
 --!strict
 --!optimize 2
--- O(1) disconnect signal system with thread reuse and reentrancy-safe fire.
+-- O(1) disconnect signal with thread reuse and reentrancy-safe fire.
 
 local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
 local STATE_DISCONNECTED = 0
-local STATE_CONNECTED = 1
-local STATE_ONCE = 2
+local STATE_CONNECTED    = 1
+local STATE_ONCE         = 2
 
 -- State ------------------------------------------------------------------
 
+-- Single recyclable thread for async dispatch; saves coroutine.create per fire.
 local _freeThread: thread? = nil
 
 -- Private ----------------------------------------------------------------
 
 local function passer(fn: (...any) -> (), ...): ()
     local thread = _freeThread
-    _freeThread = nil
+    _freeThread  = nil
     fn(...)
     _freeThread = thread
 end
@@ -38,28 +39,34 @@ local function spawnCallback(fn: (...any) -> (), ...: any): ()
 end
 
 type Entry = {
-    fn: (...any) -> (),
-    _state: number,
+    fn:        (...any) -> (),
+    _state:    number,
     connected: boolean,
-    _signalEntries: { Entry },
-    _signalCount: { number },
-    _index: number,
+    _signal:   SignalFields,
+    _index:    number,
+}
+
+type SignalFields = {
+    _entries: { Entry },
+    _count:   number,
 }
 
 local EntryImpl = {}
 EntryImpl.__index = EntryImpl
 
+-- Swap-with-last for O(1) disconnect; the moved entry's _index is patched too.
 local function disconnectEntry(entry: Entry): ()
     if entry._state == STATE_DISCONNECTED then
         return
     end
 
-    entry._state = STATE_DISCONNECTED
+    entry._state    = STATE_DISCONNECTED
     entry.connected = false
 
-    local entries = entry._signalEntries
-    local countRef = entry._signalCount
-    local idx, last = entry._index, countRef[1]
+    local signal  = entry._signal
+    local entries = signal._entries
+    local idx     = entry._index
+    local last    = signal._count
 
     if idx < last then
         local moved = entries[last]
@@ -67,32 +74,39 @@ local function disconnectEntry(entry: Entry): ()
         moved._index = idx
     end
     entries[last] = nil
-    countRef[1] = last - 1
+    signal._count = last - 1
 end
 
 EntryImpl.disconnect = disconnectEntry
 table.freeze(EntryImpl)
 
-type SignalFields = {
-    _entries: { Entry },
-    _count: { number },
-}
+-- Auto-disconnects ONCE entries before invoking; chooses sync vs spawned thread.
+local function invokeEntry(entry: Entry, sync: boolean, ...: any): ()
+    local state = entry._state
+    if state == STATE_DISCONNECTED then return end
+    if state == STATE_ONCE then
+        disconnectEntry(entry)
+    end
+    if sync then
+        entry.fn(...)
+    else
+        spawnCallback(entry.fn, ...)
+    end
+end
 
 local SignalImpl = {}
 SignalImpl.__index = SignalImpl
 
 local function newEntry(self: SignalFields, callback: (...any) -> (), state: number): Entry
-    local countRef = self._count
-    local idx = countRef[1] + 1
-    countRef[1] = idx
+    local idx = self._count + 1
+    self._count = idx
 
     local entry: Entry = setmetatable({
-        fn = callback,
-        _state = state,
+        fn        = callback,
+        _state    = state,
         connected = true,
-        _signalEntries = self._entries,
-        _signalCount = countRef,
-        _index = idx,
+        _signal   = self,
+        _index    = idx,
     }, EntryImpl) :: any
 
     self._entries[idx] = entry
@@ -118,53 +132,28 @@ function SignalImpl.wait(self: SignalFields): ...any
 end
 
 local function dispatch(self: SignalFields, sync: boolean, ...: any): ()
-    local count = self._count[1]
+    local count = self._count
     if count == 0 then
         return
     end
 
     local entries = self._entries
 
+    -- Single-listener fast path skips the snapshot allocation.
     if count == 1 then
-        local entry = entries[1]
-        local state = entry._state
-        if state == STATE_ONCE then
-            disconnectEntry(entry)
-            if sync then
-                entry.fn(...)
-            else
-                spawnCallback(entry.fn, ...)
-            end
-        elseif state == STATE_CONNECTED then
-            if sync then
-                entry.fn(...)
-            else
-                spawnCallback(entry.fn, ...)
-            end
-        end
+        invokeEntry(entries[1], sync, ...)
         return
     end
 
+    --[[
+        Re-entrancy: a handler may disconnect or add others mid-fire.
+        Snapshot the entry list so the iteration view is stable.
+    ]]
     local snapshot = table.create(count)
     table.move(entries, 1, count, 1, snapshot)
 
     for i = 1, count do
-        local entry = snapshot[i]
-        local state = entry._state
-        if state == STATE_ONCE then
-            disconnectEntry(entry)
-            if sync then
-                entry.fn(...)
-            else
-                spawnCallback(entry.fn, ...)
-            end
-        elseif state == STATE_CONNECTED then
-            if sync then
-                entry.fn(...)
-            else
-                spawnCallback(entry.fn, ...)
-            end
-        end
+        invokeEntry(snapshot[i], sync, ...)
     end
 end
 
@@ -177,11 +166,11 @@ function SignalImpl.fireSync(self: SignalFields, ...: any): ()
 end
 
 function SignalImpl.count(self: SignalFields): number
-    return self._count[1]
+    return self._count
 end
 
 function SignalImpl.hasListeners(self: SignalFields): boolean
-    return self._count[1] > 0
+    return self._count > 0
 end
 
 table.freeze(SignalImpl)
@@ -191,7 +180,7 @@ table.freeze(SignalImpl)
 local SignalModule = {}
 
 function SignalModule.create(): Types.SignalLike
-    return (setmetatable({ _entries = {}, _count = { 0 } }, SignalImpl) :: any) :: Types.SignalLike
+    return (setmetatable({ _entries = {}, _count = 0 }, SignalImpl) :: any) :: Types.SignalLike
 end
 
 return table.freeze(SignalModule)

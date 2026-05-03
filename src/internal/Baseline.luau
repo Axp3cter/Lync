@@ -1,14 +1,15 @@
 --!strict
 --!optimize 2
--- Read-side delta cache for delta codecs.
+-- Read-side delta cache, keyed by (deltaId, peer).
 
 local Types = require(script.Parent.Parent.Types)
 
 -- State ------------------------------------------------------------------
 
-local _caches: { [number]: { [Types.BaselineKey]: any } } = {}
+-- Per-deltaId map keyed by BaselineKey: server uses Player, client uses `false`.
+local _caches:    { [number]: { [Types.BaselineKey]: any } } = {}
 local _currentKey: Types.BaselineKey = false
-local _hasDelta = false
+local _hasDelta    = false
 
 -- Public -----------------------------------------------------------------
 
@@ -38,12 +39,19 @@ function Baseline.clearPlayer(key: Types.BaselineKey): ()
     end
 end
 
+-- Reader checks this once to skip baseline-key bookkeeping when no delta codec exists.
 function Baseline.markHasDelta(): ()
     _hasDelta = true
 end
 
 function Baseline.hasDelta(): boolean
     return _hasDelta
+end
+
+function Baseline.reset(): ()
+    table.clear(_caches)
+    _currentKey = false
+    _hasDelta   = false
 end
 
 return table.freeze(Baseline)

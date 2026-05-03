@@ -4,51 +4,53 @@
 
 local RunService = game:GetService("RunService")
 
-local Base = require(script.codec.Base)
-local Channel = require(script.internal.Channel)
-local Gate = require(script.transport.Gate)
-local Group = require(script.api.Group)
+local Baseline   = require(script.internal.Baseline)
+local Bridge     = require(script.transport.Bridge)
+local Channel    = require(script.internal.Channel)
+local Gate       = require(script.transport.Gate)
+local Group      = require(script.api.Group)
+local Log        = require(script.util.Log)
 local Middleware = require(script.internal.Middleware)
-local Packet = require(script.api.Packet)
-local Pool = require(script.internal.Pool)
-local Query = require(script.api.Query)
-local Registry = require(script.internal.Registry)
-local Scope = require(script.api.Scope)
-local Types = require(script.Types)
-local Util = require(script.internal.Util)
+local Packet     = require(script.api.Packet)
+local Player     = require(script.util.Player)
+local Pool       = require(script.internal.Pool)
+local Query      = require(script.api.Query)
+local Registry   = require(script.internal.Registry)
+local Scope      = require(script.api.Scope)
+local Types      = require(script.Types)
 
-local ArrayC = require(script.codec.composite.Array)
-local AutoC = require(script.codec.meta.Auto)
+local ArrayC    = require(script.codec.composite.Array)
+local AutoC     = require(script.codec.meta.Auto)
 local BitfieldC = require(script.codec.meta.Bitfield)
-local BoolC = require(script.codec.primitive.Bool)
-local BufferC = require(script.codec.datatype.Buffer)
-local CFrameC = require(script.codec.datatype.CFrame)
-local ColorC = require(script.codec.datatype.Color)
-local CustomC = require(script.codec.meta.Custom)
-local EnumC = require(script.codec.meta.Enum)
-local Float16C = require(script.codec.primitive.Float16)
-local FloatC = require(script.codec.meta.Float)
-local IVC = require(script.codec.datatype.IntVector)
+local BoolC     = require(script.codec.primitive.Bool)
+local BufferC   = require(script.codec.datatype.Buffer)
+local CFrameC   = require(script.codec.datatype.CFrame)
+local ColorC    = require(script.codec.datatype.Color)
+local CustomC   = require(script.codec.meta.Custom)
+local EnumC     = require(script.codec.meta.Enum)
+local Float16C  = require(script.codec.primitive.Float16)
+local FloatC    = require(script.codec.meta.Float)
+local IVC       = require(script.codec.datatype.IntVector)
 local InstanceC = require(script.codec.datatype.Instance)
-local IntC = require(script.codec.primitive.Int)
-local MapC = require(script.codec.composite.Map)
-local NRC = require(script.codec.datatype.NumberRange)
-local NothingC = require(script.codec.meta.Nothing)
-local NumberC = require(script.codec.primitive.Number)
+local IntC      = require(script.codec.primitive.Int)
+local MapC      = require(script.codec.composite.Map)
+local NRC       = require(script.codec.datatype.NumberRange)
+local NothingC  = require(script.codec.meta.Nothing)
+local NumberC   = require(script.codec.primitive.Number)
 local OptionalC = require(script.codec.composite.Optional)
-local RayC = require(script.codec.datatype.Ray)
-local RectC = require(script.codec.datatype.Rect)
-local RegionC = require(script.codec.datatype.Region)
-local SeqC = require(script.codec.datatype.Sequence)
-local StringC = require(script.codec.datatype.String)
-local StructC = require(script.codec.composite.Struct)
-local TaggedC = require(script.codec.composite.Tagged)
-local TupleC = require(script.codec.composite.Tuple)
-local UDimC = require(script.codec.datatype.UDim)
-local UnknownC = require(script.codec.meta.Unknown)
-local VectorC = require(script.codec.datatype.Vector)
+local RayC      = require(script.codec.datatype.Ray)
+local RectC     = require(script.codec.datatype.Rect)
+local RegionC   = require(script.codec.datatype.Region)
+local SeqC      = require(script.codec.datatype.Sequence)
+local StringC   = require(script.codec.datatype.String)
+local StructC   = require(script.codec.composite.Struct)
+local TaggedC   = require(script.codec.composite.Tagged)
+local TupleC    = require(script.codec.composite.Tuple)
+local UDimC     = require(script.codec.datatype.UDim)
+local UnknownC  = require(script.codec.meta.Unknown)
+local VectorC   = require(script.codec.datatype.Vector)
 
--- Public types (re-exported so users can write `Lync.Packet<MyData>`) ---
+-- Public types -----------------------------------------------------------
 
 export type Codec<T> = Types.Codec<T>
 export type Connection = Types.Connection
@@ -67,83 +69,91 @@ export type PlayerStats = Types.PlayerStats
 
 local IS_SERVER = RunService:IsServer()
 
-local DROP = table.freeze({ _lyncDrop = true })
-local ALL = table.freeze({ _lyncAll = true })
+--[[
+    Singleton-string brand on a single `_lyncKind` field: dispatch is one
+    hash lookup at the same predicted slot, and the literals narrow on `==`.
+]]
+local ALL  = table.freeze({ _lyncKind = "all" :: "all" })
+local DROP = table.freeze({ _lyncKind = "drop" :: "drop" })
 
 local CHANNEL_MAX_MIN, CHANNEL_MAX_MAX = 4096, 1048576
-local DEPTH_MIN, DEPTH_MAX = 4, 32
-local POOL_MIN, POOL_MAX = 2, 128
-local FLUSH_HZ_MIN, FLUSH_HZ_MAX = 1, 60
+local DEPTH_MIN,       DEPTH_MAX       = 4,    32
+local POOL_MIN,        POOL_MAX        = 2,    128
+local FLUSH_HZ_MIN,    FLUSH_HZ_MAX    = 1,    60
 
 -- State ------------------------------------------------------------------
 
---[[
-    Wrap mutable flush state in one table so the Heartbeat closure
-    captures a single LCT_VAL upvalue instead of separate LCT_REF
-    upvalues for each field.
-]]
-local _flushState = {
-    started = false,
-    rate = FLUSH_HZ_MAX,
-    accum = 0,
-    conn = nil :: RBXScriptConnection?,
+-- Single table so the Heartbeat closure captures one LCT_VAL, not N LCT_REFs.
+local flushState = {
+    started   = false,
+    rate      = FLUSH_HZ_MAX,
+    accum     = 0,
+    conn      = nil :: RBXScriptConnection?,
     transport = nil :: { flush: () -> () }?,
 }
 
 -- Private ----------------------------------------------------------------
 
-local isPlayer = Util.isPlayer
+local isPlayer = Player.is
 
-local function except(...: any): any
+type ExceptValue = { _lyncKind: "except", _excluded: { [Player]: boolean } }
+
+local function except(...: any): ExceptValue
     local excluded: { [Player]: boolean } = {}
 
     for i = 1, select("#", ...) do
         local arg = select(i, ...)
         if isPlayer(arg) then
             excluded[arg :: Player] = true
-        elseif typeof(arg) == "table" and arg._lyncGroup then
-            for player in arg._members :: { [Player]: boolean } do
+        elseif typeof(arg) == "table" and arg._lyncKind == "group" then
+            for player in arg._members do
                 excluded[player] = true
             end
         else
-            error("[Lync] Lync.except: argument must be a Player or Group")
+            Log.error(`argument must be a Player or Group, got {typeof(arg)}`)
         end
     end
 
     return table.freeze({
-        _lyncExcept = true,
+        _lyncKind = "except" :: "except",
         _excluded = table.freeze(excluded),
     })
 end
 
-local function setupFlush(): ()
-    local transport: { flush: () -> () }
-    if IS_SERVER then
-        local Server = require(script.transport.Server)
-        transport = { flush = Server.flush }
-    else
-        local Client = require(script.transport.Client)
-        transport = { flush = Client.flush }
-    end
-    _flushState.transport = transport
+local function setupFlush(transport: { flush: () -> () }): ()
+    flushState.transport = transport
 
-    _flushState.conn = RunService.Heartbeat:Connect(function(dt: number)
-        local rate = _flushState.rate
+    flushState.conn = RunService.Heartbeat:Connect(function(dt: number)
+        local rate = flushState.rate
         if rate >= FLUSH_HZ_MAX then
             transport.flush()
             return
         end
 
-        local accum = _flushState.accum + dt
+        local accum = flushState.accum + dt
         local interval = 1 / rate
         if accum >= interval then
-            -- Drift guard: if we're more than one interval behind (frame
-            -- stall) zero the accumulator instead of catching up.
+            -- Frame-stall guard: zero the accumulator instead of catching up.
             accum = if accum >= 2 * interval then 0 else accum - interval
             transport.flush()
         end
-        _flushState.accum = accum
+        flushState.accum = accum
     end)
+end
+
+-- Validates `value` in [min, max] and applies it; errors with a configure-formatted message.
+local function applyOption(
+    name: string,
+    value: number?,
+    min: number,
+    max: number,
+    apply: (number) -> ()
+): ()
+    if value == nil then return end
+    if value < min or value > max then
+        Log.error(`{name} must be {min}-{max}`)
+    end
+    apply(value)
 end
 
 -- Public -----------------------------------------------------------------
@@ -151,36 +161,11 @@ end
 local Lync = {}
 
 function Lync.configure(options: Types.ConfigureOptions): ()
-    if _flushState.started then
-        error("[Lync] Lync.configure: must be called before Lync.start()")
-    end
+    Log.assert(not flushState.started, "must be called before Lync.start()")
 
-    local size = options.channelMaxSize
-    if size then
-        if size < CHANNEL_MAX_MIN or size > CHANNEL_MAX_MAX then
-            error(
-                `[Lync] Lync.configure: channelMaxSize must be {CHANNEL_MAX_MIN}-{CHANNEL_MAX_MAX}`
-            )
-        end
-        Channel.setMaxSize(size)
-        Base.setMaxSize(size)
-    end
-
-    local depth = options.validationDepth
-    if depth then
-        if depth < DEPTH_MIN or depth > DEPTH_MAX then
-            error(`[Lync] Lync.configure: validationDepth must be {DEPTH_MIN}-{DEPTH_MAX}`)
-        end
-        Gate.setDepth(depth)
-    end
-
-    local poolSize = options.poolSize
-    if poolSize then
-        if poolSize < POOL_MIN or poolSize > POOL_MAX then
-            error(`[Lync] Lync.configure: poolSize must be {POOL_MIN}-{POOL_MAX}`)
-        end
-        Pool.setMaxSize(poolSize)
-    end
+    applyOption("channelMaxSize", options.channelMaxSize, CHANNEL_MAX_MIN, CHANNEL_MAX_MAX, Channel.setMaxSize)
+    applyOption("validationDepth", options.validationDepth, DEPTH_MIN, DEPTH_MAX, Gate.setDepth)
+    applyOption("poolSize", options.poolSize, POOL_MIN, POOL_MAX, Pool.setMaxSize)
 
     if options.bandwidthLimit then
         Gate.configureBandwidth(options.bandwidthLimit.softLimit, options.bandwidthLimit.maxStrikes)
@@ -192,49 +177,64 @@ function Lync.configure(options: Types.ConfigureOptions): ()
 
     if options.stats then
         Channel.enableStats()
-        if IS_SERVER then
-            local Server = require(script.transport.Server)
-            Server.enableStats()
-        end
     end
 end
 
 function Lync.start(): ()
-    if _flushState.started then
-        error("[Lync] Lync.start: already started")
-    end
-    _flushState.started = true
+    Log.assert(not flushState.started, "already started")
+    flushState.started = true
 
     if IS_SERVER then
         local Server = require(script.transport.Server)
         Server.start()
+        setupFlush(Server)
     else
         local Client = require(script.transport.Client)
         Client.start()
+        setupFlush(Client)
     end
-
-    setupFlush()
 end
 
 function Lync.flush(): ()
-    if not _flushState.started then
-        error("[Lync] Lync.flush: must call Lync.start() first")
-    end
-    -- start() is the only path that sets transport, so it's non-nil here.
-    (_flushState.transport :: { flush: () -> () }).flush()
-    _flushState.accum = 0
+    Log.assert(flushState.started, "must call Lync.start() first")
+    -- Bind to a local: bare `(expr).flush()` after a statement parses as a continuation.
+    local transport = flushState.transport :: { flush: () -> () }
+    transport.flush()
+    flushState.accum = 0
 end
 
 function Lync.flushRate(hz: number): ()
     if hz < FLUSH_HZ_MIN or hz > FLUSH_HZ_MAX then
-        error(`[Lync] Lync.flushRate: hz must be {FLUSH_HZ_MIN}-{FLUSH_HZ_MAX}`)
+        Log.error(`hz must be {FLUSH_HZ_MIN}-{FLUSH_HZ_MAX}`)
     end
-    _flushState.rate = hz
-    _flushState.accum = 0
+    flushState.rate = hz
+    flushState.accum = 0
 end
 
 function Lync.isStarted(): boolean
-    return _flushState.started
+    return flushState.started
+end
+
+-- Restore module state to post-require defaults. For tests / hot reload.
+function Lync.reset(): ()
+    if flushState.conn then
+        flushState.conn:Disconnect()
+        flushState.conn = nil
+    end
+    flushState.started = false
+    flushState.rate = FLUSH_HZ_MAX
+    flushState.accum = 0
+    flushState.transport = nil
+
+    Baseline.reset()
+    Bridge.reset()
+    Channel.resetGlobals()
+    Gate.reset()
+    Group.reset()
+    Log.reset()
+    Middleware.reset()
+    Pool.reset()
+    Registry.reset()
 end
 
 Lync.packet = Packet.define
@@ -252,9 +252,7 @@ Lync.onDrop = Middleware.onDrop
 
 Lync.stats = table.freeze({
     player = function(player: Player): Types.PlayerStats?
-        if not IS_SERVER then
-            return nil
-        end
+        if not IS_SERVER then return nil end
         local Server = require(script.transport.Server)
         return Server.getPlayerStats(player)
     end,
@@ -264,20 +262,21 @@ Lync.stats = table.freeze({
             local Server = require(script.transport.Server)
             Server.resetStats()
         end
-        for i = 1, Registry.count() do
-            local reg = Registry.get(i)
-            if reg then
-                reg.bytesSent = 0
-                reg.bytesReceived = 0
-                reg.fires = 0
-                reg.recvFires = 0
-                reg.drops = 0
-            end
+        for _, reg in Registry.all() do
+            reg.bytesSent = 0
+            reg.bytesReceived = 0
+            reg.fires = 0
+            reg.recvFires = 0
+            reg.drops = 0
         end
     end,
 })
 
 Lync.debug = table.freeze({
+    --[[
+        Stubs reserved for capture/replay tooling. No-ops keep the API
+        surface stable across versions with or without the recorder.
+    ]]
     capture = function(_label: string?): () end,
     stop = function(): () end,
     dump = function(): () end,
@@ -287,20 +286,17 @@ Lync.debug = table.freeze({
     end,
 
     registrations = function(): { any }
+        -- Registry IDs are sequential 1..count and never freed, so get(i) is non-nil in range.
         local count = Registry.count()
         local result = table.create(count)
-        local n = 0
         for i = 1, count do
-            local reg = Registry.get(i)
-            if reg then
-                n += 1
-                result[n] = table.freeze({
-                    name = reg.name,
-                    id = reg.id,
-                    kind = reg.kind,
-                    isUnreliable = reg.isUnreliable,
-                })
-            end
+            local reg = Registry.get(i) :: Types.Registration
+            result[i] = table.freeze({
+                name = reg.name,
+                id = reg.id,
+                kind = reg.kind,
+                isUnreliable = reg.isUnreliable,
+            })
         end
         return table.freeze(result)
     end,

@@ -1,14 +1,15 @@
 --!strict
---!optimize 2
+--!native
 -- Discriminated union codec. u8 variant tag + variant payload.
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Log     = require(script.Parent.Parent.Parent.util.Log)
+local Types   = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
 local writeByte = Channel.writeByte
-local readu8 = buffer.readu8
+local readu8    = buffer.readu8
 
 -- Public -----------------------------------------------------------------
 
@@ -18,10 +19,9 @@ function Tagged.define(
     tagField: string,
     variants: { [string]: Types.InternalCodec<any> }
 ): Types.InternalCodec<any>
-    if tagField == "" then
-        error("[Lync] Lync.tagged: tagField cannot be empty")
-    end
+    Log.assert(tagField ~= "", "tagField cannot be empty")
 
+    -- Sort variant names so the wire-form tag id is stable across runs.
     local names: { string } = {}
     for name in variants do
         table.insert(names, name)
@@ -29,46 +29,42 @@ function Tagged.define(
     table.sort(names)
 
     local variantCount = #names
-    if variantCount == 0 then
-        error("[Lync] Lync.tagged: requires at least one variant")
-    end
+    Log.assert(variantCount > 0, "requires at least one variant")
     if variantCount > 256 then
-        error("[Lync] Lync.tagged: exceeds 256 variants")
+        Log.error(`exceeds 256 variants ({variantCount})`)
     end
 
     local nameToTag: { [string]: number } = {}
     local tagToCodec = table.create(variantCount)
-    local tagToName = table.create(variantCount)
     local hasUnknown = false
 
     for i = 1, variantCount do
-        local name = names[i]
+        local name  = names[i]
         local codec = variants[name]
         nameToTag[name] = i - 1
-        tagToCodec[i] = codec
-        tagToName[i] = name
+        tagToCodec[i]   = codec
         if codec._hasUnknown then
             hasUnknown = true
         end
     end
 
+    table.freeze(names)
     table.freeze(nameToTag)
     table.freeze(tagToCodec)
-    table.freeze(tagToName)
 
     local codec: Types.InternalCodec<any> = {
-        _isTagged = true,
-        _tagField = tagField,
-        _variants = variants,
+        _isTagged  = true,
+        _tagField  = tagField,
+        _variants  = variants,
 
         write = function(ch: Types.ChannelState, value: any): ()
             local name = value[tagField]
             if name == nil then
-                error(`[Lync] Tagged.write: missing tagField "{tagField}"`)
+                Log.error(`missing tagField "{tagField}"`)
             end
             local tag = nameToTag[name]
             if tag == nil then
-                error(`[Lync] Tagged.write: unknown variant "{name}"`)
+                Log.error(`unknown variant "{name}"`)
             end
 
             writeByte(ch, tag)
@@ -76,15 +72,16 @@ function Tagged.define(
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            local tag = readu8(src, pos)
+            local tag      = readu8(src, pos)
             local varCodec = tagToCodec[tag + 1]
             if not varCodec then
-                error(`[Lync] Tagged.read: unknown tag {tag}`)
+                Log.error(`unknown tag {tag}`)
             end
 
             local data, consumed = varCodec.read(src, pos + 1, refs)
-            if type(data) == "table" then
-                data[tagField] = tagToName[tag + 1]
+            -- Re-attach the discriminator so callers can dispatch on it.
+            if typeof(data) == "table" then
+                data[tagField] = names[tag + 1]
             end
             return data, 1 + consumed
         end,

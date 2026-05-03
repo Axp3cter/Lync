@@ -1,15 +1,16 @@
 --!strict
 --!optimize 2
--- Range-typed integer codec. Picks the narrowest u8/u16/u32/i8/i16/i32 wire form.
+-- Range-typed integer codec. Picks the narrowest u8/u16/u32/i8/i16/i32 form.
 
-local Base = require(script.Parent.Parent.Base)
+local Base   = require(script.Parent.Parent.Base)
+local Log    = require(script.Parent.Parent.Parent.util.Log)
 local Signed = require(script.Parent.Signed)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Types  = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
-local floor = math.floor
-local writeI8 = Signed.writeI8
+local floor    = math.floor
+local writeI8  = Signed.writeI8
 local writeI16 = Signed.writeI16
 local writeI32 = Signed.writeI32
 
@@ -19,11 +20,9 @@ local Int = {}
 
 function Int.int(min: number, max: number): Types.InternalCodec<number>
     if min > max then
-        error(`[Lync] Lync.int: min ({min}) must be <= max ({max})`)
+        Log.error(`min ({min}) must be <= max ({max})`)
     end
-    if floor(min) ~= min or floor(max) ~= max then
-        error("[Lync] Lync.int: bounds must be integers")
-    end
+    Log.assert(floor(min) == min and floor(max) == max, "bounds must be integers")
 
     local meta = {
         _min = min,
@@ -54,7 +53,7 @@ function Int.int(min: number, max: number): Types.InternalCodec<number>
         end
     end
 
-    error(`[Lync] Lync.int: range [{min}, {max}] exceeds i32 bounds`)
+    Log.error(`range [{min}, {max}] exceeds i32 bounds`)
 end
 
 return table.freeze(Int)

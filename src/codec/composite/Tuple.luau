@@ -1,8 +1,9 @@
 --!strict
---!optimize 2
+--!native
 -- Positional ordered codec. Like struct but indexed.
 
-local Base = require(script.Parent.Parent.Base)
+local Base  = require(script.Parent.Parent.Base)
+local Log   = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -16,36 +17,38 @@ local Tuple = {}
 function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
     local codecs = { ... }
     local count = #codecs
-    if count == 0 then
-        error("[Lync] Lync.tuple: requires at least one codec")
-    end
+    Log.assert(count > 0, "requires at least one codec")
 
+    -- Single pass: detect all-direct fast path + propagate _hasUnknown.
     local allDirect, totalSize, hasUnknown = true, 0, false
     for i = 1, count do
         local c = codecs[i]
         if c._hasUnknown then
             hasUnknown = true
         end
-        if not c._size or not c._directWrite or not c._directRead then
-            allDirect = false
-        elseif allDirect then
-            totalSize += c._size
+        if allDirect then
+            if c._size and c._directWrite and c._directRead then
+                totalSize += c._size
+            else
+                allDirect = false
+            end
         end
     end
     table.freeze(codecs)
 
+    -- All-direct: pre-compute offsets so write/read avoids the cursor dance per element.
     if allDirect then
-        local offsets = table.create(count)
-        local directWrites = table.create(count)
-        local directReads = table.create(count)
-        local cursor = 0
+        local offsets       = table.create(count)
+        local directWrites  = table.create(count)
+        local directReads   = table.create(count)
+        local runningOffset = 0
 
         for i = 1, count do
             local c = codecs[i]
-            offsets[i] = cursor
+            offsets[i]      = runningOffset
             directWrites[i] = c._directWrite
-            directReads[i] = c._directRead
-            cursor += c._size :: number
+            directReads[i]  = c._directRead
+            runningOffset += c._size :: number
         end
         table.freeze(offsets)
         table.freeze(directWrites)
@@ -71,15 +74,15 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
             end,
 
             write = function(ch: Types.ChannelState, value: any): ()
-                local c = ch.cursor
-                if c + totalSize > ch.size then
+                local cursor = ch.cursor
+                if cursor + totalSize > ch.size then
                     alloc(ch, totalSize)
                 end
                 local b = ch.buff
                 for i = 1, count do
-                    directWrites[i](b, c + offsets[i], value[i])
+                    directWrites[i](b, cursor + offsets[i], value[i])
                 end
-                ch.cursor = c + totalSize
+                ch.cursor = cursor + totalSize
             end,
 
             read = function(src: buffer, pos: number, _refs: { Instance }?): (any, number)
@@ -111,6 +114,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
             local total = 0
             for i = 1, count do
                 local v, consumed = codecs[i].read(src, pos + total, refs)
+                if consumed == 0 then
+                    Log.error(`element codec consumed 0 bytes at index {i}`)
+                end
                 result[i] = v
                 total += consumed
             end

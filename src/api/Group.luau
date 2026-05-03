@@ -1,52 +1,60 @@
 --!strict
 --!optimize 2
--- Named player sets with __iter, auto-cleanup on PlayerRemoving.
+-- Named player sets with __iter and auto-cleanup on PlayerRemoving.
 
 local Players = game:GetService("Players")
 
-local Util = require(script.Parent.Parent.internal.Util)
+local Array = require(script.Parent.Parent.util.Array)
+local Log   = require(script.Parent.Parent.util.Log)
 
 -- Public types -----------------------------------------------------------
 
 export type GroupHandle = {
-    add: (self: GroupHandle, player: Player) -> boolean,
-    remove: (self: GroupHandle, player: Player) -> boolean,
-    has: (self: GroupHandle, player: Player) -> boolean,
-    count: (self: GroupHandle) -> number,
-    destroy: (self: GroupHandle) -> (),
-    _lyncGroup: boolean,
-    _members: { [Player]: boolean },
+    add:       (self: GroupHandle, player: Player) -> boolean,
+    remove:    (self: GroupHandle, player: Player) -> boolean,
+    has:       (self: GroupHandle, player: Player) -> boolean,
+    count:     (self: GroupHandle) -> number,
+    destroy:   (self: GroupHandle) -> (),
+    _lyncKind: "group",
+    _members:  { [Player]: boolean },
 }
 
-type Group = GroupHandle & { _count: number, _name: string }
+type GroupInternal = GroupHandle & { _count: number, _name: string }
 
 -- State ------------------------------------------------------------------
 
-local _groups: { [string]: Group } = {}
-local _playerCleanup: { [Player]: { Group } } = {}
+local _groups:        { [string]: GroupInternal } = {}
+-- Reverse index used by PlayerRemoving so we don't scan every group on disconnect.
+local _playerCleanup: { [Player]: { Group } }     = {}
 local _cleanupConnected = false
 
 -- Private ----------------------------------------------------------------
 
-local swapRemove = Util.swapRemove
+local swapRemove = Array.swapRemove
 
+-- Connect once on the first Group.create; subsequent creates reuse the same connection.
 local function ensureCleanup(): ()
-    if _cleanupConnected then
-        return
-    end
+    if _cleanupConnected then return end
     _cleanupConnected = true
 
     Players.PlayerRemoving:Connect(function(player: Player)
         local groups = _playerCleanup[player]
-        if not groups then
-            return
-        end
+        if not groups then return end
         for _, group in groups do
             group._members[player] = nil
             group._count -= 1
         end
         _playerCleanup[player] = nil
     end)
+end
+
+local function untrackCleanup(player: Player, group: GroupInternal): ()
+    local cleanup = _playerCleanup[player]
+    if not cleanup then return end
+    local idx = table.find(cleanup, group)
+    if idx then
+        swapRemove(cleanup, idx)
+    end
 end
 
 -- Public -----------------------------------------------------------------
@@ -56,15 +64,12 @@ local Group = {}
 local GroupMeta = {}
 GroupMeta.__index = GroupMeta
 
---[[
-    __iter returns the standard 3-tuple iterator so `for player in group do`
-    uses Luau's builtin path (luaH_next) with zero closure allocation.
-]]
-function GroupMeta.__iter(self: Group): (any, any, any)
+-- __iter lets `for player in group do` skip the explicit :members() call.
+function GroupMeta.__iter(self: GroupInternal): (any, any, any)
     return next, self._members, nil
 end
 
-function GroupMeta.add(self: Group, player: Player): boolean
+function GroupMeta.add(self: GroupInternal, player: Player): boolean
     if self._members[player] then
         return false
     end
@@ -81,45 +86,32 @@ function GroupMeta.add(self: Group, player: Player): boolean
     return true
 end
 
-function GroupMeta.remove(self: Group, player: Player): boolean
+function GroupMeta.remove(self: GroupInternal, player: Player): boolean
     if not self._members[player] then
         return false
     end
 
     self._members[player] = nil
     self._count -= 1
-
-    local cleanup = _playerCleanup[player]
-    if cleanup then
-        local idx = table.find(cleanup, self)
-        if idx then
-            swapRemove(cleanup, idx)
-        end
-    end
+    untrackCleanup(player, self)
     return true
 end
 
-function GroupMeta.has(self: Group, player: Player): boolean
+function GroupMeta.has(self: GroupInternal, player: Player): boolean
     return self._members[player] == true
 end
 
-function GroupMeta.count(self: Group): number
+function GroupMeta.count(self: GroupInternal): number
     return self._count
 end
 
-function GroupMeta.destroy(self: Group): ()
+function GroupMeta.destroy(self: GroupInternal): ()
     if _groups[self._name] == self then
         _groups[self._name] = nil
     end
 
     for player in self._members do
-        local cleanup = _playerCleanup[player]
-        if cleanup then
-            local idx = table.find(cleanup, self)
-            if idx then
-                swapRemove(cleanup, idx)
-            end
-        end
+        untrackCleanup(player, self)
     end
 
     table.clear(self._members)
@@ -130,20 +122,29 @@ table.freeze(GroupMeta)
 
 function Group.create(name: string): GroupHandle
     if _groups[name] then
-        error(`[Lync] Lync.group: "{name}" already exists`)
+        Log.error(`"{name}" already exists`)
     end
 
     ensureCleanup()
 
     local group = setmetatable({
-        _lyncGroup = true,
-        _members = {} :: { [Player]: boolean },
-        _count = 0,
-        _name = name,
+        _lyncKind = "group" :: "group",
+        _members  = {} :: { [Player]: boolean },
+        _count    = 0,
+        _name     = name,
     }, GroupMeta) :: any
 
     _groups[name] = group
     return group
+end
+
+function Group.reset(): ()
+    for _, group in _groups do
+        table.clear(group._members)
+        group._count = 0
+    end
+    table.clear(_groups)
+    table.clear(_playerCleanup)
 end
 
 return table.freeze(Group)

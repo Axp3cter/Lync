@@ -1,7 +1,8 @@
 --!strict
 --!optimize 2
--- Fixed-size codec factory and channel buffer-grow primitive.
+-- Fixed-size codec factory + channel buffer-grow primitive.
 
+local Log   = require(script.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
@@ -16,12 +17,12 @@ local _maxSize = DEFAULT_MAX
 -- Private ----------------------------------------------------------------
 
 local countlz = bit32.countlz
-local lshift = bit32.lshift
+local lshift  = bit32.lshift
 
 --[[
-    Grow `ch.buff` so `ch.cursor + bytes` fits. New size is the next
-    power of two >= needed, capped by _maxSize. Caller MUST re-read
-    `ch.buff` after this returns: the buffer reference is replaced.
+    Grow `ch.buff` so cursor + bytes fits. New size is the next power of two
+    >= needed, capped by _maxSize. Callers MUST re-read `ch.buff` after
+    return: the buffer reference is replaced.
 ]]
 local function alloc(ch: Types.ChannelState, bytes: number): ()
     if bytes == 0 then
@@ -36,9 +37,9 @@ local function alloc(ch: Types.ChannelState, bytes: number): ()
     if needed > _maxSize then
         local name = ch.currentPacket
         if name then
-            error(`[Lync] Channel.alloc("{name}"): buffer overflow ({needed}B, max {_maxSize}B)`)
+            Log.error(`packet "{name}" overflowed at {needed}B (max {_maxSize}B)`)
         end
-        error(`[Lync] Channel.alloc: buffer overflow ({needed}B, max {_maxSize}B)`)
+        Log.error(`overflowed at {needed}B (max {_maxSize}B)`)
     end
 
     local newSize = lshift(1, 32 - countlz(needed - 1))
@@ -53,18 +54,24 @@ end
 local Base = {}
 
 Base.INITIAL_BUF = INITIAL_BUF
+Base.alloc       = alloc
 
-Base.alloc = alloc
-
+-- Floor is INITIAL_BUF: anything smaller errors on the very first write.
 function Base.setMaxSize(bytes: number): ()
+    if bytes < INITIAL_BUF then
+        Log.error(`bytes ({bytes}) must be >= {INITIAL_BUF}`)
+    end
     _maxSize = bytes
 end
 
+function Base.reset(): ()
+    _maxSize = DEFAULT_MAX
+end
+
 --[[
-    Build a fixed-size codec. The codec exposes channel-level write/read
-    (which handles buffer growth and cursor bookkeeping) plus the raw
-    _directWrite / _directRead primitives composite codecs use in their
-    pre-sized fast paths.
+    Build a fixed-size codec. Exposes channel-level write/read (handles
+    buffer growth + cursor) plus raw _directWrite/_directRead for composite
+    fast paths that pre-size the channel themselves.
 ]]
 function Base.define<T>(
     size: number,
@@ -101,9 +108,9 @@ function Base.define<T>(
 end
 
 --[[
-    Constant codec: zero bytes wire, decode always returns `value`. Used
-    by quantizers when min == max so the wire emits nothing yet decode
-    still produces a type-faithful value.
+    Zero-byte codec: writes nothing, reads always return `value`. Used by
+    quantizers when min == max so the wire emits nothing yet decode produces
+    a type-faithful value.
 ]]
 function Base.constant<T>(value: T): Types.InternalCodec<T>
     return table.freeze({

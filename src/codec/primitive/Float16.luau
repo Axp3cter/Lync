@@ -1,28 +1,29 @@
 --!strict
 --!native
--- IEEE 754 binary16 codec. 2 bytes, +/- 65504, ~3 decimal digits of precision.
+-- IEEE 754 binary16 codec. 2 bytes, +/-65504 finite range, ~3 decimal digits.
 
 local Base = require(script.Parent.Parent.Base)
 
 -- Constants --------------------------------------------------------------
 
 local MAX_FINITE = 65504
-local NAN_BITS = 0x7E00
-local INF_BITS = 0x7C00
+local NAN_BITS   = 0x7E00
+local INF_BITS   = 0x7C00
 
 -- Private ----------------------------------------------------------------
 
-local band = bit32.band
-local bor = bit32.bor
+local band   = bit32.band
+local bor    = bit32.bor
 local lshift = bit32.lshift
 local rshift = bit32.rshift
-local frexp = math.frexp
-local ldexp = math.ldexp
-local round = math.round
-local huge = math.huge
+local frexp  = math.frexp
+local ldexp  = math.ldexp
+local round  = math.round
+local huge   = math.huge
+local isnan  = math.isnan
 
 local function encode(value: number): number
-    if value ~= value then
+    if isnan(value) then
         return NAN_BITS
     end
     if value == 0 then
@@ -42,6 +43,7 @@ local function encode(value: number): number
     local mantissa, exponent = frexp(value)
     local biasedExp = exponent + 14
 
+    -- Subnormal: shift mantissa into the 10-bit fraction with the implicit bit gone.
     if biasedExp <= 0 then
         local frac = round(ldexp(mantissa, biasedExp + 10))
         if frac >= 1024 then
@@ -54,6 +56,7 @@ local function encode(value: number): number
     end
 
     local frac = round((mantissa * 2 - 1) * 1024)
+    -- Rounding can carry into the exponent; absorb it.
     if frac >= 1024 then
         frac = 0
         biasedExp += 1
@@ -68,7 +71,7 @@ end
 
 local function decode(raw: number): number
     local sign = band(raw, 0x8000)
-    local exp = band(rshift(raw, 10), 0x1F)
+    local exp  = band(rshift(raw, 10), 0x1F)
     local frac = band(raw, 0x03FF)
 
     local value: number

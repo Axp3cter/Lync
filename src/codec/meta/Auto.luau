@@ -2,176 +2,87 @@
 --!native
 -- Self-describing codec. u8 type tag + value payload.
 
-local Base = require(script.Parent.Parent.Base)
+local Base    = require(script.Parent.Parent.Base)
 local BufferC = require(script.Parent.Parent.datatype.Buffer)
 local CFrameC = require(script.Parent.Parent.datatype.CFrame)
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local ColorC = require(script.Parent.Parent.datatype.Color)
-local IVC = require(script.Parent.Parent.datatype.IntVector)
-local NRC = require(script.Parent.Parent.datatype.NumberRange)
+local ColorC  = require(script.Parent.Parent.datatype.Color)
+local IVC     = require(script.Parent.Parent.datatype.IntVector)
+local Log     = require(script.Parent.Parent.Parent.util.Log)
+local NRC     = require(script.Parent.Parent.datatype.NumberRange)
 local NumberC = require(script.Parent.Parent.primitive.Number)
-local RayC = require(script.Parent.Parent.datatype.Ray)
-local RectC = require(script.Parent.Parent.datatype.Rect)
+local RayC    = require(script.Parent.Parent.datatype.Ray)
+local RectC   = require(script.Parent.Parent.datatype.Rect)
 local RegionC = require(script.Parent.Parent.datatype.Region)
-local SeqC = require(script.Parent.Parent.datatype.Sequence)
-local Signed = require(script.Parent.Parent.primitive.Signed)
-local Types = require(script.Parent.Parent.Parent.Types)
-local UDimC = require(script.Parent.Parent.datatype.UDim)
-local Varint = require(script.Parent.Parent.primitive.Varint)
-local VecC = require(script.Parent.Parent.datatype.Vector)
+local SeqC    = require(script.Parent.Parent.datatype.Sequence)
+local Signed  = require(script.Parent.Parent.primitive.Signed)
+local Types   = require(script.Parent.Parent.Parent.Types)
+local UDimC   = require(script.Parent.Parent.datatype.UDim)
+local Varint  = require(script.Parent.Parent.primitive.Varint)
+local VecC    = require(script.Parent.Parent.datatype.Vector)
 
 -- Constants --------------------------------------------------------------
 
-local TAG_NIL = 0
-local TAG_BOOL = 1
-local TAG_U8 = 2
-local TAG_U16 = 3
-local TAG_U32 = 4
-local TAG_I8 = 5
-local TAG_I16 = 6
-local TAG_I32 = 7
-local TAG_F32 = 8
-local TAG_F64 = 9
-local TAG_STRING = 10
-local TAG_VEC2 = 11
-local TAG_VEC3 = 12
-local TAG_COLOR3 = 13
-local TAG_CFRAME = 14
-local TAG_BUFFER = 15
-local TAG_UDIM = 16
-local TAG_UDIM2 = 17
+local TAG_NIL      = 0
+local TAG_BOOL     = 1
+local TAG_U8       = 2
+local TAG_U16      = 3
+local TAG_U32      = 4
+local TAG_I8       = 5
+local TAG_I16      = 6
+local TAG_I32      = 7
+local TAG_F32      = 8
+local TAG_F64      = 9
+local TAG_STRING   = 10
+local TAG_VEC2     = 11
+local TAG_VEC3     = 12
+local TAG_COLOR3   = 13
+local TAG_CFRAME   = 14
+local TAG_BUFFER   = 15
+local TAG_UDIM     = 16
+local TAG_UDIM2    = 17
 local TAG_NUMRANGE = 18
-local TAG_RECT = 19
-local TAG_V2I16 = 20
-local TAG_V3I16 = 21
-local TAG_REGION3 = 22
-local TAG_R3I16 = 23
-local TAG_RAY = 24
-local TAG_NUMSEQ = 25
-local TAG_COLSEQ = 26
+local TAG_RECT     = 19
+local TAG_V2I16    = 20
+local TAG_V3I16    = 21
+local TAG_REGION3  = 22
+local TAG_R3I16    = 23
+local TAG_RAY      = 24
+local TAG_NUMSEQ   = 25
+local TAG_COLSEQ   = 26
 
-local INLINE_MAX = Varint.INLINE_MAX
+local INLINE_MAX  = Varint.INLINE_MAX
 local F32_SCRATCH = NumberC._f32Scratch
 
--- Private ----------------------------------------------------------------
+-- Tag -> numeric primitive dispatch tables.
+local NUM_SIZE: { [number]: number } = table.freeze({
+    [TAG_U8] = 1, [TAG_I8] = 1,
+    [TAG_U16] = 2, [TAG_I16] = 2,
+    [TAG_U32] = 4, [TAG_I32] = 4, [TAG_F32] = 4,
+    [TAG_F64] = 8,
+})
 
-local alloc = Base.alloc
-local writeByte = Channel.writeByte
-local writeu8 = buffer.writeu8
-local readu8 = buffer.readu8
-local floor = math.floor
-local isnan = math.isnan
+local NUM_WRITE: { [number]: (buffer, number, number) -> () } = table.freeze({
+    [TAG_U8] = buffer.writeu8,
+    [TAG_U16] = buffer.writeu16,
+    [TAG_U32] = buffer.writeu32,
+    [TAG_I8] = Signed.writeI8,
+    [TAG_I16] = Signed.writeI16,
+    [TAG_I32] = Signed.writeI32,
+    [TAG_F32] = buffer.writef32,
+    [TAG_F64] = buffer.writef64,
+})
 
-local writeI8 = Signed.writeI8
-local writeI16 = Signed.writeI16
-local writeI32 = Signed.writeI32
-
-local function selectNumberTag(value: number): number
-    if isnan(value) then
-        return TAG_F64
-    end
-
-    if floor(value) == value then
-        if value >= 0 then
-            if value <= 0xFF then
-                return TAG_U8
-            end
-            if value <= 0xFFFF then
-                return TAG_U16
-            end
-            if value <= 0xFFFFFFFF then
-                return TAG_U32
-            end
-        else
-            if value >= -0x80 then
-                return TAG_I8
-            end
-            if value >= -0x8000 then
-                return TAG_I16
-            end
-            if value >= -0x80000000 then
-                return TAG_I32
-            end
-        end
-    end
-
-    -- Roblox is single-threaded so a module scratch cannot be aliased.
-    buffer.writef32(F32_SCRATCH, 0, value)
-    if buffer.readf32(F32_SCRATCH, 0) == value then
-        return TAG_F32
-    end
-    return TAG_F64
-end
-
-local function numberSize(tag: number): number
-    if tag == TAG_U8 or tag == TAG_I8 then
-        return 1
-    end
-    if tag == TAG_U16 or tag == TAG_I16 then
-        return 2
-    end
-    if tag == TAG_U32 or tag == TAG_I32 or tag == TAG_F32 then
-        return 4
-    end
-    return 8
-end
-
-local function writeNumber(b: buffer, off: number, tag: number, value: number): ()
-    if tag == TAG_U8 then
-        buffer.writeu8(b, off, value)
-        return
-    end
-    if tag == TAG_U16 then
-        buffer.writeu16(b, off, value)
-        return
-    end
-    if tag == TAG_U32 then
-        buffer.writeu32(b, off, value)
-        return
-    end
-    if tag == TAG_I8 then
-        writeI8(b, off, value)
-        return
-    end
-    if tag == TAG_I16 then
-        writeI16(b, off, value)
-        return
-    end
-    if tag == TAG_I32 then
-        writeI32(b, off, value)
-        return
-    end
-    if tag == TAG_F32 then
-        buffer.writef32(b, off, value)
-        return
-    end
-    buffer.writef64(b, off, value)
-end
-
-local function readNumber(b: buffer, off: number, tag: number): number
-    if tag == TAG_U8 then
-        return buffer.readu8(b, off)
-    end
-    if tag == TAG_U16 then
-        return buffer.readu16(b, off)
-    end
-    if tag == TAG_U32 then
-        return buffer.readu32(b, off)
-    end
-    if tag == TAG_I8 then
-        return buffer.readi8(b, off)
-    end
-    if tag == TAG_I16 then
-        return buffer.readi16(b, off)
-    end
-    if tag == TAG_I32 then
-        return buffer.readi32(b, off)
-    end
-    if tag == TAG_F32 then
-        return buffer.readf32(b, off)
-    end
-    return buffer.readf64(b, off)
-end
+local NUM_READ: { [number]: (buffer, number) -> number } = table.freeze({
+    [TAG_U8] = buffer.readu8,
+    [TAG_U16] = buffer.readu16,
+    [TAG_U32] = buffer.readu32,
+    [TAG_I8] = buffer.readi8,
+    [TAG_I16] = buffer.readi16,
+    [TAG_I32] = buffer.readi32,
+    [TAG_F32] = buffer.readf32,
+    [TAG_F64] = buffer.readf64,
+})
 
 type TypeEntry = { tag: number, codec: Types.InternalCodec<any> }
 
@@ -211,6 +122,45 @@ local READ_DISPATCH: { [number]: Types.InternalCodec<any> } = table.freeze({
     [TAG_COLSEQ] = SeqC.colorSequence,
 })
 
+-- Private ----------------------------------------------------------------
+
+local alloc     = Base.alloc
+local writeByte = Channel.writeByte
+local writeu8   = buffer.writeu8
+local readu8    = buffer.readu8
+local floor     = math.floor
+local isnan     = math.isnan
+
+--[[
+    Pick the narrowest tag for a number. NaN forces F64 (no integer or F32
+    can represent it). Integers walk u8 -> u16 -> u32 / i8 -> i16 -> i32; non-
+    integers try f32 by round-tripping through scratch (see Number.luau) and
+    fall through to f64 if precision is lost.
+]]
+local function selectNumberTag(value: number): number
+    if isnan(value) then
+        return TAG_F64
+    end
+
+    if floor(value) == value then
+        if value >= 0 then
+            if value <= 0xFF then return TAG_U8 end
+            if value <= 0xFFFF then return TAG_U16 end
+            if value <= 0xFFFFFFFF then return TAG_U32 end
+        else
+            if value >= -0x80 then return TAG_I8 end
+            if value >= -0x8000 then return TAG_I16 end
+            if value >= -0x80000000 then return TAG_I32 end
+        end
+    end
+
+    buffer.writef32(F32_SCRATCH, 0, value)
+    if buffer.readf32(F32_SCRATCH, 0) == value then
+        return TAG_F32
+    end
+    return TAG_F64
+end
+
 local function writeAuto(ch: Types.ChannelState, value: any): ()
     if value == nil then
         writeByte(ch, TAG_NIL)
@@ -233,15 +183,16 @@ local function writeAuto(ch: Types.ChannelState, value: any): ()
 
     if t == "number" then
         local tag = selectNumberTag(value)
-        local totalSize = 1 + numberSize(tag)
+        local size = NUM_SIZE[tag]
+        local total = 1 + size
         local cursor = ch.cursor
-        if cursor + totalSize > ch.size then
-            alloc(ch, totalSize)
+        if cursor + total > ch.size then
+            alloc(ch, total)
         end
         local b = ch.buff
         writeu8(b, cursor, tag)
-        writeNumber(b, cursor + 1, tag, value)
-        ch.cursor = cursor + totalSize
+        NUM_WRITE[tag](b, cursor + 1, value)
+        ch.cursor = cursor + total
         return
     end
 
@@ -250,6 +201,7 @@ local function writeAuto(ch: Types.ChannelState, value: any): ()
 
         local len = #value
         local cursor = ch.cursor
+        -- Inline single-byte length fast path; matches String.luau.
         if len <= INLINE_MAX then
             if cursor + 1 + len > ch.size then
                 alloc(ch, 1 + len)
@@ -280,22 +232,22 @@ local function writeAuto(ch: Types.ChannelState, value: any): ()
 
     local entry = TYPE_DISPATCH[t]
     if not entry then
-        error(`[Lync] Auto.write: unsupported type "{t}"`)
+        Log.error(`unsupported type "{t}"`)
     end
-
     local codec = entry.codec
     local size = codec._size
     local dw = codec._directWrite
+    -- Fixed-size + direct writer: single alloc + tag + payload.
     if size and dw then
-        local totalSize = 1 + size
+        local total = 1 + size
         local cursor = ch.cursor
-        if cursor + totalSize > ch.size then
-            alloc(ch, totalSize)
+        if cursor + total > ch.size then
+            alloc(ch, total)
         end
         local b = ch.buff
         writeu8(b, cursor, entry.tag)
         dw(b, cursor + 1, value)
-        ch.cursor = cursor + totalSize
+        ch.cursor = cursor + total
         return
     end
 
@@ -314,7 +266,7 @@ local function readAuto(src: buffer, pos: number, refs: { Instance }?): (any, nu
     end
 
     if tag >= TAG_U8 and tag <= TAG_F64 then
-        return readNumber(src, pos + 1, tag), 1 + numberSize(tag)
+        return NUM_READ[tag](src, pos + 1), 1 + NUM_SIZE[tag]
     end
 
     if tag == TAG_STRING then
@@ -332,7 +284,7 @@ local function readAuto(src: buffer, pos: number, refs: { Instance }?): (any, nu
 
     local codec = READ_DISPATCH[tag]
     if not codec then
-        error(`[Lync] Auto.read: unknown tag {tag}`)
+        Log.error(`unknown tag {tag}`)
     end
     local value, consumed = codec.read(src, pos + 1, refs)
     return value, 1 + consumed

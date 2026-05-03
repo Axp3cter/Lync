@@ -1,17 +1,17 @@
 --!strict
---!optimize 2
--- Vector2int16 (4 bytes) and Vector3int16 (6 bytes) codecs.
+--!native
+-- Vector2int16 (4B) and Vector3int16 (6B) codecs.
 
-local Base = require(script.Parent.Parent.Base)
+local Base   = require(script.Parent.Parent.Base)
 local Signed = require(script.Parent.Parent.primitive.Signed)
 
 -- Private ----------------------------------------------------------------
 
 local writeI16 = Signed.writeI16
-local readi16 = buffer.readi16
+local readi16  = buffer.readi16
 
 local function writeVec2I16(b: buffer, off: number, value: Vector2int16): ()
-    writeI16(b, off, value.X)
+    writeI16(b, off,     value.X)
     writeI16(b, off + 2, value.Y)
 end
 
@@ -20,7 +20,7 @@ local function readVec2I16(b: buffer, off: number): Vector2int16
 end
 
 local function writeVec3I16(b: buffer, off: number, value: Vector3int16): ()
-    writeI16(b, off, value.X)
+    writeI16(b, off,     value.X)
     writeI16(b, off + 2, value.Y)
     writeI16(b, off + 4, value.Z)
 end

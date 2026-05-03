@@ -1,26 +1,46 @@
 --!strict
 --!native
--- Map and deltaMap codecs.
+-- map() and deltaMap(). Keys sorted at encode for stable wire bytes.
 
-local Base = require(script.Parent.Parent.Base)
-local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Shared = require(script.Parent.Shared)
-local Types = require(script.Parent.Parent.Parent.Types)
-local Varint = require(script.Parent.Parent.primitive.Varint)
+local Base     = require(script.Parent.Parent.Base)
+local Baseline = require(script.Parent.Parent.Parent.internal.Baseline)
+local Log      = require(script.Parent.Parent.Parent.util.Log)
+local Shared   = require(script.Parent.Parent.composite.Shared)
+local Types    = require(script.Parent.Parent.Parent.Types)
+local Varint   = require(script.Parent.Parent.primitive.Varint)
+
+-- State ------------------------------------------------------------------
+
+--[[
+    Depth-stacked key scratch. A nested Map.write (Map<K, Map<K2, V>>) would
+    clobber a single shared array mid-iteration; the stack gives each frame
+    its own slot. Mirrors Shared.acquireScratch / releaseScratch.
+]]
+local _keyStacks: { { any } } = {}
+local _keyDepth = 0
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
-local writeByte = Channel.writeByte
-local readu8 = buffer.readu8
-
-local acquireScratch = Shared.acquireScratch
-local releaseScratch = Shared.releaseScratch
-local rangeEqual = Shared.rangeEqual
-local snapshot = Shared.snapshot
+local alloc        = Base.alloc
 local allocDeltaId = Shared.allocDeltaId
-local DELTA_UNCHANGED = Shared.DELTA_UNCHANGED
-local DELTA_FULL = Shared.DELTA_FULL
+
+local function acquireKeys(): { any }
+    _keyDepth += 1
+    local keys = _keyStacks[_keyDepth]
+    if keys then return keys end
+    keys = {}
+    _keyStacks[_keyDepth] = keys
+    return keys
+end
+
+local function releaseKeys(): ()
+    _keyDepth -= 1
+end
+
+-- Module-level so the mixed-type sort path doesn't allocate a closure per write.
+local function tostringLess(a: any, b: any): boolean
+    return tostring(a) < tostring(b)
+end
 
 -- Public -----------------------------------------------------------------
 
@@ -31,26 +51,61 @@ function Map.map(
     valueCodec: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
-    local fixedKey = keyCodec._size
+    local fixedKey   = keyCodec._size
     local fixedValue = valueCodec._size
+    local hasUnknown = keyCodec._hasUnknown or valueCodec._hasUnknown
 
-    return table.freeze({
+    --[[
+        Numbers and strings sort by `<` directly; everything else (Instance,
+        vector, mixed-type via Auto) routes through tostring. Pinned at codec
+        creation so writes don't re-sniff the key type.
+    ]]
+    local typeCheck     = keyCodec._typeCheck
+    local canSortDirect = typeCheck == "number" or typeCheck == "string"
+
+    local codec: Types.InternalCodec<any> = {
         _isMap = true,
         _keyCodec = keyCodec,
         _valueCodec = valueCodec,
         _maxCount = maxCount,
 
+        --[[
+            Sort keys for deterministic wire layout. Without this, two
+            structurally-equal maps yield different byte sequences across
+            frames, which breaks every downstream byte-equality cache (the
+            XOR baseline and deltaMap).
+        ]]
         write = function(ch: Types.ChannelState, value: { [any]: any }): ()
+            if typeof(value) ~= "table" then
+                Log.error(`expected table, got {typeof(value)}`)
+            end
+
+            local keys = acquireKeys()
             local count = 0
-            for _ in value do
+            for k in value do
                 count += 1
+                keys[count] = k
+            end
+
+            -- Drop tail entries from the prior reuse so table.sort sees only `count` items.
+            local prevTail = #keys
+            for i = count + 1, prevTail do
+                keys[i] = nil
             end
 
             Varint.write(ch, count)
             if count == 0 then
+                releaseKeys()
                 return
             end
 
+            if canSortDirect then
+                table.sort(keys :: { any })
+            else
+                table.sort(keys, tostringLess)
+            end
+
+            -- Single alloc when both halves are fixed-size.
             if fixedKey and fixedValue then
                 local entrySize = fixedKey + fixedValue
                 local cursor = ch.cursor
@@ -59,33 +114,53 @@ function Map.map(
                 end
             end
 
-            for k, v in value do
+            for i = 1, count do
+                local k = keys[i]
                 keyCodec.write(ch, k)
-                valueCodec.write(ch, v)
+                valueCodec.write(ch, value[k])
+                keys[i] = nil
             end
+            releaseKeys()
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
             local count, lenBytes = Varint.read(src, pos)
             if maxCount and count > maxCount then
-                error(`[Lync] Map.read: count {count} exceeds max {maxCount}`)
+                Log.error(`count {count} exceeds max {maxCount}`)
+            end
+
+            -- Fixed-size: reject corrupt counts before per-entry decode.
+            if fixedKey and fixedValue and count > 0 then
+                local entrySize = fixedKey + fixedValue
+                local dataStart = pos + lenBytes
+                local payloadBytes = count * entrySize
+                if payloadBytes > buffer.len(src) - dataStart then
+                    Log.error(`payload {payloadBytes}B exceeds remaining buffer`)
+                end
             end
 
             local result: { [any]: any } = {}
             local total = lenBytes
             for i = 1, count do
                 local k, kc = keyCodec.read(src, pos + total, refs)
+                if kc == 0 then
+                    Log.error(`truncated key at index {i}`)
+                end
                 total += kc
                 local v, vc = valueCodec.read(src, pos + total, refs)
-                total += vc
-                if kc == 0 and vc == 0 then
-                    error(`[Lync] Map.read: zero-byte entry at index {i}`)
+                if vc == 0 then
+                    Log.error(`truncated value at index {i}`)
                 end
+                total += vc
                 result[k] = v
             end
             return result, total
         end,
-    })
+    }
+    if hasUnknown then
+        codec._hasUnknown = true
+    end
+    return table.freeze(codec)
 end
 
 function Map.deltaMap(
@@ -93,57 +168,11 @@ function Map.deltaMap(
     valueCodec: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
-    local deltaId = allocDeltaId()
-    local innerMap = Map.map(keyCodec, valueCodec, maxCount)
-
-    return table.freeze({
-        _isDelta = true,
-
-        write = function(ch: Types.ChannelState, value: { [any]: any }): ()
-            local cache = ch.deltas[deltaId]
-
-            if not cache then
-                writeByte(ch, DELTA_FULL)
-
-                local scratch = acquireScratch()
-                innerMap.write(scratch, value)
-                local snapLen = scratch.cursor
-
-                ch.deltas[deltaId] = { raw = snapshot(scratch.buff, snapLen), len = snapLen }
-                innerMap.write(ch, value)
-                releaseScratch()
-                return
-            end
-
-            local scratch = acquireScratch()
-            innerMap.write(scratch, value)
-            local scratchLen = scratch.cursor
-
-            if
-                scratchLen == cache.len
-                and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen)
-            then
-                writeByte(ch, DELTA_UNCHANGED)
-                releaseScratch()
-                return
-            end
-
-            writeByte(ch, DELTA_FULL)
-            innerMap.write(ch, value)
-
-            cache.raw = snapshot(scratch.buff, scratchLen)
-            cache.len = scratchLen
-            releaseScratch()
-        end,
-
-        read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
-            if readu8(src, pos) == DELTA_UNCHANGED then
-                return {}, 1
-            end
-            local value, consumed = innerMap.read(src, pos + 1, refs)
-            return value, 1 + consumed
-        end,
-    })
+    return Shared.makeUnchangedOrFullDelta(
+        Map.map(keyCodec, valueCodec, maxCount),
+        allocDeltaId(),
+        Baseline
+    )
 end
 
 return table.freeze(Map)

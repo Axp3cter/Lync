@@ -1,24 +1,29 @@
 --!strict
---!optimize 2
--- Rect codec. 16 bytes: 4x f32 (Min.X, Min.Y, Max.X, Max.Y).
+--!native
+-- Rect codec. 16B: 4x f32 (Min.X, Min.Y, Max.X, Max.Y).
 
 local Base = require(script.Parent.Parent.Base)
 
 -- Private ----------------------------------------------------------------
 
+local writef32 = buffer.writef32
+local readf32  = buffer.readf32
+
 local function writeRect(b: buffer, off: number, value: Rect): ()
-    buffer.writef32(b, off, value.Min.X)
-    buffer.writef32(b, off + 4, value.Min.Y)
-    buffer.writef32(b, off + 8, value.Max.X)
-    buffer.writef32(b, off + 12, value.Max.Y)
+    local minV = value.Min
+    local maxV = value.Max
+    writef32(b, off,      minV.X)
+    writef32(b, off + 4,  minV.Y)
+    writef32(b, off + 8,  maxV.X)
+    writef32(b, off + 12, maxV.Y)
 end
 
 local function readRect(b: buffer, off: number): Rect
     return Rect.new(
-        buffer.readf32(b, off),
-        buffer.readf32(b, off + 4),
-        buffer.readf32(b, off + 8),
-        buffer.readf32(b, off + 12)
+        readf32(b, off),
+        readf32(b, off + 4),
+        readf32(b, off + 8),
+        readf32(b, off + 12)
     )
 end
 

@@ -1,64 +1,117 @@
 --!strict
 --!optimize 2
+-- Aggregator: requires every spec file so its top-level describe() runs.
 
--- Codec
-require(script.codec["Varint.test"])
-require(script.codec["Int.test"])
-require(script.codec["Number.test"])
-require(script.codec["Float16.test"])
-require(script.codec["Bool.test"])
-require(script.codec["String.test"])
-require(script.codec["Buffer.test"])
-require(script.codec["Struct.test"])
-require(script.codec["Array.test"])
-require(script.codec["Map.test"])
-require(script.codec["Optional.test"])
-require(script.codec["Tuple.test"])
-require(script.codec["Tagged.test"])
-require(script.codec["Enum.test"])
-require(script.codec["Float.test"])
-require(script.codec["Bitfield.test"])
-require(script.codec["Nothing.test"])
-require(script.codec["Custom.test"])
-require(script.codec["Vector.test"])
-require(script.codec["CFrame.test"])
-require(script.codec["Color.test"])
-require(script.codec["UDim.test"])
-require(script.codec["Rect.test"])
-require(script.codec["Ray.test"])
-require(script.codec["NumberRange.test"])
-require(script.codec["Region.test"])
-require(script.codec["IntVector.test"])
-require(script.codec["Instance.test"])
-require(script.codec["Unknown.test"])
-require(script.codec["Sequence.test"])
-require(script.codec["Auto.test"])
+local Test = script
 
--- Adversarial
-require(script.adversarial["NaN.test"])
-require(script.adversarial["Truncated.test"])
-require(script.adversarial["SchemaValidation.test"])
+-- Unit: codec base ------------------------------------------------------
 
--- Pipeline
-require(script.pipeline["Xor.test"])
-require(script.pipeline["MSB.test"])
-require(script.pipeline["Delta.test"])
-require(script.pipeline["EndToEnd.test"])
+require(Test.unit.codec["Base.spec"])
 
--- Transport
-require(script.transport["Gate.test"])
-require(script.transport["Reader.test"])
+-- Unit: codec primitives ------------------------------------------------
 
--- API
-require(script.api["Signal.test"])
-require(script.api["Group.test"])
-require(script.api["Scope.test"])
+require(Test.unit.codec.primitive["Bool.spec"])
+require(Test.unit.codec.primitive["Float16.spec"])
+require(Test.unit.codec.primitive["Int.spec"])
+require(Test.unit.codec.primitive["Number.spec"])
+require(Test.unit.codec.primitive["Signed.spec"])
+require(Test.unit.codec.primitive["Varint.spec"])
 
--- Internal
-require(script.internal["Channel.test"])
-require(script.internal["Registry.test"])
-require(script.internal["Pool.test"])
-require(script.internal["Baseline.test"])
-require(script.internal["Middleware.test"])
+-- Unit: codec datatypes -------------------------------------------------
+
+require(Test.unit.codec.datatype["Buffer.spec"])
+require(Test.unit.codec.datatype["CFrame.spec"])
+require(Test.unit.codec.datatype["Color.spec"])
+require(Test.unit.codec.datatype["Instance.spec"])
+require(Test.unit.codec.datatype["IntVector.spec"])
+require(Test.unit.codec.datatype["NumberRange.spec"])
+require(Test.unit.codec.datatype["Ray.spec"])
+require(Test.unit.codec.datatype["Rect.spec"])
+require(Test.unit.codec.datatype["Region.spec"])
+require(Test.unit.codec.datatype["Sequence.spec"])
+require(Test.unit.codec.datatype["String.spec"])
+require(Test.unit.codec.datatype["UDim.spec"])
+require(Test.unit.codec.datatype["Vector.spec"])
+
+-- Unit: codec composites ------------------------------------------------
+
+require(Test.unit.codec.composite["Array.spec"])
+require(Test.unit.codec.composite["Map.spec"])
+require(Test.unit.codec.composite["Optional.spec"])
+require(Test.unit.codec.composite["Shared.spec"])
+require(Test.unit.codec.composite["Struct.spec"])
+require(Test.unit.codec.composite["Tagged.spec"])
+require(Test.unit.codec.composite["Tuple.spec"])
+
+-- Unit: codec meta ------------------------------------------------------
+
+require(Test.unit.codec.meta["Auto.spec"])
+require(Test.unit.codec.meta["Bitfield.spec"])
+require(Test.unit.codec.meta["Custom.spec"])
+require(Test.unit.codec.meta["Enum.spec"])
+require(Test.unit.codec.meta["Float.spec"])
+require(Test.unit.codec.meta["Nothing.spec"])
+require(Test.unit.codec.meta["Unknown.spec"])
+
+-- Unit: internal --------------------------------------------------------
+
+require(Test.unit.internal["Baseline.spec"])
+require(Test.unit.internal["Channel.spec"])
+require(Test.unit.internal["Middleware.spec"])
+require(Test.unit.internal["Pool.spec"])
+require(Test.unit.internal["Registry.spec"])
+require(Test.unit.internal["Transport.spec"])
+
+-- Unit: util ------------------------------------------------------------
+
+require(Test.unit.util["Array.spec"])
+require(Test.unit.util["Buffer.spec"])
+require(Test.unit.util["Constants.spec"])
+require(Test.unit.util["Log.spec"])
+require(Test.unit.util["Player.spec"])
+require(Test.unit.util["Quantize.spec"])
+
+-- Unit: transport -------------------------------------------------------
+
+require(Test.unit.transport["Bridge.spec"])
+require(Test.unit.transport["Client.spec"])
+require(Test.unit.transport["Gate.spec"])
+require(Test.unit.transport["Reader.spec"])
+require(Test.unit.transport["Server.spec"])
+
+-- Unit: api -------------------------------------------------------------
+
+require(Test.unit.api["Group.spec"])
+require(Test.unit.api["Packet.spec"])
+require(Test.unit.api["Query.spec"])
+require(Test.unit.api["Scope.spec"])
+require(Test.unit.api["Signal.spec"])
+
+-- Integration -----------------------------------------------------------
+
+require(Test.integration["BatchFraming.spec"])
+require(Test.integration["DeltaCodecs.spec"])
+require(Test.integration["Init.spec"])
+require(Test.integration["Multiplayer.spec"])
+require(Test.integration["Networking.spec"])
+require(Test.integration["Pipeline.spec"])
+require(Test.integration["Timestamps.spec"])
+require(Test.integration["XorDelta.spec"])
+
+-- Property --------------------------------------------------------------
+
+require(Test.property["Codec.spec"])
+require(Test.property["Composite.spec"])
+require(Test.property["Delta.spec"])
+require(Test.property["Wire.spec"])
+
+-- Adversarial -----------------------------------------------------------
+
+require(Test.adversarial["BoundsOverflow.spec"])
+require(Test.adversarial["ExploitVectors.spec"])
+require(Test.adversarial["Fuzz.spec"])
+require(Test.adversarial["NaN.spec"])
+require(Test.adversarial["Schema.spec"])
+require(Test.adversarial["Truncated.spec"])
 
 return nil

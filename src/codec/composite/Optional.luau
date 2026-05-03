@@ -1,14 +1,16 @@
 --!strict
---!optimize 2
--- Optional codec. 1-byte present/absent flag, value only if present.
+--!native
+-- Optional codec. 1-byte present/absent flag, value only when present.
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Log     = require(script.Parent.Parent.Parent.util.Log)
+local Types   = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
 local writeByte = Channel.writeByte
-local readu8 = buffer.readu8
+local readu8    = buffer.readu8
+local bufferLen = buffer.len
 
 -- Public -----------------------------------------------------------------
 
@@ -29,6 +31,7 @@ function Optional.optional(inner: Types.InternalCodec<any>): Types.InternalCodec
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
+            Log.assert(pos < bufferLen(src), "presence byte missing at end of buffer")
             if readu8(src, pos) == 0 then
                 return nil, 1
             end
@@ -37,6 +40,7 @@ function Optional.optional(inner: Types.InternalCodec<any>): Types.InternalCodec
         end,
     }
 
+    -- Propagate _hasUnknown so Gate skips schema validation upstream.
     if inner._hasUnknown then
         codec._hasUnknown = true
     end

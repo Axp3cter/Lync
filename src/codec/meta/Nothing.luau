@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Zero-byte codec. Reads nil. For fire-and-forget signals.
+-- 0-byte codec. Reads nil. For fire-and-forget signals.
 
 local Base = require(script.Parent.Parent.Base)
 

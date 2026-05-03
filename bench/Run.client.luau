@@ -1,74 +1,50 @@
 --!strict
 --!optimize 2
--- Client-side benchmark runner. Drains s2c, then drives c2s.
+-- Client: receive s2c, then drive c2s.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
-local LyncFolder = ReplicatedStorage:WaitForChild("Lync")
-local Harness = require(LyncFolder.bench.Harness)
-local Lync = require(LyncFolder)
-local Scenarios = require(LyncFolder.bench.Scenarios)
-
--- Constants --------------------------------------------------------------
+local Lync = require(ReplicatedStorage:WaitForChild("Lync"))
+local Harness = require(ReplicatedStorage.Lync.bench.Harness)
+local Scenarios = require(ReplicatedStorage.Lync.bench.Scenarios)
 
 local bench = Scenarios.bench
 
-local function noop(): () end
-
---[[
-    Client must mirror the server's channelMaxSize. Server and client run
-    as separate Lua VMs with independent module state, so configure() on
-    the server doesn't propagate. Without this, the client's buffer caps
-    at the 256KB default and the comparison test (1000 fires of 601B
-    entity arrays = 601KB) overflows during c2s.
-]]
-Lync.configure({ channelMaxSize = bench.channelMaxSize })
-Lync.start()
-
--- Attach receivers so server -> client throughput isn't held back by
--- serializing into uncollected channels.
-for _, packet in Scenarios.packets do
-    packet:on(noop)
+-- Minimise render contention so frame budget reflects bench CPU only.
+if Workspace.CurrentCamera then
+    Workspace.CurrentCamera.FieldOfView = 1
 end
 
--- Wait through s2c phase -------------------------------------------------
+Lync.configure({ channelMaxSize = bench.channelMaxSize, stats = true })
+Lync.start()
 
 Scenarios.handshake.ServerCpuDone:wait()
 Scenarios.handshake.ClientReady:send(true)
 Scenarios.handshake.ServerSwap:wait()
 
--- c2s throughput ---------------------------------------------------------
+-- Blink-comparable c2s ---------------------------------------------------
 
-Harness.header("Network Throughput (client -> server)")
-
-Harness.section(string.format("%d fires/frame, %ds per case", bench.smallFires, bench.netDuration))
-for _, case in Scenarios.netCases do
-    local packet, data = case.packet, case.data
-    Harness.benchNetwork(case.label, case.fires, bench.netDuration, function()
-        packet:send(data)
-    end)
+Harness.header(string.format(
+    "Cross-library reference (c2s, %d fires/frame, %ds)",
+    bench.blinkFiresPerFrame, bench.blinkSeconds
+))
+for _, case in Scenarios.blinkCases do
+    Harness.throughput(case.label, bench.blinkFiresPerFrame, bench.blinkSeconds, case.pool,
+        function(data) case.packet:send(data) end)
+    task.wait(2)
 end
-Harness.sectionEnd()
 
--- Cross-library comparison (client -> server) ----------------------------
+-- Extended c2s -----------------------------------------------------------
 
-Harness.header("Cross-Library Comparison (client -> server)")
-
-for _, case in Scenarios.compCases do
-    Harness.section(
-        string.format("%s, %d/frame, %ds", case.title, bench.compFires, bench.compDuration)
-    )
-    local packet, data = case.packet, case.data
-    Harness.benchComparison(
-        case.label,
-        bench.compFires,
-        bench.compDuration,
-        bench.compFps,
-        function()
-            packet:send(data)
-        end
-    )
-    Harness.sectionEnd()
+Harness.header(string.format(
+    "Extended (c2s, %d fires/frame, %ds)",
+    bench.extendedFiresPerFrame, bench.extendedSeconds
+))
+for _, case in Scenarios.extendedCases do
+    Harness.throughput(case.label, bench.extendedFiresPerFrame, bench.extendedSeconds, case.pool,
+        function(data) case.packet:send(data) end)
+    task.wait(1)
 end
 
 Scenarios.handshake.ClientDone:send(true)

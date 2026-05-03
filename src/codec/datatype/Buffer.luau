@@ -1,21 +1,23 @@
 --!strict
---!optimize 2
+--!native
 -- Raw buffer codec with dense-prefix-varint length prefix.
 
-local Base = require(script.Parent.Parent.Base)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Base   = require(script.Parent.Parent.Base)
+local Log    = require(script.Parent.Parent.Parent.util.Log)
+local Types  = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
-local INLINE = Varint.INLINE_MAX
+local alloc      = Base.alloc
+local INLINE_MAX = Varint.INLINE_MAX
 
 local function writeBuffer(ch: Types.ChannelState, value: buffer): ()
-    local len = buffer.len(value)
+    local len    = buffer.len(value)
     local cursor = ch.cursor
 
-    if len <= INLINE then
+    -- Single-byte length fast path skips the full varint encode.
+    if len <= INLINE_MAX then
         if cursor + 1 + len > ch.size then
             alloc(ch, 1 + len)
         end
@@ -45,7 +47,7 @@ local function readBuffer(src: buffer, pos: number, _refs: { Instance }?): (buff
 
     local dataStart = pos + lenBytes
     if dataStart + len > buffer.len(src) then
-        error("[Lync] Buffer.read: length exceeds remaining buffer")
+        Log.error(`length {len}B exceeds remaining buffer`)
     end
 
     local out = buffer.create(len)

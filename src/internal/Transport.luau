@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- Lazy-require Server/Client to break the api -> transport import cycle.
+-- Lazy Server/Client require to break the api -> transport import cycle.
 
 -- State ------------------------------------------------------------------
 

@@ -2,7 +2,8 @@
 --!optimize 2
 -- User-defined fixed-size codec.
 
-local Base = require(script.Parent.Parent.Base)
+local Base  = require(script.Parent.Parent.Base)
+local Log   = require(script.Parent.Parent.Parent.util.Log)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -20,8 +21,9 @@ function Custom.define<T>(
     typeCheck: string?
 ): Types.InternalCodec<T>
     if type(size) ~= "number" or size < 0 or floor(size) ~= size then
-        error("[Lync] Lync.custom: size must be a non-negative integer")
+        Log.error(`size must be a non-negative integer, got {size}`)
     end
+    -- size == 0 collapses to constant(nil): user has no payload to encode.
     if size == 0 then
         return Base.constant(nil :: any) :: Types.InternalCodec<T>
     end

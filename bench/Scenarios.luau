@@ -1,35 +1,19 @@
 --!strict
 --!optimize 2
--- Packet definitions, bench config, and case lists shared by both runners.
+-- Bench definitions: codec catalogue, delta catalogue, network workloads.
 
 local Lync = require(script.Parent.Parent)
 
 -- Constants --------------------------------------------------------------
 
-local BLINK_ENTITY_COUNT = 100
-local BLINK_BOOL_COUNT = 1000
+local POOL_SIZE = 1000
+local ENT_COUNT = 100
+local BOOL_COUNT = 1000
+local CFRAME_COUNT = 50
 
--- Schema fragments -------------------------------------------------------
+-- Schemas ----------------------------------------------------------------
 
-local entityFields = {
-    position = Lync.vec3,
-    velocity = Lync.vec3,
-    health = Lync.f32,
-    shield = Lync.f32,
-    alive = Lync.bool,
-    team = Lync.int(0, 255),
-}
-
-local entityCompactFields = {
-    position = Lync.vec3(-500, 500, 0.1),
-    velocity = Lync.vec3(-50, 50, 0.5),
-    health = Lync.int(0, 255),
-    shield = Lync.int(0, 255),
-    alive = Lync.bool,
-    team = Lync.int(0, 7),
-}
-
-local blinkEntityFields = {
+local entitySchema = {
     id = Lync.int(0, 255),
     x = Lync.int(0, 255),
     y = Lync.int(0, 255),
@@ -38,241 +22,258 @@ local blinkEntityFields = {
     animation = Lync.int(0, 255),
 }
 
-local flagFields = {
-    alive = { type = "bool" },
-    grounded = { type = "bool" },
-    sprinting = { type = "bool" },
-    crouching = { type = "bool" },
-    team = { type = "uint", width = 3 },
-    health = { type = "uint", width = 7 },
+local stateSchema = {
+    posX = Lync.f32, posY = Lync.f32, posZ = Lync.f32,
+    velX = Lync.f32, velY = Lync.f32, velZ = Lync.f32,
+    yaw = Lync.f32, pitch = Lync.f32,
+    health = Lync.int(0, 255), armor = Lync.int(0, 255),
+    alive = Lync.bool, grounded = Lync.bool,
 }
 
--- Codec instances --------------------------------------------------------
+local entityCodec = Lync.struct(entitySchema)
+local entityArray = Lync.array(entityCodec)
+local boolArray = Lync.array(Lync.bool)
+local cframeArray = Lync.array(Lync.cframe())
+local stateCodec = Lync.struct(stateSchema)
+local stateDelta = Lync.deltaStruct(stateSchema)
 
-local entityCodec = Lync.struct(entityFields)
-local entityCompactCodec = Lync.struct(entityCompactFields)
-local entityDeltaCodec = Lync.deltaStruct(entityFields)
-local entityCompactDelta = Lync.deltaStruct(entityCompactFields)
-local blinkEntityCodec = Lync.struct(blinkEntityFields)
-local flagsCodec = Lync.bitfield(flagFields)
+-- Generators -------------------------------------------------------------
 
--- Static data ------------------------------------------------------------
+local rng = Random.new(0xB1A5)
 
-local CFRAME_VALUE = CFrame.new(10, 20, 30) * CFrame.Angles(1, 0.5, 0.3)
-
-local ENTITY = table.freeze({
-    position = Vector3.new(100.5, 50.25, -200.75),
-    velocity = Vector3.new(10.1, 0, -5.3),
-    health = 87.5,
-    shield = 42.0,
-    alive = true,
-    team = 2,
-})
-
-local ENTITY_COMPACT = table.freeze({
-    position = Vector3.new(100.5, 50.25, -200.75),
-    velocity = Vector3.new(10.1, 0, -5.3),
-    health = 88,
-    shield = 42,
-    alive = true,
-    team = 2,
-})
-
-local FLAGS = table.freeze({
-    alive = true,
-    grounded = true,
-    sprinting = false,
-    crouching = false,
-    team = 3,
-    health = 100,
-})
-
-local rng = Random.new(0)
-local blinkEntities = table.create(BLINK_ENTITY_COUNT)
-for i = 1, BLINK_ENTITY_COUNT do
-    blinkEntities[i] = {
-        id = rng:NextInteger(1, 255),
-        x = rng:NextInteger(1, 255),
-        y = rng:NextInteger(1, 255),
-        z = rng:NextInteger(1, 255),
-        orientation = rng:NextInteger(1, 255),
-        animation = rng:NextInteger(1, 255),
+local function entity()
+    return {
+        id = rng:NextInteger(0, 255),
+        x = rng:NextInteger(0, 255),
+        y = rng:NextInteger(0, 255),
+        z = rng:NextInteger(0, 255),
+        orientation = rng:NextInteger(0, 255),
+        animation = rng:NextInteger(0, 255),
     }
 end
-local BLINK_ENTITIES = table.freeze(blinkEntities)
-local BLINK_BOOLS = table.freeze(table.create(BLINK_BOOL_COUNT, true))
 
--- Handshake (4-step: cpu done -> ready -> swap -> done) ------------------
+local function entityArr(n: number)
+    local a = table.create(n)
+    for i = 1, n do a[i] = entity() end
+    return a
+end
+
+local function boolArr(n: number)
+    local a = table.create(n)
+    for i = 1, n do a[i] = rng:NextNumber() < 0.5 end
+    return a
+end
+
+local function cframeOne(): CFrame
+    return CFrame.new(rng:NextNumber(-500, 500), rng:NextNumber(0, 100), rng:NextNumber(-500, 500))
+        * CFrame.Angles(
+            rng:NextNumber(-math.pi, math.pi),
+            rng:NextNumber(-math.pi, math.pi),
+            rng:NextNumber(-math.pi, math.pi)
+        )
+end
+
+local function cframeArr(n: number)
+    local a = table.create(n)
+    for i = 1, n do a[i] = cframeOne() end
+    return a
+end
+
+local function stateOne()
+    return {
+        posX = rng:NextNumber(-500, 500), posY = rng:NextNumber(0, 100), posZ = rng:NextNumber(-500, 500),
+        velX = rng:NextNumber(-50, 50), velY = rng:NextNumber(-20, 20), velZ = rng:NextNumber(-50, 50),
+        yaw = rng:NextNumber(-math.pi, math.pi), pitch = rng:NextNumber(-1.4, 1.4),
+        health = rng:NextInteger(0, 255), armor = rng:NextInteger(0, 255),
+        alive = rng:NextNumber() < 0.95, grounded = rng:NextNumber() < 0.7,
+    }
+end
+
+-- Pool builders ----------------------------------------------------------
+
+local function poolVarying<T>(make: () -> T): { T }
+    local p = table.create(POOL_SIZE)
+    for i = 1, POOL_SIZE do p[i] = make() end
+    return table.freeze(p) :: { T }
+end
+
+local function poolShared<T>(make: () -> T): { T }
+    local one = make()
+    local p = table.create(POOL_SIZE)
+    for i = 1, POOL_SIZE do p[i] = one end
+    return table.freeze(p) :: { T }
+end
+
+local function poolBoolFlip(n: number)
+    local current = boolArr(n)
+    local p = table.create(POOL_SIZE)
+    p[1] = table.clone(current)
+    for i = 2, POOL_SIZE do
+        local idx = 1 + (i - 2) % n
+        current[idx] = not current[idx]
+        p[i] = table.clone(current)
+    end
+    return table.freeze(p) :: { { boolean } }
+end
+
+local function poolStateOneMut()
+    local keys = { "posX", "posY", "posZ", "velX", "velY", "velZ", "yaw", "pitch", "health", "armor" }
+    local current = stateOne()
+    local p = table.create(POOL_SIZE)
+    p[1] = table.clone(current)
+    for i = 2, POOL_SIZE do
+        local k = keys[1 + (i - 2) % #keys]
+        if k == "health" or k == "armor" then
+            current[k] = rng:NextInteger(0, 255)
+        else
+            current[k] = rng:NextNumber(-100, 100)
+        end
+        p[i] = table.clone(current)
+    end
+    return table.freeze(p) :: { { [string]: any } }
+end
+
+-- Wire-size catalogue ----------------------------------------------------
+
+local wireCases = table.freeze({
+    { label = "u8",                 codec = Lync.int(0, 255),               value = 200 },
+    { label = "u16",                codec = Lync.int(0, 65535),             value = 30000 },
+    { label = "u32",                codec = Lync.int(0, 0xFFFFFFFF),        value = 1234567890 },
+    { label = "f16",                codec = Lync.f16,                       value = 42.5 },
+    { label = "f32",                codec = Lync.f32,                       value = 3.14 },
+    { label = "f64",                codec = Lync.f64,                       value = math.pi },
+    { label = "vec3.lossless",      codec = Lync.vec3,                      value = Vector3.new(1.5, 2.5, 3.5) },
+    { label = "vec3.q[0..100,1]",   codec = Lync.vec3(0, 100, 1),           value = Vector3.new(25, 50, 75) },
+    { label = "vec3.q[-1k..1k,.1]", codec = Lync.vec3(-1000, 1000, 0.1),    value = Vector3.zero },
+    { label = "cframe.lossless",    codec = Lync.cframe,                    value = CFrame.new(1, 2, 3) },
+    { label = "cframe.compact",     codec = Lync.cframe(),                  value = CFrame.new(1, 2, 3) },
+    { label = "color3",             codec = Lync.color3,                    value = Color3.fromRGB(128, 64, 200) },
+    { label = "string[5]",          codec = Lync.string,                    value = "hello" },
+    { label = "string[191]",        codec = Lync.string,                    value = string.rep("x", 191) },
+    { label = "string[192]",        codec = Lync.string,                    value = string.rep("x", 192) },
+    { label = "string[1000]",       codec = Lync.string,                    value = string.rep("x", 1000) },
+    { label = "optional<u8>(some)", codec = Lync.optional(Lync.int(0,255)), value = 7 },
+    { label = "optional<u8>(none)", codec = Lync.optional(Lync.int(0,255)), value = nil },
+    { label = "array<u8>[100]",     codec = Lync.array(Lync.int(0, 255)),   value = (function() local t = {} for i = 1, 100 do t[i] = i % 256 end return t end)() },
+    { label = "array<bool>[1000]",  codec = boolArray,                      value = boolArr(1000) },
+    { label = "entity_struct",      codec = entityCodec,                    value = entity() },
+    { label = "entity_arr_100",     codec = entityArray,                    value = entityArr(100) },
+    { label = "state_struct",       codec = stateCodec,                     value = stateOne() },
+    { label = "bitfield[6 fields]", codec = Lync.bitfield({
+        a = { type = "bool" }, b = { type = "bool" }, c = { type = "bool" }, d = { type = "bool" },
+        tier = { type = "uint", width = 4 }, level = { type = "uint", width = 8 },
+    }), value = { a = true, b = false, c = true, d = false, tier = 7, level = 99 } },
+})
+
+-- Delta wire-size catalogue ----------------------------------------------
+
+local stateBase = stateOne()
+local stateOneMut = table.clone(stateBase); stateOneMut.posX = 999
+local stateMultiMut = table.clone(stateBase)
+stateMultiMut.posX = 1; stateMultiMut.posY = 2; stateMultiMut.posZ = 3
+stateMultiMut.velX = 4; stateMultiMut.velY = 5; stateMultiMut.velZ = 6
+
+local deltaCases = table.freeze({
+    { label = "delta unchanged",        seed = stateBase, value = stateBase    },
+    { label = "delta 1-field-mut",      seed = stateBase, value = stateOneMut  },
+    { label = "delta 6-fields-mut",     seed = stateBase, value = stateMultiMut },
+})
+
+-- Round-trip catalogue (CPU only) ----------------------------------------
+
+local entitySample = entityArr(ENT_COUNT)
+local boolSample = boolArr(BOOL_COUNT)
+local stateSample = stateOne()
+
+local roundTripCases = table.freeze({
+    { label = "u8",              codec = Lync.int(0, 255), value = 42 },
+    { label = "f32",             codec = Lync.f32,         value = 3.14 },
+    { label = "vec3",            codec = Lync.vec3,        value = Vector3.new(1, 2, 3) },
+    { label = "cframe.lossless", codec = Lync.cframe,      value = CFrame.identity },
+    { label = "cframe.compact",  codec = Lync.cframe(),    value = CFrame.identity },
+    { label = "state_struct",    codec = stateCodec,       value = stateSample },
+    { label = "entity_arr_100",  codec = entityArray,      value = entitySample },
+    { label = "bool_arr_1000",   codec = boolArray,        value = boolSample },
+})
+
+--[[
+    Blink-comparable workloads. Mirrors github.com/1Axen/blink/benchmark
+    exactly: 1000 fires/frame for 10 s; the same payload reused across
+    every fire and frame; entity array generated with math.randomseed(0)
+    so server and client agree; bool array is `table.create(1000, true)`.
+]]
+type NetCase = { label: string, packet: any, pool: { any } }
+
+local nextPacketId = 0
+local function defCase(label: string, codec: any, pool: { any }): NetCase
+    nextPacketId += 1
+    return { label = label, packet = Lync.packet("Bench_" .. nextPacketId, codec), pool = pool }
+end
+
+local blinkEntityArr = (function()
+    math.randomseed(0)
+    local a = table.create(ENT_COUNT)
+    for i = 1, ENT_COUNT do
+        a[i] = {
+            id = math.random(1, 255),
+            x = math.random(1, 255),
+            y = math.random(1, 255),
+            z = math.random(1, 255),
+            orientation = math.random(1, 255),
+            animation = math.random(1, 255),
+        }
+    end
+    return table.freeze(a)
+end)()
+
+local blinkBoolArr = table.freeze(table.create(BOOL_COUNT, true))
+
+local blinkCases: { NetCase } = table.freeze({
+    defCase("blink_entity_arr_100", entityArray, table.freeze(table.create(POOL_SIZE, blinkEntityArr) :: { any })),
+    defCase("blink_bool_arr_1000",  boolArray,   table.freeze(table.create(POOL_SIZE, blinkBoolArr) :: { any })),
+})
+
+--[[
+    Extended workloads at 100 fires/frame. Pairs vary/stable cases on the
+    same codec to expose XOR + delta savings: vary = worst case, stable =
+    same array reused so XOR collapses, delta = single field flipping.
+]]
+local extendedCases: { NetCase } = table.freeze({
+    defCase("entity_arr_100__vary",   entityArray, poolVarying(function() return entityArr(ENT_COUNT) end)),
+    defCase("entity_arr_100__stable", entityArray, poolShared(function() return entityArr(ENT_COUNT) end)),
+    defCase("bool_arr_1000__vary",    boolArray,   poolVarying(function() return boolArr(BOOL_COUNT) end)),
+    defCase("bool_arr_1000__1flip",   boolArray,   poolBoolFlip(BOOL_COUNT)),
+    defCase("cframe_arr_50__vary",    cframeArray, poolVarying(function() return cframeArr(CFRAME_COUNT) end)),
+    defCase("state_full__vary",       stateCodec,  poolVarying(stateOne)),
+    defCase("state_delta__1mut",      stateDelta,  poolStateOneMut()),
+})
+
+-- Handshake --------------------------------------------------------------
 
 local handshake = table.freeze({
     ServerCpuDone = Lync.packet("BenchServerCpuDone", Lync.bool),
-    ClientReady = Lync.packet("BenchClientReady", Lync.bool),
-    ServerSwap = Lync.packet("BenchServerSwap", Lync.bool),
-    ClientDone = Lync.packet("BenchClientDone", Lync.bool),
+    ClientReady   = Lync.packet("BenchClientReady",   Lync.bool),
+    ServerSwap    = Lync.packet("BenchServerSwap",    Lync.bool),
+    ClientDone    = Lync.packet("BenchClientDone",    Lync.bool),
 })
 
--- Network test packets ---------------------------------------------------
-
-local packets = table.freeze({
-    Bool = Lync.packet("BenchBool", Lync.bool),
-    U8 = Lync.packet("BenchU8", Lync.int(0, 255)),
-    U16 = Lync.packet("BenchU16", Lync.int(0, 65535)),
-    F32 = Lync.packet("BenchF32", Lync.f32),
-    F64 = Lync.packet("BenchF64", Lync.f64),
-    String = Lync.packet("BenchString", Lync.string),
-    Vec3 = Lync.packet("BenchVec3", Lync.vec3),
-    CFrame = Lync.packet("BenchCFrame", Lync.cframe),
-    CFrameC = Lync.packet("BenchCFrameC", Lync.cframe()),
-    Entity = Lync.packet("BenchEntity", entityCodec),
-    EntityCompact = Lync.packet("BenchEntityCompact", entityCompactCodec),
-    BlinkEntities = Lync.packet("BenchBlinkEntities", Lync.array(blinkEntityCodec)),
-    BlinkBools = Lync.packet("BenchBlinkBools", Lync.array(Lync.bool)),
-    Flags = Lync.packet("BenchFlags", flagsCodec),
-})
-
--- Bench config (shared by both runners) ----------------------------------
+-- Config -----------------------------------------------------------------
 
 local bench = table.freeze({
     channelMaxSize = 1048576,
-    netDuration = 8,
-    compDuration = 10,
-    compFps = 60,
-    smallFires = 1000, -- per frame for primitives, vec3, etc.
-    largeFires = 100, -- per frame for big array payloads
-    compFires = 1000, -- per frame for cross-library comparison
+    blinkFiresPerFrame = 1000,
+    blinkSeconds = 10,
+    extendedFiresPerFrame = 100,
+    extendedSeconds = 8,
 })
-
--- Network throughput cases (shared) --------------------------------------
-
-local netCases = table.freeze({
-    {
-        label = "booleans",
-        fires = bench.smallFires,
-        packet = packets.Bool,
-        data = true,
-    },
-    {
-        label = "u8",
-        fires = bench.smallFires,
-        packet = packets.U8,
-        data = 42,
-    },
-    {
-        label = "u16",
-        fires = bench.smallFires,
-        packet = packets.U16,
-        data = 30000,
-    },
-    {
-        label = "f32",
-        fires = bench.smallFires,
-        packet = packets.F32,
-        data = 3.14,
-    },
-    {
-        label = "f64",
-        fires = bench.smallFires,
-        packet = packets.F64,
-        data = math.pi,
-    },
-    {
-        label = "vec3",
-        fires = bench.smallFires,
-        packet = packets.Vec3,
-        data = Vector3.new(1, 2, 3),
-    },
-    {
-        label = "string",
-        fires = bench.smallFires,
-        packet = packets.String,
-        data = "hello world",
-    },
-    {
-        label = "entity struct",
-        fires = bench.smallFires,
-        packet = packets.Entity,
-        data = ENTITY,
-    },
-    {
-        label = "entity compact",
-        fires = bench.smallFires,
-        packet = packets.EntityCompact,
-        data = ENTITY_COMPACT,
-    },
-    {
-        label = "100x entities",
-        fires = bench.largeFires,
-        packet = packets.BlinkEntities,
-        data = BLINK_ENTITIES,
-    },
-    {
-        label = "1000x bools",
-        fires = bench.largeFires,
-        packet = packets.BlinkBools,
-        data = BLINK_BOOLS,
-    },
-    {
-        label = "bitfield flags",
-        fires = bench.smallFires,
-        packet = packets.Flags,
-        data = FLAGS,
-    },
-    {
-        label = "cframe lossless",
-        fires = bench.smallFires,
-        packet = packets.CFrame,
-        data = CFRAME_VALUE,
-    },
-    {
-        label = "cframe compressed",
-        fires = bench.smallFires,
-        packet = packets.CFrameC,
-        data = CFRAME_VALUE,
-    },
-})
-
--- Cross-library comparison cases (shared) --------------------------------
-
-local compCases = table.freeze({
-    {
-        label = "100x entities",
-        title = "Entities: 100x struct(6x u8)",
-        packet = packets.BlinkEntities,
-        data = BLINK_ENTITIES,
-    },
-    {
-        label = "1000x bools",
-        title = "Booleans: 1000x bool",
-        packet = packets.BlinkBools,
-        data = BLINK_BOOLS,
-    },
-})
-
--- Public -----------------------------------------------------------------
 
 return table.freeze({
-    -- Codecs (for isolated CPU tests)
-    entityCodec = entityCodec,
-    entityCompactCodec = entityCompactCodec,
-    entityDeltaCodec = entityDeltaCodec,
-    entityCompactDelta = entityCompactDelta,
-    blinkEntityCodec = blinkEntityCodec,
-    flagsCodec = flagsCodec,
-
-    -- Packets and handshake
     handshake = handshake,
-    packets = packets,
-
-    -- Bench config and case lists
     bench = bench,
-    netCases = netCases,
-    compCases = compCases,
-
-    -- Static data
-    CFRAME_VALUE = CFRAME_VALUE,
-    ENTITY = ENTITY,
-    ENTITY_COMPACT = ENTITY_COMPACT,
-    FLAGS = FLAGS,
-    BLINK_ENTITIES = BLINK_ENTITIES,
-    BLINK_BOOLS = BLINK_BOOLS,
+    wireCases = wireCases,
+    deltaCases = deltaCases,
+    roundTripCases = roundTripCases,
+    blinkCases = blinkCases,
+    extendedCases = extendedCases,
+    stateDelta = stateDelta,
 })

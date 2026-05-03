@@ -2,39 +2,42 @@
 --!optimize 2
 -- Packet definition: send, on, once, wait, stats.
 
-local Players = game:GetService("Players")
+local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Baseline = require(script.Parent.Parent.internal.Baseline)
-local Channel = require(script.Parent.Parent.internal.Channel)
+local Baseline   = require(script.Parent.Parent.internal.Baseline)
+local Channel    = require(script.Parent.Parent.internal.Channel)
+local Log        = require(script.Parent.Parent.util.Log)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
-local Registry = require(script.Parent.Parent.internal.Registry)
-local Transport = require(script.Parent.Parent.internal.Transport)
-local Types = require(script.Parent.Parent.Types)
-local Util = require(script.Parent.Parent.internal.Util)
+local Player     = require(script.Parent.Parent.util.Player)
+local Registry   = require(script.Parent.Parent.internal.Registry)
+local Transport  = require(script.Parent.Parent.internal.Transport)
+local Types      = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
 local IS_SERVER = RunService:IsServer()
 
+-- mode: TS_* tag; headerSize: 1 (frame byte) + timestamp bytes (1, 2, or 8).
+local TS_MODES: { [string]: { mode: number, headerSize: number } } = table.freeze({
+    frame  = table.freeze({ mode = Channel.TS_FRAME,  headerSize = 2 }),
+    offset = table.freeze({ mode = Channel.TS_OFFSET, headerSize = 3 }),
+    full   = table.freeze({ mode = Channel.TS_FULL,   headerSize = 9 }),
+})
+
+local EMPTY_OPTIONS: Types.PacketOptions = table.freeze({})
+
 -- Private ----------------------------------------------------------------
 
-local isPlayer = Util.isPlayer
+local isPlayer = Player.is
 
 local function resolveTimestampMode(ts: ("frame" | "offset" | "full")?): (number, number)
-    if ts == "frame" then
-        Channel.enableTimestamps()
-        return Channel.TS_FRAME, 2
+    if ts == nil then
+        return Channel.TS_NONE, 1
     end
-    if ts == "offset" then
-        Channel.enableTimestamps()
-        return Channel.TS_OFFSET, 3
-    end
-    if ts == "full" then
-        Channel.enableTimestamps()
-        return Channel.TS_FULL, 9
-    end
-    return Channel.TS_NONE, 1
+    local entry = TS_MODES[ts]
+    Channel.enableTimestamps()
+    return entry.mode, entry.headerSize
 end
 
 -- Public types -----------------------------------------------------------
@@ -63,17 +66,16 @@ function Packet.define<T>(
     codec: Types.InternalCodec<T>,
     options: Types.PacketOptions?
 ): PacketHandle<T>
-    local opts = options or ({} :: Types.PacketOptions)
+    local opts = options or EMPTY_OPTIONS
     local isUnreliable = opts.unreliable or false
 
+    -- Delta + unreliable is unsafe: a dropped frame permanently desyncs the receiver baseline.
     if isUnreliable and codec._isDelta then
-        error(`[Lync] Lync.packet: "{name}" cannot use delta codecs with unreliable transport`)
+        Log.error(`"{name}" delta codecs need reliable transport (lost packets desync the baseline)`)
     end
 
     if codec._hasUnknown and not opts.validate then
-        warn(
-            `[Lync] Lync.packet: "{name}" uses unknown codec without validate; data bypasses schema validation`
-        )
+        Log.warn(`"{name}" uses unknown codec without validate; data bypasses schema validation`)
     end
 
     if codec._isDelta then
@@ -109,87 +111,91 @@ function Packet.define<T>(
         end
     end
 
-    local function applySend(data: any, player: Player?): any?
+    --[[
+        Run the send middleware chain. Returns (dropped, value). A nil value
+        is a legitimate payload (Lync.nothing); only the explicit Lync.DROP
+        sentinel or a hook returning DROP triggers the drop branch.
+    ]]
+    local function applySend(data: any, player: Player?): (boolean, any)
         if not Middleware.hasSendHooks() then
-            return data
+            return false, data
         end
-
         local sendData = Middleware.runSend(data, name, player)
-        if typeof(sendData) == "table" and sendData._lyncDrop then
-            return nil
+        if typeof(sendData) == "table" and sendData._lyncKind == "drop" then
+            return true, nil
         end
-        return sendData
+        return false, sendData
     end
 
-    local function sendFromServer(data: any, target: any): ()
-        if target == nil then
-            error(`[Lync] Packet.send: "{name}" server send requires a target`)
+    -- Caller has already run send middleware once for the broadcast.
+    local function broadcast(players: { Player }, data: any): ()
+        for _, p in players do
+            sendToPlayer(p, data)
         end
+        bumpFires()
+    end
 
+    local function sendToTarget(data: any, target: any): ()
         if isPlayer(target) then
-            local sendData = applySend(data, target :: Player)
-            if sendData == nil then
-                return
-            end
+            local dropped, sendData = applySend(data, target :: Player)
+            if dropped then return end
             sendToPlayer(target :: Player, sendData)
             bumpFires()
             return
         end
 
         if typeof(target) == "table" then
-            local sendData = applySend(data, nil)
-            if sendData == nil then
+            local dropped, sendData = applySend(data, nil)
+            if dropped then return end
+
+            local kind = target._lyncKind
+            if kind == "all" then
+                broadcast(Players:GetPlayers(), sendData)
                 return
             end
 
-            if target._lyncAll then
-                for _, player in Players:GetPlayers() do
-                    sendToPlayer(player, sendData)
-                end
-                bumpFires()
-                return
-            end
-
-            if target._lyncExcept then
+            if kind == "except" then
                 local excluded = target._excluded :: { [Player]: boolean }
-                for _, player in Players:GetPlayers() do
-                    if not excluded[player] then
-                        sendToPlayer(player, sendData)
+                for _, p in Players:GetPlayers() do
+                    if not excluded[p] then
+                        sendToPlayer(p, sendData)
                     end
                 end
                 bumpFires()
                 return
             end
 
-            if target._lyncGroup then
-                for player in target._members :: { [Player]: boolean } do
-                    sendToPlayer(player, sendData)
+            if kind == "group" then
+                for p in target._members :: { [Player]: boolean } do
+                    sendToPlayer(p, sendData)
                 end
                 bumpFires()
                 return
             end
 
-            for _, player in target do
-                if isPlayer(player) then
-                    sendToPlayer(player :: Player, sendData)
+            -- Plain { Player } array.
+            for _, p in target do
+                if isPlayer(p) then
+                    sendToPlayer(p :: Player, sendData)
                 end
             end
             bumpFires()
             return
         end
 
-        error(
-            `[Lync] Packet.send: "{name}" expected Player, table, Group, or Lync.all as target, got {typeof(
-                target
-            )}`
-        )
+        Log.error(`"{name}" expected Player, table, Group, or Lync.all, got {typeof(target)}`)
+    end
+
+    local function sendFromServer(data: any, target: any): ()
+        if target == nil then
+            Log.error(`"{name}" server send requires a target`)
+        end
+        sendToTarget(data, target)
     end
 
     local function sendFromClient(data: any): ()
-        local sendData = applySend(data, nil)
-        if sendData == nil then
-            return
-        end
+        local dropped, sendData = applySend(data, nil)
+        if dropped then return end
         local ch = Transport.client().getChannel(isUnreliable)
         Channel.writeBatch(ch, reg, sendData)
         bumpFires()

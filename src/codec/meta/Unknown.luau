@@ -1,9 +1,10 @@
 --!strict
---!optimize 2
--- Bypasses buffer serialization. Uses Roblox remote sidecar refs.
+--!native
+-- Bypass codec. Stashes the value in the channel sidecar refs (no schema).
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
-local Types = require(script.Parent.Parent.Parent.Types)
+local Log     = require(script.Parent.Parent.Parent.util.Log)
+local Types   = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
 
@@ -15,20 +16,20 @@ local function writeUnknown(ch: Types.ChannelState, value: any): ()
 end
 
 local function readUnknown(src: buffer, pos: number, refs: { Instance }?): (any, number)
-    if not refs then
-        error("[Lync] Unknown.read: refs array is required")
-    end
+    local r = refs
+    if not r then Log.error("refs array is required") end
     local idx = readu16(src, pos)
-    if idx < 1 or idx > #refs then
-        error(`[Lync] Unknown.read: ref index {idx} out of bounds`)
+    if idx < 1 or idx > #r then
+        Log.error(`ref index {idx} out of bounds`)
     end
-    return refs[idx], 2
+    return r[idx], 2
 end
 
 -- Public -----------------------------------------------------------------
 
 local Unknown = {}
 
+-- _hasUnknown propagates upward so containers warn when used without validate.
 Unknown.unknown = table.freeze({
     _hasUnknown = true,
     write = writeUnknown,

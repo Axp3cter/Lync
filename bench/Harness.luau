@@ -1,40 +1,11 @@
 --!strict
 --!optimize 2
--- Benchmark harness with fixed-column output.
+-- Bench harness: round-trip CPU + network throughput.
 
 local Channel = require(script.Parent.Parent.internal.Channel)
 
--- Constants --------------------------------------------------------------
-
-local LABEL_WIDTH = 32
-local INDENT = "  "
-
-local WARMUP_FRACTION = 10
-local WARMUP_CAP = 1000
-local SETTLE_SECONDS = 2
-local SAMPLE_INTERVAL = 1
-
--- Fixed iter count for every CPU bench. Picked so cheap operations still
--- get enough samples for stable timings and expensive ones don't drag
--- the run out — no per-test tuning, no probe, the column is always 1000.
-local ITERS = 1000
-
--- Column-aligned output formats so every row lines up regardless of
--- label or value content.
-local FMT_HEADER = "================================================================"
-local HEADER_WIDTH = #FMT_HEADER
-local FMT_LABEL_VALUE = "%s%-" .. LABEL_WIDTH .. "s %s"
-local FMT_ROW_RT = "%s%-" .. LABEL_WIDTH .. "s enc=%-9s dec=%-9s tot=%-9s rt/s=%s"
-local FMT_ROW_ENC = "%s%-" .. LABEL_WIDTH .. "s ops/s=%-12s us/op=%-9s iters=%s"
-local FMT_ROW_NET = "%s%-"
-    .. LABEL_WIDTH
-    .. "s fps_med=%-7s fps_p1=%-7s kbps_med=%-7s kbps_p95=%-7s kbps_p99=%s"
-local FMT_ROW_DELTA = "%s%-" .. LABEL_WIDTH .. "s full=%-7s unchanged=%-7s changed=%-7s saved=%s"
-local FMT_ROW_COMP = "%s%-"
-    .. LABEL_WIDTH
-    .. "s %-6s med=%-9s P0=%-9s P80=%-9s P90=%-9s P95=%-9s P100=%s"
-
--- Private ----------------------------------------------------------------
+local RT_ITERS = 1000
+local LABEL_W = 28
 
 local clock = os.clock
 local floor = math.floor
@@ -42,388 +13,162 @@ local sort = table.sort
 local maxN = math.max
 local minN = math.min
 local format = string.format
+local utf8len = utf8.len
 
-local function warmupFor(iterations: number): number
-    return minN(WARMUP_CAP, iterations // WARMUP_FRACTION)
+local function pct(sorted: { number }, p: number): number
+    local i = floor(#sorted * p / 100 + 0.5)
+    return sorted[maxN(1, minN(i, #sorted))]
 end
 
-local function percentile(sorted: { number }, p: number): number
-    local idx = floor(#sorted * p / 100 + 0.5)
-    return sorted[maxN(1, minN(idx, #sorted))]
-end
-
-local function roundTo(value: number, digits: number): number
-    local mul = 10 ^ digits
-    return floor(value * mul + 0.5) / mul
+local function round1(n: number): number
+    return floor(n * 10 + 0.5) / 10
 end
 
 local function fmtNum(n: number): string
     local s = tostring(floor(n))
-    if #s <= 3 then
-        return s
-    end
-    local parts = {}
-    local rem = #s % 3
-    if rem > 0 then
-        table.insert(parts, s:sub(1, rem))
-    end
-    for i = rem + 1, #s, 3 do
-        table.insert(parts, s:sub(i, i + 2))
-    end
-    return table.concat(parts, ",")
-end
-
-local function fmtBytes(n: number): string
-    if n < 1024 then
-        return `{n}B`
-    end
-    if n < 1048576 then
-        return `{roundTo(n / 1024, 1)}KB`
-    end
-    return `{roundTo(n / 1048576, 2)}MB`
+    if #s <= 3 then return s end
+    local out, rem = {}, #s % 3
+    if rem > 0 then table.insert(out, s:sub(1, rem)) end
+    for i = rem + 1, #s, 3 do table.insert(out, s:sub(i, i + 2)) end
+    return table.concat(out, ",")
 end
 
 local function fmtTime(us: number): string
-    if us < 1 then
-        return `{floor(us * 1000 + 0.5)}ns`
-    end
-    if us < 1000 then
-        return `{roundTo(us, 1)}us`
-    end
-    return `{roundTo(us / 1000, 1)}ms`
+    if us < 1 then return `{floor(us * 1000 + 0.5)}ns` end
+    if us < 1000 then return `{round1(us)}us` end
+    return `{round1(us / 1000)}ms`
 end
-
--- Public -----------------------------------------------------------------
 
 local Harness = {}
 
-Harness.fmtBytes = fmtBytes
-Harness.fmtTime = fmtTime
 Harness.fmtNum = fmtNum
+Harness.fmtTime = fmtTime
 
 function Harness.header(title: string): ()
-    local pad = HEADER_WIDTH - #title
-    local left = if pad > 0 then pad // 2 else 0
-    print(FMT_HEADER)
-    print(string.rep(" ", left) .. title)
-    print(FMT_HEADER)
+    local bar = string.rep("=", 64)
+    print(bar)
+    print(string.rep(" ", maxN(0, (64 - #title) // 2)) .. title)
+    print(bar)
 end
 
 function Harness.section(title: string): ()
     print(title)
 end
 
-function Harness.sectionEnd(): ()
-    print("")
-end
-
-function Harness.note(text: string): ()
-    print(format("%s%s", INDENT, text))
-end
-
--- Encode-only throughput. ITERS iterations every test, no auto-tuning.
-function Harness.benchEncode(label: string, fn: () -> ()): ()
-    for _ = 1, warmupFor(ITERS) do
-        fn()
-    end
-
-    local t0 = clock()
-    for _ = 1, ITERS do
-        fn()
-    end
-    local elapsed = clock() - t0
-
-    print(
-        format(
-            FMT_ROW_ENC,
-            INDENT,
-            label,
-            fmtNum(ITERS / elapsed),
-            fmtTime(elapsed / ITERS * 1e6),
-            fmtNum(ITERS)
-        )
-    )
-end
-
 --[[
-    Wire size for a codec + value pair. Output:
-      <label>            <bytes>
-    Returns the byte count for callers that compare against external refs.
+    UTF-8-aware row print. `string.format("%-Ns", ...)` pads to N BYTES,
+    so labels with multi-byte characters end up visually short. Pad by
+    visible character count via utf8.len.
 ]]
-function Harness.benchWireSize(label: string, codec: any, value: any): number
+function Harness.row(label: string, value: string): ()
+    local visible = utf8len(label) or #label
+    local pad = string.rep(" ", maxN(0, LABEL_W - visible))
+    print("  " .. label .. pad .. " " .. value)
+end
+
+function Harness.wireSize(label: string, codec: any, value: any): ()
     local ch = Channel.create()
     codec.write(ch, value)
-    local bytes = ch.cursor
-
-    print(format(FMT_LABEL_VALUE, INDENT, label, fmtBytes(bytes)))
-    return bytes
+    Harness.row(label, format("%dB", ch.cursor))
 end
 
---[[
-    Delta savings. `mutate(value)` returns a changed copy; if omitted,
-    falls back to bumping the first numeric field at the alphabetically
-    first sorted key.
-]]
-function Harness.benchDelta(
-    label: string,
-    codec: any,
-    value: any,
-    mutate: ((value: any) -> any)?
-): ()
+-- Per-field delta size: prime cache with SEED, then encode VALUE.
+function Harness.deltaSize(label: string, codec: any, seed: any, value: any): ()
     local ch = Channel.create()
-
-    codec.write(ch, value)
-    local fullBytes = ch.cursor
-
+    codec.write(ch, seed)
     ch.cursor = 0
     codec.write(ch, value)
-    local unchangedBytes = ch.cursor
-
-    local changed = value
-    if mutate then
-        changed = mutate(value)
-    elseif typeof(value) == "table" then
-        changed = table.clone(value)
-        local keys = {}
-        for k in changed do
-            table.insert(keys, k)
-        end
-        sort(keys, function(a, b)
-            return tostring(a) < tostring(b)
-        end)
-        for _, k in keys do
-            if typeof(changed[k]) == "number" then
-                changed[k] += 1
-                break
-            end
-        end
-    end
-
-    ch.cursor = 0
-    codec.write(ch, changed)
-    local changedBytes = ch.cursor
-
-    local savings = floor((1 - unchangedBytes / fullBytes) * 100 + 0.5)
-    print(
-        format(
-            FMT_ROW_DELTA,
-            INDENT,
-            label,
-            fmtBytes(fullBytes),
-            fmtBytes(unchangedBytes),
-            fmtBytes(changedBytes),
-            `{savings}%`
-        )
-    )
+    Harness.row(label, format("%dB", ch.cursor))
 end
 
--- Full encode + decode round-trip. ITERS iterations every test.
-function Harness.benchRoundTrip(label: string, codec: any, value: any): ()
+-- Codec round-trip: reused channel, ITERS encodes + ITERS decodes.
+function Harness.roundTrip(label: string, codec: any, value: any): ()
     local ch = Channel.create()
     codec.write(ch, value)
-    local written = ch.cursor
-
-    local buf = buffer.create(written)
-    buffer.copy(buf, 0, ch.buff, 0, written)
+    local n = ch.cursor
+    local buf = buffer.create(n)
+    buffer.copy(buf, 0, ch.buff, 0, n)
     local refs = if ch.refCount > 0 then table.clone(ch.refs) else nil
 
-    for _ = 1, warmupFor(ITERS) do
+    for _ = 1, RT_ITERS // 10 do
         ch.cursor = 0
         codec.write(ch, value)
         codec.read(buf, 0, refs)
     end
 
     local t0 = clock()
-    for _ = 1, ITERS do
+    for _ = 1, RT_ITERS do
         ch.cursor = 0
         codec.write(ch, value)
     end
-    local encodeTime = clock() - t0
+    local enc = clock() - t0
 
-    local t1 = clock()
-    for _ = 1, ITERS do
+    t0 = clock()
+    for _ = 1, RT_ITERS do
         codec.read(buf, 0, refs)
     end
-    local decodeTime = clock() - t1
+    local dec = clock() - t0
 
-    local encUs = encodeTime / ITERS * 1e6
-    local decUs = decodeTime / ITERS * 1e6
-
-    print(
-        format(
-            FMT_ROW_RT,
-            INDENT,
-            format("%s (%dB)", label, written),
-            fmtTime(encUs),
-            fmtTime(decUs),
-            fmtTime(encUs + decUs),
-            fmtNum(ITERS / (encodeTime + decodeTime))
-        )
+    local encUs = enc / RT_ITERS * 1e6
+    local decUs = dec / RT_ITERS * 1e6
+    Harness.row(
+        format("%s (%dB)", label, n),
+        format("enc=%-9s dec=%-9s rt/s=%s",
+            fmtTime(encUs), fmtTime(decUs),
+            fmtNum(RT_ITERS / (enc + dec)))
     )
 end
 
 --[[
-    Network throughput sampler. Caller supplies a `send` callback fired
-    `firesPerFrame` times per Heartbeat; harness samples FPS and the
-    measured DataSendKbps once per second for `durationSeconds`.
+    Blink-style throughput: fire `firesPerFrame` per Heartbeat for `seconds`,
+    report median FPS and median Kbps. Identical methodology to the Blink
+    benchmark suite so cross-library numbers are apples-to-apples.
 
-    Direction-agnostic: works for both client->server and server->client
-    benches as long as the caller measures local DataSendKbps (which
-    Roblox reports on whichever side is sending).
+    Stats.DataSendKbps is what Blink samples too; the unit label matches
+    Blink's published table verbatim regardless of what Roblox documents.
 ]]
-function Harness.benchNetwork(
+function Harness.throughput(
     label: string,
     firesPerFrame: number,
-    durationSeconds: number,
-    send: () -> ()
+    seconds: number,
+    pool: { any },
+    send: (any) -> ()
 ): ()
     local RunService = game:GetService("RunService")
     local Stats = game:GetService("Stats")
 
-    task.wait(SETTLE_SECONDS)
+    local fps, kbps = {}, {}
+    local frames, elapsed = 0, 0
+    local n = #pool
 
-    local fpsData: { number } = {}
-    local kbpsData: { number } = {}
-    local frames = 0
-    local elapsed = 0
-
-    local conn = RunService.Heartbeat:Connect(function(dt: number)
-        for _ = 1, firesPerFrame do
-            send()
-        end
+    local conn = RunService.Heartbeat:Connect(function(dt)
         frames += 1
         elapsed += dt
-        if elapsed >= SAMPLE_INTERVAL then
-            table.insert(fpsData, frames / elapsed)
-            table.insert(kbpsData, Stats.DataSendKbps)
+        for i = 1, firesPerFrame do
+            send(pool[((frames * 105 + i) % n) + 1])
+        end
+        if elapsed >= 1 then
+            table.insert(kbps, Stats.DataSendKbps)
+            table.insert(fps, frames)
             frames, elapsed = 0, 0
         end
     end)
-
-    task.wait(durationSeconds)
+    task.wait(seconds)
     conn:Disconnect()
 
-    if #fpsData == 0 then
-        print(format(FMT_LABEL_VALUE, INDENT, label, "no samples"))
+    if #fps == 0 then
+        Harness.row(label, "no samples")
         return
     end
 
-    sort(fpsData)
-    sort(kbpsData)
-
-    print(
-        format(
-            FMT_ROW_NET,
-            INDENT,
-            label,
-            tostring(roundTo(percentile(fpsData, 50), 1)),
-            tostring(roundTo(percentile(fpsData, 1), 1)),
-            tostring(roundTo(percentile(kbpsData, 50), 1)),
-            tostring(roundTo(percentile(kbpsData, 95), 1)),
-            tostring(roundTo(percentile(kbpsData, 99), 1))
-        )
-    )
-end
-
---[[
-    Cross-library comparison. Reports FPS and Kbps at percentiles used
-    by github.com/1Axen/blink/benchmark. Kbps scaled to `targetFPS` so
-    samples compare across hardware.
-]]
-function Harness.benchComparison(
-    label: string,
-    firesPerFrame: number,
-    durationSeconds: number,
-    targetFPS: number,
-    send: () -> ()
-): ()
-    local RunService = game:GetService("RunService")
-    local Stats = game:GetService("Stats")
-
-    --[[
-        Fixed settle. We previously also spun on `Stats.DataSendKbps` to
-        wait for prior traffic to fully dissipate, but that hangs forever
-        on the client in Studio where the moving average never crosses
-        the floor. The Kbps value is scaled per-sample by targetFPS /
-        frames anyway, so a few residual frames don't skew percentiles.
-    ]]
-    task.wait(SETTLE_SECONDS)
-
-    local fpsData: { number } = {}
-    local kbpsData: { number } = {}
-    local frames = 0
-    local elapsed = 0
-    local sent = 0
-
-    local conn = RunService.Heartbeat:Connect(function(dt: number)
-        frames += 1
-        elapsed += dt
-        for _ = 1, firesPerFrame do
-            send()
-            sent += 1
-        end
-        if elapsed >= SAMPLE_INTERVAL then
-            table.insert(kbpsData, Stats.DataSendKbps * (targetFPS / frames))
-            table.insert(fpsData, frames)
-            frames = 0
-            elapsed -= SAMPLE_INTERVAL
-        end
-    end)
-
-    task.wait(durationSeconds)
-    conn:Disconnect()
-
-    if #fpsData == 0 then
-        print(format(FMT_LABEL_VALUE, INDENT, label, "no samples"))
-        return
-    end
-
-    sort(kbpsData)
-    -- FPS sorted descending: P0 = best frame, P100 = worst.
-    sort(fpsData, function(a, b)
-        return a > b
-    end)
-
-    local function p(samples: { number }, pct: number): string
-        local idx = maxN(1, minN(floor(#samples * pct / 100), #samples))
-        return tostring(roundTo(samples[idx], 2))
-    end
-
-    print(
-        format(
-            FMT_ROW_COMP,
-            INDENT,
-            label,
-            "FPS",
-            p(fpsData, 50),
-            p(fpsData, 0),
-            p(fpsData, 80),
-            p(fpsData, 90),
-            p(fpsData, 95),
-            p(fpsData, 100)
-        )
-    )
-    print(
-        format(
-            FMT_ROW_COMP,
-            INDENT,
-            "",
-            "Kbps",
-            p(kbpsData, 50),
-            p(kbpsData, 0),
-            p(kbpsData, 80),
-            p(kbpsData, 90),
-            p(kbpsData, 95),
-            p(kbpsData, 100)
-        )
-    )
-    print(
-        format(
-            "%s%-" .. LABEL_WIDTH .. "s sent=%s samples=%s",
-            INDENT,
-            "",
-            fmtNum(sent),
-            tostring(#fpsData)
+    sort(fps)
+    sort(kbps)
+    Harness.row(
+        label,
+        format("fps=%-3d  Kbps=%-9s  p95=%s",
+            floor(pct(fps, 50) + 0.5),
+            format("%.2f", pct(kbps, 50)),
+            format("%.2f", pct(kbps, 95))
         )
     )
 end

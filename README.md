@@ -16,7 +16,7 @@ Schemas, packets, queries, groups, validation, rate limiting. Every send batches
 Wally — add to your `wally.toml`:
 
 ```toml
-Lync = "axp3cter/lync@2.3.0"
+Lync = "axp3cter/lync@2.3.1"
 ```
 
 npm (roblox-ts):

@@ -207,14 +207,20 @@ function Reader.process(
             local doGate = isServer and reg.needsGate and player ~= nil
             local regSignal = reg.signal
             local regName = reg.name
+            --[[
+                Lync.nothing and other declared 0-byte codecs read no bytes;
+                the per-iter pos + consumed checks below would falsely abort
+                when count > 0 with no payload, so skip them for them only.
+            ]]
+            local isZeroSize = sizeMeta == 0
 
             for _ = 1, count do
-                if pos >= incomingLen then
+                if not isZeroSize and pos >= incomingLen then
                     Log.warn(`codec for "{regName}" ran past frame end; aborting`)
                     return false
                 end
                 local value, consumed = regCodec.read(incoming, pos, refs)
-                if consumed == 0 then
+                if not isZeroSize and consumed == 0 then
                     Log.warn(`codec for "{regName}" reported 0 bytes; aborting`)
                     return false
                 end

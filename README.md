@@ -250,8 +250,9 @@ Enable with `Lync.configure({ stats = true })`.
 | Codec | Bytes | Notes |
 |:---|---:|:---|
 | `int(min, max)` | 1 / 2 / 4 | Picks narrowest u8/u16/u32/i8/i16/i32. |
+| `zint(min?, max?)` | 1 – 5 | Variable-length signed via zigzag varint. 1 byte for [-96, 95]. |
 | `f16` / `f32` / `f64` | 2 / 4 / 8 | `f16` ≈ ±65504, ~3 digits. |
-| `float(min, max, precision)` | 1 / 2 / 4 | Quantized; clamped to range. |
+| `float(min, max, precision)` | 1 / 2 / 3 / 4 | Quantized; picks u8 / u16 / u24 / u32 wire form. |
 | `bool` | 1 | Auto-bitpacked inside `struct` and `array`. |
 
 ### Strings & buffers
@@ -284,8 +285,8 @@ Call as a function for compression.
 
 | Codec | Bytes | Notes |
 |:---|---:|:---|
-| `vec2(min, max, precision)` | 2 / 4 / 8 | Per-component quantization. |
-| `vec3(min, max, precision)` | 3 / 6 / 12 | Per-component quantization. |
+| `vec2(min, max, precision)` | 2 / 4 / 6 / 8 | Per-component, narrowest fitting width. |
+| `vec3(min, max, precision)` | 3 / 6 / 9 / 12 | Per-component, narrowest fitting width. |
 | `cframe()` | 16 | Smallest-three quaternion. ≤ 0.16° rotation error. |
 
 ### Composites
@@ -301,13 +302,17 @@ Call as a function for compression.
 
 ### Delta — reliable transport only
 
-Sends 1 byte when the value is byte-equal to the cached previous frame.
+Tracks the previous frame's value and ships only what changed. Rejected on `unreliable = true`.
 
-| Codec | Notes |
-|:---|:---|
-| `deltaStruct(schema)` | Per-segment dirty bitmap; single-segment fast path. |
-| `deltaArray(c, max?)` | Whole-array byte-equality. |
-| `deltaMap(k, v, max?)` | Whole-map byte-equality. |
+| Codec | Static | Mutation |
+|:---|:---:|:---:|
+| `deltaStruct(schema)` | 1 B | per-field |
+| `deltaArray(c, max?)` | 1 B | per-changed-index |
+| `deltaMap(k, v, max?)` | 1 B | per-changed-key |
+| `deltaInt(min, max)` | 1 B | 1–5 B |
+| `deltaFloat(min, max, precision)` | 1 B | 1–5 B |
+| `deltaVec3(min, max, precision)` | 3 B | 3–15 B |
+| `deltaCFrame(posMin, posMax, precision)` | 1 B | 4–13 B |
 
 ### Meta
 
@@ -351,21 +356,23 @@ Global per-player cap: `Lync.configure({ globalRateLimit = { maxPerSecond = N } 
 | Tool | `array<entity>[100]` | `array<bool>[1000]` |
 |:---|:---|:---|
 | roblox | 16 fps · 559,364 Kbps | 21 fps · 353,107 Kbps |
-| **lync** | **60 fps · 3.44 Kbps** | **60 fps · 2.46 Kbps** |
+| **lync** | **59 fps · 3.37 Kbps** | **61 fps · 2.45 Kbps** |
 | blink | 42 fps · 41.81 Kbps | 97 fps · 7.91 Kbps |
 | zap | 39 fps · 41.71 Kbps | 52 fps · 8.10 Kbps |
 | bytenet | 32 fps · 41.64 Kbps | 35 fps · 8.11 Kbps |
 
 ### Network bandwidth — 100 fires/frame, 8 s
 
-| Workload | Kbps |
-|:---|---:|
-| `array<entity>[100]` randomised | 3,608 |
-| `array<entity>[100]` reused | **2.4** |
-| `array<bool>[1000]` randomised | 763 |
-| `array<bool>[1000]` 1 bit flipped | **20.5** |
-| `struct(state)` randomised | 201 |
-| `deltaStruct(state)` 1 field mutated | **29.2** |
+| Workload | Naive Kbps | Optimized | Savings |
+|:---|---:|:---|---:|
+| `array<entity>[100]` random | 3,607 | `deltaArray` 3 of 100 mutated | **154** (–96%) |
+| `array<entity>[100]` reused | 3,607 | XOR baseline (identical frames) | **2.4** (–99.9%) |
+| `array<bool>[1000]` random | 762 | XOR baseline (1 bit flipped) | **20.4** (–97%) |
+| `struct(state)` random | 201 | `deltaStruct` 1 field mutated | **29.0** (–86%) |
+| `map<id, vec3>[200]` 5 keys mutated | 657 | `deltaMap` 5 keys mutated | **393** (–40%) |
+| `array<cframe>[50]` random | 4,585 | — | — |
+| `vec3` walking motion (continuous diff) | — | `deltaVec3` | **19.5** |
+| `CFrame` walking pose (pos + rot) | — | `deltaCFrame` | **41.1** |
 
 ## License
 

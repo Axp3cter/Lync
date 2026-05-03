@@ -11,14 +11,14 @@ local Types = require(script.Parent.Parent.Parent.Types)
 -- Constants --------------------------------------------------------------
 
 --[[
-    Delta flag space, shared across deltaStruct/deltaArray/deltaMap:
-      0    UNCHANGED  (decoder reuses cache)
-      1    FULL       (full payload follows)
-    Struct's per-segment scheme uses [1..segCount] as a single-dirty-segment
-    index, then segCount + DELTA_FULL_OFFSET / + DELTA_MULTI_OFFSET.
+    Delta flag base shared by deltaStruct's per-segment scheme:
+      0    UNCHANGED
+      1..segCount             single dirty segment k
+      segCount + FULL_OFFSET  FULL payload
+      segCount + MULTI_OFFSET MULTI: bitmap + dirty segs in order
+    deltaArray and deltaMap manage their own flag spaces.
 ]]
 local DELTA_UNCHANGED = 0
-local DELTA_FULL = 1
 local DELTA_FULL_OFFSET = 1
 local DELTA_MULTI_OFFSET = 2
 
@@ -37,8 +37,35 @@ local lshift = bit32.lshift
 local readu8 = buffer.readu8
 local writeu8 = buffer.writeu8
 local bufCopy = buffer.copy
+local bufCreate = buffer.create
+local bufLen = buffer.len
 local rangeEqual = Buf.rangeEqual
 local snapshot = Buf.snapshot
+
+--[[
+    Snapshot `len` bytes of `src` into a fresh buffer or reuse `existing`
+    when it's already large enough. Avoids per-write buffer allocations on
+    delta caches that hover at a stable size.
+]]
+local function copyToBuf(existing: buffer?, src: buffer, srcOff: number, len: number): buffer
+    if existing and bufLen(existing) >= len then
+        if len > 0 then
+            bufCopy(existing, 0, src, srcOff, len)
+        end
+        return existing
+    end
+    local out = bufCreate(len)
+    if len > 0 then
+        bufCopy(out, 0, src, srcOff, len)
+    end
+    return out
+end
+
+-- Update a `{raw, len}` cache shape from scratch bytes; reuses raw via copyToBuf.
+local function refreshCache(cache: any, src: buffer, len: number): ()
+    cache.raw = copyToBuf(cache.raw, src, 0, len)
+    cache.len = len
+end
 
 -- Public -----------------------------------------------------------------
 
@@ -49,6 +76,8 @@ Shared.DELTA_FULL_OFFSET = DELTA_FULL_OFFSET
 Shared.DELTA_MULTI_OFFSET = DELTA_MULTI_OFFSET
 Shared.rangeEqual = rangeEqual
 Shared.snapshot = snapshot
+Shared.refreshCache = refreshCache
+Shared.copyToBuf = copyToBuf
 
 function Shared.allocDeltaId(): number
     _nextDeltaId += 1
@@ -232,81 +261,6 @@ function Shared.unpackBoolArray(
         end
     end
     return byteCount
-end
-
---[[
-    Build a byte-equality delta codec around any inner codec. Wire:
-      [DELTA_UNCHANGED]                       1 byte
-      [DELTA_FULL]  <inner-encoded payload>   1 + N bytes
-    Used by deltaArray and deltaMap. The FULL path encodes once into scratch
-    then bufCopies into the channel — avoids a double encode.
-]]
-function Shared.makeUnchangedOrFullDelta(
-    inner: Types.InternalCodec<any>,
-    deltaId: number,
-    Baseline: {
-        getCache: (number) -> any,
-        setCache: (number, any) -> (),
-    }
-): Types.InternalCodec<any>
-    return table.freeze({
-        _isDelta = true,
-
-        write = function(ch: Types.ChannelState, value: any): ()
-            local scratch = Shared.acquireScratch()
-            inner.write(scratch, value)
-            local scratchLen = scratch.cursor
-
-            local cache = ch.deltas[deltaId]
-            if
-                cache
-                and scratchLen == cache.len
-                and rangeEqual(scratch.buff, 0, cache.raw, 0, scratchLen)
-            then
-                local cursor = ch.cursor
-                if cursor + 1 > ch.size then
-                    alloc(ch, 1)
-                end
-                writeu8(ch.buff, cursor, DELTA_UNCHANGED)
-                ch.cursor = cursor + 1
-                Shared.releaseScratch()
-                return
-            end
-
-            local cursor = ch.cursor
-            if cursor + 1 + scratchLen > ch.size then
-                alloc(ch, 1 + scratchLen)
-            end
-            local b = ch.buff
-            writeu8(b, cursor, DELTA_FULL)
-            if scratchLen > 0 then
-                bufCopy(b, cursor + 1, scratch.buff, 0, scratchLen)
-            end
-            ch.cursor = cursor + 1 + scratchLen
-
-            local snap = snapshot(scratch.buff, scratchLen)
-            if cache then
-                cache.raw = snap
-                cache.len = scratchLen
-            else
-                ch.deltas[deltaId] = { raw = snap, len = scratchLen }
-            end
-            Shared.releaseScratch()
-        end,
-
-        read = function(src: buffer, pos: number, refs: { Instance }?): (any, number)
-            if readu8(src, pos) == DELTA_UNCHANGED then
-                local cached = Baseline.getCache(deltaId)
-                if not cached then
-                    Log.error("UNCHANGED flag before any FULL frame; baseline missing")
-                end
-                return cached, 1
-            end
-            local value, consumed = inner.read(src, pos + 1, refs)
-            Baseline.setCache(deltaId, value)
-            return value, 1 + consumed
-        end,
-    })
 end
 
 return table.freeze(Shared)

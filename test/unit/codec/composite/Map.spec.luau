@@ -84,28 +84,176 @@ describe("codec.composite.Map", function(): ()
         end)
     end)
 
-    describe("deltaMap", function(): ()
+    describe("deltaMap metadata", function(): ()
         it("flags _isDelta", function(): ()
-            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
-            expect((c :: any)._isDelta):toBe(true)
+            expect((Lync.deltaMap(Lync.string, Lync.int(0, 255)) :: any)._isDelta):toBe(true)
         end)
-        it("identical second write = exactly 1 byte", function(): ()
+        it("flags _isMap", function(): ()
+            expect((Lync.deltaMap(Lync.string, Lync.int(0, 255)) :: any)._isMap):toBe(true)
+        end)
+        it("records key/value codecs and maxCount", function(): ()
+            local k = Lync.string
+            local v = Lync.int(0, 255)
+            local c = Lync.deltaMap(k, v, 50) :: any
+            expect(c._keyCodec):toBe(k)
+            expect(c._valueCodec):toBe(v)
+            expect(c._maxCount):toBe(50)
+        end)
+    end)
+
+    describe("deltaMap UNCHANGED", function(): ()
+        local function newCh(): any
+            return Env.Internal.Channel.create()
+        end
+
+        it("identical second write = 1 byte", function(): ()
             local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
-            local InternalChannel = Env.Internal.Channel
-            local ch = InternalChannel.create()
+            local ch = newCh()
             c.write(ch, { hp = 100 })
             ch.cursor = 0
             c.write(ch, { hp = 100 })
             expect(ch.cursor):toBe(1)
         end)
-        it("changed write produces > 1 byte", function(): ()
+        it("identical empty maps = 1 byte each frame", function(): ()
             local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
-            local InternalChannel = Env.Internal.Channel
-            local ch = InternalChannel.create()
+            local ch = newCh()
+            c.write(ch, {})
+            ch.cursor = 0
+            c.write(ch, {})
+            expect(ch.cursor):toBe(1)
+        end)
+        it("repeated identical writes stay at 1 byte", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 65535))
+            local ch = newCh()
+            c.write(ch, { a = 1, b = 2, c = 3 })
+            for _ = 1, 10 do
+                ch.cursor = 0
+                c.write(ch, { a = 1, b = 2, c = 3 })
+                expect(ch.cursor):toBe(1)
+            end
+        end)
+    end)
+
+    describe("deltaMap DIFF", function(): ()
+        local function newCh(): any
+            return Env.Internal.Channel.create()
+        end
+
+        it("single value change emits DIFF with 0 removed + 1 changed", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = newCh()
             c.write(ch, { hp = 100 })
             ch.cursor = 0
             c.write(ch, { hp = 80 })
             expect(ch.cursor):toBeGreaterThan(1)
+        end)
+        it("removed key emits DIFF with 1 removed + 0 changed", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = newCh()
+            c.write(ch, { a = 1, b = 2 })
+            ch.cursor = 0
+            c.write(ch, { a = 1 })
+            expect(ch.cursor):toBeGreaterThan(1)
+        end)
+        it("added key emits DIFF with 0 removed + 1 changed", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = newCh()
+            c.write(ch, { a = 1 })
+            ch.cursor = 0
+            c.write(ch, { a = 1, b = 2 })
+            expect(ch.cursor):toBeGreaterThan(1)
+        end)
+    end)
+
+    describe("deltaMap round-trip via Baseline", function(): ()
+        local function decode(c: any, ch: any, startCursor: number): any
+            local payload = buffer.create(ch.cursor - startCursor)
+            buffer.copy(payload, 0, ch.buff, startCursor, ch.cursor - startCursor)
+            return c.read(payload, 0, nil)
+        end
+
+        it("FULL → DIFF → UNCHANGED sequence decodes correctly", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { hp = 100, mp = 50 })
+            local v1 = decode(c, ch, s1)
+            expect(v1.hp):toBe(100)
+            expect(v1.mp):toBe(50)
+
+            local s2 = ch.cursor
+            c.write(ch, { hp = 80, mp = 50 })
+            local v2 = decode(c, ch, s2)
+            expect(v2.hp):toBe(80)
+            expect(v2.mp):toBe(50)
+
+            local s3 = ch.cursor
+            c.write(ch, { hp = 80, mp = 50 })
+            local v3 = decode(c, ch, s3)
+            expect(v3.hp):toBe(80)
+            expect(v3.mp):toBe(50)
+        end)
+        it("removed-key DIFF drops the entry on the read side", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { a = 1, b = 2, c = 3 })
+            decode(c, ch, s1)
+
+            local s2 = ch.cursor
+            c.write(ch, { a = 1, c = 3 })
+            local v2 = decode(c, ch, s2)
+            expect(v2.a):toBe(1)
+            expect(v2.b):toBeNil()
+            expect(v2.c):toBe(3)
+        end)
+        it("added-key DIFF adds the entry on the read side", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { a = 1 })
+            decode(c, ch, s1)
+
+            local s2 = ch.cursor
+            c.write(ch, { a = 1, b = 2 })
+            local v2 = decode(c, ch, s2)
+            expect(v2.a):toBe(1)
+            expect(v2.b):toBe(2)
+        end)
+        it("mixed add/remove/change in one DIFF decodes correctly", function(): ()
+            local c = Lync.deltaMap(Lync.string, Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { a = 1, b = 2, c = 3 })
+            decode(c, ch, s1)
+
+            local s2 = ch.cursor
+            c.write(ch, { a = 99, c = 3, d = 4 })
+            local v2 = decode(c, ch, s2)
+            expect(v2.a):toBe(99)
+            expect(v2.b):toBeNil()
+            expect(v2.c):toBe(3)
+            expect(v2.d):toBe(4)
+        end)
+    end)
+
+    describe("deltaMap maxCount enforcement", function(): ()
+        it("read of an over-limit FULL throws", function(): ()
+            local c = Lync.deltaMap(Lync.int(0, 255), Lync.int(0, 255), 2)
+            local ch = Env.Internal.Channel.create()
+            -- Forge a FULL-flag payload directly with count = 3.
+            local big = Lync.map(Lync.int(0, 255), Lync.int(0, 255))
+            local r = Channel.encode(big, { [1] = 10, [2] = 20, [3] = 30 })
+            local payload = buffer.create(1 + r.length)
+            buffer.writeu8(payload, 0, 1) -- DM_FULL
+            buffer.copy(payload, 1, r.buffer, 0, r.length)
+            expect(function(): ()
+                c.read(payload, 0, nil)
+            end):toThrow("exceeds max")
         end)
     end)
 

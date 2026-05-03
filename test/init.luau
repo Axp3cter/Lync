@@ -16,6 +16,7 @@ require(Test.unit.codec.primitive["Int.spec"])
 require(Test.unit.codec.primitive["Number.spec"])
 require(Test.unit.codec.primitive["Signed.spec"])
 require(Test.unit.codec.primitive["Varint.spec"])
+require(Test.unit.codec.primitive["Zint.spec"])
 
 -- Unit: codec datatypes -------------------------------------------------
 
@@ -48,6 +49,7 @@ require(Test.unit.codec.composite["Tuple.spec"])
 require(Test.unit.codec.meta["Auto.spec"])
 require(Test.unit.codec.meta["Bitfield.spec"])
 require(Test.unit.codec.meta["Custom.spec"])
+require(Test.unit.codec.meta["DeltaScalar.spec"])
 require(Test.unit.codec.meta["Enum.spec"])
 require(Test.unit.codec.meta["Float.spec"])
 require(Test.unit.codec.meta["Nothing.spec"])
@@ -70,6 +72,7 @@ require(Test.unit.util["Constants.spec"])
 require(Test.unit.util["Log.spec"])
 require(Test.unit.util["Player.spec"])
 require(Test.unit.util["Quantize.spec"])
+require(Test.unit.util["Quat.spec"])
 
 -- Unit: transport -------------------------------------------------------
 
@@ -90,6 +93,7 @@ require(Test.unit.api["Signal.spec"])
 -- Integration -----------------------------------------------------------
 
 require(Test.integration["BatchFraming.spec"])
+require(Test.integration["Broadcast.spec"])
 require(Test.integration["DeltaCodecs.spec"])
 require(Test.integration["Init.spec"])
 require(Test.integration["Multiplayer.spec"])

@@ -9,15 +9,38 @@ local Shared = require(script.Parent.Parent.composite.Shared)
 local Types = require(script.Parent.Parent.Parent.Types)
 local Varint = require(script.Parent.Parent.primitive.Varint)
 
+-- Constants --------------------------------------------------------------
+
+-- deltaArray wire flags. Distinct from Shared's struct/map flag spaces.
+local DA_UNCHANGED = 0
+local DA_FULL = 1
+local DA_PATCH = 2
+
 -- Private ----------------------------------------------------------------
 
 local alloc = Base.alloc
 local allocDeltaId = Shared.allocDeltaId
+local acquireScratch = Shared.acquireScratch
+local releaseScratch = Shared.releaseScratch
+local rangeEqual = Shared.rangeEqual
+local copyToBuf = Shared.copyToBuf
 local boolBytes = Shared.boolBytes
 local packBoolArray = Shared.packBoolArray
 local unpackBoolArray = Shared.unpackBoolArray
 local varintRead = Varint.read
 local varintWrite = Varint.write
+local writeu8 = buffer.writeu8
+local readu8 = buffer.readu8
+local bufCopy = buffer.copy
+local bufLen = buffer.len
+
+type DeltaArrayEntry = { eBuf: buffer, eLen: number }
+
+local function ensure(ch: Types.ChannelState, n: number): ()
+    if ch.cursor + n > ch.size then
+        alloc(ch, n)
+    end
+end
 
 -- Bit-packed bool element fast path: 1 bit per entry instead of 1 byte.
 local function makeBoolArray(
@@ -46,7 +69,7 @@ local function makeBoolArray(
 
             local byteCount = boolBytes(len)
             local dataStart = pos + lenBytes
-            if dataStart + byteCount > buffer.len(src) then
+            if dataStart + byteCount > bufLen(src) then
                 Log.error(`payload {byteCount}B exceeds remaining buffer`)
             end
             local result = table.create(len, false)
@@ -101,7 +124,7 @@ local function makeDirectArray(
 
             local payloadBytes = len * elemSize
             local dataStart = pos + lenBytes
-            if payloadBytes > buffer.len(src) - dataStart then
+            if payloadBytes > bufLen(src) - dataStart then
                 Log.error(`payload {payloadBytes}B exceeds remaining buffer`)
             end
 
@@ -179,19 +202,249 @@ function Array.array(element: Types.InternalCodec<any>, maxCount: number?): Type
     if element._hasUnknown then
         codec._hasUnknown = true
     end
+    if element._isDelta or element._hasDelta then
+        codec._hasDelta = true
+    end
     return table.freeze(codec)
 end
 
 --[[
-    UNCHANGED-or-FULL delta. Useful only when contents AND order are stable
-    across frames; for unstable lists, plain array() avoids a 1-byte tax on
-    every frame the byte-equality cache misses.
+    Per-index deltaArray. Wire:
+      [0] UNCHANGED  (1 byte)
+      [1] FULL       <count varint> <element bytes ...>
+      [2] PATCH      <newLen varint> <changeCount varint>
+                     <(idx varint, element bytes) ...>
+
+    Length shrinkage is implicit in newLen — entries past newLen drop from
+    the cached map. Length growth: appended indices show up as changes.
+    Reordered lists tend to mark every index changed; the writer falls back
+    to FULL when changeCount * 2 >= newLen since PATCH index varints eat
+    any savings past that ratio.
 ]]
 function Array.deltaArray(
     element: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
-    return Shared.makeUnchangedOrFullDelta(Array.array(element, maxCount), allocDeltaId(), Baseline)
+    local deltaId = allocDeltaId()
+    local inner = Array.array(element, maxCount)
+
+    --[[
+        Encode each element into `scratch` and capture per-index byte ranges.
+        Returns the array length plus parallel arrays of offset/length so the
+        diff path can compare and emit individual entries without re-encoding.
+    ]]
+    local function encodePerIdx(
+        scratch: Types.ChannelState,
+        value: { any }
+    ): (number, { number }, { number })
+        local len = #value
+        if maxCount and len > maxCount then
+            Log.error(`count {len} exceeds max {maxCount}`)
+        end
+        local off = table.create(len)
+        local elen = table.create(len)
+        for i = 1, len do
+            local before = scratch.cursor
+            element.write(scratch, value[i])
+            off[i] = before
+            elen[i] = scratch.cursor - before
+        end
+        return len, off, elen
+    end
+
+    return table.freeze({
+        _isDelta = true,
+        _isArray = true,
+        _element = element,
+        _maxCount = maxCount,
+
+        write = function(ch: Types.ChannelState, value: { any }): ()
+            if typeof(value) ~= "table" then
+                Log.error(`expected table, got {typeof(value)}`)
+            end
+
+            local cache = ch.deltas[deltaId] :: any
+            local scratch = acquireScratch()
+            local len, off, elen = encodePerIdx(scratch, value)
+            local scratchBuf = scratch.buff
+
+            -- First frame: emit FULL using the per-index scratch bytes.
+            if not cache then
+                ensure(ch, 1)
+                writeu8(ch.buff, ch.cursor, DA_FULL)
+                ch.cursor += 1
+                varintWrite(ch, len)
+                local payloadLen = scratch.cursor
+                if payloadLen > 0 then
+                    ensure(ch, payloadLen)
+                    bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
+                    ch.cursor += payloadLen
+                end
+
+                local perIdx: { [number]: DeltaArrayEntry } = {}
+                for i = 1, len do
+                    local n = elen[i]
+                    perIdx[i] = { eBuf = copyToBuf(nil, scratchBuf, off[i], n), eLen = n }
+                end
+                ch.deltas[deltaId] = { perIdx = perIdx, length = len } :: any
+                releaseScratch()
+                return
+            end
+
+            local cachedPerIdx = cache.perIdx :: { [number]: DeltaArrayEntry }
+            local cachedLen = cache.length :: number
+
+            -- Find changed indices in the overlap; appended indices count as changed.
+            local changed: { number } = {}
+            local changedCount = 0
+            local overlap = if len < cachedLen then len else cachedLen
+            for i = 1, overlap do
+                local entry = cachedPerIdx[i]
+                local n = elen[i]
+                if
+                    not entry
+                    or n ~= entry.eLen
+                    or not rangeEqual(scratchBuf, off[i], entry.eBuf, 0, n)
+                then
+                    changedCount += 1
+                    changed[changedCount] = i
+                end
+            end
+            for i = overlap + 1, len do
+                changedCount += 1
+                changed[changedCount] = i
+            end
+
+            if changedCount == 0 and len == cachedLen then
+                ensure(ch, 1)
+                writeu8(ch.buff, ch.cursor, DA_UNCHANGED)
+                ch.cursor += 1
+                releaseScratch()
+                return
+            end
+
+            -- PATCH cost vs FULL: every changed index pays an index varint.
+            -- When index headers approach the count cost, FULL wins outright.
+            if changedCount * 2 >= len then
+                ensure(ch, 1)
+                writeu8(ch.buff, ch.cursor, DA_FULL)
+                ch.cursor += 1
+                varintWrite(ch, len)
+                local payloadLen = scratch.cursor
+                if payloadLen > 0 then
+                    ensure(ch, payloadLen)
+                    bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
+                    ch.cursor += payloadLen
+                end
+            else
+                ensure(ch, 1)
+                writeu8(ch.buff, ch.cursor, DA_PATCH)
+                ch.cursor += 1
+                varintWrite(ch, len)
+                varintWrite(ch, changedCount)
+                for i = 1, changedCount do
+                    local idx = changed[i]
+                    varintWrite(ch, idx)
+                    local n = elen[idx]
+                    if n > 0 then
+                        ensure(ch, n)
+                        bufCopy(ch.buff, ch.cursor, scratchBuf, off[idx], n)
+                        ch.cursor += n
+                    end
+                end
+            end
+
+            -- Update cache: refresh changed (and appended), drop truncated.
+            for i = 1, changedCount do
+                local idx = changed[i]
+                local n = elen[idx]
+                local entry = cachedPerIdx[idx]
+                if entry then
+                    entry.eBuf = copyToBuf(entry.eBuf, scratchBuf, off[idx], n)
+                    entry.eLen = n
+                else
+                    cachedPerIdx[idx] = { eBuf = copyToBuf(nil, scratchBuf, off[idx], n), eLen = n }
+                end
+            end
+            for i = len + 1, cachedLen do
+                cachedPerIdx[i] = nil
+            end
+            cache.length = len
+
+            releaseScratch()
+        end,
+
+        read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
+            if pos >= bufLen(src) then
+                Log.error("truncated deltaArray header")
+            end
+            local flag = readu8(src, pos)
+
+            if flag == DA_UNCHANGED then
+                local cached = Baseline.getCache(deltaId)
+                if cached == nil then
+                    Log.error("UNCHANGED flag before any FULL frame; baseline missing")
+                end
+                return cached, 1
+            end
+
+            if flag == DA_FULL then
+                local value, consumed = inner.read(src, pos + 1, refs)
+                Baseline.setCache(deltaId, value)
+                return value, 1 + consumed
+            end
+
+            if flag == DA_PATCH then
+                local cached = Baseline.getCache(deltaId)
+                if cached == nil then
+                    Log.error("deltaArray PATCH before any FULL frame; baseline missing")
+                end
+                --[[
+                    Capture the cached length BEFORE clone+mutate; #result
+                    becomes unreliable once we set entries at appended indices
+                    past the original boundary.
+                ]]
+                local cachedLen = #cached
+                local result: { any } = table.clone(cached)
+                local total = 1
+
+                local newLen, lLen = varintRead(src, pos + total)
+                if lLen == 0 then
+                    Log.error("truncated deltaArray length")
+                end
+                total += lLen
+
+                local changeCount, cLen = varintRead(src, pos + total)
+                if cLen == 0 then
+                    Log.error("truncated deltaArray change count")
+                end
+                total += cLen
+
+                for _ = 1, changeCount do
+                    local idx, iLen = varintRead(src, pos + total)
+                    if iLen == 0 then
+                        Log.error("truncated deltaArray index")
+                    end
+                    total += iLen
+                    local v, vc = element.read(src, pos + total, refs)
+                    if vc == 0 then
+                        Log.error("truncated deltaArray element")
+                    end
+                    total += vc
+                    result[idx] = v
+                end
+
+                for i = newLen + 1, cachedLen do
+                    result[i] = nil
+                end
+
+                Baseline.setCache(deltaId, result)
+                return result, total
+            end
+
+            Log.error(`invalid deltaArray flag {flag}`)
+        end,
+    }) :: Types.InternalCodec<any>
 end
 
 return table.freeze(Array)

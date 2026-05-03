@@ -72,6 +72,46 @@ describe("transport.Reader", function(): ()
         end)
     end)
 
+    describe("zero-size codec dispatch (Lync.nothing)", function(): ()
+        --[[
+            Lync.nothing has _size = 0 and reads 0 bytes. The per-iter checks
+            `pos >= incomingLen` and `consumed == 0` would falsely abort here
+            without the isZeroSize gate.
+        ]]
+        it("single Lync.nothing packet decodes without aborting", function(): ()
+            local _, received = definePacket("r_nothing_single", Lync.nothing)
+            local reg = Registry.getByName("r_nothing_single")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, nil)
+            sealAndProcess(ch)
+            expect(#received):toBe(1)
+            expect(received[1].value):toBeNil()
+        end)
+        it("multiple Lync.nothing packets in a batch all dispatch", function(): ()
+            local _, received = definePacket("r_nothing_multi", Lync.nothing)
+            local reg = Registry.getByName("r_nothing_multi")
+            local ch = Channel.create()
+            for _ = 1, 5 do
+                Channel.writeBatch(ch, reg, nil)
+            end
+            sealAndProcess(ch)
+            expect(#received):toBe(5)
+        end)
+        it("Lync.nothing followed by a u8 packet both decode", function(): ()
+            local _, recvNothing = definePacket("r_nothing_then_u8_n", Lync.nothing)
+            local _, recvInt = definePacket("r_nothing_then_u8_i", Lync.int(0, 255))
+            local regN = Registry.getByName("r_nothing_then_u8_n")
+            local regI = Registry.getByName("r_nothing_then_u8_i")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, regN, nil)
+            Channel.writeBatch(ch, regI, 42)
+            sealAndProcess(ch)
+            expect(#recvNothing):toBe(1)
+            expect(#recvInt):toBe(1)
+            expect(recvInt[1].value):toBe(42)
+        end)
+    end)
+
     describe("multi-mode batching", function(): ()
         it("2 fires of u8 decode in order", function(): ()
             local reg, received = definePacket("r_multi_2", Lync.int(0, 255))

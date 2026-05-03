@@ -265,11 +265,57 @@ interface LyncModule {
     // ── Number codecs ───────────────────────────────────────────────────
 
     int(this: void, min: number, max: number): Lync.Codec<number>;
+    /**
+     * Variable-length signed int via zigzag varint. 1 byte for values in
+     * [-96, 95]; up to 5 bytes for full i32. Optional bounds gate input.
+     */
+    zint(this: void, min?: number, max?: number): Lync.Codec<number>;
     float(this: void, min: number, max: number, precision: number): Lync.Codec<number>;
     readonly f16: Lync.Codec<number>;
     readonly f32: Lync.Codec<number>;
     readonly f64: Lync.Codec<number>;
     readonly bool: Lync.Codec<boolean>;
+
+    // ── Delta scalars (reliable transport only) ─────────────────────────
+
+    /**
+     * Integer that emits zigzag varint of (current - previous). Reliable
+     * transport only; a dropped frame desyncs the receiver. Best for ints
+     * mutating slowly across a wide range (saves vs fixed u16/u24/u32).
+     */
+    deltaInt(this: void, min: number, max: number): Lync.Codec<number>;
+    /**
+     * Quantized float with per-frame diff in integer wire space (no drift).
+     * Same wire-size profile as deltaInt. Reliable transport only.
+     */
+    deltaFloat(
+        this: void,
+        min: number,
+        max: number,
+        precision: number,
+    ): Lync.Codec<number>;
+    /**
+     * Quantized Vector3 with per-axis zigzag varint diffs. ~3 bytes for
+     * unchanged, 3-15 bytes for typical motion vs 12 bytes baseline.
+     * Reliable transport only.
+     */
+    deltaVec3(
+        this: void,
+        min: number,
+        max: number,
+        precision: number,
+    ): Lync.Codec<Vector3>;
+    /**
+     * Quantized position + smallest-three quaternion rotation. 1 byte for
+     * fully static; 4-7 bytes for position-only motion; up to 13 bytes
+     * for full pose changes vs 24 bytes baseline. Reliable transport only.
+     */
+    deltaCFrame(
+        this: void,
+        posMin: number,
+        posMax: number,
+        posPrecision: number,
+    ): Lync.Codec<CFrame>;
 
     // ── String & buffer ─────────────────────────────────────────────────
 

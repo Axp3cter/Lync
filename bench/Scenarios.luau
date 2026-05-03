@@ -39,10 +39,13 @@ local stateSchema = {
 
 local entityCodec = Lync.struct(entitySchema)
 local entityArray = Lync.array(entityCodec)
+local entityDeltaArray = Lync.deltaArray(entityCodec)
 local boolArray = Lync.array(Lync.bool)
 local cframeArray = Lync.array(Lync.cframe())
 local stateCodec = Lync.struct(stateSchema)
 local stateDelta = Lync.deltaStruct(stateSchema)
+local positionMap = Lync.map(Lync.int(0, 1023), Lync.vec3)
+local positionDeltaMap = Lync.deltaMap(Lync.int(0, 1023), Lync.vec3)
 
 -- Generators -------------------------------------------------------------
 
@@ -242,6 +245,14 @@ local wireCases = table.freeze({
         }),
         value = { a = true, b = false, c = true, d = false, tier = 7, level = 99 },
     },
+    -- zint and delta scalars are stateful for the delta variants; the
+    -- single-value wire size below is the FIRST-frame size.
+    { label = "zint(0)", codec = Lync.zint(), value = 0 },
+    { label = "zint(95)", codec = Lync.zint(), value = 95 },
+    { label = "zint(-96)", codec = Lync.zint(), value = -96 },
+    { label = "zint(1000)", codec = Lync.zint(), value = 1000 },
+    { label = "zint(-1000)", codec = Lync.zint(), value = -1000 },
+    { label = "zint(i32_max)", codec = Lync.zint(), value = 0x7FFFFFFF },
 })
 
 -- Delta wire-size catalogue ----------------------------------------------
@@ -258,9 +269,67 @@ stateMultiMut.velY = 5
 stateMultiMut.velZ = 6
 
 local deltaCases = table.freeze({
-    { label = "delta unchanged", seed = stateBase, value = stateBase },
-    { label = "delta 1-field-mut", seed = stateBase, value = stateOneMut },
-    { label = "delta 6-fields-mut", seed = stateBase, value = stateMultiMut },
+    { label = "deltaStruct unchanged", codec = stateDelta, seed = stateBase, value = stateBase },
+    {
+        label = "deltaStruct 1-field-mut",
+        codec = stateDelta,
+        seed = stateBase,
+        value = stateOneMut,
+    },
+    {
+        label = "deltaStruct 6-fields-mut",
+        codec = stateDelta,
+        seed = stateBase,
+        value = stateMultiMut,
+    },
+    {
+        label = "deltaInt unchanged",
+        codec = Lync.deltaInt(0, 1000000),
+        seed = 12345,
+        value = 12345,
+    },
+    {
+        label = "deltaInt small-mut(+1)",
+        codec = Lync.deltaInt(0, 1000000),
+        seed = 12345,
+        value = 12346,
+    },
+    {
+        label = "deltaInt large-mut",
+        codec = Lync.deltaInt(0, 1000000),
+        seed = 12345,
+        value = 999999,
+    },
+    {
+        label = "deltaVec3 unchanged",
+        codec = Lync.deltaVec3(-1000, 1000, 0.01),
+        seed = Vector3.new(50, 60, 70),
+        value = Vector3.new(50, 60, 70),
+    },
+    {
+        label = "deltaVec3 small-mut(+0.1 stud)",
+        codec = Lync.deltaVec3(-1000, 1000, 0.01),
+        seed = Vector3.new(50, 60, 70),
+        value = Vector3.new(50.1, 60.1, 70.1),
+    },
+    {
+        label = "deltaCFrame static",
+        codec = Lync.deltaCFrame(-1000, 1000, 0.01),
+        seed = CFrame.new(10, 20, 30),
+        value = CFrame.new(10, 20, 30),
+    },
+    {
+        label = "deltaCFrame pos-only",
+        codec = Lync.deltaCFrame(-1000, 1000, 0.01),
+        seed = CFrame.new(10, 20, 30),
+        value = CFrame.new(10.5, 20, 30),
+    },
+    {
+        label = "deltaCFrame full pose",
+        codec = Lync.deltaCFrame(-1000, 1000, 0.01),
+        seed = CFrame.new(10, 20, 30),
+        value = CFrame.new(11, 21, 31) * CFrame.Angles(1, 0, 0),
+    },
 })
 
 -- Round-trip catalogue (CPU only) ----------------------------------------
@@ -326,9 +395,79 @@ local blinkCases: { NetCase } = table.freeze({
 })
 
 --[[
+    Pool builders for the new delta workloads. Each returns a frozen list
+    of POOL_SIZE values forming a realistic mutation stream so the bench
+    measures steady-state cache behavior, not first-frame FULL cost.
+]]
+local function poolEntityArrSparseMut(): { { any } }
+    -- Stable array shape; 3 random indices flip per frame to exercise PATCH.
+    local current = entityArr(ENT_COUNT)
+    local p = table.create(POOL_SIZE)
+    p[1] = table.clone(current)
+    for frame = 2, POOL_SIZE do
+        for _ = 1, 3 do
+            local idx = rng:NextInteger(1, ENT_COUNT)
+            current[idx] = entity()
+        end
+        p[frame] = table.clone(current)
+    end
+    return table.freeze(p) :: { { any } }
+end
+
+local function poolPositionMap(): { { [number]: Vector3 } }
+    -- 200-entry map; ~5 keys mutate per frame to exercise DIFF.
+    local current: { [number]: Vector3 } = {}
+    for i = 1, 200 do
+        current[i] = Vector3.new(rng:NextNumber(-100, 100), 0, rng:NextNumber(-100, 100))
+    end
+    local p = table.create(POOL_SIZE)
+    p[1] = table.clone(current)
+    for frame = 2, POOL_SIZE do
+        for _ = 1, 5 do
+            local k = rng:NextInteger(1, 200)
+            current[k] = Vector3.new(rng:NextNumber(-100, 100), 0, rng:NextNumber(-100, 100))
+        end
+        p[frame] = table.clone(current)
+    end
+    return table.freeze(p) :: { { [number]: Vector3 } }
+end
+
+local function poolPositionStream(): { Vector3 }
+    -- Continuous motion: + ~0.5 stud per axis per frame. Hot path for deltaVec3.
+    local current = Vector3.new(0, 0, 0)
+    local p = table.create(POOL_SIZE)
+    for frame = 1, POOL_SIZE do
+        p[frame] = current
+        current = current
+            + Vector3.new(
+                rng:NextNumber(-0.5, 0.5),
+                rng:NextNumber(-0.5, 0.5),
+                rng:NextNumber(-0.5, 0.5)
+            )
+    end
+    return table.freeze(p) :: { Vector3 }
+end
+
+local function poolCFrameStream(): { CFrame }
+    -- Walking-character pose: position drifts, rotation slowly turns.
+    local pos = Vector3.new(0, 0, 0)
+    local yaw = 0
+    local p = table.create(POOL_SIZE)
+    for frame = 1, POOL_SIZE do
+        p[frame] = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
+        pos = pos + Vector3.new(rng:NextNumber(-0.3, 0.3), 0, rng:NextNumber(-0.3, 0.3))
+        yaw = yaw + rng:NextNumber(-0.05, 0.05)
+    end
+    return table.freeze(p) :: { CFrame }
+end
+
+local positionsCodec = Lync.deltaVec3(-1000, 1000, 0.01)
+local cframeStreamCodec = Lync.deltaCFrame(-1000, 1000, 0.01)
+
+--[[
     Extended workloads at 100 fires/frame. Pairs vary/stable cases on the
     same codec to expose XOR + delta savings: vary = worst case, stable =
-    same array reused so XOR collapses, delta = single field flipping.
+    same array reused so XOR collapses, delta = sparse mutations.
 ]]
 local extendedCases: { NetCase } = table.freeze({
     defCase(
@@ -345,6 +484,7 @@ local extendedCases: { NetCase } = table.freeze({
             return entityArr(ENT_COUNT)
         end)
     ),
+    defCase("entity_deltaArr_100__3mut", entityDeltaArray, poolEntityArrSparseMut()),
     defCase(
         "bool_arr_1000__vary",
         boolArray,
@@ -362,6 +502,10 @@ local extendedCases: { NetCase } = table.freeze({
     ),
     defCase("state_full__vary", stateCodec, poolVarying(stateOne)),
     defCase("state_delta__1mut", stateDelta, poolStateOneMut()),
+    defCase("position_map_200__5mut", positionMap, poolPositionMap()),
+    defCase("position_deltaMap_200__5mut", positionDeltaMap, poolPositionMap()),
+    defCase("vec3_walking_motion", positionsCodec, poolPositionStream()),
+    defCase("cframe_walking_pose", cframeStreamCodec, poolCFrameStream()),
 })
 
 -- Handshake --------------------------------------------------------------

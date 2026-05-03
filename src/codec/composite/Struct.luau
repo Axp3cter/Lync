@@ -55,6 +55,7 @@ local packBools = Shared.packBools
 local unpackBools = Shared.unpackBools
 local rangeEqual = Shared.rangeEqual
 local snapshot = Shared.snapshot
+local refreshCache = Shared.refreshCache
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
 local allocDeltaId = Shared.allocDeltaId
@@ -89,13 +90,17 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
     local boolCount = #boolKeys
     local boolBytes = Shared.boolBytes(boolCount)
 
-    -- Single pass: detect all-direct fast-write path + propagate _hasUnknown.
+    -- Single pass: detect all-direct fast-write path + propagate _hasUnknown / _hasDelta.
     local allDirect, fixedSize = true, 0
     local hasUnknown = false
+    local hasDelta = false
     for i = 1, dataCount do
         local c = dataCodecs[i]
         if c._hasUnknown then
             hasUnknown = true
+        end
+        if c._isDelta or c._hasDelta then
+            hasDelta = true
         end
         if allDirect then
             if c._size and c._directWrite and c._directRead then
@@ -194,6 +199,9 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
         if hasUnknown then
             codec._hasUnknown = true
         end
+        if hasDelta then
+            codec._hasDelta = true
+        end
         return table.freeze(codec)
     end
 
@@ -225,6 +233,9 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
     }
     if hasUnknown then
         codec._hasUnknown = true
+    end
+    if hasDelta then
+        codec._hasDelta = true
     end
     return table.freeze(codec)
 end
@@ -421,8 +432,7 @@ function Struct.deltaStruct(
                 end
             end
 
-            cache.raw = snapshot(scratch.buff, scratchLen)
-            cache.len = scratchLen;
+            refreshCache(cache, scratch.buff, scratchLen);
             (cache :: any).segOff = segOff;
             (cache :: any).segLen = segLen
             releaseScratch()

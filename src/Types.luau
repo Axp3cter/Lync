@@ -12,15 +12,16 @@ export type ChannelState = {
     itemCount: number,
     singleMode: boolean,
     singlePos: number,
-    deltas: { [number]: DeltaCacheEntry },
+    --[[
+        Per-codec write-side delta state, keyed by deltaId. Shape is opaque
+        and codec-internal: deltaStruct stores `{raw, len, segOff, segLen}`,
+        deltaArray stores `{perIdx, length}`, deltaMap stores `{perKey}`,
+        delta scalars store quantized previous values.
+    ]]
+    deltas: { [number]: any },
     prevDump: buffer?,
     prevDumpLen: number,
     currentPacket: string?,
-}
-
-export type DeltaCacheEntry = {
-    raw: buffer,
-    len: number,
 }
 
 export type Codec<T> = {
@@ -39,6 +40,11 @@ export type InternalCodec<T> = {
     _directWrite: ((b: buffer, offset: number, value: T) -> ())?,
     _directRead: ((b: buffer, offset: number) -> T)?,
     _isDelta: boolean?,
+    --[[
+        True if any nested codec is delta. Lets the broadcast hot path skip
+        encode-once when delta state would diverge per-receiver.
+    ]]
+    _hasDelta: boolean?,
     _isBool: boolean?,
     _hasUnknown: boolean?,
     _min: number?,

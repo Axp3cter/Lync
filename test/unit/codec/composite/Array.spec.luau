@@ -139,27 +139,177 @@ describe("codec.composite.Array", function(): ()
         end)
     end)
 
-    describe("deltaArray", function(): ()
+    describe("deltaArray metadata", function(): ()
         it("flags _isDelta", function(): ()
             expect((Lync.deltaArray(Lync.int(0, 255)) :: any)._isDelta):toBe(true)
         end)
-        it("identical = 1 byte", function(): ()
+        it("flags _isArray", function(): ()
+            expect((Lync.deltaArray(Lync.int(0, 255)) :: any)._isArray):toBe(true)
+        end)
+        it("records element codec and maxCount", function(): ()
+            local elem = Lync.int(0, 255)
+            local c = Lync.deltaArray(elem, 50) :: any
+            expect(c._element):toBe(elem)
+            expect(c._maxCount):toBe(50)
+        end)
+    end)
+
+    describe("deltaArray UNCHANGED", function(): ()
+        local function newCh(): any
+            return Env.Internal.Channel.create()
+        end
+
+        it("identical second write = 1 byte", function(): ()
             local c = Lync.deltaArray(Lync.int(0, 255))
-            local InternalChannel = Env.Internal.Channel
-            local ch = InternalChannel.create()
+            local ch = newCh()
             c.write(ch, { 10, 20, 30 })
             ch.cursor = 0
             c.write(ch, { 10, 20, 30 })
             expect(ch.cursor):toBe(1)
         end)
-        it("changed > 1 byte", function(): ()
+        it("identical empty arrays = 1 byte each frame", function(): ()
             local c = Lync.deltaArray(Lync.int(0, 255))
-            local InternalChannel = Env.Internal.Channel
-            local ch = InternalChannel.create()
+            local ch = newCh()
+            c.write(ch, {})
+            ch.cursor = 0
+            c.write(ch, {})
+            expect(ch.cursor):toBe(1)
+        end)
+        it("repeated identical writes stay at 1 byte", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 65535))
+            local ch = newCh()
+            c.write(ch, { 1, 2, 3, 4, 5 })
+            for _ = 1, 10 do
+                ch.cursor = 0
+                c.write(ch, { 1, 2, 3, 4, 5 })
+                expect(ch.cursor):toBe(1)
+            end
+        end)
+    end)
+
+    describe("deltaArray PATCH", function(): ()
+        local function newCh(): any
+            return Env.Internal.Channel.create()
+        end
+
+        it("single mid-array change uses PATCH (saves vs FULL)", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255), nil)
+            local ch = newCh()
+            c.write(ch, { 10, 20, 30, 40, 50 })
+            ch.cursor = 0
+            c.write(ch, { 10, 20, 99, 40, 50 })
+            -- PATCH: 1 flag + 1 (newLen=5) + 1 (changeCount=1) + 1 (idx=3) + 1 (val=99) = 5
+            -- FULL would be: 1 flag + 1 (count=5) + 5 elems = 7
+            expect(ch.cursor):toBe(5)
+        end)
+        it("appended index emits as a change", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = newCh()
+            c.write(ch, { 10, 20 })
+            ch.cursor = 0
+            c.write(ch, { 10, 20, 30 })
+            -- PATCH: 1 + 1 (newLen=3) + 1 (changeCount=1) + 1 (idx=3) + 1 (val=30) = 5
+            expect(ch.cursor):toBe(5)
+        end)
+        it("truncated array emits PATCH with 0 changes", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = newCh()
             c.write(ch, { 10, 20, 30 })
             ch.cursor = 0
-            c.write(ch, { 10, 99, 30 })
-            expect(ch.cursor):toBeGreaterThan(1)
+            c.write(ch, { 10, 20 })
+            -- PATCH: 1 + 1 (newLen=2) + 1 (changeCount=0) = 3
+            expect(ch.cursor):toBe(3)
+        end)
+    end)
+
+    describe("deltaArray FULL fallback", function(): ()
+        local function newCh(): any
+            return Env.Internal.Channel.create()
+        end
+
+        it("changing every element falls back to FULL", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = newCh()
+            c.write(ch, { 1, 2, 3, 4 })
+            ch.cursor = 0
+            c.write(ch, { 11, 22, 33, 44 })
+            -- changeCount=4, len=4, 4*2 >= 4 → FULL.
+            -- FULL: 1 flag + 1 (count=4) + 4 elems = 6
+            expect(ch.cursor):toBe(6)
+        end)
+        it("first frame emits FULL", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = newCh()
+            c.write(ch, { 10, 20, 30 })
+            -- FULL: 1 flag + 1 count + 3 elems = 5
+            expect(ch.cursor):toBe(5)
+        end)
+    end)
+
+    describe("deltaArray round-trip via Baseline", function(): ()
+        local Baseline = Env.Internal.Baseline
+        local function decode(c: any, ch: any, startCursor: number): any
+            local payload = buffer.create(ch.cursor - startCursor)
+            buffer.copy(payload, 0, ch.buff, startCursor, ch.cursor - startCursor)
+            local v = c.read(payload, 0, nil)
+            return v
+        end
+
+        it("FULL → PATCH → UNCHANGED sequence decodes to correct arrays", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { 1, 2, 3 })
+            local v1 = decode(c, ch, s1)
+            expect(v1[1]):toBe(1)
+            expect(v1[2]):toBe(2)
+            expect(v1[3]):toBe(3)
+
+            local s2 = ch.cursor
+            c.write(ch, { 1, 99, 3 })
+            local v2 = decode(c, ch, s2)
+            expect(v2[1]):toBe(1)
+            expect(v2[2]):toBe(99)
+            expect(v2[3]):toBe(3)
+
+            local s3 = ch.cursor
+            c.write(ch, { 1, 99, 3 })
+            local v3 = decode(c, ch, s3)
+            expect(v3[1]):toBe(1)
+            expect(v3[2]):toBe(99)
+            expect(v3[3]):toBe(3)
+        end)
+        it("array growth then truncation decodes correctly", function(): ()
+            Baseline.reset()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+
+            local s1 = ch.cursor
+            c.write(ch, { 1, 2 })
+            decode(c, ch, s1)
+
+            local s2 = ch.cursor
+            c.write(ch, { 1, 2, 3, 4 })
+            local v2 = decode(c, ch, s2)
+            expect(#v2):toBe(4)
+            expect(v2[3]):toBe(3)
+            expect(v2[4]):toBe(4)
+
+            local s3 = ch.cursor
+            c.write(ch, { 1, 2 })
+            local v3 = decode(c, ch, s3)
+            expect(#v3):toBe(2)
+        end)
+    end)
+
+    describe("deltaArray maxCount enforcement", function(): ()
+        it("write rejects oversized arrays", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255), 3)
+            local ch = Env.Internal.Channel.create()
+            expect(function(): ()
+                c.write(ch, { 1, 2, 3, 4 })
+            end):toThrow("exceeds max")
         end)
     end)
 end)

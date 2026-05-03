@@ -37,6 +37,7 @@ function Tagged.define(
     local nameToTag: { [string]: number } = {}
     local tagToCodec = table.create(variantCount)
     local hasUnknown = false
+    local hasDelta = false
 
     for i = 1, variantCount do
         local name = names[i]
@@ -45,6 +46,9 @@ function Tagged.define(
         tagToCodec[i] = codec
         if codec._hasUnknown then
             hasUnknown = true
+        end
+        if codec._isDelta or codec._hasDelta then
+            hasDelta = true
         end
     end
 
@@ -88,6 +92,9 @@ function Tagged.define(
     }
     if hasUnknown then
         codec._hasUnknown = true
+    end
+    if hasDelta then
+        codec._hasDelta = true
     end
     return table.freeze(codec)
 end

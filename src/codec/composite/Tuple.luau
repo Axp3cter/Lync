@@ -19,12 +19,16 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
     local count = #codecs
     Log.assert(count > 0, "requires at least one codec")
 
-    -- Single pass: detect all-direct fast path + propagate _hasUnknown.
+    -- Single pass: detect all-direct fast path + propagate _hasUnknown / _hasDelta.
     local allDirect, totalSize, hasUnknown = true, 0, false
+    local hasDelta = false
     for i = 1, count do
         local c = codecs[i]
         if c._hasUnknown then
             hasUnknown = true
+        end
+        if c._isDelta or c._hasDelta then
+            hasDelta = true
         end
         if allDirect then
             if c._size and c._directWrite and c._directRead then
@@ -96,6 +100,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
         if hasUnknown then
             codec._hasUnknown = true
         end
+        if hasDelta then
+            codec._hasDelta = true
+        end
         return table.freeze(codec)
     end
 
@@ -125,6 +132,9 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
     }
     if hasUnknown then
         codec._hasUnknown = true
+    end
+    if hasDelta then
+        codec._hasDelta = true
     end
     return table.freeze(codec)
 end

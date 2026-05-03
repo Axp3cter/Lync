@@ -44,6 +44,9 @@ function Optional.optional(inner: Types.InternalCodec<any>): Types.InternalCodec
     if inner._hasUnknown then
         codec._hasUnknown = true
     end
+    if inner._isDelta or inner._hasDelta then
+        codec._hasDelta = true
+    end
     return table.freeze(codec)
 end
 

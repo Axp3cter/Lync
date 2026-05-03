@@ -101,6 +101,32 @@ local function upgradeSingleToMulti(ch: Types.ChannelState, regId: number, heade
 end
 
 --[[
+    Open a new batch or upgrade single->multi for the same packet id. Shared
+    by writeBatch and writeBatchEncoded so both stat variants stay in sync
+    without four copies of the open/upgrade dance.
+]]
+local function openOrUpgrade(ch: Types.ChannelState, reg: Types.Registration): ()
+    if reg.id ~= ch.lastId or ch.itemCount >= MAX_BATCH_ITEMS then
+        reg._openFn(ch, reg.id)
+    elseif ch.singleMode then
+        upgradeSingleToMulti(ch, reg.id, reg.headerSize)
+    end
+    ch.itemCount += 1
+end
+
+local function spliceEncoded(ch: Types.ChannelState, payload: buffer, payloadLen: number): ()
+    if payloadLen == 0 then
+        return
+    end
+    local cursor = ch.cursor
+    if cursor + payloadLen > ch.size then
+        alloc(ch, payloadLen)
+    end
+    bufCopy(ch.buff, cursor, payload, 0, payloadLen)
+    ch.cursor = cursor + payloadLen
+end
+
+--[[
     Two writeBatch implementations, swapped at startup by enableStats(). For
     high-rate channels this saves ~1 register read + 1 compare + 1 jump per
     item versus branching on `_statsEnabled` inside the loop.
@@ -109,25 +135,43 @@ local writeBatchPlain: (Types.ChannelState, Types.Registration, any) -> ()
 local writeBatchStats: (Types.ChannelState, Types.Registration, any) -> ()
 
 writeBatchPlain = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
-    if reg.id ~= ch.lastId or ch.itemCount >= MAX_BATCH_ITEMS then
-        reg._openFn(ch, reg.id)
-    elseif ch.singleMode then
-        upgradeSingleToMulti(ch, reg.id, reg.headerSize)
-    end
-    ch.itemCount += 1
+    openOrUpgrade(ch, reg)
     reg.codec.write(ch, data)
 end
 
 writeBatchStats = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
-    if reg.id ~= ch.lastId or ch.itemCount >= MAX_BATCH_ITEMS then
-        reg._openFn(ch, reg.id)
-    elseif ch.singleMode then
-        upgradeSingleToMulti(ch, reg.id, reg.headerSize)
-    end
-    ch.itemCount += 1
+    openOrUpgrade(ch, reg)
     local before = ch.cursor
     reg.codec.write(ch, data)
     reg.bytesSent += ch.cursor - before
+end
+
+--[[
+    Splice a pre-encoded payload into the channel. Used by Packet.broadcast
+    to encode the codec output once per fanout instead of N times.
+]]
+local writeBatchEncodedPlain: (Types.ChannelState, Types.Registration, buffer, number) -> ()
+local writeBatchEncodedStats: (Types.ChannelState, Types.Registration, buffer, number) -> ()
+
+writeBatchEncodedPlain = function(
+    ch: Types.ChannelState,
+    reg: Types.Registration,
+    payload: buffer,
+    payloadLen: number
+): ()
+    openOrUpgrade(ch, reg)
+    spliceEncoded(ch, payload, payloadLen)
+end
+
+writeBatchEncodedStats = function(
+    ch: Types.ChannelState,
+    reg: Types.Registration,
+    payload: buffer,
+    payloadLen: number
+): ()
+    openOrUpgrade(ch, reg)
+    spliceEncoded(ch, payload, payloadLen)
+    reg.bytesSent += payloadLen
 end
 
 -- Public -----------------------------------------------------------------
@@ -252,6 +296,7 @@ function Channel.resolveOpenFn(
 end
 
 Channel.writeBatch = writeBatchPlain
+Channel.writeBatchEncoded = writeBatchEncodedPlain
 
 --[[
     Every caller (Server.flushReliable / flushUnreliable, Client.flush)
@@ -335,6 +380,7 @@ end
 function Channel.enableStats(): ()
     _statsEnabled = true
     Channel.writeBatch = writeBatchStats
+    Channel.writeBatchEncoded = writeBatchEncodedStats
 end
 
 function Channel.statsEnabled(): boolean
@@ -350,6 +396,7 @@ function Channel.resetGlobals(): ()
     _offsetMs = 0
     _clock = 0.0
     Channel.writeBatch = writeBatchPlain
+    Channel.writeBatchEncoded = writeBatchEncodedPlain
 end
 
 return Channel

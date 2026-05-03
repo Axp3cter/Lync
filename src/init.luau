@@ -27,6 +27,7 @@ local BufferC = require(script.codec.datatype.Buffer)
 local CFrameC = require(script.codec.datatype.CFrame)
 local ColorC = require(script.codec.datatype.Color)
 local CustomC = require(script.codec.meta.Custom)
+local DeltaScalarC = require(script.codec.meta.DeltaScalar)
 local EnumC = require(script.codec.meta.Enum)
 local Float16C = require(script.codec.primitive.Float16)
 local FloatC = require(script.codec.meta.Float)
@@ -49,6 +50,7 @@ local TupleC = require(script.codec.composite.Tuple)
 local UDimC = require(script.codec.datatype.UDim)
 local UnknownC = require(script.codec.meta.Unknown)
 local VectorC = require(script.codec.datatype.Vector)
+local ZintC = require(script.codec.primitive.Zint)
 
 -- Public types -----------------------------------------------------------
 
@@ -313,7 +315,12 @@ Lync.debug = table.freeze({
 })
 
 Lync.int = IntC.int
+Lync.zint = ZintC.zint
 Lync.float = FloatC.float
+Lync.deltaInt = DeltaScalarC.deltaInt
+Lync.deltaFloat = DeltaScalarC.deltaFloat
+Lync.deltaVec3 = DeltaScalarC.deltaVec3
+Lync.deltaCFrame = DeltaScalarC.deltaCFrame
 Lync.f16 = Float16C.f16
 Lync.f32 = NumberC.f32
 Lync.f64 = NumberC.f64

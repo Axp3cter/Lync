@@ -11,6 +11,7 @@ local Log = require(script.Parent.Parent.util.Log)
 local Middleware = require(script.Parent.Parent.internal.Middleware)
 local Player = require(script.Parent.Parent.util.Player)
 local Registry = require(script.Parent.Parent.internal.Registry)
+local Shared = require(script.Parent.Parent.codec.composite.Shared)
 local Transport = require(script.Parent.Parent.internal.Transport)
 local Types = require(script.Parent.Parent.Types)
 
@@ -129,12 +130,101 @@ function Packet.define<T>(
         return false, sendData
     end
 
-    -- Caller has already run send middleware once for the broadcast.
+    --[[
+        Encode-once fanout. For non-delta codecs the wire bytes are stateless
+        (same input -> same bytes), so we encode into a scratch channel once
+        and bufCopy the payload into each player's channel. Falls through to
+        the per-player path when the encode emitted Instance refs — renumbering
+        refs across channels needs per-ref offset tracking that no codec
+        exposes today.
+
+        Channel.writeBatchEncoded is hot-swapped at startup by enableStats,
+        so it MUST be re-read per call — capturing at packet-define time
+        would leave broadcast on the plain variant after a stats flip.
+    ]]
+    local canEncodeOnce = not codec._isDelta and not codec._hasDelta
+
     local function broadcast(players: { Player }, data: any): ()
-        for _, p in players do
-            sendToPlayer(p, data)
+        local count = #players
+        if count == 0 then
+            bumpFires()
+            return
+        end
+
+        if canEncodeOnce then
+            local scratch = Shared.acquireScratch()
+            codec.write(scratch, data)
+            if scratch.refCount == 0 then
+                local payload = scratch.buff
+                local payloadLen = scratch.cursor
+                local server = Transport.server()
+                local writeBatchEncoded = Channel.writeBatchEncoded
+                for i = 1, count do
+                    local ch = server.getChannel(players[i], isUnreliable)
+                    writeBatchEncoded(ch, reg, payload, payloadLen)
+                end
+                Shared.releaseScratch()
+                bumpFires()
+                return
+            end
+            Shared.releaseScratch()
+        end
+
+        for i = 1, count do
+            sendToPlayer(players[i], data)
         end
         bumpFires()
+    end
+
+    --[[
+        Resolve a target table into a { Player } list. Returns nil for unknown
+        sentinel kinds; the caller errors with the original target type.
+    ]]
+    local function resolveAudience(target: any): { Player }?
+        local kind = target._lyncKind
+        if kind == "all" then
+            return Players:GetPlayers()
+        end
+
+        if kind == "except" then
+            local excluded = target._excluded :: { [Player]: boolean }
+            local all = Players:GetPlayers()
+            local list = table.create(#all)
+            local n = 0
+            for _, player in all do
+                if not excluded[player] then
+                    n += 1
+                    list[n] = player
+                end
+            end
+            return list
+        end
+
+        if kind == "group" then
+            local members = target._members :: { [Player]: boolean }
+            local list: { Player } = {}
+            local n = 0
+            for player in members do
+                n += 1
+                list[n] = player
+            end
+            return list
+        end
+
+        if kind == nil then
+            -- Plain { Player } array. Validate entries on the way to a clean list.
+            local list: { Player } = {}
+            local n = 0
+            for _, player in target do
+                if isPlayer(player) then
+                    n += 1
+                    list[n] = player :: Player
+                end
+            end
+            return list
+        end
+
+        return nil
     end
 
     local function sendToTarget(data: any, target: any): ()
@@ -153,40 +243,11 @@ function Packet.define<T>(
             if dropped then
                 return
             end
-
-            local kind = target._lyncKind
-            if kind == "all" then
-                broadcast(Players:GetPlayers(), sendData)
+            local audience = resolveAudience(target)
+            if audience then
+                broadcast(audience, sendData)
                 return
             end
-
-            if kind == "except" then
-                local excluded = target._excluded :: { [Player]: boolean }
-                for _, p in Players:GetPlayers() do
-                    if not excluded[p] then
-                        sendToPlayer(p, sendData)
-                    end
-                end
-                bumpFires()
-                return
-            end
-
-            if kind == "group" then
-                for p in target._members :: { [Player]: boolean } do
-                    sendToPlayer(p, sendData)
-                end
-                bumpFires()
-                return
-            end
-
-            -- Plain { Player } array.
-            for _, p in target do
-                if isPlayer(p) then
-                    sendToPlayer(p :: Player, sendData)
-                end
-            end
-            bumpFires()
-            return
         end
 
         Log.error(`"{name}" expected Player, table, Group, or Lync.all, got {typeof(target)}`)

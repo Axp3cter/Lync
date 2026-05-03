@@ -23,9 +23,9 @@ end
 
 -- Delta wire size --------------------------------------------------------
 
-Harness.header("Delta Wire Size (deltaStruct[12 fields], bytes)")
+Harness.header("Delta Wire Size (per-codec, bytes)")
 for _, c in Scenarios.deltaCases do
-    Harness.deltaSize(c.label, Scenarios.stateDelta, c.seed, c.value)
+    Harness.deltaSize(c.label, c.codec, c.seed, c.value)
 end
 
 -- CPU round-trip ---------------------------------------------------------

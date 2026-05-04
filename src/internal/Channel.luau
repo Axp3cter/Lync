@@ -48,6 +48,7 @@ local EMPTY_REFS = table.freeze({}) :: { Instance }
 -- Private ----------------------------------------------------------------
 
 local alloc = Base.alloc
+local ensure = Base.ensure
 local band = bit32.band
 local bor = bit32.bor
 local bufCopy = buffer.copy
@@ -56,12 +57,6 @@ local writeu16 = buffer.writeu16
 local writef64 = buffer.writef64
 local round = math.round
 local osClock = os.clock
-
-local function ensure(ch: Types.ChannelState, n: number): ()
-    if ch.cursor + n > ch.size then
-        alloc(ch, n)
-    end
-end
 
 local function writeTimestamp(b: buffer, off: number, mode: number): ()
     if mode == TS_FRAME then
@@ -89,10 +84,7 @@ local function upgradeSingleToMulti(ch: Types.ChannelState, regId: number, heade
     ensure(ch, 2)
     -- Re-bind: ensure() may have realloced the buffer.
     local b = ch.buff
-
-    if payloadLen > 0 then
-        bufCopy(b, afterTs + 2, b, afterTs, payloadLen)
-    end
+    bufCopy(b, afterTs + 2, b, afterTs, payloadLen)
 
     ch.countPos = afterTs
     writeu16(b, afterTs, 0)
@@ -100,24 +92,16 @@ local function upgradeSingleToMulti(ch: Types.ChannelState, regId: number, heade
     ch.singleMode = false
 end
 
---[[
-    Open a new batch or upgrade single->multi for the same packet id. Shared
-    by writeBatch and writeBatchEncoded so both stat variants stay in sync
-    without four copies of the open/upgrade dance.
-]]
+-- itemCount bump is left to the caller, AFTER the body write succeeds.
 local function openOrUpgrade(ch: Types.ChannelState, reg: Types.Registration): ()
     if reg.id ~= ch.lastId or ch.itemCount >= MAX_BATCH_ITEMS then
         reg._openFn(ch, reg.id)
     elseif ch.singleMode then
         upgradeSingleToMulti(ch, reg.id, reg.headerSize)
     end
-    ch.itemCount += 1
 end
 
 local function spliceEncoded(ch: Types.ChannelState, payload: buffer, payloadLen: number): ()
-    if payloadLen == 0 then
-        return
-    end
     local cursor = ch.cursor
     if cursor + payloadLen > ch.size then
         alloc(ch, payloadLen)
@@ -127,9 +111,9 @@ local function spliceEncoded(ch: Types.ChannelState, payload: buffer, payloadLen
 end
 
 --[[
-    Two writeBatch implementations, swapped at startup by enableStats(). For
-    high-rate channels this saves ~1 register read + 1 compare + 1 jump per
-    item versus branching on `_statsEnabled` inside the loop.
+    Hot-swapped by enableStats() so the per-item dispatch avoids a runtime
+    branch on the stats flag. itemCount bumps AFTER codec.write so a
+    throwing codec leaves the count consistent with the buffer.
 ]]
 local writeBatchPlain: (Types.ChannelState, Types.Registration, any) -> ()
 local writeBatchStats: (Types.ChannelState, Types.Registration, any) -> ()
@@ -137,12 +121,14 @@ local writeBatchStats: (Types.ChannelState, Types.Registration, any) -> ()
 writeBatchPlain = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
     openOrUpgrade(ch, reg)
     reg.codec.write(ch, data)
+    ch.itemCount += 1
 end
 
 writeBatchStats = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
     openOrUpgrade(ch, reg)
     local before = ch.cursor
     reg.codec.write(ch, data)
+    ch.itemCount += 1
     reg.bytesSent += ch.cursor - before
 end
 
@@ -161,6 +147,7 @@ writeBatchEncodedPlain = function(
 ): ()
     openOrUpgrade(ch, reg)
     spliceEncoded(ch, payload, payloadLen)
+    ch.itemCount += 1
 end
 
 writeBatchEncodedStats = function(
@@ -171,6 +158,7 @@ writeBatchEncodedStats = function(
 ): ()
     openOrUpgrade(ch, reg)
     spliceEncoded(ch, payload, payloadLen)
+    ch.itemCount += 1
     reg.bytesSent += payloadLen
 end
 

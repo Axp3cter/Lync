@@ -19,28 +19,26 @@ local DA_PATCH = 2
 -- Private ----------------------------------------------------------------
 
 local alloc = Base.alloc
+local ensure = Base.ensure
 local allocDeltaId = Shared.allocDeltaId
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
 local rangeEqual = Shared.rangeEqual
 local copyToBuf = Shared.copyToBuf
+local containsDelta = Shared.containsDelta
+local enforceMaxCount = Shared.enforceMaxCount
 local boolBytes = Shared.boolBytes
 local packBoolArray = Shared.packBoolArray
 local unpackBoolArray = Shared.unpackBoolArray
 local varintRead = Varint.read
 local varintWrite = Varint.write
+local varintLength = Varint.length
 local writeu8 = buffer.writeu8
 local readu8 = buffer.readu8
 local bufCopy = buffer.copy
 local bufLen = buffer.len
 
 type DeltaArrayEntry = { eBuf: buffer, eLen: number }
-
-local function ensure(ch: Types.ChannelState, n: number): ()
-    if ch.cursor + n > ch.size then
-        alloc(ch, n)
-    end
-end
 
 -- Bit-packed bool element fast path: 1 bit per entry instead of 1 byte.
 local function makeBoolArray(
@@ -60,9 +58,7 @@ local function makeBoolArray(
 
         read = function(src: buffer, pos: number, _refs: { Instance }?): ({ boolean }, number)
             local len, lenBytes = varintRead(src, pos)
-            if maxCount and len > maxCount then
-                Log.error(`count {len} exceeds max {maxCount}`)
-            end
+            enforceMaxCount(len, maxCount)
             if len == 0 then
                 return {}, lenBytes
             end
@@ -115,9 +111,7 @@ local function makeDirectArray(
 
         read = function(src: buffer, pos: number, _refs: { Instance }?): ({ any }, number)
             local len, lenBytes = varintRead(src, pos)
-            if maxCount and len > maxCount then
-                Log.error(`count {len} exceeds max {maxCount}`)
-            end
+            enforceMaxCount(len, maxCount)
             if len == 0 then
                 return {}, lenBytes
             end
@@ -159,9 +153,7 @@ local function makeGenericArray(
 
         read = function(src: buffer, pos: number, refs: { Instance }?): ({ any }, number)
             local len, lenBytes = varintRead(src, pos)
-            if maxCount and len > maxCount then
-                Log.error(`count {len} exceeds max {maxCount}`)
-            end
+            enforceMaxCount(len, maxCount)
             if len == 0 then
                 return {}, lenBytes
             end
@@ -202,7 +194,7 @@ function Array.array(element: Types.InternalCodec<any>, maxCount: number?): Type
     if element._hasUnknown then
         codec._hasUnknown = true
     end
-    if element._isDelta or element._hasDelta then
+    if containsDelta(element) then
         codec._hasDelta = true
     end
     return table.freeze(codec)
@@ -225,6 +217,11 @@ function Array.deltaArray(
     element: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
+    -- Inner delta would chain-diff across elements within a frame, not across frames.
+    if containsDelta(element) then
+        Log.error("deltaArray element cannot contain delta state")
+    end
+
     local deltaId = allocDeltaId()
     local inner = Array.array(element, maxCount)
 
@@ -238,9 +235,7 @@ function Array.deltaArray(
         value: { any }
     ): (number, { number }, { number })
         local len = #value
-        if maxCount and len > maxCount then
-            Log.error(`count {len} exceeds max {maxCount}`)
-        end
+        enforceMaxCount(len, maxCount)
         local off = table.create(len)
         local elen = table.create(len)
         for i = 1, len do
@@ -275,11 +270,9 @@ function Array.deltaArray(
                 ch.cursor += 1
                 varintWrite(ch, len)
                 local payloadLen = scratch.cursor
-                if payloadLen > 0 then
-                    ensure(ch, payloadLen)
-                    bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
-                    ch.cursor += payloadLen
-                end
+                ensure(ch, payloadLen)
+                bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
+                ch.cursor += payloadLen
 
                 local perIdx: { [number]: DeltaArrayEntry } = {}
                 for i = 1, len do
@@ -323,20 +316,17 @@ function Array.deltaArray(
                 return
             end
 
-            -- PATCH cost vs FULL: every changed index pays an index varint.
-            -- When index headers approach the count cost, FULL wins outright.
-            if changedCount * 2 >= len then
-                ensure(ch, 1)
-                writeu8(ch.buff, ch.cursor, DA_FULL)
-                ch.cursor += 1
-                varintWrite(ch, len)
-                local payloadLen = scratch.cursor
-                if payloadLen > 0 then
-                    ensure(ch, payloadLen)
-                    bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
-                    ch.cursor += payloadLen
-                end
-            else
+            -- Pick FULL vs PATCH on actual byte cost. Both share `1 + varintLength(len)`
+            -- so it cancels: compare PATCH's index-header overhead + changed payload
+            -- against FULL's full payload.
+            local fullPayload = scratch.cursor
+            local patchPayload = varintLength(changedCount)
+            for i = 1, changedCount do
+                local idx = changed[i]
+                patchPayload += varintLength(idx) + elen[idx]
+            end
+
+            if patchPayload < fullPayload then
                 ensure(ch, 1)
                 writeu8(ch.buff, ch.cursor, DA_PATCH)
                 ch.cursor += 1
@@ -346,12 +336,18 @@ function Array.deltaArray(
                     local idx = changed[i]
                     varintWrite(ch, idx)
                     local n = elen[idx]
-                    if n > 0 then
-                        ensure(ch, n)
-                        bufCopy(ch.buff, ch.cursor, scratchBuf, off[idx], n)
-                        ch.cursor += n
-                    end
+                    ensure(ch, n)
+                    bufCopy(ch.buff, ch.cursor, scratchBuf, off[idx], n)
+                    ch.cursor += n
                 end
+            else
+                ensure(ch, 1)
+                writeu8(ch.buff, ch.cursor, DA_FULL)
+                ch.cursor += 1
+                varintWrite(ch, len)
+                ensure(ch, fullPayload)
+                bufCopy(ch.buff, ch.cursor, scratchBuf, 0, fullPayload)
+                ch.cursor += fullPayload
             end
 
             -- Update cache: refresh changed (and appended), drop truncated.
@@ -412,11 +408,16 @@ function Array.deltaArray(
                 if lLen == 0 then
                     Log.error("truncated deltaArray length")
                 end
+                enforceMaxCount(newLen, maxCount, "newLen")
                 total += lLen
 
                 local changeCount, cLen = varintRead(src, pos + total)
                 if cLen == 0 then
                     Log.error("truncated deltaArray change count")
+                end
+                -- changeCount is also bounded by newLen: every index appears at most once.
+                if changeCount > newLen then
+                    Log.error(`deltaArray changeCount {changeCount} exceeds newLen {newLen}`)
                 end
                 total += cLen
 
@@ -424,6 +425,11 @@ function Array.deltaArray(
                     local idx, iLen = varintRead(src, pos + total)
                     if iLen == 0 then
                         Log.error("truncated deltaArray index")
+                    end
+                    -- Reject out-of-range idx so the wire can't poison the cache with
+                    -- arbitrary keys that survive truncation.
+                    if idx < 1 or idx > newLen then
+                        Log.error(`deltaArray index {idx} out of range [1, {newLen}]`)
                     end
                     total += iLen
                     local v, vc = element.read(src, pos + total, refs)

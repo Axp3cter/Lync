@@ -16,7 +16,7 @@ Schemas, packets, queries, groups, validation, rate limiting. Every send batches
 Wally — add to your `wally.toml`:
 
 ```toml
-Lync = "axp3cter/lync@2.3.1"
+Lync = "axp3cter/lync@2.3.2"
 ```
 
 npm (roblox-ts):
@@ -313,6 +313,9 @@ Tracks the previous frame's value and ships only what changed. Rejected on `unre
 | `deltaFloat(min, max, precision)` | 1 B | 1–5 B |
 | `deltaVec3(min, max, precision)` | 3 B | 3–15 B |
 | `deltaCFrame(posMin, posMax, precision)` | 1 B | 4–13 B |
+
+- `deltaArray` element / `deltaMap` key+value cannot themselves contain delta state. Use `deltaStruct` for per-field deltas inside.
+- `deltaVec3` and `deltaCFrame` error on out-of-range components.
 
 ### Meta
 

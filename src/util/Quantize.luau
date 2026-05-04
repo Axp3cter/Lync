@@ -54,8 +54,8 @@ function Quantize.setup(
     number,
     number
 )
-    if rangeMin > rangeMax then
-        Log.error(`{apiName}: min ({rangeMin}) must be <= max ({rangeMax})`)
+    if rangeMin >= rangeMax then
+        Log.error(`{apiName}: min ({rangeMin}) must be < max ({rangeMax})`)
     end
     if precision <= 0 then
         Log.error(`{apiName}: precision must be positive, got {precision}`)

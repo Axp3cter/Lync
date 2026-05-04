@@ -312,6 +312,104 @@ describe("codec.composite.Array", function(): ()
             end):toThrow("exceeds max")
         end)
     end)
+
+    describe("deltaArray rejects delta-bearing element at define time", function(): ()
+        it("deltaArray(deltaInt) errors", function(): ()
+            expect(function(): ()
+                Lync.deltaArray(Lync.deltaInt(0, 100))
+            end):toThrow("delta")
+        end)
+        it("deltaArray(struct{ x = deltaInt }) errors via _hasDelta", function(): ()
+            expect(function(): ()
+                Lync.deltaArray(Lync.struct({ x = Lync.deltaInt(0, 100) }))
+            end):toThrow("delta")
+        end)
+    end)
+
+    describe("deltaArray PATCH read rejects malformed wire", function(): ()
+        local function patchPayload(
+            newLen: number,
+            changes: { { idx: number, val: number } }
+        ): buffer
+            -- DA_PATCH = 2; varint(newLen); varint(#changes); per-change varint(idx) + 1B value.
+            local sizeBytes = 1 + 1 + 1
+            for _ in changes do
+                sizeBytes += 1 + 1
+            end
+            local b = buffer.create(sizeBytes)
+            buffer.writeu8(b, 0, 2) -- DA_PATCH
+            buffer.writeu8(b, 1, newLen)
+            buffer.writeu8(b, 2, #changes)
+            local off = 3
+            for _, c in changes do
+                buffer.writeu8(b, off, c.idx)
+                buffer.writeu8(b, off + 1, c.val)
+                off += 2
+            end
+            return b
+        end
+
+        it("idx > newLen throws", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+            -- Seed FULL frame so PATCH has a baseline.
+            c.write(ch, { 1, 2, 3 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            local bad = patchPayload(3, { { idx = 99, val = 50 } })
+            expect(function(): ()
+                c.read(bad, 0, nil)
+            end):toThrow("out of range")
+        end)
+        it("idx < 1 throws", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+            c.write(ch, { 1, 2, 3 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            local bad = patchPayload(3, { { idx = 0, val = 50 } })
+            expect(function(): ()
+                c.read(bad, 0, nil)
+            end):toThrow("out of range")
+        end)
+        it("changeCount > newLen throws", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+            c.write(ch, { 1, 2, 3 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            -- newLen=2 but changeCount=5 (forged).
+            local b = buffer.create(1 + 1 + 1)
+            buffer.writeu8(b, 0, 2) -- DA_PATCH
+            buffer.writeu8(b, 1, 2) -- newLen
+            buffer.writeu8(b, 2, 5) -- changeCount > newLen
+            expect(function(): ()
+                c.read(b, 0, nil)
+            end):toThrow("exceeds newLen")
+        end)
+        it("PATCH newLen exceeding maxCount throws", function(): ()
+            local c = Lync.deltaArray(Lync.int(0, 255), 3)
+            local ch = Env.Internal.Channel.create()
+            c.write(ch, { 1, 2, 3 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            local b = buffer.create(3)
+            buffer.writeu8(b, 0, 2) -- DA_PATCH
+            buffer.writeu8(b, 1, 100) -- newLen > maxCount=3
+            buffer.writeu8(b, 2, 0) -- changeCount=0
+            expect(function(): ()
+                c.read(b, 0, nil)
+            end):toThrow("exceeds max")
+        end)
+    end)
 end)
 
 return nil

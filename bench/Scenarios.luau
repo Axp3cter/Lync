@@ -399,14 +399,14 @@ local blinkCases: { NetCase } = table.freeze({
     of POOL_SIZE values forming a realistic mutation stream so the bench
     measures steady-state cache behavior, not first-frame FULL cost.
 ]]
-local function poolEntityArrSparseMut(): { { any } }
+local function poolEntityArrSparseMut(count: number): { { any } }
     -- Stable array shape; 3 random indices flip per frame to exercise PATCH.
-    local current = entityArr(ENT_COUNT)
+    local current = entityArr(count)
     local p = table.create(POOL_SIZE)
     p[1] = table.clone(current)
     for frame = 2, POOL_SIZE do
         for _ = 1, 3 do
-            local idx = rng:NextInteger(1, ENT_COUNT)
+            local idx = rng:NextInteger(1, count)
             current[idx] = entity()
         end
         p[frame] = table.clone(current)
@@ -462,7 +462,25 @@ local function poolCFrameStream(): { CFrame }
 end
 
 local positionsCodec = Lync.deltaVec3(-1000, 1000, 0.01)
+local positionsBaseline = Lync.vec3(-1000, 1000, 0.01)
 local cframeStreamCodec = Lync.deltaCFrame(-1000, 1000, 0.01)
+local cframeStreamBaseline = Lync.cframe()
+local counterCodec = Lync.deltaInt(0, 1000000)
+local counterBaseline = Lync.int(0, 1000000)
+
+local function poolCounterStream(): { number }
+    local p = table.create(POOL_SIZE)
+    for i = 1, POOL_SIZE do
+        p[i] = i
+    end
+    return table.freeze(p) :: { number }
+end
+
+-- Shared pools so each delta/full pair drives the same input stream.
+local sharedPositionMap = poolPositionMap()
+local sharedPositionStream = poolPositionStream()
+local sharedCFrameStream = poolCFrameStream()
+local sharedCounterStream = poolCounterStream()
 
 --[[
     Extended workloads at 100 fires/frame. Pairs vary/stable cases on the
@@ -484,7 +502,29 @@ local extendedCases: { NetCase } = table.freeze({
             return entityArr(ENT_COUNT)
         end)
     ),
-    defCase("entity_deltaArr_100__3mut", entityDeltaArray, poolEntityArrSparseMut()),
+    defCase(
+        "entity_arr_400__vary",
+        entityArray,
+        poolVarying(function()
+            return entityArr(400)
+        end)
+    ),
+    defCase("entity_deltaArr_400__3mut", entityDeltaArray, poolEntityArrSparseMut(400)),
+    defCase(
+        "entity_deltaArr_400__stable",
+        entityDeltaArray,
+        poolShared(function()
+            return entityArr(400)
+        end)
+    ),
+    defCase("entity_deltaArr_100__3mut", entityDeltaArray, poolEntityArrSparseMut(ENT_COUNT)),
+    defCase(
+        "entity_deltaArr_100__stable",
+        entityDeltaArray,
+        poolShared(function()
+            return entityArr(ENT_COUNT)
+        end)
+    ),
     defCase(
         "bool_arr_1000__vary",
         boolArray,
@@ -502,10 +542,25 @@ local extendedCases: { NetCase } = table.freeze({
     ),
     defCase("state_full__vary", stateCodec, poolVarying(stateOne)),
     defCase("state_delta__1mut", stateDelta, poolStateOneMut()),
-    defCase("position_map_200__5mut", positionMap, poolPositionMap()),
-    defCase("position_deltaMap_200__5mut", positionDeltaMap, poolPositionMap()),
-    defCase("vec3_walking_motion", positionsCodec, poolPositionStream()),
-    defCase("cframe_walking_pose", cframeStreamCodec, poolCFrameStream()),
+    defCase("position_map_200__5mut", positionMap, sharedPositionMap),
+    defCase("position_deltaMap_200__5mut", positionDeltaMap, sharedPositionMap),
+    defCase(
+        "position_deltaMap_200__stable",
+        positionDeltaMap,
+        poolShared(function(): { [number]: Vector3 }
+            local m: { [number]: Vector3 } = {}
+            for i = 1, 200 do
+                m[i] = Vector3.new(rng:NextNumber(-100, 100), 0, rng:NextNumber(-100, 100))
+            end
+            return m
+        end)
+    ),
+    defCase("vec3_walking__full", positionsBaseline, sharedPositionStream),
+    defCase("vec3_walking__delta", positionsCodec, sharedPositionStream),
+    defCase("cframe_walking__full", cframeStreamBaseline, sharedCFrameStream),
+    defCase("cframe_walking__delta", cframeStreamCodec, sharedCFrameStream),
+    defCase("counter_int__full", counterBaseline, sharedCounterStream),
+    defCase("counter_int__delta", counterCodec, sharedCounterStream),
 })
 
 -- Handshake --------------------------------------------------------------

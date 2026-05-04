@@ -112,6 +112,68 @@ describe("transport.Reader", function(): ()
         end)
     end)
 
+    describe("query response with Lync.nothing decodes (zero-size response codec)", function(): ()
+        -- Mirror packet-side fix: 0-byte response codec must not trip the pos/consumed gates.
+        it("MSB-clear response with Lync.nothing codec does not abort", function(): ()
+            -- Register a KIND_RESPONSE directly so we can drive the response
+            -- decode path with a known reg + Lync.nothing codec.
+            local respReg = Registry.register({
+                name = "r_q_resp_nothing",
+                kind = Registry.KIND_RESPONSE,
+                codec = Lync.nothing,
+                isUnreliable = false,
+                partner = nil,
+                needsGate = false,
+                headerSize = 1,
+                timestampMode = Channel.TS_NONE,
+                openFn = Channel.resolveOpenFn(Channel.TS_NONE, "r_q_resp_nothing"),
+                rateLimit = nil,
+                validate = nil,
+                maxPayloadBytes = nil,
+            })
+            -- Hook the response signal so the test sees the dispatch fire.
+            local fired = false
+            respReg.signal:connect(function(): ()
+                fired = true
+            end)
+
+            -- Write a payload-style response frame: MSB clear, corrId varint,
+            -- then zero codec payload bytes from Lync.nothing.write.
+            local ch = Channel.create()
+            Channel.writeQuery(ch, respReg.id, 1, Lync.nothing :: any, true)
+            local snap, refs, byteLen = Channel.sealAndDump(ch)
+            -- Pre-fix: would warn "query body missing" or "reported 0 bytes" and abort.
+            expect(Reader.process(snap, byteLen, refs, nil, false)):toBe(true)
+            expect(fired):toBe(true)
+        end)
+    end)
+
+    describe("fixed-size codec consumed-invariant", function(): ()
+        it("a buggy codec returning consumed != _size aborts the frame", function(): ()
+            -- Synthesize a codec that claims _size = 4 but reports consumed = 2.
+            local lyingCodec: any = {
+                _size = 4,
+                write = function(ch: any, _v: any): ()
+                    -- Write 4 bytes so the buffer matches the declared size.
+                    if ch.cursor + 4 > ch.size then
+                        Env.Internal.Base.alloc(ch, 4)
+                    end
+                    buffer.writeu32(ch.buff, ch.cursor, 0)
+                    ch.cursor += 4
+                end,
+                read = function(_b: buffer, _pos: number, _refs: any): (number, number)
+                    return 0, 2 -- contradicts _size = 4
+                end,
+            }
+            local _, received = definePacket("r_lying_codec", lyingCodec)
+            local reg = Registry.getByName("r_lying_codec")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, 0)
+            sealAndProcess(ch)
+            expect(#received):toBe(0)
+        end)
+    end)
+
     describe("multi-mode batching", function(): ()
         it("2 fires of u8 decode in order", function(): ()
             local reg, received = definePacket("r_multi_2", Lync.int(0, 255))

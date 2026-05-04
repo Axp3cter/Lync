@@ -4,6 +4,7 @@
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -47,7 +48,7 @@ function Tagged.define(
         if codec._hasUnknown then
             hasUnknown = true
         end
-        if codec._isDelta or codec._hasDelta then
+        if Shared.containsDelta(codec) then
             hasDelta = true
         end
     end

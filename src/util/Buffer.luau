@@ -46,11 +46,9 @@ function Buf.rangeEqual(a: buffer, offA: number, b: buffer, offB: number, len: n
     return true
 end
 
-function Buf.snapshot(src: buffer, len: number): buffer
+function Buf.snapshot(src: buffer, len: number, srcOff: number?): buffer
     local out = bufCreate(len)
-    if len > 0 then
-        bufCopy(out, 0, src, 0, len)
-    end
+    bufCopy(out, 0, src, srcOff or 0, len)
     return out
 end
 

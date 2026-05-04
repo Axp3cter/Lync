@@ -35,7 +35,7 @@ local U32_MAX = Constants.U32_MAX
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
+local ensure = Base.ensure
 local band = bit32.band
 local bor = bit32.bor
 local rshift = bit32.rshift
@@ -46,17 +46,23 @@ local readu8 = buffer.readu8
 local readu16 = buffer.readu16
 local readu32 = buffer.readu32
 
-local function ensure(ch: Types.ChannelState, n: number): ()
-    if ch.cursor + n > ch.size then
-        alloc(ch, n)
-    end
-end
-
 -- Public -----------------------------------------------------------------
 
 local Varint = {}
 
 Varint.INLINE_MAX = INLINE_MAX
+
+-- Wire byte count for a value, without encoding it. Used by cost heuristics.
+function Varint.length(value: number): number
+    if value <= INLINE_MAX then
+        return 1
+    elseif value <= TWO_MAX then
+        return 2
+    elseif value <= THREE_MAX then
+        return 3
+    end
+    return 5
+end
 
 function Varint.write(ch: Types.ChannelState, value: number): ()
     if value < 0 or value > U32_MAX or value % 1 ~= 0 then

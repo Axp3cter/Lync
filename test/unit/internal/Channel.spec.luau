@@ -232,6 +232,29 @@ describe("internal.Channel", function(): ()
         end)
     end)
 
+    describe("writeBatch itemCount order (atomicity vs codec errors)", function(): ()
+        it("itemCount only bumps after codec.write succeeds", function(): ()
+            local throwingCodec: any = {
+                _size = nil,
+                write = function(_ch: any, _v: any): ()
+                    error("codec failure", 0)
+                end,
+                read = function(_b, _pos, _refs)
+                    return nil, 0
+                end,
+            }
+            local reg = packetReg("err_pkt", throwingCodec)
+            local ch = Channel.create()
+            -- The throwing codec aborts mid-write; itemCount must NOT bump,
+            -- otherwise the count cell would over-report items on flush.
+            local ok = pcall(function(): ()
+                Channel.writeBatch(ch, reg, 0)
+            end)
+            expect(ok):toBe(false)
+            expect(ch.itemCount):toBe(0)
+        end)
+    end)
+
     describe("writeBatch interleaved packet IDs", function(): ()
         it("two distinct IDs produce two single-mode batches", function(): ()
             local a = packetReg("a")

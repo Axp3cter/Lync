@@ -99,7 +99,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
         if c._hasUnknown then
             hasUnknown = true
         end
-        if c._isDelta or c._hasDelta then
+        if Shared.containsDelta(c) then
             hasDelta = true
         end
         if allDirect then

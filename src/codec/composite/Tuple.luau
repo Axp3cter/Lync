@@ -4,6 +4,7 @@
 
 local Base = require(script.Parent.Parent.Base)
 local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -27,7 +28,7 @@ function Tuple.define(...: Types.InternalCodec<any>): Types.InternalCodec<any>
         if c._hasUnknown then
             hasUnknown = true
         end
-        if c._isDelta or c._hasDelta then
+        if Shared.containsDelta(c) then
             hasDelta = true
         end
         if allDirect then

@@ -207,11 +207,7 @@ function Reader.process(
             local doGate = isServer and reg.needsGate and player ~= nil
             local regSignal = reg.signal
             local regName = reg.name
-            --[[
-                Lync.nothing and other declared 0-byte codecs read no bytes;
-                the per-iter pos + consumed checks below would falsely abort
-                when count > 0 with no payload, so skip them for them only.
-            ]]
+            -- Lync.nothing reads zero bytes; bypass the pos/consumed gates that assume forward progress.
             local isZeroSize = sizeMeta == 0
 
             for _ = 1, count do
@@ -222,6 +218,13 @@ function Reader.process(
                 local value, consumed = regCodec.read(incoming, pos, refs)
                 if not isZeroSize and consumed == 0 then
                     Log.warn(`codec for "{regName}" reported 0 bytes; aborting`)
+                    return false
+                end
+                -- Fixed-size codecs MUST report consumed == _size or `pos` desyncs silently.
+                if sizeMeta and consumed ~= sizeMeta then
+                    Log.warn(
+                        `codec for "{regName}" consumed {consumed} bytes, expected {sizeMeta}; aborting`
+                    )
                     return false
                 end
                 pos += consumed
@@ -272,13 +275,15 @@ function Reader.process(
                 end
                 reg.signal:fire(nil, player, corrId)
             else
-                if pos >= incomingLen then
+                local regCodec = reg.codec
+                -- Mirror the packet path: 0-byte response codecs (Lync.nothing) bypass the gates.
+                local qIsZeroSize = regCodec._size == 0
+                if not qIsZeroSize and pos >= incomingLen then
                     Log.warn(`query "{reg.name}" body missing; aborting`)
                     return false
                 end
-                local regCodec = reg.codec
                 local value, consumed = regCodec.read(incoming, pos, refs)
-                if consumed == 0 then
+                if not qIsZeroSize and consumed == 0 then
                     Log.warn(`query codec for "{reg.name}" reported 0 bytes; aborting`)
                     return false
                 end

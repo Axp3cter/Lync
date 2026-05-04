@@ -37,28 +37,21 @@ local lshift = bit32.lshift
 local readu8 = buffer.readu8
 local writeu8 = buffer.writeu8
 local bufCopy = buffer.copy
-local bufCreate = buffer.create
 local bufLen = buffer.len
 local rangeEqual = Buf.rangeEqual
 local snapshot = Buf.snapshot
 
 --[[
-    Snapshot `len` bytes of `src` into a fresh buffer or reuse `existing`
-    when it's already large enough. Avoids per-write buffer allocations on
-    delta caches that hover at a stable size.
+    Reuse `existing` when it's already large enough, else snapshot via
+    Buf.snapshot. Avoids per-write buffer allocations on delta caches that
+    hover at a stable size.
 ]]
 local function copyToBuf(existing: buffer?, src: buffer, srcOff: number, len: number): buffer
     if existing and bufLen(existing) >= len then
-        if len > 0 then
-            bufCopy(existing, 0, src, srcOff, len)
-        end
+        bufCopy(existing, 0, src, srcOff, len)
         return existing
     end
-    local out = bufCreate(len)
-    if len > 0 then
-        bufCopy(out, 0, src, srcOff, len)
-    end
-    return out
+    return snapshot(src, len, srcOff)
 end
 
 -- Update a `{raw, len}` cache shape from scratch bytes; reuses raw via copyToBuf.
@@ -78,6 +71,18 @@ Shared.rangeEqual = rangeEqual
 Shared.snapshot = snapshot
 Shared.refreshCache = refreshCache
 Shared.copyToBuf = copyToBuf
+
+-- True when `c` itself is a delta codec OR contains one in its tree.
+function Shared.containsDelta(c: Types.InternalCodec<any>): boolean
+    return c._isDelta == true or c._hasDelta == true
+end
+
+-- Common bounds check for variable-length container codecs.
+function Shared.enforceMaxCount(len: number, maxCount: number?, label: string?): ()
+    if maxCount and len > maxCount then
+        Log.error(`{label or "count"} {len} exceeds max {maxCount}`)
+    end
+end
 
 function Shared.allocDeltaId(): number
     _nextDeltaId += 1
@@ -109,6 +114,26 @@ end
 
 function Shared.releaseScratch(): ()
     _scratchDepth -= 1
+end
+
+--[[
+    Reset module-private state. Called by Sandbox in tests so that a thrown
+    codec.write (which skips releaseScratch and leaves depth inflated) can't
+    leak into the next test's scratch acquisition. Also resets the deltaId
+    counter so test ordering doesn't bleed.
+]]
+function Shared.reset(): ()
+    _scratchDepth = 0
+    _nextDeltaId = 0
+    for i = 1, #_scratchStack do
+        local ch = _scratchStack[i]
+        ch.cursor = 0
+        ch.refCount = 0
+        if ch.refCount > 0 then
+            table.clear(ch.refs)
+        end
+        table.clear(ch.deltas)
+    end
 end
 
 --[[

@@ -56,6 +56,13 @@ local Base = {}
 Base.INITIAL_BUF = INITIAL_BUF
 Base.alloc = alloc
 
+-- Cheap inline guard hoisted into every codec that grows a channel directly.
+function Base.ensure(ch: Types.ChannelState, n: number): ()
+    if ch.cursor + n > ch.size then
+        alloc(ch, n)
+    end
+end
+
 -- Floor is INITIAL_BUF: anything smaller errors on the very first write.
 function Base.setMaxSize(bytes: number): ()
     if bytes < INITIAL_BUF then

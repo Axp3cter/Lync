@@ -130,18 +130,10 @@ function Packet.define<T>(
         return false, sendData
     end
 
-    --[[
-        Encode-once fanout. For non-delta codecs the wire bytes are stateless
-        (same input -> same bytes), so we encode into a scratch channel once
-        and bufCopy the payload into each player's channel. Falls through to
-        the per-player path when the encode emitted Instance refs — renumbering
-        refs across channels needs per-ref offset tracking that no codec
-        exposes today.
-
-        Channel.writeBatchEncoded is hot-swapped at startup by enableStats,
-        so it MUST be re-read per call — capturing at packet-define time
-        would leave broadcast on the plain variant after a stats flip.
-    ]]
+    -- Non-delta codecs are stateless wire-encoders, so broadcast can encode
+    -- once and bufCopy the payload to every player. Falls through if the
+    -- encoded payload includes ref indices (the indices would need rewriting
+    -- per channel, which no codec exposes).
     local canEncodeOnce = not codec._isDelta and not codec._hasDelta
 
     local function broadcast(players: { Player }, data: any): ()
@@ -153,15 +145,22 @@ function Packet.define<T>(
 
         if canEncodeOnce then
             local scratch = Shared.acquireScratch()
+            scratch.currentPacket = name
             codec.write(scratch, data)
+            scratch.currentPacket = nil
             if scratch.refCount == 0 then
                 local payload = scratch.buff
                 local payloadLen = scratch.cursor
                 local server = Transport.server()
+                -- Channel.writeBatchEncoded is hot-swapped by enableStats; re-read per call.
                 local writeBatchEncoded = Channel.writeBatchEncoded
                 for i = 1, count do
-                    local ch = server.getChannel(players[i], isUnreliable)
-                    writeBatchEncoded(ch, reg, payload, payloadLen)
+                    writeBatchEncoded(
+                        server.getChannel(players[i], isUnreliable),
+                        reg,
+                        payload,
+                        payloadLen
+                    )
                 end
                 Shared.releaseScratch()
                 bumpFires()

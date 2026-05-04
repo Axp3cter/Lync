@@ -28,12 +28,14 @@ local _keyDepth = 0
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
+local ensure = Base.ensure
 local allocDeltaId = Shared.allocDeltaId
 local acquireScratch = Shared.acquireScratch
 local releaseScratch = Shared.releaseScratch
 local rangeEqual = Shared.rangeEqual
 local copyToBuf = Shared.copyToBuf
+local containsDelta = Shared.containsDelta
+local enforceMaxCount = Shared.enforceMaxCount
 local writeu8 = buffer.writeu8
 local readu8 = buffer.readu8
 local bufCopy = buffer.copy
@@ -63,10 +65,32 @@ local function tostringLess(a: any, b: any): boolean
     return tostring(a) < tostring(b)
 end
 
-local function ensure(ch: Types.ChannelState, n: number): ()
-    if ch.cursor + n > ch.size then
-        alloc(ch, n)
+local function sortKeys(keys: { any }, canSortDirect: boolean): ()
+    if canSortDirect then
+        table.sort(keys :: { any })
+    else
+        table.sort(keys, tostringLess)
     end
+end
+
+--[[
+    Acquire a scratch keys array, populate it from `value`, nil any leftover
+    tail entries from a prior reuse, then sort. Returns the keys array and
+    the populated count. Caller MUST releaseKeys() after consuming the keys.
+]]
+local function collectAndSortKeys(value: { [any]: any }, canSortDirect: boolean): ({ any }, number)
+    local keys = acquireKeys()
+    local count = 0
+    for k in value do
+        count += 1
+        keys[count] = k
+    end
+    local prevTail = #keys
+    for i = count + 1, prevTail do
+        keys[i] = nil
+    end
+    sortKeys(keys, canSortDirect)
+    return keys, count
 end
 
 -- Public -----------------------------------------------------------------
@@ -81,10 +105,7 @@ function Map.map(
     local fixedKey = keyCodec._size
     local fixedValue = valueCodec._size
     local hasUnknown = keyCodec._hasUnknown or valueCodec._hasUnknown
-    local hasDelta = keyCodec._isDelta
-        or keyCodec._hasDelta
-        or valueCodec._isDelta
-        or valueCodec._hasDelta
+    local hasDelta = containsDelta(keyCodec) or containsDelta(valueCodec)
 
     --[[
         Numbers and strings sort by `<` directly; everything else (Instance,
@@ -111,29 +132,12 @@ function Map.map(
                 Log.error(`expected table, got {typeof(value)}`)
             end
 
-            local keys = acquireKeys()
-            local count = 0
-            for k in value do
-                count += 1
-                keys[count] = k
-            end
-
-            -- Drop tail entries from the prior reuse so table.sort sees only `count` items.
-            local prevTail = #keys
-            for i = count + 1, prevTail do
-                keys[i] = nil
-            end
+            local keys, count = collectAndSortKeys(value, canSortDirect)
 
             varintWrite(ch, count)
             if count == 0 then
                 releaseKeys()
                 return
-            end
-
-            if canSortDirect then
-                table.sort(keys :: { any })
-            else
-                table.sort(keys, tostringLess)
             end
 
             -- Single alloc when both halves are fixed-size.
@@ -145,16 +149,13 @@ function Map.map(
                 local k = keys[i]
                 keyCodec.write(ch, k)
                 valueCodec.write(ch, value[k])
-                keys[i] = nil
             end
             releaseKeys()
         end,
 
         read = function(src: buffer, pos: number, refs: { Instance }?): ({ [any]: any }, number)
             local count, lenBytes = varintRead(src, pos)
-            if maxCount and count > maxCount then
-                Log.error(`count {count} exceeds max {maxCount}`)
-            end
+            enforceMaxCount(count, maxCount)
 
             -- Fixed-size: reject corrupt counts before per-entry decode.
             if fixedKey and fixedValue and count > 0 then
@@ -207,6 +208,14 @@ function Map.deltaMap(
     valueCodec: Types.InternalCodec<any>,
     maxCount: number?
 ): Types.InternalCodec<any>
+    -- Inner delta would chain-diff across pairs within a frame, not across frames.
+    if containsDelta(keyCodec) then
+        Log.error("deltaMap key codec cannot contain delta state")
+    end
+    if containsDelta(valueCodec) then
+        Log.error("deltaMap value codec cannot contain delta state")
+    end
+
     local deltaId = allocDeltaId()
     local typeCheck = keyCodec._typeCheck
     local canSortDirect = typeCheck == "number" or typeCheck == "string"
@@ -222,22 +231,7 @@ function Map.deltaMap(
         scratch: Types.ChannelState,
         value: { [any]: any }
     ): ({ any }, { number }, { number }, { number }, { number })
-        local keys = acquireKeys()
-        local count = 0
-        for k in value do
-            count += 1
-            keys[count] = k
-        end
-        local prevTail = #keys
-        for i = count + 1, prevTail do
-            keys[i] = nil
-        end
-        if canSortDirect then
-            table.sort(keys :: { any })
-        else
-            table.sort(keys, tostringLess)
-        end
-
+        local keys, count = collectAndSortKeys(value, canSortDirect)
         local kOff = table.create(count)
         local kLen = table.create(count)
         local vOff = table.create(count)
@@ -275,18 +269,16 @@ function Map.deltaMap(
             local count = #keys
             local scratchBuf = scratch.buff
 
-            -- First frame: emit FULL. Per-key scratch bytes are exactly the inner map payload.
+            -- First frame: emit FULL. Per-key scratch bytes ARE the inner map payload.
             if not cache then
                 ensure(ch, 1)
                 writeu8(ch.buff, ch.cursor, DM_FULL)
                 ch.cursor += 1
                 varintWrite(ch, count)
                 local payloadLen = scratch.cursor
-                if payloadLen > 0 then
-                    ensure(ch, payloadLen)
-                    bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
-                    ch.cursor += payloadLen
-                end
+                ensure(ch, payloadLen)
+                bufCopy(ch.buff, ch.cursor, scratchBuf, 0, payloadLen)
+                ch.cursor += payloadLen
 
                 local perKey: { [any]: DeltaMapEntry } = {}
                 for i = 1, count do
@@ -300,16 +292,11 @@ function Map.deltaMap(
                     }
                 end
                 ch.deltas[deltaId] = { perKey = perKey } :: any
-
-                for i = 1, count do
-                    keys[i] = nil
-                end
                 releaseKeys()
                 releaseScratch()
                 return
             end
 
-            -- Diff against cache.
             local cachedPerKey = cache.perKey :: { [any]: DeltaMapEntry }
 
             local seen: { [any]: boolean } = {}
@@ -343,21 +330,13 @@ function Map.deltaMap(
                 ensure(ch, 1)
                 writeu8(ch.buff, ch.cursor, DM_UNCHANGED)
                 ch.cursor += 1
-
-                for i = 1, count do
-                    keys[i] = nil
-                end
                 releaseKeys()
                 releaseScratch()
                 return
             end
 
-            -- Sort removed keys for deterministic wire (XOR baseline benefit).
-            if canSortDirect then
-                table.sort(removed :: { any })
-            else
-                table.sort(removed, tostringLess)
-            end
+            -- Sort removed keys so the XOR baseline can collapse identical drops.
+            sortKeys(removed, canSortDirect)
 
             ensure(ch, 1)
             writeu8(ch.buff, ch.cursor, DM_DIFF)
@@ -368,9 +347,7 @@ function Map.deltaMap(
                 local entry = cachedPerKey[removed[i]]
                 local n = entry.kLen
                 ensure(ch, n)
-                if n > 0 then
-                    bufCopy(ch.buff, ch.cursor, entry.kBuf, 0, n)
-                end
+                bufCopy(ch.buff, ch.cursor, entry.kBuf, 0, n)
                 ch.cursor += n
             end
 
@@ -379,15 +356,10 @@ function Map.deltaMap(
                 local idx = changed[i]
                 local kbLen = kLen[idx]
                 local vbLen = vLen[idx]
-                local total = kbLen + vbLen
-                ensure(ch, total)
-                if kbLen > 0 then
-                    bufCopy(ch.buff, ch.cursor, scratchBuf, kOff[idx], kbLen)
-                end
-                if vbLen > 0 then
-                    bufCopy(ch.buff, ch.cursor + kbLen, scratchBuf, vOff[idx], vbLen)
-                end
-                ch.cursor += total
+                ensure(ch, kbLen + vbLen)
+                bufCopy(ch.buff, ch.cursor, scratchBuf, kOff[idx], kbLen)
+                bufCopy(ch.buff, ch.cursor + kbLen, scratchBuf, vOff[idx], vbLen)
+                ch.cursor += kbLen + vbLen
             end
 
             -- Update cache: drop removed, refresh changed, leave untouched in place.
@@ -415,9 +387,6 @@ function Map.deltaMap(
                 end
             end
 
-            for i = 1, count do
-                keys[i] = nil
-            end
             releaseKeys()
             releaseScratch()
         end,
@@ -454,6 +423,10 @@ function Map.deltaMap(
                 if rcLen == 0 then
                     Log.error("truncated deltaMap remove count")
                 end
+                -- Both counts bounded by maxCount; otherwise a malicious DIFF
+                -- could spin the loop arbitrarily long before erroring on
+                -- buffer overrun.
+                enforceMaxCount(removeCount, maxCount, "removeCount")
                 total += rcLen
                 for _ = 1, removeCount do
                     local k, kc = keyCodec.read(src, pos + total, refs)
@@ -468,6 +441,7 @@ function Map.deltaMap(
                 if ccLen == 0 then
                     Log.error("truncated deltaMap change count")
                 end
+                enforceMaxCount(changeCount, maxCount, "changeCount")
                 total += ccLen
                 for _ = 1, changeCount do
                     local k, kc = keyCodec.read(src, pos + total, refs)

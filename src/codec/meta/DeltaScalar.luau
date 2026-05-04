@@ -26,7 +26,7 @@ local CF_ALL = 0x0F
 
 -- Private ----------------------------------------------------------------
 
-local alloc = Base.alloc
+local ensure = Base.ensure
 local allocDeltaId = Shared.allocDeltaId
 local floor = math.floor
 local clamp = math.clamp
@@ -46,9 +46,35 @@ local quatPack = Quat.pack
 local quatUnpack = Quat.unpack
 local quatFromCFrame = Quat.fromCFrame
 
-local function ensure(ch: Types.ChannelState, n: number): ()
-    if ch.cursor + n > ch.size then
-        alloc(ch, n)
+local function quantizeVec3(
+    v: Vector3,
+    min: number,
+    delta: number,
+    scale: number
+): (number, number, number)
+    return round(clamp(v.X - min, 0, delta) * scale),
+        round(clamp(v.Y - min, 0, delta) * scale),
+        round(clamp(v.Z - min, 0, delta) * scale)
+end
+
+-- Reject out-of-range components rather than silently snapping via clamp().
+local function validateVec3(v: Vector3, min: number, max: number, label: string): ()
+    if v.X < min or v.X > max or v.Y < min or v.Y > max or v.Z < min or v.Z > max then
+        Log.error(`{label} ({v.X}, {v.Y}, {v.Z}) has component out of range [{min}, {max}]`)
+    end
+end
+
+local function getScalarPrev(ch: Types.ChannelState, id: number, fallback: number): number
+    local cache = ch.deltas[id] :: any
+    return if cache then cache.scalar :: number else fallback
+end
+
+local function setScalarCache(ch: Types.ChannelState, id: number, value: number): ()
+    local cache = ch.deltas[id] :: any
+    if cache then
+        cache.scalar = value
+    else
+        ch.deltas[id] = { scalar = value } :: any
     end
 end
 
@@ -90,16 +116,8 @@ function DeltaScalar.deltaInt(min: number, max: number): Types.InternalCodec<num
             if floor(value) ~= value then
                 Log.error(`value {value} must be an integer`)
             end
-
-            local cache = ch.deltas[deltaId] :: any
-            local prev = if cache then cache.scalar :: number else min
-            varintWrite(ch, zigzagEncode(value - prev))
-
-            if cache then
-                cache.scalar = value
-            else
-                ch.deltas[deltaId] = { scalar = value } :: any
-            end
+            varintWrite(ch, zigzagEncode(value - getScalarPrev(ch, deltaId, min)))
+            setScalarCache(ch, deltaId, value)
         end,
 
         read = function(src: buffer, pos: number, _refs: { Instance }?): (number, number)
@@ -107,10 +125,8 @@ function DeltaScalar.deltaInt(min: number, max: number): Types.InternalCodec<num
             if consumed == 0 then
                 Log.error("truncated deltaInt")
             end
-
             local cached = Baseline.getCache(deltaId)
-            local prev = if cached ~= nil then cached :: number else min
-            local value = prev + zigzagDecode(raw)
+            local value = (if cached ~= nil then cached :: number else min) + zigzagDecode(raw)
             if value < min or value > max then
                 Log.error(`deltaInt decoded value {value} out of range [{min}, {max}]`)
             end
@@ -145,15 +161,8 @@ function DeltaScalar.deltaFloat(
 
         write = function(ch: Types.ChannelState, value: number): ()
             local q = round(clamp(value - min, 0, delta) * scale)
-            local cache = ch.deltas[deltaId] :: any
-            local prev = if cache then cache.scalar :: number else 0
-            varintWrite(ch, zigzagEncode(q - prev))
-
-            if cache then
-                cache.scalar = q
-            else
-                ch.deltas[deltaId] = { scalar = q } :: any
-            end
+            varintWrite(ch, zigzagEncode(q - getScalarPrev(ch, deltaId, 0)))
+            setScalarCache(ch, deltaId, q)
         end,
 
         read = function(src: buffer, pos: number, _refs: { Instance }?): (number, number)
@@ -161,10 +170,8 @@ function DeltaScalar.deltaFloat(
             if consumed == 0 then
                 Log.error("truncated deltaFloat")
             end
-
             local cached = Baseline.getCache(deltaId)
-            local prev = if cached ~= nil then cached :: number else 0
-            local q = prev + zigzagDecode(raw)
+            local q = (if cached ~= nil then cached :: number else 0) + zigzagDecode(raw)
             Baseline.setCache(deltaId, q)
             return q * invScale + min, consumed
         end,
@@ -188,16 +195,6 @@ function DeltaScalar.deltaVec3(
     local _, _, _, scale, invScale, delta = Quantize.setup("Lync.deltaVec3", min, max, precision)
     local deltaId = allocDeltaId()
 
-    local function quantize(v: Vector3): (number, number, number)
-        return round(clamp(v.X - min, 0, delta) * scale),
-            round(clamp(v.Y - min, 0, delta) * scale),
-            round(clamp(v.Z - min, 0, delta) * scale)
-    end
-
-    local function dequantize(qx: number, qy: number, qz: number): Vector3
-        return Vector3.new(qx * invScale + min, qy * invScale + min, qz * invScale + min)
-    end
-
     return table.freeze({
         _isDelta = true,
         _typeCheck = "Vector3",
@@ -205,7 +202,8 @@ function DeltaScalar.deltaVec3(
         _max = max,
 
         write = function(ch: Types.ChannelState, value: Vector3): ()
-            local qx, qy, qz = quantize(value)
+            validateVec3(value, min, max, "Vector3")
+            local qx, qy, qz = quantizeVec3(value, min, delta, scale)
             local cache = ch.deltas[deltaId] :: any
             local px, py, pz = 0, 0, 0
             if cache then
@@ -247,7 +245,8 @@ function DeltaScalar.deltaVec3(
             local qz = pz + zigzagDecode(rz)
             Baseline.setCache(deltaId, { qx = qx, qy = qy, qz = qz })
 
-            return dequantize(qx, qy, qz), cx + cy + cz
+            return Vector3.new(qx * invScale + min, qy * invScale + min, qz * invScale + min),
+                cx + cy + cz
         end,
     }) :: Types.InternalCodec<Vector3>
 end
@@ -266,35 +265,22 @@ function DeltaScalar.deltaCFrame(
     posMax: number,
     posPrecision: number
 ): Types.InternalCodec<CFrame>
-    if posMax <= posMin then
-        Log.error(`posMin ({posMin}) must be < posMax ({posMax})`)
-    end
-
+    -- Quantize.setup itself rejects min == max; the redundant guard is gone.
     local _, _, _, scale, invScale, delta =
         Quantize.setup("Lync.deltaCFrame", posMin, posMax, posPrecision)
     local deltaId = allocDeltaId()
-
-    local function quantize(v: Vector3): (number, number, number)
-        return round(clamp(v.X - posMin, 0, delta) * scale),
-            round(clamp(v.Y - posMin, 0, delta) * scale),
-            round(clamp(v.Z - posMin, 0, delta) * scale)
-    end
 
     return table.freeze({
         _isDelta = true,
         _typeCheck = "CFrame",
 
         write = function(ch: Types.ChannelState, value: CFrame): ()
-            local qx, qy, qz = quantize(value.Position)
+            local pos = value.Position
+            validateVec3(pos, posMin, posMax, "CFrame position")
+            local qx, qy, qz = quantizeVec3(pos, posMin, delta, scale)
             local packed = quatPack(quatFromCFrame(value))
 
-            --[[
-                Default prev values to 0 so the first frame encodes ABSOLUTE
-                quantized values (since the receiver also defaults to 0 when
-                its baseline cache is missing). Setting prev = qx would write
-                a zigzag(0) on the first frame and the receiver would
-                reconstruct 0 from a 0 prev — corrupting the value.
-            ]]
+            -- prev = 0 so the first frame writes absolute values; receiver also defaults to 0.
             local cache = ch.deltas[deltaId] :: any
             local flag: number
             local px, py, pz = 0, 0, 0

@@ -4,6 +4,7 @@
 
 local Channel = require(script.Parent.Parent.Parent.internal.Channel)
 local Log = require(script.Parent.Parent.Parent.util.Log)
+local Shared = require(script.Parent.Parent.composite.Shared)
 local Types = require(script.Parent.Parent.Parent.Types)
 
 -- Private ----------------------------------------------------------------
@@ -44,7 +45,7 @@ function Optional.optional(inner: Types.InternalCodec<any>): Types.InternalCodec
     if inner._hasUnknown then
         codec._hasUnknown = true
     end
-    if inner._isDelta or inner._hasDelta then
+    if Shared.containsDelta(inner) then
         codec._hasDelta = true
     end
     return table.freeze(codec)

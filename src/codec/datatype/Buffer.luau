@@ -23,9 +23,7 @@ local function writeBuffer(ch: Types.ChannelState, value: buffer): ()
         end
         local b = ch.buff
         buffer.writeu8(b, cursor, len)
-        if len > 0 then
-            buffer.copy(b, cursor + 1, value, 0, len)
-        end
+        buffer.copy(b, cursor + 1, value, 0, len)
         ch.cursor = cursor + 1 + len
         return
     end

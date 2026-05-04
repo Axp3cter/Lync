@@ -15,6 +15,7 @@ local Middleware = require(Lync.internal.Middleware)
 local Pool = require(Lync.internal.Pool)
 local Reader = require(Lync.transport.Reader)
 local Registry = require(Lync.internal.Registry)
+local Shared = require(Lync.codec.composite.Shared)
 
 -- Public -----------------------------------------------------------------
 
@@ -37,6 +38,7 @@ function Sandbox.resetAll(): ()
     Bridge.reset()
     Reader.reset()
     Log.reset()
+    Shared.reset()
 end
 
 Sandbox.resetRegistry = Registry.reset
@@ -50,5 +52,6 @@ Sandbox.resetGroup = Group.reset
 Sandbox.resetBridge = Bridge.reset
 Sandbox.resetReader = Reader.reset
 Sandbox.resetLog = Log.reset
+Sandbox.resetShared = Shared.reset
 
 return table.freeze(Sandbox)

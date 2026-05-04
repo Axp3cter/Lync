@@ -165,7 +165,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
                     result[dataKeys[i]] = directReads[i](b, off + offsets[i])
                 end
                 if boolCount > 0 then
-                    unpackBools(b, off + fixedSize, boolKeys, boolCount, result)
+                    unpackBools(b, off + fixedSize, boolKeys, boolCount, result, boolBytes)
                 end
                 return result
             end,
@@ -181,7 +181,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
                 end
                 ch.cursor = cursor + fixedSize
                 if boolCount > 0 then
-                    packBools(ch, value, boolKeys, boolCount)
+                    packBools(ch, value, boolKeys, boolCount, boolBytes)
                 end
             end,
 
@@ -191,7 +191,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
                     result[dataKeys[i]] = directReads[i](src, pos + offsets[i])
                 end
                 if boolCount > 0 then
-                    unpackBools(src, pos + fixedSize, boolKeys, boolCount, result)
+                    unpackBools(src, pos + fixedSize, boolKeys, boolCount, result, boolBytes)
                 end
                 return result, totalFixed
             end,
@@ -213,7 +213,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
                 dataCodecs[i].write(ch, value[dataKeys[i]])
             end
             if boolCount > 0 then
-                packBools(ch, value, boolKeys, boolCount)
+                packBools(ch, value, boolKeys, boolCount, boolBytes)
             end
         end,
 
@@ -226,7 +226,7 @@ function Struct.struct(schema: { [string]: Types.InternalCodec<any> }): Types.In
                 total += consumed
             end
             if boolCount > 0 then
-                total += unpackBools(src, pos + total, boolKeys, boolCount, result)
+                total += unpackBools(src, pos + total, boolKeys, boolCount, result, boolBytes)
             end
             return result, total
         end,
@@ -316,7 +316,7 @@ function Struct.deltaStruct(
         refs: { Instance }?
     ): number
         if hasBoolSeg and segIdx == boolSegIdx then
-            return unpackBools(src, pos, boolKeys, boolCount, target)
+            return unpackBools(src, pos, boolKeys, boolCount, target, boolBytes)
         end
         local v, consumed = dataCodecs[segIdx].read(src, pos, refs)
         target[dataKeys[segIdx]] = v
@@ -361,7 +361,7 @@ function Struct.deltaStruct(
                     prev = cur
                 end
                 if hasBoolSeg then
-                    packBools(scratch, value, boolKeys, boolCount)
+                    packBools(scratch, value, boolKeys, boolCount, boolBytes)
                     segOff[boolSegIdx] = prev
                     segLen[boolSegIdx] = scratch.cursor - prev
                 end

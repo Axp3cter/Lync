@@ -409,7 +409,63 @@ describe("codec.composite.Array", function(): ()
                 c.read(b, 0, nil)
             end):toThrow("exceeds max")
         end)
+        it("PATCH grows length but omits an appended index throws", function(): ()
+            -- Forbid wire-supplied holey baselines: every index in
+            -- (cachedLen, newLen] must appear in the change set.
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+            c.write(ch, { 1, 2, 3 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            -- DA_PATCH, newLen=10, changeCount=0 (no appended indices supplied).
+            local b = buffer.create(3)
+            buffer.writeu8(b, 0, 2)
+            buffer.writeu8(b, 1, 10)
+            buffer.writeu8(b, 2, 0)
+            expect(function(): ()
+                c.read(b, 0, nil)
+            end):toThrow("appended")
+        end)
+        it("PATCH supplying every appended index round-trips", function(): ()
+            -- Sanity: the writer's own output (which DOES mark every
+            -- appended index) decodes through the new check.
+            local c = Lync.deltaArray(Lync.int(0, 255))
+            local ch = Env.Internal.Channel.create()
+            c.write(ch, { 1, 2, 3 })
+            local s1 = buffer.create(ch.cursor)
+            buffer.copy(s1, 0, ch.buff, 0, ch.cursor)
+            c.read(s1, 0, nil)
+
+            ch.cursor = 0
+            c.write(ch, { 1, 2, 3, 4, 5 })
+            local s2 = buffer.create(ch.cursor)
+            buffer.copy(s2, 0, ch.buff, 0, ch.cursor)
+            local v2 = c.read(s2, 0, nil)
+            expect(#v2):toBe(5)
+            expect(v2[4]):toBe(4)
+            expect(v2[5]):toBe(5)
+        end)
     end)
+
+    describe(
+        "OOM defense: variable-size element array bounds-checks len before alloc",
+        function(): ()
+            -- Adversarial peer can otherwise send len = 0xFFFFFFFF and OOM
+            -- the receiver via table.create(len). Every element is at least
+            -- 1 byte, so len > remaining bytes is unambiguously corrupt.
+            it("len exceeding remaining buffer bytes throws (no allocation attempt)", function(): ()
+                local c = Lync.array(Lync.string) -- variable-size element
+                -- Single varint byte = len, but no element bytes follow.
+                local b = buffer.create(1)
+                buffer.writeu8(b, 0, 50) -- claims 50 strings; buffer has 0 bytes left
+                expect(function(): ()
+                    c.read(b, 0, nil)
+                end):toThrow("exceeds remaining")
+            end)
+        end
+    )
 end)
 
 return nil

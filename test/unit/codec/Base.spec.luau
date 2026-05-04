@@ -121,6 +121,31 @@ describe("codec.Base", function(): ()
             end):toThrow("RuntimePkt")
         end)
     end)
+
+    describe("default cap matches Roblox's RemoteEvent ceiling", function(): ()
+        -- 256KB silently broke users at >500 entities × 100 fires/frame; 1MB
+        -- aligns the default with Roblox's actual per-fire payload limit.
+        it("alloc to 600KB succeeds at default cap (formerly 256KB)", function(): ()
+            local ch = InternalChannel.create()
+            expect(function(): ()
+                Base.alloc(ch, 600 * 1024)
+            end).never:toThrow()
+            expect(ch.size):toBeGreaterThanOrEqual(600 * 1024)
+        end)
+        it("alloc to 1MB succeeds at default cap", function(): ()
+            local ch = InternalChannel.create()
+            expect(function(): ()
+                Base.alloc(ch, 1024 * 1024)
+            end).never:toThrow()
+        end)
+        it("alloc past 1MB throws at default cap", function(): ()
+            local ch = InternalChannel.create()
+            ch.cursor = 1024 * 1024
+            expect(function(): ()
+                Base.alloc(ch, 1)
+            end):toThrow("overflow")
+        end)
+    end)
 end)
 
 return nil

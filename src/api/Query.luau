@@ -44,10 +44,10 @@ local function writeQueryTracked(
 ): ()
     if Channel.statsEnabled() then
         local before = ch.cursor
-        Channel.writeQuery(ch, reg.id, corrId, codec, data)
+        Channel.writeQuery(ch, reg.id, corrId, codec, data, reg.name)
         reg.bytesSent += ch.cursor - before
     else
-        Channel.writeQuery(ch, reg.id, corrId, codec, data)
+        Channel.writeQuery(ch, reg.id, corrId, codec, data, reg.name)
     end
 end
 

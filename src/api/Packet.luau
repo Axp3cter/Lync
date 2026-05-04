@@ -152,15 +152,13 @@ function Packet.define<T>(
                 local payload = scratch.buff
                 local payloadLen = scratch.cursor
                 local server = Transport.server()
+                local getChannel = if isUnreliable
+                    then server.getUnreliableChannel
+                    else server.getReliableChannel
                 -- Channel.writeBatchEncoded is hot-swapped by enableStats; re-read per call.
                 local writeBatchEncoded = Channel.writeBatchEncoded
                 for i = 1, count do
-                    writeBatchEncoded(
-                        server.getChannel(players[i], isUnreliable),
-                        reg,
-                        payload,
-                        payloadLen
-                    )
+                    writeBatchEncoded(getChannel(players[i]), reg, payload, payloadLen)
                 end
                 Shared.releaseScratch()
                 bumpFires()

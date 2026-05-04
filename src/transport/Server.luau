@@ -32,8 +32,6 @@ local xorApply = Channel.xorApply
 local sealAndDump = Channel.sealAndDump
 local resetCh = Channel.reset
 
-type StatsField = "bytesSent" | "bytesReceived"
-
 local function getOrCreateChannel(
     map: { [Player]: Types.ChannelState },
     player: Player
@@ -46,15 +44,25 @@ local function getOrCreateChannel(
     return ch
 end
 
--- Skip the table read when stats are off; the hot path needs no branch.
-local function addStat(player: Player, field: StatsField, byteLen: number): ()
-    if statsEnabled() then
-        local ps = _playerStats[player]
-        if ps then
-            ps[field] += byteLen
-        end
+-- Hot-swapped at Server.start; stats-off path is a tail-callable noop.
+local function noopStat(_player: Player, _byteLen: number): () end
+
+local function realBytesSent(player: Player, byteLen: number): ()
+    local ps = _playerStats[player]
+    if ps then
+        ps.bytesSent += byteLen
     end
 end
+
+local function realBytesReceived(player: Player, byteLen: number): ()
+    local ps = _playerStats[player]
+    if ps then
+        ps.bytesReceived += byteLen
+    end
+end
+
+local addBytesSent: (Player, number) -> () = noopStat
+local addBytesReceived: (Player, number) -> () = noopStat
 
 local function flushReliable(player: Player): ()
     local rCh = _reliableChannels[player]
@@ -69,7 +77,7 @@ local function flushReliable(player: Player): ()
 
     Bridge.fireClient(player, xored, refs)
     resetCh(rCh)
-    addStat(player, "bytesSent", byteLen)
+    addBytesSent(player, byteLen)
 end
 
 local function flushUnreliable(player: Player): ()
@@ -81,7 +89,7 @@ local function flushUnreliable(player: Player): ()
     local snapshot, refs, byteLen = sealAndDump(uCh)
     Bridge.fireClientUnreliable(player, snapshot, refs)
     resetCh(uCh)
-    addStat(player, "bytesSent", byteLen)
+    addBytesSent(player, byteLen)
 end
 
 local function flushPlayer(player: Player): ()
@@ -116,7 +124,7 @@ local function handleIncomingReliable(player: Player, data: any, refs: any?): ()
         _prevIncomingLen[player] = nil
     end
 
-    addStat(player, "bytesReceived", incomingLen)
+    addBytesReceived(player, incomingLen)
 end
 
 local function handleIncomingUnreliable(player: Player, data: any, refs: any?): ()
@@ -127,7 +135,7 @@ local function handleIncomingUnreliable(player: Player, data: any, refs: any?): 
 
     local incomingLen = buffer.len(incoming)
     Reader.process(incoming, incomingLen, refs, player, true)
-    addStat(player, "bytesReceived", incomingLen)
+    addBytesReceived(player, incomingLen)
 end
 
 local function clearPlayerState(player: Player): ()
@@ -161,6 +169,15 @@ function Server.getChannel(player: Player, isUnreliable: boolean): Types.Channel
     )
 end
 
+-- Pre-resolved variants for broadcast: skip the per-audience-member isUnreliable branch.
+function Server.getReliableChannel(player: Player): Types.ChannelState
+    return getOrCreateChannel(_reliableChannels, player)
+end
+
+function Server.getUnreliableChannel(player: Player): Types.ChannelState
+    return getOrCreateChannel(_unreliableChannels, player)
+end
+
 function Server.flush(): ()
     if Channel.hasTimestamps() then
         Channel.updateTimestamp()
@@ -181,6 +198,11 @@ function Server.start(): ()
 
     Bridge.reliable().OnServerEvent:Connect(handleIncomingReliable)
     Bridge.unreliable().OnServerEvent:Connect(handleIncomingUnreliable)
+
+    if statsEnabled() then
+        addBytesSent = realBytesSent
+        addBytesReceived = realBytesReceived
+    end
 
     Players.PlayerAdded:Connect(function(player: Player)
         if statsEnabled() then

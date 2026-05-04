@@ -278,6 +278,36 @@ describe("transport.Reader", function(): ()
         end)
     end)
 
+    describe("recvFires accounting (bulk-attributed at end of batch)", function(): ()
+        it("recvFires sums to dispatched count after a batch", function(): ()
+            Channel.enableStats()
+            local reg, received = definePacket("r_recvfires_bulk", Lync.int(0, 255))
+            local ch = Channel.create()
+            for i = 1, 7 do
+                Channel.writeBatch(ch, reg, i)
+            end
+            sealAndProcess(ch)
+            expect(#received):toBe(7)
+            expect(reg.recvFires):toBe(7)
+        end)
+        it("dropped (gated) items don't bump recvFires", function(): ()
+            Channel.enableStats()
+            local reg, received = definePacket("r_recvfires_dropped", Lync.int(0, 100), {
+                validate = function(v: any, _p: any): (boolean, string?)
+                    return v < 50, "too big"
+                end,
+            })
+            local ch = Channel.create()
+            -- 3 below threshold + 2 above threshold = 3 dispatched.
+            for _, v in { 10, 20, 30, 75, 80 } do
+                Channel.writeBatch(ch, reg, v)
+            end
+            sealAndProcess(ch, true, Instance.new("Folder"))
+            expect(#received):toBe(3)
+            expect(reg.recvFires):toBe(3)
+        end)
+    end)
+
     describe("server-side validate callback", function(): ()
         it("rejects when validate returns false", function(): ()
             local reg, received = definePacket("r_validate", Lync.int(0, 100), {

@@ -117,11 +117,24 @@ function Bitfield.define(schema: { [string]: FieldSpec }): Types.InternalCodec<a
         local packed = 0
         for i = 1, fieldCount do
             local v = value[fieldKeys[i]]
-            if fieldTypes[i] == TYPE_BOOL then
+            local ft = fieldTypes[i]
+            if ft == TYPE_BOOL then
                 if v then
                     packed = bor(packed, lshift(1, fieldOffsets[i]))
                 end
+            elseif ft == TYPE_UINT then
+                local mask = fieldMasks[i]
+                if v < 0 or v > mask or v % 1 ~= 0 then
+                    Log.error(`field "{fieldKeys[i]}" value {v} out of uint range [0, {mask}]`)
+                end
+                packed = bor(packed, lshift(v, fieldOffsets[i]))
             else
+                local signBit = fieldSignBit[i]
+                if v < -signBit or v >= signBit or v % 1 ~= 0 then
+                    Log.error(
+                        `field "{fieldKeys[i]}" value {v} out of int range [{-signBit}, {signBit - 1}]`
+                    )
+                end
                 packed = bor(packed, lshift(band(v, fieldMasks[i]), fieldOffsets[i]))
             end
         end

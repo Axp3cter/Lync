@@ -130,6 +130,61 @@ describe("internal.Pool", function(): ()
             local ch2 = Pool.acquire()
             expect(ch2.cursor):toBe(0)
         end)
+        it("clears delta cache between owners", function(): ()
+            local ch = Pool.acquire()
+            ch.deltas[42] = { scalar = 100 } :: any
+            Pool.release(ch)
+            local ch2 = Pool.acquire()
+            expect(next(ch2.deltas)):toBeNil()
+        end)
+        it("clears prevDump XOR baseline between owners", function(): ()
+            local ch = Pool.acquire()
+            ch.prevDump = buffer.create(8)
+            ch.prevDumpLen = 8
+            Pool.release(ch)
+            local ch2 = Pool.acquire()
+            expect(ch2.prevDump):toBeNil()
+            expect(ch2.prevDumpLen):toBe(0)
+        end)
+        it("acquire of a never-delta channel does not error (skip-on-empty deltas)", function(): ()
+            -- The deltas table is always {}; the optimization skips the
+            -- table.clear via `next(ch.deltas) ~= nil`. Acquire path must
+            -- still produce a fully-reset channel either way.
+            local ch = Pool.acquire()
+            expect(next(ch.deltas)):toBeNil()
+            expect(ch.cursor):toBe(0)
+            expect(ch.refCount):toBe(0)
+        end)
+    end)
+
+    describe("release scrubs prior owner state", function(): ()
+        -- Prevents Instance refs / XOR baselines from leaking through the
+        -- pool when a player disconnects without flushing.
+        it("released channel has no Instance refs", function(): ()
+            local ch = Pool.acquire()
+            local part = Instance.new("Folder")
+            ch.refs[1] = part
+            ch.refCount = 1
+            Pool.release(ch)
+            expect(ch.refCount):toBe(0)
+            expect(ch.refs[1]):toBeNil()
+            part:Destroy()
+        end)
+        it("released channel has no XOR baseline buffer", function(): ()
+            local ch = Pool.acquire()
+            ch.prevDump = buffer.create(8)
+            ch.prevDumpLen = 8
+            Pool.release(ch)
+            expect(ch.prevDump):toBeNil()
+            expect(ch.prevDumpLen):toBe(0)
+        end)
+        it("released channel has no delta cache entries", function(): ()
+            local ch = Pool.acquire()
+            ch.deltas[1] = { scalar = 99 } :: any
+            ch.deltas[2] = { qx = 1, qy = 2, qz = 3 } :: any
+            Pool.release(ch)
+            expect(next(ch.deltas)):toBeNil()
+        end)
     end)
 
     describe("Sandbox.reset clears the pool", function(): ()

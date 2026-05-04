@@ -21,9 +21,11 @@ local DM_DIFF = 2
 --[[
     Depth-stacked key scratch. A nested Map.write (Map<K, Map<K2, V>>) would
     clobber a single shared array mid-iteration; the stack gives each frame
-    its own slot. Mirrors Shared.acquireScratch / releaseScratch.
+    its own slot. _keyTails parallels _keyStacks because `#keys` after
+    `keys[count] = k` is undefined when count < the prior count.
 ]]
 local _keyStacks: { { any } } = {}
+local _keyTails: { number } = {}
 local _keyDepth = 0
 
 -- Private ----------------------------------------------------------------
@@ -73,23 +75,23 @@ local function sortKeys(keys: { any }, canSortDirect: boolean): ()
     end
 end
 
---[[
-    Acquire a scratch keys array, populate it from `value`, nil any leftover
-    tail entries from a prior reuse, then sort. Returns the keys array and
-    the populated count. Caller MUST releaseKeys() after consuming the keys.
-]]
 local function collectAndSortKeys(value: { [any]: any }, canSortDirect: boolean): ({ any }, number)
     local keys = acquireKeys()
+    local prevTail = _keyTails[_keyDepth] or 0
     local count = 0
     for k in value do
         count += 1
         keys[count] = k
     end
-    local prevTail = #keys
-    for i = count + 1, prevTail do
-        keys[i] = nil
+    if count < prevTail then
+        for i = count + 1, prevTail do
+            keys[i] = nil
+        end
     end
-    sortKeys(keys, canSortDirect)
+    _keyTails[_keyDepth] = count
+    if count > 1 then
+        sortKeys(keys, canSortDirect)
+    end
     return keys, count
 end
 
@@ -162,6 +164,11 @@ function Map.map(
                 local payloadBytes = count * (fixedKey + fixedValue)
                 if payloadBytes > bufLen(src) - (pos + lenBytes) then
                     Log.error(`payload {payloadBytes}B exceeds remaining buffer`)
+                end
+            elseif count > 0 then
+                -- Variable-size: each pair is at least 2 bytes (key + value).
+                if count * 2 > bufLen(src) - (pos + lenBytes) then
+                    Log.error(`map count {count} exceeds remaining buffer`)
                 end
             end
 
@@ -419,14 +426,19 @@ function Map.deltaMap(
                 local result: { [any]: any } = table.clone(cached)
                 local total = 1
 
+                local cachedSize = 0
+                for _ in cached do
+                    cachedSize += 1
+                end
+
                 local removeCount, rcLen = varintRead(src, pos + total)
                 if rcLen == 0 then
                     Log.error("truncated deltaMap remove count")
                 end
-                -- Both counts bounded by maxCount; otherwise a malicious DIFF
-                -- could spin the loop arbitrarily long before erroring on
-                -- buffer overrun.
                 enforceMaxCount(removeCount, maxCount, "removeCount")
+                if removeCount > cachedSize then
+                    Log.error(`deltaMap removeCount {removeCount} exceeds cached size {cachedSize}`)
+                end
                 total += rcLen
                 for _ = 1, removeCount do
                     local k, kc = keyCodec.read(src, pos + total, refs)
@@ -442,6 +454,10 @@ function Map.deltaMap(
                     Log.error("truncated deltaMap change count")
                 end
                 enforceMaxCount(changeCount, maxCount, "changeCount")
+                -- Joint bound: post-DIFF size can't exceed maxCount either.
+                if maxCount and (cachedSize - removeCount + changeCount) > maxCount then
+                    Log.error(`deltaMap DIFF would grow map past maxCount {maxCount}`)
+                end
                 total += ccLen
                 for _ = 1, changeCount do
                     local k, kc = keyCodec.read(src, pos + total, refs)

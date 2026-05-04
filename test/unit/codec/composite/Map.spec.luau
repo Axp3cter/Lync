@@ -381,6 +381,132 @@ describe("codec.composite.Map", function(): ()
             end):toThrow()
         end)
     end)
+
+    describe("scratch keys reuse correctness across writes", function(): ()
+        -- Pre-fix the cleanup loop used `#keys` which is undefined after
+        -- partial overwrite, so a subsequent smaller map could carry stale
+        -- entries into its sort + emit.
+        it("large-then-small write produces correct second wire layout", function(): ()
+            local c = Lync.map(Lync.int(0, 255), Lync.int(0, 255))
+            local r1 = Channel.encode(c, { [1] = 1, [2] = 2, [3] = 3, [4] = 4, [5] = 5 })
+            local r2 = Channel.encode(c, { [1] = 10 })
+            -- Second write: 1-byte count + 1 entry (1 key + 1 value) = 3 bytes.
+            expect(r2.length):toBe(1 + 2)
+            expect(r2.length):toBeLessThan(r1.length)
+            local back = Channel.roundTripStrict(c, { [1] = 10 })
+            expect(back[1]):toBe(10)
+            expect(back[2]):toBeNil()
+        end)
+        it("shrink-then-grow reuse keeps key sort stable", function(): ()
+            local c = Lync.map(Lync.string, Lync.int(0, 255))
+            -- Drive the same scratch slot through three sizes back-to-back.
+            local _ = Channel.roundTripStrict(c, { a = 1, b = 2, c = 3, d = 4 })
+            local _ = Channel.roundTripStrict(c, { z = 9 })
+            local r = Channel.roundTripStrict(c, { a = 1, b = 2, c = 3 })
+            expect(r.a):toBe(1)
+            expect(r.b):toBe(2)
+            expect(r.c):toBe(3)
+            expect(r.d):toBeNil()
+            expect(r.z):toBeNil()
+        end)
+        it("count=1 byte layout matches what a sorted single-entry produces", function(): ()
+            -- count=1 paths skip table.sort entirely (qsort-on-1-elem avoidance).
+            -- Wire shape must still be identical to a multi-entry write of size 1.
+            local c = Lync.map(Lync.int(0, 255), Lync.int(0, 255))
+            local r1 = Channel.encode(c, { [42] = 7 })
+            -- 1 byte count + 1 byte key + 1 byte value = 3 bytes.
+            expect(r1.length):toBe(3)
+            local back = Channel.roundTripStrict(c, { [42] = 7 })
+            expect(back[42]):toBe(7)
+        end)
+        it("empty map = 1 byte and decoded result is empty", function(): ()
+            local c = Lync.map(Lync.string, Lync.int(0, 255))
+            local r = Channel.encode(c, {})
+            expect(r.length):toBe(1)
+            local v = Channel.roundTripStrict(c, {})
+            local n = 0
+            for _ in v do
+                n += 1
+            end
+            expect(n):toBe(0)
+        end)
+    end)
+
+    describe(
+        "OOM defense: variable-size key/value map bounds-checks count before alloc",
+        function(): ()
+            -- Each pair is at least 2 bytes (key + value). A wire count whose
+            -- minimum byte cost exceeds the remaining buffer is corrupt.
+            it("count exceeding remaining buffer bytes throws", function(): ()
+                local c = Lync.map(Lync.string, Lync.string) -- variable-size both
+                local b = buffer.create(1)
+                buffer.writeu8(b, 0, 50) -- claims 50 pairs; 0 payload bytes
+                expect(function(): ()
+                    c.read(b, 0, nil)
+                end):toThrow("exceeds remaining")
+            end)
+        end
+    )
+
+    describe("deltaMap DIFF joint bounds defense", function(): ()
+        -- removeCount + changeCount must respect the cached size and maxCount.
+        it("removeCount exceeding cached size throws", function(): ()
+            local c = Lync.deltaMap(Lync.int(0, 255), Lync.int(0, 255), 100)
+            local ch = Env.Internal.Channel.create()
+            -- Seed FULL frame with 3 entries so cachedSize = 3.
+            c.write(ch, { [1] = 10, [2] = 20, [3] = 30 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            -- DIFF flag, removeCount=99 > cachedSize=3.
+            local b = buffer.create(2)
+            buffer.writeu8(b, 0, 2) -- DM_DIFF
+            buffer.writeu8(b, 1, 99) -- removeCount
+            expect(function(): ()
+                c.read(b, 0, nil)
+            end):toThrow("exceeds cached size")
+        end)
+        it("removeCount + changeCount growing past maxCount throws", function(): ()
+            local c = Lync.deltaMap(Lync.int(0, 255), Lync.int(0, 255), 5)
+            local ch = Env.Internal.Channel.create()
+            -- Cached size = 4 entries.
+            c.write(ch, { [1] = 1, [2] = 2, [3] = 3, [4] = 4 })
+            local fullPayload = buffer.create(ch.cursor)
+            buffer.copy(fullPayload, 0, ch.buff, 0, ch.cursor)
+            c.read(fullPayload, 0, nil)
+
+            -- removeCount=0, changeCount=5 → post-DIFF size = 4 + 5 = 9 > maxCount=5.
+            local b = buffer.create(3)
+            buffer.writeu8(b, 0, 2)
+            buffer.writeu8(b, 1, 0)
+            buffer.writeu8(b, 2, 5)
+            expect(function(): ()
+                c.read(b, 0, nil)
+            end):toThrow("grow map past maxCount")
+        end)
+    end)
+
+    describe("nested map scratch isolation", function(): ()
+        it("Map<string, Map<string, u8>> with nested resize round-trips", function(): ()
+            local inner = Lync.map(Lync.string, Lync.int(0, 255))
+            local outer = Lync.map(Lync.string, inner)
+            local r = Channel.roundTripStrict(outer, {
+                a = { x = 1, y = 2, z = 3 },
+                b = { p = 4 },
+                c = {},
+            })
+            expect(r.a.x):toBe(1)
+            expect(r.a.y):toBe(2)
+            expect(r.a.z):toBe(3)
+            expect(r.b.p):toBe(4)
+            local cn = 0
+            for _ in r.c do
+                cn += 1
+            end
+            expect(cn):toBe(0)
+        end)
+    end)
 end)
 
 return nil

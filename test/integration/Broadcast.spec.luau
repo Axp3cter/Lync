@@ -174,6 +174,57 @@ describe("integration.Broadcast", function(): ()
         end)
     end)
 
+    describe("encode-once selects the right reliability getter", function(): ()
+        -- Packet.broadcast pre-resolves getReliableChannel vs getUnreliableChannel
+        -- based on isUnreliable. Each side must populate only its own channel map.
+        it("reliable broadcast writes only to reliable channels", function(): ()
+            if not IS_SERVER then
+                return
+            end
+            MockBridge.install()
+            local players = {}
+            for _ = 1, 3 do
+                local p = fakePlayer()
+                table.insert(players, p)
+                Server.getChannel(p :: any, false)
+                Server.getChannel(p :: any, true)
+            end
+            local g = Lync.group("bcast_rel_grp")
+            for _, p in players do
+                g:add(p :: any)
+            end
+            local pkt = Lync.packet("bcast_rel_only", Lync.int(0, 255))
+            pkt:send(7, g)
+            for _, p in players do
+                expect(Server.getChannel(p :: any, false).cursor):toBeGreaterThan(0)
+                expect(Server.getChannel(p :: any, true).cursor):toBe(0)
+            end
+        end)
+        it("unreliable broadcast writes only to unreliable channels", function(): ()
+            if not IS_SERVER then
+                return
+            end
+            MockBridge.install()
+            local players = {}
+            for _ = 1, 3 do
+                local p = fakePlayer()
+                table.insert(players, p)
+                Server.getChannel(p :: any, false)
+                Server.getChannel(p :: any, true)
+            end
+            local g = Lync.group("bcast_unrel_grp")
+            for _, p in players do
+                g:add(p :: any)
+            end
+            local pkt = Lync.packet("bcast_unrel_only", Lync.int(0, 255), { unreliable = true })
+            pkt:send(7, g)
+            for _, p in players do
+                expect(Server.getChannel(p :: any, true).cursor):toBeGreaterThan(0)
+                expect(Server.getChannel(p :: any, false).cursor):toBe(0)
+            end
+        end)
+    end)
+
     describe("targets routing", function(): ()
         it("Lync.all routes via broadcast without throwing on empty Players service", function(): ()
             if not IS_SERVER then

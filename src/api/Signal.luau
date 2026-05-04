@@ -17,11 +17,16 @@ local _freeThread: thread? = nil
 
 -- Private ----------------------------------------------------------------
 
+-- pcall wrapper: a handler error must not consume the recycled thread, otherwise
+-- every subsequent fire pays a coroutine.create until process restart.
 local function passer(fn: (...any) -> (), ...): ()
     local thread = _freeThread
     _freeThread = nil
-    fn(...)
+    local ok, err = pcall(fn, ...)
     _freeThread = thread
+    if not ok then
+        task.spawn(error, err)
+    end
 end
 
 local function yielder(): ()

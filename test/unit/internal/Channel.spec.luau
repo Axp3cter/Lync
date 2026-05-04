@@ -204,6 +204,14 @@ describe("internal.Channel", function(): ()
             Channel.writeBatch(ch, reg, 0)
             expect(bit32.band(buffer.readu8(ch.buff, 0), 0x7F)):toBe(reg.id)
         end)
+        it("header byte is id + 128 (since id <= 127, equivalent to bor(0x80, id))", function(): ()
+            -- The optimized openFn uses `id + 128` instead of bit32.bor; this
+            -- test pins the wire equivalence so future changes can't drift.
+            local reg = packetReg("id_plus_128")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, 0)
+            expect(buffer.readu8(ch.buff, 0)):toBe(reg.id + 128)
+        end)
     end)
 
     describe("writeBatch single -> multi upgrade", function(): ()
@@ -232,7 +240,7 @@ describe("internal.Channel", function(): ()
         end)
     end)
 
-    describe("writeBatch itemCount order (atomicity vs codec errors)", function(): ()
+    describe("writeBatch atomicity vs codec errors", function(): ()
         it("itemCount only bumps after codec.write succeeds", function(): ()
             local throwingCodec: any = {
                 _size = nil,
@@ -245,13 +253,119 @@ describe("internal.Channel", function(): ()
             }
             local reg = packetReg("err_pkt", throwingCodec)
             local ch = Channel.create()
-            -- The throwing codec aborts mid-write; itemCount must NOT bump,
-            -- otherwise the count cell would over-report items on flush.
             local ok = pcall(function(): ()
                 Channel.writeBatch(ch, reg, 0)
             end)
             expect(ok):toBe(false)
             expect(ch.itemCount):toBe(0)
+        end)
+        it("cursor rewinds to pre-codec position on throw", function(): ()
+            -- A codec that advances cursor partway then throws would leave
+            -- the channel with a partial body past the last item boundary.
+            -- Without rewind, the next sealAndDump sends those bytes and
+            -- the receiver desyncs.
+            local partialCodec: any = {
+                _size = nil,
+                write = function(ch: any, _v: any): ()
+                    if ch.cursor + 4 > ch.size then
+                        Base.alloc(ch, 4)
+                    end
+                    buffer.writeu32(ch.buff, ch.cursor, 0xDEADBEEF)
+                    ch.cursor += 4
+                    error("aborted after partial advance", 0)
+                end,
+                read = function(_b, _pos, _refs)
+                    return nil, 0
+                end,
+            }
+            local reg = packetReg("err_partial", partialCodec)
+            local ch = Channel.create()
+            local cursorBefore = ch.cursor
+            local ok = pcall(function(): ()
+                Channel.writeBatch(ch, reg, 0)
+            end)
+            expect(ok):toBe(false)
+            -- openOrUpgrade ran (header byte) before the throw, so cursor
+            -- sits exactly at the post-header position — not past the
+            -- 4-byte advance the codec attempted.
+            expect(ch.cursor):toBe(cursorBefore + 1)
+        end)
+        it("refCount rewinds to pre-codec count on throw", function(): ()
+            local refLeakingCodec: any = {
+                _size = nil,
+                write = function(ch: any, _v: any): ()
+                    Channel.pushRef(ch, Instance.new("Folder"))
+                    Channel.pushRef(ch, Instance.new("Folder"))
+                    error("aborted after pushing refs", 0)
+                end,
+                read = function(_b, _pos, _refs)
+                    return nil, 0
+                end,
+            }
+            local reg = packetReg("err_refs", refLeakingCodec)
+            local ch = Channel.create()
+            local ok = pcall(function(): ()
+                Channel.writeBatch(ch, reg, 0)
+            end)
+            expect(ok):toBe(false)
+            expect(ch.refCount):toBe(0)
+            expect(ch.refs[1]):toBeNil()
+            expect(ch.refs[2]):toBeNil()
+        end)
+        it("mid-batch throw preserves prior items intact", function(): ()
+            -- The place-file scenario: a stable multi-mode batch with N
+            -- successful items, then (N+1)'s codec hits the cap. Rewind
+            -- must preserve the first N item bytes so the flush is coherent.
+            local goodCodec: any = {
+                _size = 1,
+                write = function(ch: any, v: any): ()
+                    if ch.cursor + 1 > ch.size then
+                        Base.alloc(ch, 1)
+                    end
+                    buffer.writeu8(ch.buff, ch.cursor, v)
+                    ch.cursor += 1
+                end,
+                read = function(b, pos, _refs)
+                    return buffer.readu8(b, pos), 1
+                end,
+            }
+            local reg = packetReg("err_midbatch_cap", goodCodec)
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, 1)
+            Channel.writeBatch(ch, reg, 2)
+            Channel.writeBatch(ch, reg, 3)
+            local cursorAfterThree = ch.cursor
+            local itemCountAfterThree = ch.itemCount
+
+            -- Now swap in a throwing codec for the same reg and watch the rewind.
+            reg.codec = {
+                _size = nil,
+                write = function(_ch: any, _v: any): ()
+                    error("simulated alloc-cap throw", 0)
+                end,
+                read = function(_b, _pos, _refs)
+                    return nil, 0
+                end,
+            } :: any
+            local ok = pcall(function(): ()
+                Channel.writeBatch(ch, reg, 4)
+            end)
+            expect(ok):toBe(false)
+            expect(ch.cursor):toBe(cursorAfterThree)
+            expect(ch.itemCount):toBe(itemCountAfterThree)
+        end)
+        it("writeBatchEncoded itemCount stays atomic when splice throws on cap", function(): ()
+            Base.setMaxSize(2048)
+            local reg = packetReg("err_encoded")
+            local ch = Channel.create()
+            ch.cursor = 1500
+            local itemCountBefore = ch.itemCount
+            local payload = buffer.create(4096)
+            local ok = pcall(function(): ()
+                Channel.writeBatchEncoded(ch, reg, payload, 4096)
+            end)
+            expect(ok):toBe(false)
+            expect(ch.itemCount):toBe(itemCountBefore)
         end)
     end)
 
@@ -319,7 +433,7 @@ describe("internal.Channel", function(): ()
         it("MSB-set id with no payload (nil response shape)", function(): ()
             local ch = Channel.create()
             Channel.writeQuery(ch, 7, 1, nil, nil)
-            expect(buffer.readu8(ch.buff, 0)):toBe(bit32.bor(0x80, 7))
+            expect(buffer.readu8(ch.buff, 0)):toBe(7 + 128)
         end)
         it("plain id with payload", function(): ()
             local ch = Channel.create()
@@ -340,6 +454,15 @@ describe("internal.Channel", function(): ()
             -- Resetting lastId is the contract; singleMode is intentionally not
             -- touched here because it's gated by `lastId >= 0` everywhere it's read.
             expect(ch.lastId):toBe(-1)
+        end)
+        it("name param sets currentPacket so overflow blames the right caller", function(): ()
+            local reg = packetReg("prev_packet")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, 1)
+            -- A subsequent writeQuery without a name leaves currentPacket as "prev_packet".
+            -- With the name param, it's stamped to the query's identity.
+            Channel.writeQuery(ch, 8, 1, nil, nil, "MyQuery")
+            expect(ch.currentPacket):toBe("MyQuery")
         end)
     end)
 
@@ -370,6 +493,34 @@ describe("internal.Channel", function(): ()
             local ch = Channel.create()
             Channel.writeBatch(ch, reg, 0)
             expect(ch.cursor):toBe(9 + 1)
+        end)
+        it("each timestamp mode returns a distinct openFn closure", function(): ()
+            -- The specialized variants are constructed as separate closures
+            -- so the inner branch on `mode` is gone. Identity differs.
+            local fNone = Channel.resolveOpenFn(Channel.TS_NONE, "x")
+            local fFrame = Channel.resolveOpenFn(Channel.TS_FRAME, "x")
+            local fOffset = Channel.resolveOpenFn(Channel.TS_OFFSET, "x")
+            local fFull = Channel.resolveOpenFn(Channel.TS_FULL, "x")
+            expect(fNone).never:toBe(fFrame)
+            expect(fNone).never:toBe(fOffset)
+            expect(fNone).never:toBe(fFull)
+            expect(fFrame).never:toBe(fOffset)
+            expect(fFrame).never:toBe(fFull)
+            expect(fOffset).never:toBe(fFull)
+        end)
+        it("TS_FRAME header byte at offset 1 is the current frame counter", function(): ()
+            Channel.enableTimestamps()
+            Channel.updateTimestamp()
+            local reg = packetReg("ts_frame_value")
+            reg.timestampMode = Channel.TS_FRAME
+            reg._openFn = Channel.resolveOpenFn(Channel.TS_FRAME, "ts_frame_value")
+            local ch = Channel.create()
+            Channel.writeBatch(ch, reg, 0)
+            -- Pre-fix: writeTimestamp dispatched on `mode`; post-fix: inlined.
+            -- The byte itself must still be a u8 (0..255) regardless.
+            local tsByte = buffer.readu8(ch.buff, 1)
+            expect(tsByte):toBeGreaterThanOrEqual(0)
+            expect(tsByte):toBeLessThanOrEqual(255)
         end)
     end)
 

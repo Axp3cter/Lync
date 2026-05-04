@@ -209,6 +209,7 @@ function Reader.process(
             local regName = reg.name
             -- Lync.nothing reads zero bytes; bypass the pos/consumed gates that assume forward progress.
             local isZeroSize = sizeMeta == 0
+            local accepted = 0
 
             for _ = 1, count do
                 if not isZeroSize and pos >= incomingLen then
@@ -249,15 +250,14 @@ function Reader.process(
                     value = runReceive(value, regName, player)
                 end
 
-                if statsEnabled then
-                    reg.recvFires += 1
-                end
+                accepted += 1
 
                 -- tsValue is nil when mode == TS_NONE; pass through to skip a per-item branch.
                 regSignal:fire(value, player, tsValue)
             end
 
             if statsEnabled then
+                reg.recvFires += accepted
                 reg.bytesReceived += (pos - frameStart)
             end
         elseif kind == KIND_REQUEST or kind == KIND_RESPONSE then

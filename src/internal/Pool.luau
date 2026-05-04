@@ -20,23 +20,24 @@ local _maxSize = DEFAULT_SIZE
 
 local Pool = {}
 
--- fullReset wipes the prior owner's XOR baseline and delta caches.
 function Pool.acquire(): Types.ChannelState
     if _depth > 0 then
         local ch = _stack[_depth]
         _stack[_depth] = nil
         _depth -= 1
-        Channel.fullReset(ch)
         return ch
     end
     return Channel.create()
 end
 
--- Above the cap, drop on the floor; the GC reclaims the buffer.
+-- Scrub on release so the pool never holds the prior owner's Instance refs
+-- or XOR baseline buffer; otherwise a player who disconnects mid-frame leaves
+-- those rooted in the pool until the slot is re-acquired (potentially never).
 function Pool.release(ch: Types.ChannelState): ()
     if _depth >= _maxSize then
         return
     end
+    Channel.fullReset(ch)
     _depth += 1
     _stack[_depth] = ch
 end

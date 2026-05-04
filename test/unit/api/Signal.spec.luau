@@ -315,6 +315,30 @@ describe("api.Signal", function(): ()
             expect(v):toBe("delivered")
         end)
     end)
+
+    describe("async dispatch survives a handler error", function(): ()
+        -- The recycled-thread fast path used to be permanently consumed by a
+        -- single handler error: every subsequent fire then paid coroutine.create.
+        it("subsequent fires still dispatch after a thrown handler", function(): ()
+            local sig = Signal.create()
+            sig:connect(function(): ()
+                error("handler boom", 0)
+            end)
+            local laterFires = 0
+            sig:connect(function(): ()
+                laterFires += 1
+            end)
+
+            -- async fire (not fireSync) so spawnCallback runs through `passer`.
+            sig:fire(1)
+            sig:fire(2)
+            sig:fire(3)
+            -- yield once so the recycled thread completes its work.
+            task.wait(0)
+            -- Each fire ran the second handler at least once.
+            expect(laterFires):toBeGreaterThanOrEqual(3)
+        end)
+    end)
 end)
 
 return nil

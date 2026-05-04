@@ -97,7 +97,9 @@ end
 --[[
     Stack-based scratch ChannelState pool. Re-entrant codec serialization
     (a codec writing into scratch that triggers another codec's scratch
-    acquire) works without aliasing.
+    acquire) works without aliasing. Full scrub on reuse so any codec that
+    reads framing fields (lastId/singleMode/itemCount/countPos) on scratch
+    sees a clean state, not stale bytes from the previous owner.
 ]]
 function Shared.acquireScratch(): Types.ChannelState
     _scratchDepth += 1
@@ -105,6 +107,15 @@ function Shared.acquireScratch(): Types.ChannelState
     if ch then
         ch.cursor = 0
         ch.refCount = 0
+        ch.lastId = -1
+        ch.countPos = -1
+        ch.itemCount = 0
+        ch.singleMode = false
+        ch.singlePos = 0
+        ch.currentPacket = nil
+        if next(ch.deltas) ~= nil then
+            table.clear(ch.deltas)
+        end
         return ch
     end
     ch = Channel.create()
@@ -171,25 +182,27 @@ function Shared.extractFields(
     return dataKeys, dataCodecs, boolKeys
 end
 
+-- `byteCount` is `(boolCount + 7) // 8`; callers with it cached pass it through.
 function Shared.packBools(
     ch: Types.ChannelState,
     value: { [string]: any },
     boolKeys: { string },
-    boolCount: number
+    boolCount: number,
+    byteCount: number?
 ): ()
     if boolCount == 0 then
         return
     end
 
-    local byteCount = (boolCount + 7) // 8
+    local bc = byteCount or (boolCount + 7) // 8
     local cursor = ch.cursor
-    if cursor + byteCount > ch.size then
-        alloc(ch, byteCount)
+    if cursor + bc > ch.size then
+        alloc(ch, bc)
     end
 
     local idx = 1
     local b = ch.buff
-    for byteIdx = 0, byteCount - 1 do
+    for byteIdx = 0, bc - 1 do
         local packed = 0
         local remaining = boolCount - idx + 1
         local limit = if remaining >= 8 then 8 else remaining
@@ -202,27 +215,32 @@ function Shared.packBools(
         writeu8(b, cursor + byteIdx, packed)
     end
 
-    ch.cursor = cursor + byteCount
+    ch.cursor = cursor + bc
 end
 
 --[[
     Integer-indexed bool-array pack. Split from packBools to skip the
     per-bit string-key getter on the bool-array hot path.
 ]]
-function Shared.packBoolArray(ch: Types.ChannelState, value: { boolean }, count: number): ()
+function Shared.packBoolArray(
+    ch: Types.ChannelState,
+    value: { boolean },
+    count: number,
+    byteCount: number?
+): ()
     if count == 0 then
         return
     end
 
-    local byteCount = (count + 7) // 8
+    local bc = byteCount or (count + 7) // 8
     local cursor = ch.cursor
-    if cursor + byteCount > ch.size then
-        alloc(ch, byteCount)
+    if cursor + bc > ch.size then
+        alloc(ch, bc)
     end
 
     local idx = 1
     local b = ch.buff
-    for byteIdx = 0, byteCount - 1 do
+    for byteIdx = 0, bc - 1 do
         local packed = 0
         local remaining = count - idx + 1
         local limit = if remaining >= 8 then 8 else remaining
@@ -235,7 +253,7 @@ function Shared.packBoolArray(ch: Types.ChannelState, value: { boolean }, count:
         writeu8(b, cursor + byteIdx, packed)
     end
 
-    ch.cursor = cursor + byteCount
+    ch.cursor = cursor + bc
 end
 
 function Shared.unpackBools(
@@ -243,15 +261,16 @@ function Shared.unpackBools(
     pos: number,
     boolKeys: { string },
     boolCount: number,
-    result: { [string]: any }
+    result: { [string]: any },
+    byteCount: number?
 ): number
     if boolCount == 0 then
         return 0
     end
 
-    local byteCount = (boolCount + 7) // 8
+    local bc = byteCount or (boolCount + 7) // 8
     local idx = 1
-    for byteIdx = 0, byteCount - 1 do
+    for byteIdx = 0, bc - 1 do
         local byte = readu8(src, pos + byteIdx)
         local remaining = boolCount - idx + 1
         local limit = if remaining >= 8 then 8 else remaining
@@ -260,7 +279,7 @@ function Shared.unpackBools(
             idx += 1
         end
     end
-    return byteCount
+    return bc
 end
 
 -- Fills `result[1..count]` in place.
@@ -268,15 +287,16 @@ function Shared.unpackBoolArray(
     src: buffer,
     pos: number,
     count: number,
-    result: { boolean }
+    result: { boolean },
+    byteCount: number?
 ): number
     if count == 0 then
         return 0
     end
 
-    local byteCount = (count + 7) // 8
+    local bc = byteCount or (count + 7) // 8
     local idx = 1
-    for byteIdx = 0, byteCount - 1 do
+    for byteIdx = 0, bc - 1 do
         local byte = readu8(src, pos + byteIdx)
         local remaining = count - idx + 1
         local limit = if remaining >= 8 then 8 else remaining
@@ -285,7 +305,7 @@ function Shared.unpackBoolArray(
             idx += 1
         end
     end
-    return byteCount
+    return bc
 end
 
 return table.freeze(Shared)

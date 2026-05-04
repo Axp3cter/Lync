@@ -53,7 +53,7 @@ local function makeBoolArray(
         write = function(ch: Types.ChannelState, value: { boolean }): ()
             local len = #value
             varintWrite(ch, len)
-            packBoolArray(ch, value, len)
+            packBoolArray(ch, value, len, if len > 0 then boolBytes(len) else 0)
         end,
 
         read = function(src: buffer, pos: number, _refs: { Instance }?): ({ boolean }, number)
@@ -69,7 +69,7 @@ local function makeBoolArray(
                 Log.error(`payload {byteCount}B exceeds remaining buffer`)
             end
             local result = table.create(len, false)
-            unpackBoolArray(src, dataStart, len, result)
+            unpackBoolArray(src, dataStart, len, result, byteCount)
             return result, lenBytes + byteCount
         end,
     }
@@ -156,6 +156,11 @@ local function makeGenericArray(
             enforceMaxCount(len, maxCount)
             if len == 0 then
                 return {}, lenBytes
+            end
+            -- Every element occupies at least 1 byte; len > remaining is
+            -- unambiguously corrupt and would OOM table.create otherwise.
+            if len > bufLen(src) - (pos + lenBytes) then
+                Log.error(`array length {len} exceeds remaining buffer`)
             end
 
             local result = table.create(len)
@@ -415,21 +420,27 @@ function Array.deltaArray(
                 if cLen == 0 then
                     Log.error("truncated deltaArray change count")
                 end
-                -- changeCount is also bounded by newLen: every index appears at most once.
                 if changeCount > newLen then
                     Log.error(`deltaArray changeCount {changeCount} exceeds newLen {newLen}`)
                 end
                 total += cLen
+
+                -- The writer marks every appended index (cachedLen+1 .. newLen)
+                -- as changed; the reader must enforce this so the wire can't
+                -- ship a holey baseline that breaks #result downstream.
+                local appendedNeeded = if newLen > cachedLen then newLen - cachedLen else 0
+                local appendedSeen = 0
 
                 for _ = 1, changeCount do
                     local idx, iLen = varintRead(src, pos + total)
                     if iLen == 0 then
                         Log.error("truncated deltaArray index")
                     end
-                    -- Reject out-of-range idx so the wire can't poison the cache with
-                    -- arbitrary keys that survive truncation.
                     if idx < 1 or idx > newLen then
                         Log.error(`deltaArray index {idx} out of range [1, {newLen}]`)
+                    end
+                    if idx > cachedLen then
+                        appendedSeen += 1
                     end
                     total += iLen
                     local v, vc = element.read(src, pos + total, refs)
@@ -438,6 +449,12 @@ function Array.deltaArray(
                     end
                     total += vc
                     result[idx] = v
+                end
+
+                if appendedSeen ~= appendedNeeded then
+                    Log.error(
+                        `deltaArray PATCH grew length to {newLen} but only {appendedSeen}/{appendedNeeded} appended indices supplied`
+                    )
                 end
 
                 for i = newLen + 1, cachedLen do

@@ -18,7 +18,6 @@ local TS_FULL = 3
 
 local INITIAL_BUF = 1024
 local HEADER_BYTE = 1
-local FRAME_MSB = Constants.FRAME_MSB
 local U8_MAX = Constants.U8_MAX
 local U16_MAX = Constants.U16_MAX
 local MAX_BATCH_ITEMS = Constants.MAX_BATCH_ITEMS
@@ -50,7 +49,6 @@ local EMPTY_REFS = table.freeze({}) :: { Instance }
 local alloc = Base.alloc
 local ensure = Base.ensure
 local band = bit32.band
-local bor = bit32.bor
 local bufCopy = buffer.copy
 local writeu8 = buffer.writeu8
 local writeu16 = buffer.writeu16
@@ -58,15 +56,7 @@ local writef64 = buffer.writef64
 local round = math.round
 local osClock = os.clock
 
-local function writeTimestamp(b: buffer, off: number, mode: number): ()
-    if mode == TS_FRAME then
-        writeu8(b, off, _frameCounter)
-    elseif mode == TS_OFFSET then
-        writeu16(b, off, _offsetMs)
-    elseif mode == TS_FULL then
-        writef64(b, off, _clock)
-    end
-end
+-- id is in [1, 127] (Registry.MAX_ID), so id + 128 == bor(FRAME_MSB, id).
 
 --[[
     Single -> multi upgrade. Patches the previously-emitted single-item
@@ -111,25 +101,47 @@ local function spliceEncoded(ch: Types.ChannelState, payload: buffer, payloadLen
 end
 
 --[[
-    Hot-swapped by enableStats() so the per-item dispatch avoids a runtime
-    branch on the stats flag. itemCount bumps AFTER codec.write so a
-    throwing codec leaves the count consistent with the buffer.
+    Hot-swapped by enableStats(). A throwing codec must rewind cursor + refs:
+    the next flush sends `[0, ch.cursor)`, so a partial write past `cursor`
+    desyncs the receiver from the truncation point onward.
 ]]
 local writeBatchPlain: (Types.ChannelState, Types.Registration, any) -> ()
 local writeBatchStats: (Types.ChannelState, Types.Registration, any) -> ()
 
+local function rewindOnThrow(ch: Types.ChannelState, cursor: number, refCount: number): ()
+    ch.cursor = cursor
+    if ch.refCount > refCount then
+        local refs = ch.refs
+        for i = refCount + 1, ch.refCount do
+            refs[i] = nil
+        end
+        ch.refCount = refCount
+    end
+end
+
 writeBatchPlain = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
     openOrUpgrade(ch, reg)
-    reg.codec.write(ch, data)
+    local rewindCursor = ch.cursor
+    local rewindRefCount = ch.refCount
+    local ok, err = pcall(reg.codec.write, ch, data)
+    if not ok then
+        rewindOnThrow(ch, rewindCursor, rewindRefCount)
+        error(err, 0)
+    end
     ch.itemCount += 1
 end
 
 writeBatchStats = function(ch: Types.ChannelState, reg: Types.Registration, data: any): ()
     openOrUpgrade(ch, reg)
-    local before = ch.cursor
-    reg.codec.write(ch, data)
+    local rewindCursor = ch.cursor
+    local rewindRefCount = ch.refCount
+    local ok, err = pcall(reg.codec.write, ch, data)
+    if not ok then
+        rewindOnThrow(ch, rewindCursor, rewindRefCount)
+        error(err, 0)
+    end
     ch.itemCount += 1
-    reg.bytesSent += ch.cursor - before
+    reg.bytesSent += ch.cursor - rewindCursor
 end
 
 --[[
@@ -146,7 +158,12 @@ writeBatchEncodedPlain = function(
     payloadLen: number
 ): ()
     openOrUpgrade(ch, reg)
-    spliceEncoded(ch, payload, payloadLen)
+    local rewindCursor = ch.cursor
+    local ok, err = pcall(spliceEncoded, ch, payload, payloadLen)
+    if not ok then
+        ch.cursor = rewindCursor
+        error(err, 0)
+    end
     ch.itemCount += 1
 end
 
@@ -157,7 +174,12 @@ writeBatchEncodedStats = function(
     payloadLen: number
 ): ()
     openOrUpgrade(ch, reg)
-    spliceEncoded(ch, payload, payloadLen)
+    local rewindCursor = ch.cursor
+    local ok, err = pcall(spliceEncoded, ch, payload, payloadLen)
+    if not ok then
+        ch.cursor = rewindCursor
+        error(err, 0)
+    end
     ch.itemCount += 1
     reg.bytesSent += payloadLen
 end
@@ -241,46 +263,112 @@ function Channel.fullReset(ch: Types.ChannelState): ()
     Channel.reset(ch)
     ch.prevDump = nil
     ch.prevDumpLen = 0
-    table.clear(ch.deltas)
+    if next(ch.deltas) ~= nil then
+        table.clear(ch.deltas)
+    end
 end
 
 --[[
-    Resolve the batch-open closure for a given timestamp mode and packet
-    name. Returned function seals the prior batch, writes the single-mode
-    header [0x80 | id] + optional timestamp, and records the cursor so
-    writeBatch can upgrade single -> multi later.
+    Per-mode openFn variants. Each seals the prior batch, writes the
+    single-mode header [0x80 | id] + optional timestamp, and records the
+    cursor so writeBatch can upgrade single -> multi later.
 ]]
+local function makeOpenNoTs(name: string): (Types.ChannelState, number) -> ()
+    return function(ch: Types.ChannelState, id: number): ()
+        if ch.lastId >= 0 and not ch.singleMode then
+            writeu16(ch.buff, ch.countPos, ch.itemCount)
+        end
+        ch.currentPacket = name
+        ch.lastId = id
+        ch.itemCount = 0
+        local cursor = ch.cursor
+        if cursor + 1 > ch.size then
+            alloc(ch, 1)
+        end
+        writeu8(ch.buff, cursor, id + 128)
+        ch.singleMode = true
+        ch.singlePos = cursor
+        ch.cursor = cursor + 1
+    end
+end
+
+local function makeOpenFrameTs(name: string): (Types.ChannelState, number) -> ()
+    return function(ch: Types.ChannelState, id: number): ()
+        if ch.lastId >= 0 and not ch.singleMode then
+            writeu16(ch.buff, ch.countPos, ch.itemCount)
+        end
+        ch.currentPacket = name
+        ch.lastId = id
+        ch.itemCount = 0
+        local cursor = ch.cursor
+        if cursor + 2 > ch.size then
+            alloc(ch, 2)
+        end
+        local b = ch.buff
+        writeu8(b, cursor, id + 128)
+        writeu8(b, cursor + 1, _frameCounter)
+        ch.singleMode = true
+        ch.singlePos = cursor
+        ch.cursor = cursor + 2
+    end
+end
+
+local function makeOpenOffsetTs(name: string): (Types.ChannelState, number) -> ()
+    return function(ch: Types.ChannelState, id: number): ()
+        if ch.lastId >= 0 and not ch.singleMode then
+            writeu16(ch.buff, ch.countPos, ch.itemCount)
+        end
+        ch.currentPacket = name
+        ch.lastId = id
+        ch.itemCount = 0
+        local cursor = ch.cursor
+        if cursor + 3 > ch.size then
+            alloc(ch, 3)
+        end
+        local b = ch.buff
+        writeu8(b, cursor, id + 128)
+        writeu16(b, cursor + 1, _offsetMs)
+        ch.singleMode = true
+        ch.singlePos = cursor
+        ch.cursor = cursor + 3
+    end
+end
+
+local function makeOpenFullTs(name: string): (Types.ChannelState, number) -> ()
+    return function(ch: Types.ChannelState, id: number): ()
+        if ch.lastId >= 0 and not ch.singleMode then
+            writeu16(ch.buff, ch.countPos, ch.itemCount)
+        end
+        ch.currentPacket = name
+        ch.lastId = id
+        ch.itemCount = 0
+        local cursor = ch.cursor
+        if cursor + 9 > ch.size then
+            alloc(ch, 9)
+        end
+        local b = ch.buff
+        writeu8(b, cursor, id + 128)
+        writef64(b, cursor + 1, _clock)
+        ch.singleMode = true
+        ch.singlePos = cursor
+        ch.cursor = cursor + 9
+    end
+end
+
 function Channel.resolveOpenFn(
     timestampMode: number,
     name: string
 ): (ch: Types.ChannelState, id: number) -> ()
-    local headerLen = HEADER_BYTE + TS_BYTES[timestampMode]
-
-    return function(ch: Types.ChannelState, id: number): ()
-        --[[
-            Inline sealCount: this is the only call site that can take the
-            multi-mode branch on a non-fresh channel.
-        ]]
-        if ch.lastId >= 0 and not ch.singleMode then
-            writeu16(ch.buff, ch.countPos, ch.itemCount)
-        end
-
-        ch.currentPacket = name
-        ch.lastId = id
-        ch.itemCount = 0
-
-        local cursor = ch.cursor
-        if cursor + headerLen > ch.size then
-            alloc(ch, headerLen)
-        end
-        local b = ch.buff
-        writeu8(b, cursor, bor(FRAME_MSB, id))
-        writeTimestamp(b, cursor + 1, timestampMode)
-
-        ch.singleMode = true
-        ch.singlePos = cursor
-        ch.cursor = cursor + headerLen
+    if timestampMode == TS_NONE then
+        return makeOpenNoTs(name)
     end
+    if timestampMode == TS_FRAME then
+        return makeOpenFrameTs(name)
+    end
+    if timestampMode == TS_OFFSET then
+        return makeOpenOffsetTs(name)
+    end
+    return makeOpenFullTs(name)
 end
 
 Channel.writeBatch = writeBatchPlain
@@ -315,7 +403,8 @@ function Channel.writeQuery(
     id: number,
     correlationId: number,
     codec: Types.InternalCodec<any>?,
-    data: any
+    data: any,
+    name: string?
 ): ()
     if ch.lastId >= 0 and not ch.singleMode then
         writeu16(ch.buff, ch.countPos, ch.itemCount)
@@ -327,9 +416,14 @@ function Channel.writeQuery(
         here would never be observed before the next reset overwrites it.
     ]]
     ch.lastId = -1
+    -- Without this, an alloc overflow inside the payload codec would log
+    -- the previous packet's name (whichever _openFn last touched currentPacket).
+    if name then
+        ch.currentPacket = name
+    end
 
     local hasPayload = codec ~= nil and data ~= nil
-    local headerByte = if hasPayload then id else bor(FRAME_MSB, id)
+    local headerByte = if hasPayload then id else id + 128
 
     local cursor = ch.cursor
     if cursor + 1 > ch.size then

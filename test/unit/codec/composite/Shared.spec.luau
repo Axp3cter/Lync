@@ -89,6 +89,27 @@ describe("codec.composite.Shared", function(): ()
             expect(ch.refCount):toBe(0)
             Shared.releaseScratch()
         end)
+        it("acquire scrubs framing state on reuse", function(): ()
+            local ch = Shared.acquireScratch()
+            ch.lastId = 42
+            ch.singleMode = true
+            ch.singlePos = 5
+            ch.itemCount = 99
+            ch.countPos = 7
+            ch.currentPacket = "stale"
+            ch.deltas[1] = { scalar = 100 } :: any
+            Shared.releaseScratch()
+            local ch2 = Shared.acquireScratch()
+            expect(ch2):toBe(ch)
+            expect(ch2.lastId):toBe(-1)
+            expect(ch2.singleMode):toBe(false)
+            expect(ch2.singlePos):toBe(0)
+            expect(ch2.itemCount):toBe(0)
+            expect(ch2.countPos):toBe(-1)
+            expect(ch2.currentPacket):toBeNil()
+            expect(next(ch2.deltas)):toBeNil()
+            Shared.releaseScratch()
+        end)
         it("nested acquire returns distinct channels", function(): ()
             local outer = Shared.acquireScratch()
             buffer.writeu8(outer.buff, 0, 0xAA)
@@ -244,6 +265,71 @@ describe("codec.composite.Shared", function(): ()
             local ch = InternalChannel.create()
             Shared.packBools(ch, {}, {}, 0)
             expect(ch.cursor):toBe(0)
+        end)
+    end)
+
+    describe("packBools/unpackBools accept precomputed byteCount", function(): ()
+        -- Struct callers cache `boolBytes(boolCount)` at codec construction
+        -- and pass it through to skip a per-write IDIVK + ADDK.
+        it("explicit byteCount yields the same wire bytes as nil", function(): ()
+            local InternalChannel = Env.Internal.Channel
+            local keys = { "a", "b", "c", "d", "e" }
+            local input = { a = true, b = false, c = true, d = true, e = false } :: any
+
+            local chA = InternalChannel.create()
+            Shared.packBools(chA, input, keys, 5)
+
+            local chB = InternalChannel.create()
+            Shared.packBools(chB, input, keys, 5, 1)
+
+            expect(chB.cursor):toBe(chA.cursor)
+            expect(buffer.readu8(chB.buff, 0)):toBe(buffer.readu8(chA.buff, 0))
+        end)
+        it("unpackBools with explicit byteCount returns the same count", function(): ()
+            local InternalChannel = Env.Internal.Channel
+            local ch = InternalChannel.create()
+            local keys = { "a", "b", "c", "d", "e", "f", "g", "h", "i" }
+            local input = {} :: any
+            for i = 1, 9 do
+                input[keys[i]] = i % 2 == 0
+            end
+            Shared.packBools(ch, input, keys, 9, 2)
+
+            local resultDefault = {} :: any
+            local consumedDefault = Shared.unpackBools(ch.buff, 0, keys, 9, resultDefault)
+            local resultExplicit = {} :: any
+            local consumedExplicit = Shared.unpackBools(ch.buff, 0, keys, 9, resultExplicit, 2)
+
+            expect(consumedExplicit):toBe(consumedDefault)
+            for _, k in keys do
+                expect(resultExplicit[k]):toBe(resultDefault[k])
+            end
+        end)
+        it("packBoolArray accepts byteCount and matches the implicit form", function(): ()
+            local InternalChannel = Env.Internal.Channel
+            local arr: { boolean } = { true, false, true, true, false, true }
+
+            local chA = InternalChannel.create()
+            Shared.packBoolArray(chA, arr, #arr)
+
+            local chB = InternalChannel.create()
+            Shared.packBoolArray(chB, arr, #arr, 1)
+
+            expect(chB.cursor):toBe(chA.cursor)
+            expect(buffer.readu8(chB.buff, 0)):toBe(buffer.readu8(chA.buff, 0))
+        end)
+        it("unpackBoolArray accepts byteCount and matches the implicit form", function(): ()
+            local InternalChannel = Env.Internal.Channel
+            local ch = InternalChannel.create()
+            Shared.packBoolArray(ch, { true, false, true }, 3, 1)
+
+            local out1 = table.create(3, false)
+            local out2 = table.create(3, false)
+            Shared.unpackBoolArray(ch.buff, 0, 3, out1)
+            Shared.unpackBoolArray(ch.buff, 0, 3, out2, 1)
+            for i = 1, 3 do
+                expect(out2[i]):toBe(out1[i])
+            end
         end)
     end)
 end)

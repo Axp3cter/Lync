@@ -7,7 +7,7 @@ local Types = require(script.Parent.Parent.Types)
 
 -- Constants --------------------------------------------------------------
 
-local DEFAULT_MAX = 262144
+local DEFAULT_MAX = 1048576
 local INITIAL_BUF = 1024
 
 -- State ------------------------------------------------------------------

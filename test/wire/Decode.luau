@@ -63,6 +63,10 @@ const BYTE_WIDE = 255
 -- Not an instance, which is what a sender is free to leave where one is looked up.
 const PRETEND = table.freeze ({ pretending = true })
 
+-- The class a reference declares and one it does not, kept apart from what a fault would put there.
+const WANTED = "Folder"
+const STAND_IN = "Part"
+
 -- Three colours, which is a span of three and one index the wire can say it has not.
 const PALETTE = table.freeze ({ Color3.new (1, 0, 0), Color3.new (0, 1, 0), Color3.new (0, 0, 1) })
 
@@ -465,6 +469,28 @@ return {
             Expect.equal (typeof (of.sidecar.refs[1]), "table")
             Expect.holds (not (pcall (of.read, out, 0, Turns.CTX)), "a reference answered a table")
         end
+    end),
+
+    --[[
+    A reference of the class a schema declared, and one of another class in its place. What rides
+    beside a frame is never read off the frame, so the class is the one thing a receiver can hold
+    it to, and a schema declaring one says every other class is a frame it did not write.
+]]
+    Harness.case ("total.reference-holds-its-class", function ()
+        local of = Turns.built (Lync.inst (WANTED))
+
+        local b = buffer.create (math.max (of.maxBytes, 1))
+        of.write (b, 0, Instance.new (WANTED))
+
+        local _, one = of.read (b, 0, Turns.CTX)
+        Expect.holds (one ~= nil, `a reference of a {WANTED} came back as nothing`)
+
+        -- The same slot, standing something else in it, which is the frame a class is held against.
+        of.sidecar.refs[1] = Instance.new (STAND_IN)
+
+        local ok, why = pcall (of.read, b, 0, Turns.CTX)
+        Expect.holds (not ok, `a reference of a {STAND_IN} was taken where a {WANTED} was declared`)
+        Expect.equal ((why :: any).code, Catalog.SIDECAR)
     end),
 
     --[[

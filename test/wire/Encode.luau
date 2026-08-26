@@ -86,6 +86,9 @@ const KEYS = 4
 ]]
 const FEWEST = 2
 const MOST = 3
+-- A span too wide to flow into a region, which is what makes an array of one a list of them.
+const WIDEST = 2 ^ 40
+
 const TOGETHER = table.freeze ({ [0.1] = true, [0.2] = false })
 const APART = table.freeze ({ [0] = true, [1] = false })
 
@@ -409,5 +412,26 @@ return {
             names (refused (of, under, `{mark} under its count`), ROOT, `{mark} under`)
             names (refused (of, over, `{mark} over its count`), ROOT, `{mark} over`)
         end
+    end),
+
+    --[[
+        An array whose element is too wide to pack, which is a list of aligned elements rather than
+        a run. A run carries one width across every element and costs the bits that width comes to,
+        so an element the region could not take would come out a byte short of what a reader of the
+        same schema walks, and every element after the first would be read off the wrong bit.
+    ]]
+    Harness.case ("wire.array-of-a-wide-element", function ()
+        const HELD = 2
+
+        --[[
+            What one of them spends. A span of two to the fortieth wants forty one bits, which is
+            six whole bytes, where a run of two would have spent the eighty two bits between them.
+        ]]
+        const EACH = 6
+
+        local of = built (Lync.array (Lync.int (0, WIDEST), HELD, HELD))
+
+        Expect.equal (of.maxBytes, HELD * EACH)
+        Expect.equal (of.write (SLAB, 0, { 1, 2 }), HELD * EACH)
     end),
 }

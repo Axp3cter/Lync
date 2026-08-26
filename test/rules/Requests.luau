@@ -52,6 +52,13 @@ const TOP = 10
 const BEYOND = 99
 const CARRIED = true
 
+-- The one a client asks, so its responder is the side that is told who asked.
+const ASKED = "asked"
+
+-- A request no boundary will take, and what the guard turning it away says.
+const TURNED = "turned"
+const REFUSED = "the guard turned this request away"
+
 -- Types ---------------------------------------------------------------
 
 -- One completion: whether it answered, what it answered, and the facts under a refusal.
@@ -70,6 +77,11 @@ local function defined (): any
         [PLAIN] = Lync.query (Lync.bool (), Lync.bool ()),
         [NARROW] = Lync.query (Lync.bool (), Lync.int (0, TOP)),
         [ANGRY] = Lync.query (Lync.bool (), Lync.bool ()),
+        [ASKED] = Lync.query (Lync.bool (), Lync.int (0, TOP)),
+        [TURNED] = Lync.query (
+            Lync.bool ():validate (function (): string? return REFUSED end),
+            Lync.bool ()
+        ),
     }
 end
 
@@ -88,6 +100,7 @@ local function opened (space: string): Run
             defs[PLAIN]:onClient (function (): boolean return CARRIED end)
             defs[NARROW]:onClient (function (): number return BEYOND end)
             defs[ANGRY]:onClient (function (): boolean return error (BROKEN, 0) end)
+            defs[TURNED]:onClient (function (): boolean return CARRIED end)
         end,
     })
 end
@@ -252,5 +265,90 @@ return {
 
         local held, why = pcall (function () other:request (beside.player, CARRIED, answered) end)
         Expect.holds (held, `a second namespace refused a request: {tostring (why)}`)
+    end),
+
+    --[[
+        A request the boundary turned away, which no responder is run for. A guard refusing the
+        payload is this machine deciding the request said something the schema does not allow, so
+        a responder run for it is one asked a question that never legally arrived, and whatever it
+        answered would go back as though the request had been good.
+    ]]
+    Harness.case ("query.turned-away-runs-no-responder", function ()
+        local asked = 0
+        local of = Replica.paired ({
+            space = SPACE,
+            defined = defined,
+            label = SENDER,
+            wires = function (defs: any, side: string)
+                if side == "server" then return end
+
+                defs[TURNED]:onClient (function (): boolean
+                    asked += 1
+                    return CARRIED
+                end)
+                defs[PLAIN]:onClient (function (): boolean return CARRIED end)
+            end,
+        })
+
+        Records.made (function ()
+            asking (of, PLAIN)
+
+            of.server.session:flush ()
+            of.wire:settle ()
+            of.client.session:flush ()
+            of.wire:settle ()
+        end)
+        Expect.equal (asked, 0)
+
+        Records.made (function ()
+            asking (of, TURNED)
+
+            of.server.session:flush ()
+            of.wire:settle ()
+            of.client.session:flush ()
+            of.wire:settle ()
+        end)
+        Expect.equal (asked, 0)
+    end),
+
+    --[[
+        A request answered, read from the end that asked. Every other check here is about a way one
+        fails, and a library resolving each of those correctly while resolving none of the good ones
+        would pass all of them. The responder is the server's, so it is told the value and then who
+        asked, which is the pair the surface states and the only order a caller can rely on.
+    ]]
+    Harness.case ("query.answered", function ()
+        local whose: { Player } = {}
+        local of = Replica.paired ({
+            space = SPACE,
+            defined = defined,
+            label = SENDER,
+            wires = function (defs: any, side: string)
+                if side ~= "server" then return end
+
+                defs[ASKED]:onServer (function (value: boolean, who: Player): number
+                    table.insert (whose, who)
+                    Expect.equal (value, CARRIED)
+                    return TOP
+                end)
+            end,
+        })
+
+        -- The client's form answers where it was called, so it is asked on a thread of its own.
+        local held: any = nil
+        local asking = coroutine.create (
+            function () held = table.pack (of.client.defs[ASKED]:request (CARRIED)) end
+        )
+        coroutine.resume (asking)
+
+        of.client.session:flush ()
+        of.wire:settle ()
+        of.server.session:flush ()
+        of.wire:settle ()
+
+        Expect.holds (held ~= nil, "a request the responder answered came back to nobody")
+        Expect.equal (held[1], true)
+        Expect.equal (held[2], TOP)
+        Expect.equal (whose, { of.player })
     end),
 }

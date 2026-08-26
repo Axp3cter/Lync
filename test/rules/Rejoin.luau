@@ -39,6 +39,9 @@ const BLUES = table.freeze ({ 3, 4 })
 -- What a record carries besides the key it sits under, and the bound on it.
 const START = 100
 
+-- What a record moves to, so a reading of it says which of the two flushes it came from.
+const MOVED = 50
+
 -- The two ways a viewer is told, named so a reading says which it asked about.
 const ADDED = "added"
 const REMOVED = "removed"
@@ -171,5 +174,33 @@ return {
         Expect.equal (told (fresh, ADDED), REDS)
         Expect.equal (holding (bob), REDS)
         Expect.equal (told (bob, ADDED), {})
+    end),
+
+    --[[
+    Two keys in one run, one arriving and one moving. A key is a partition of its own and a slot is
+    a number inside one, so the same number names a record in each, and what a receiver holds after
+    both is every record of both rather than whichever of them was spoken for first.
+]]
+    Harness.case ("set.partitions-are-shadowed-apart", function ()
+        local of = Replica.open (OPENS, SENDER)
+        local set = Replica.ours (of)
+
+        granted (of, RED, { of.player })
+        granted (of, BLUE, { of.player })
+
+        -- Drained, so what follows is a record moving rather than one still on its way over.
+        set:add (BLUES[1], { [TEAM] = BLUE, [HP] = START })
+        ships (of)
+
+        local held = of.viewers[1].set
+        Expect.equal (held:get (BLUES[1])[HP], START)
+
+        -- The first record on red, and the record on blue moving, inside the one flush.
+        set:add (REDS[1], { [TEAM] = RED, [HP] = START })
+        set:update (BLUES[1], { [HP] = MOVED })
+        ships (of)
+
+        Expect.holds (held:get (REDS[1]) ~= nil, "a record arriving on one key reached nobody")
+        Expect.equal (held:get (BLUES[1])[HP], MOVED)
     end),
 }

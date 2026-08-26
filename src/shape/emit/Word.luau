@@ -318,11 +318,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
-        Every field in one piece, wherever the windows put them. The pair above walks a scratch
-        array between the fields and the bytes, which is a write and a read a field for a value
-        that never leaves the call, so where nothing is cut the two passes are one. A piece a field
-        is the whole of what that needs: a cut one has a piece shifted up it and a piece that is
-        not its whole reading, and counting pieces against fields settles both at once.
+        Every field in one piece, wherever the windows put them, where the pair above walks a
+        scratch array between the fields and the bytes for a value that never leaves the call. A
+        piece a field is the whole of what that asks: a cut one has a piece shifted up it and a
+        piece that is not its whole reading, and counting pieces settles both at once.
     ]]
     if simple and #slot == reach and reach > 1 then
         -- Which field each piece belongs to, by the piece, since a window walks its own.

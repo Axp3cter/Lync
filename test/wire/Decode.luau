@@ -478,6 +478,27 @@ return {
             { of = "a run", codec = Lync.array (Lync.int (0, 3), 3, 3), value = { 1, 2, 3 } },
             { of = "an alphabet", codec = Lync.str.hex (3, 3), value = "abc" },
             { of = "a wide field", codec = Lync.int (0, 2 ^ 40), value = 12345 },
+
+            --[[
+                The two ways a map spells its keys: on a grid, where they go down as the sorted
+                run of indices they land on, and as bytes, where what they spell is what they
+                sort by. Each packs a run of its own and each leaves its own pad behind.
+            ]]
+            {
+                of = "a map's keys",
+                codec = Lync.map (Lync.int (0, 5), Lync.int (0, 255), 3, 3),
+                value = { [1] = 1, [3] = 2, [5] = 3 },
+            },
+            {
+                of = "a map's values",
+                codec = Lync.map (Lync.int (0, 255), Lync.int (0, 5), 3, 3),
+                value = { [1] = 1, [3] = 2, [5] = 3 },
+            },
+            {
+                of = "a spelled map",
+                codec = Lync.map (Lync.str (1, 1), Lync.int (0, 5), 3, 3),
+                value = { a = 1, b = 2, c = 3 },
+            },
         }
 
         for _, form in forms do

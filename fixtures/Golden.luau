@@ -99,25 +99,25 @@ Golden.sizes = table.freeze ({
 -- The bytes each fixture scenario puts on the wire, per flush.
 Golden.frames = table.freeze ({
     ["fill.keyframe"] = table.freeze ({
-        "all reliable 00080101010101010101020406080"
-            .. "a0c0e100028ff0028ff00280007ff0007ff0007000"
-            .. "3ff0003ff0003000aff000aff000a0014ff0014ff0"
-            .. "014001eff001eff001e",
+        "all reliable 0041017f020406080a0c0e100028f"
+            .. "f0028ff00280007ff0007ff00070003ff0003ff000"
+            .. "3000aff000aff000a0014ff0014ff0014001eff001"
+            .. "eff001e",
     }),
     ["drift.keyframe"] = table.freeze ({
-        "all reliable 00080101010101010101020406080"
-            .. "a0c0e100028ff0028ff00280007ff0007ff0007000"
-            .. "3ff0003ff0003000aff000aff000a0014ff0014ff0"
-            .. "014001eff001eff001e",
+        "all reliable 0041017f020406080a0c0e100028f"
+            .. "f0028ff00280007ff0007ff00070003ff0003ff000"
+            .. "3000aff000aff000a0014ff0014ff0014001eff001"
+            .. "eff001e",
     }),
     ["drift.delta"] = table.freeze ({
-        "all reliable 01b00801010101010101012a2a2a2a2a2a2a2a",
+        "all reliable 01b041017f2a2a2a2a2a2a2a2a",
     }),
     ["quiet.keyframe"] = table.freeze ({
-        "all reliable 00080101010101010101020406080"
-            .. "a0c0e100028ff0028ff00280007ff0007ff0007000"
-            .. "3ff0003ff0003000aff000aff000a0014ff0014ff0"
-            .. "014001eff001eff001e",
+        "all reliable 0041017f020406080a0c0e100028f"
+            .. "f0028ff00280007ff0007ff00070003ff0003ff000"
+            .. "3000aff000aff000a0014ff0014ff0014001eff001"
+            .. "eff001e",
     }),
     ["quiet.unchanged"] = table.freeze ({
         "",
@@ -126,250 +126,224 @@ Golden.frames = table.freeze ({
         "",
     }),
     ["coalesce.keyframe"] = table.freeze ({
-        "all reliable 000101022807030a141e",
+        "all reliable 000801022807030a141e",
     }),
     ["coalesce.net"] = table.freeze ({
-        "all reliable 01b0010121",
+        "all reliable 01b0080121",
     }),
     ["fleeting.cancelled"] = table.freeze ({
         "",
     }),
     ["fleeting.merged"] = table.freeze ({
-        "all reliable 00010104000000070000",
+        "all reliable 00080104000000070000",
     }),
     ["fleeting.replaced"] = table.freeze ({
-        "all reliable 02010100010204ffffffffffff",
+        "all reliable 02080100080204ffffffffffff",
     }),
     ["sweep.keyframe"] = table.freeze ({
-        "all reliable 00080101010101010101020406080"
-            .. "a0c0e100028ff0028ff00280007ff0007ff0007000"
-            .. "3ff0003ff0003000aff000aff000a0014ff0014ff0"
-            .. "014001eff001eff001e",
+        "all reliable 0041017f020406080a0c0e100028f"
+            .. "f0028ff00280007ff0007ff00070003ff0003ff000"
+            .. "3000aff000aff000a0014ff0014ff0014001eff001"
+            .. "eff001e",
     }),
     ["sweep.cleared"] = table.freeze ({
         "all reliable 03",
     }),
     ["migrate.granted"] = table.freeze ({
-        "a reliable 0001010102006100004020000100",
-        "b reliable 00000101040741737065637465720c0280f4681b00010857617966696e646572",
-        "c reliable 0002010106135757575757575757575"
+        "a reliable 0001080102006100004020000100",
+        "b reliable 00000801040741737065637465720c0280f4681b00010857617966696e646572",
+        "c reliable 0002080106135757575757575757575"
             .. "7575757575757575757570f057ddff77ddff702011"
             .. "751515151515151515151515151515151515151515"
             .. "1515151",
     }),
     ["migrate.migrated"] = table.freeze ({
-        "a reliable 02010101",
-        "b reliable 0000010202006100004020000000",
+        "a reliable 02010801",
+        "b reliable 0000080202006100004020000000",
     }),
     ["migrate.replaced"] = table.freeze ({
-        "a reliable 0000020101040207417370656374657"
+        "a reliable 0000100101040207417370656374657"
             .. "200610c000280f4681b00402000000108576179666"
             .. "96e64657200",
-        "b reliable 0200020101",
+        "b reliable 0200100101",
     }),
     ["visitors.keyframe"] = table.freeze ({
-        "all reliable 00080101010101010101020406080"
-            .. "a0c0e100028ff0028ff00280007ff0007ff0007000"
-            .. "3ff0003ff0003000aff000aff000a0014ff0014ff0"
-            .. "014001eff001eff001e",
+        "all reliable 0041017f020406080a0c0e100028f"
+            .. "f0028ff00280007ff0007ff00070003ff0003ff000"
+            .. "3000aff000aff000a0014ff0014ff0014001eff001"
+            .. "eff001e",
     }),
     ["visitors.catch-up"] = table.freeze ({
-        "b reliable 00080101010101010101020406080a0"
-            .. "c0e100028ff0028ff00280007ff0007ff00070003f"
-            .. "f0003ff0003000aff000aff000a0014ff0014ff001"
-            .. "4001eff001eff001e",
+        "b reliable 0041017f020406080a0c0e100028ff0"
+            .. "028ff00280007ff0007ff00070003ff0003ff00030"
+            .. "00aff000aff000a0014ff0014ff0014001eff001ef"
+            .. "f001e",
     }),
     ["visitors.after-leave"] = table.freeze ({
         "",
     }),
     ["starve.prefix"] = table.freeze ({
-        "all reliable 002e0101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101010101020406080a0c0e101"
-            .. "21416181a1c1e20222426282a2c2e30323436383a3"
-            .. "c3e40424446484a4c4e50525456585a5c0028ff002"
+        "all reliable 00f10201ffffffffff1f020406080"
+            .. "a0c0e10121416181a1c1e20222426282a2c2e30323"
+            .. "436383a3c3e40424446484a4c4e50525456585a5c0"
+            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff000007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff000003ff0003ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff00000aff000aff000aff0"
+            .. "00aff000aff000aff000aff000aff000aff000aff0"
+            .. "00aff000aff000aff000aff000aff000014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff00001"
+            .. "eff001eff001eff001eff001eff001eff001eff001"
+            .. "eff001eff001eff001eff001eff001eff001eff001"
+            .. "eff0000f1022fffffffffff1f5e60626466686a6c6"
+            .. "e70727476787a7c7e800182018401860188018a018"
+            .. "c018e01900192019401960198019a019c019e01a00"
+            .. "1a201a401a601a801aa01ac01ae01b001b201b401b"
+            .. "601b80128ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff0028ff002807ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff0007ff000703ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff0003ff00030aff000aff0"
+            .. "00aff000aff000aff000aff000aff000aff000aff0"
+            .. "00aff000aff000aff000aff000aff000aff000a14f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
+            .. "f00141eff001eff001eff001eff001eff001eff001"
+            .. "eff001eff001eff001eff001eff001eff001eff001"
+            .. "eff001eff001e",
+        "all reliable 00f1025dffffffffff1fba01bc01b"
+            .. "e01c001c201c401c601c801ca01cc01ce01d001d20"
+            .. "1d401d601d801da01dc01de01e001e201e401e601e"
+            .. "801ea01ec01ee01f001f201f401f601f801fa01fc0"
+            .. "1fe01800282028402860288028a028c028e0290029"
+            .. "2029402ff0028ff0028ff0028ff0028ff0028ff002"
             .. "8ff0028ff0028ff0028ff0028ff0028ff0028ff002"
-            .. "8ff0028ff0028ff0028ff0028ff0028ff0028ff000"
+            .. "8ff0028ff0028ffff0007ff0007ff0007ff0007ff0"
             .. "007ff0007ff0007ff0007ff0007ff0007ff0007ff0"
-            .. "007ff0007ff0007ff0007ff0007ff0007ff0007ff0"
-            .. "007ff000003ff0003ff0003ff0003ff0003ff0003f"
+            .. "007ff0007ff0007ff0007ffff0003ff0003ff0003f"
             .. "f0003ff0003ff0003ff0003ff0003ff0003ff0003f"
-            .. "f0003ff0003ff00000aff000aff000aff000aff000"
+            .. "f0003ff0003ff0003ff0003ff0003ffff000aff000"
             .. "aff000aff000aff000aff000aff000aff000aff000"
-            .. "aff000aff000aff000aff000014ff0014ff0014ff0"
+            .. "aff000aff000aff000aff000aff000aff000affff0"
             .. "014ff0014ff0014ff0014ff0014ff0014ff0014ff0"
-            .. "014ff0014ff0014ff0014ff0014ff00001eff001ef"
+            .. "014ff0014ff0014ff0014ff0014ff0014ff0014ff0"
+            .. "014ffff001eff001eff001eff001eff001eff001ef"
             .. "f001eff001eff001eff001eff001eff001eff001ef"
-            .. "f001eff001eff001eff001eff001eff001eff00002"
-            .. "e2f010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101015e60626466686a6c6e70727476787a7c7"
-            .. "e800182018401860188018a018c018e01900192019"
-            .. "401960198019a019c019e01a001a201a401a601a80"
-            .. "1aa01ac01ae01b001b201b401b601b80128ff0028f"
+            .. "f001eff001eff00f1028b01ffffffffff1f9602980"
+            .. "29a029c029e02a002a202a402a602a802aa02ac02a"
+            .. "e02b002b202b402b602b802ba02bc02be02c002c20"
+            .. "2c402c602c802ca02cc02ce02d002d202d402d602d"
+            .. "802da02dc02de02e002e202e402e602e802ea02ec0"
+            .. "2ee02f0020028ff0028ff0028ff0028ff0028ff002"
+            .. "8ff0028ff0028ff0028ff0028ff0028ff0028ff002"
+            .. "8ff0028ff0028ff000007ff0007ff0007ff0007ff0"
+            .. "007ff0007ff0007ff0007ff0007ff0007ff0007ff0"
+            .. "007ff0007ff0007ff0007ff000003ff0003ff0003f"
+            .. "f0003ff0003ff0003ff0003ff0003ff0003ff0003f"
+            .. "f0003ff0003ff0003ff0003ff0003ff00000aff000"
+            .. "aff000aff000aff000aff000aff000aff000aff000"
+            .. "aff000aff000aff000aff000aff000aff000aff000"
+            .. "014ff0014ff0014ff0014ff0014ff0014ff0014ff0"
+            .. "014ff0014ff0014ff0014ff0014ff0014ff0014ff0"
+            .. "014ff00001eff001eff001eff001eff001eff001ef"
+            .. "f001eff001eff001eff001eff001eff001eff001ef"
+            .. "f001eff001eff00",
+        "all reliable 00f102b901ffffffffff1ff202f40"
+            .. "2f602f802fa02fc02fe02800382038403860388038"
+            .. "a038c038e03900392039403960398039a039c039e0"
+            .. "3a003a203a403a603a803aa03ac03ae03b003b203b"
+            .. "403b603b803ba03bc03be03c003c203c403c603c80"
+            .. "3ca03cc0328ff0028ff0028ff0028ff0028ff0028f"
             .. "f0028ff0028ff0028ff0028ff0028ff0028ff0028f"
-            .. "f0028ff0028ff0028ff0028ff0028ff0028ff00280"
+            .. "f0028ff0028ff002807ff0007ff0007ff0007ff000"
             .. "7ff0007ff0007ff0007ff0007ff0007ff0007ff000"
-            .. "7ff0007ff0007ff0007ff0007ff0007ff0007ff000"
-            .. "7ff000703ff0003ff0003ff0003ff0003ff0003ff0"
+            .. "7ff0007ff0007ff0007ff000703ff0003ff0003ff0"
             .. "003ff0003ff0003ff0003ff0003ff0003ff0003ff0"
-            .. "003ff0003ff00030aff000aff000aff000aff000af"
+            .. "003ff0003ff0003ff0003ff0003ff00030aff000af"
             .. "f000aff000aff000aff000aff000aff000aff000af"
-            .. "f000aff000aff000aff000a14ff0014ff0014ff001"
+            .. "f000aff000aff000aff000aff000aff000aff000a1"
             .. "4ff0014ff0014ff0014ff0014ff0014ff0014ff001"
-            .. "4ff0014ff0014ff0014ff0014ff00141eff001eff0"
+            .. "4ff0014ff0014ff0014ff0014ff0014ff0014ff001"
+            .. "4ff00141eff001eff001eff001eff001eff001eff0"
             .. "01eff001eff001eff001eff001eff001eff001eff0"
-            .. "01eff001eff001eff001eff001eff001eff001e",
-        "all reliable 002e5d01010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101010101ba01bc01be01c001c"
-            .. "201c401c601c801ca01cc01ce01d001d201d401d60"
-            .. "1d801da01dc01de01e001e201e401e601e801ea01e"
-            .. "c01ee01f001f201f401f601f801fa01fc01fe01800"
-            .. "282028402860288028a028c028e02900292029402f"
-            .. "f0028ff0028ff0028ff0028ff0028ff0028ff0028f"
-            .. "f0028ff0028ff0028ff0028ff0028ff0028ff0028f"
-            .. "f0028ffff0007ff0007ff0007ff0007ff0007ff000"
-            .. "7ff0007ff0007ff0007ff0007ff0007ff0007ff000"
-            .. "7ff0007ff0007ffff0003ff0003ff0003ff0003ff0"
-            .. "003ff0003ff0003ff0003ff0003ff0003ff0003ff0"
-            .. "003ff0003ff0003ff0003ffff000aff000aff000af"
+            .. "01eff001eff001e00d101e701ffffff01ce03d003d"
+            .. "203d403d603d803da03dc03de03e003e203e403e60"
+            .. "3e803ea03ec03ee03f003f203f403f603f803fa03f"
+            .. "c03fe038004ff0028ff0028ff0028ff0028ff0028f"
+            .. "f0028ff0028ff0028ff00ff0007ff0007ff0007ff0"
+            .. "007ff0007ff0007ff0007ff0007ff00ff0003ff000"
+            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff00f"
             .. "f000aff000aff000aff000aff000aff000aff000af"
-            .. "f000aff000aff000aff000aff000affff0014ff001"
-            .. "4ff0014ff0014ff0014ff0014ff0014ff0014ff001"
-            .. "4ff0014ff0014ff0014ff0014ff0014ff0014ffff0"
-            .. "01eff001eff001eff001eff001eff001eff001eff0"
-            .. "01eff001eff001eff001eff001eff001eff001eff0"
-            .. "01eff002e8b0101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101960298029a029c029e02a00"
-            .. "2a202a402a602a802aa02ac02ae02b002b202b402b"
-            .. "602b802ba02bc02be02c002c202c402c602c802ca0"
-            .. "2cc02ce02d002d202d402d602d802da02dc02de02e"
-            .. "002e202e402e602e802ea02ec02ee02f0020028ff0"
-            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
-            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
-            .. "00007ff0007ff0007ff0007ff0007ff0007ff0007f"
-            .. "f0007ff0007ff0007ff0007ff0007ff0007ff0007f"
-            .. "f0007ff000003ff0003ff0003ff0003ff0003ff000"
-            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff000"
-            .. "3ff0003ff0003ff00000aff000aff000aff000aff0"
-            .. "00aff000aff000aff000aff000aff000aff000aff0"
-            .. "00aff000aff000aff000aff000014ff0014ff0014f"
-            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
-            .. "f0014ff0014ff0014ff0014ff0014ff00001eff001"
-            .. "eff001eff001eff001eff001eff001eff001eff001"
-            .. "eff001eff001eff001eff001eff001eff001eff00",
-        "all reliable 002eb901010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101f202f402f602f80"
-            .. "2fa02fc02fe02800382038403860388038a038c038"
-            .. "e03900392039403960398039a039c039e03a003a20"
-            .. "3a403a603a803aa03ac03ae03b003b203b403b603b"
-            .. "803ba03bc03be03c003c203c403c603c803ca03cc0"
-            .. "328ff0028ff0028ff0028ff0028ff0028ff0028ff0"
-            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
-            .. "028ff002807ff0007ff0007ff0007ff0007ff0007f"
-            .. "f0007ff0007ff0007ff0007ff0007ff0007ff0007f"
-            .. "f0007ff0007ff000703ff0003ff0003ff0003ff000"
-            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff000"
-            .. "3ff0003ff0003ff0003ff00030aff000aff000aff0"
-            .. "00aff000aff000aff000aff000aff000aff000aff0"
-            .. "00aff000aff000aff000aff000aff000a14ff0014f"
-            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
-            .. "f0014ff0014ff0014ff0014ff0014ff0014ff00141"
-            .. "eff001eff001eff001eff001eff001eff001eff001"
-            .. "eff001eff001eff001eff001eff001eff001eff001"
-            .. "eff001e001ae701010101010101010101010101010"
-            .. "10101010101010101010101ce03d003d203d403d60"
-            .. "3d803da03dc03de03e003e203e403e603e803ea03e"
-            .. "c03ee03f003f203f403f603f803fa03fc03fe03800"
-            .. "4ff0028ff0028ff0028ff0028ff0028ff0028ff002"
-            .. "8ff0028ff00ff0007ff0007ff0007ff0007ff0007f"
-            .. "f0007ff0007ff0007ff00ff0003ff0003ff0003ff0"
-            .. "003ff0003ff0003ff0003ff0003ff00ff000aff000"
-            .. "aff000aff000aff000aff000aff000aff000aff00f"
-            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
-            .. "f0014ff00ff001eff001eff001eff001eff001eff0"
-            .. "01eff001eff001eff00",
+            .. "f000aff00ff0014ff0014ff0014ff0014ff0014ff0"
+            .. "014ff0014ff0014ff00ff001eff001eff001eff001"
+            .. "eff001eff001eff001eff001eff00",
     }),
     ["starve.drain"] = table.freeze ({
         "",
     }),
     ["storm.keyframe"] = table.freeze ({
-        "all reliable 002e0101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101010101020406080a0c0e101"
-            .. "21416181a1c1e20222426282a2c2e30323436383a3"
-            .. "c3e40424446484a4c4e50525456585a5c0028ff002"
-            .. "8ff0028ff0028ff0028ff0028ff0028ff0028ff002"
-            .. "8ff0028ff0028ff0028ff0028ff0028ff0028ff000"
-            .. "007ff0007ff0007ff0007ff0007ff0007ff0007ff0"
-            .. "007ff0007ff0007ff0007ff0007ff0007ff0007ff0"
-            .. "007ff000003ff0003ff0003ff0003ff0003ff0003f"
-            .. "f0003ff0003ff0003ff0003ff0003ff0003ff0003f"
-            .. "f0003ff0003ff00000aff000aff000aff000aff000"
-            .. "aff000aff000aff000aff000aff000aff000aff000"
-            .. "aff000aff000aff000aff000014ff0014ff0014ff0"
-            .. "014ff0014ff0014ff0014ff0014ff0014ff0014ff0"
-            .. "014ff0014ff0014ff0014ff0014ff00001eff001ef"
-            .. "f001eff001eff001eff001eff001eff001eff001ef"
-            .. "f001eff001eff001eff001eff001eff001eff00001"
-            .. "22f01010101010101010101010101010101015e606"
-            .. "26466686a6c6e70727476787a7c7e800128ff0028f"
-            .. "f0028ff0028ff0028ff0028ff0007ff0007ff0007f"
-            .. "f0007ff0007ff0007ff0003ff0003ff0003ff0003f"
-            .. "f0003ff0003ff000aff000aff000aff000aff000af"
-            .. "f000aff0014ff0014ff0014ff0014ff0014ff0014f"
-            .. "f001eff001eff001eff001eff001eff001eff00",
+        "all reliable 00f10201ffffffffff1f020406080"
+            .. "a0c0e10121416181a1c1e20222426282a2c2e30323"
+            .. "436383a3c3e40424446484a4c4e50525456585a5c0"
+            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff0028ff0028ff0028ff0028ff0028ff0028ff0"
+            .. "028ff000007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0007ff0007ff000003ff0003ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff0003ff0003ff0003ff000"
+            .. "3ff0003ff0003ff0003ff00000aff000aff000aff0"
+            .. "00aff000aff000aff000aff000aff000aff000aff0"
+            .. "00aff000aff000aff000aff000aff000014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff0014ff0014ff00001"
+            .. "eff001eff001eff001eff001eff001eff001eff001"
+            .. "eff001eff001eff001eff001eff001eff001eff001"
+            .. "eff000091012fffff015e60626466686a6c6e70727"
+            .. "476787a7c7e800128ff0028ff0028ff0028ff0028f"
+            .. "f0028ff0007ff0007ff0007ff0007ff0007ff0007f"
+            .. "f0003ff0003ff0003ff0003ff0003ff0003ff000af"
+            .. "f000aff000aff000aff000aff000aff0014ff0014f"
+            .. "f0014ff0014ff0014ff0014ff001eff001eff001ef"
+            .. "f001eff001eff001eff00",
     }),
     ["storm.round-1"] = table.freeze ({
-        "all reliable 01b04001010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101070707070707070707070"
+        "all reliable 01b0810401ffffffffffffff7f070"
             .. "707070707070707070707070707070707070707070"
             .. "707070707070707070707070707070707070707070"
-            .. "70707070707070707070707",
+            .. "70707070707070707070707070707070707070707",
     }),
     ["storm.round-2"] = table.freeze ({
-        "all reliable 01b04001010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101010e0e0e0e0e0e0e0e0e0e0"
+        "all reliable 01b0810401ffffffffffffff7f0e0"
             .. "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0"
             .. "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0"
-            .. "e0e0e0e0e0e0e0e0e0e0e0e",
+            .. "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
     }),
     ["storm.round-3"] = table.freeze ({
-        "all reliable 01b04001010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101151515151515151515151"
+        "all reliable 01b0810401ffffffffffffff7f151"
             .. "515151515151515151515151515151515151515151"
             .. "515151515151515151515151515151515151515151"
-            .. "51515151515151515151515",
+            .. "51515151515151515151515151515151515151515",
     }),
     ["storm.round-4"] = table.freeze ({
-        "all reliable 01b04001010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "1010101010101010101011c1c1c1c1c1c1c1c1c1c1"
+        "all reliable 01b0810401ffffffffffffff7f1c1"
             .. "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
             .. "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
-            .. "c1c1c1c1c1c1c1c1c1c1c1c",
+            .. "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c",
     }),
     ["storm.round-5"] = table.freeze ({
-        "all reliable 01b04001010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101010101010101010101010"
-            .. "101010101010101010101232323232323232323232"
+        "all reliable 01b0810401ffffffffffffff7f232"
             .. "323232323232323232323232323232323232323232"
             .. "323232323232323232323232323232323232323232"
-            .. "32323232323232323232323",
+            .. "32323232323232323232323232323232323232323",
     }),
     ["acceptance.keyframe"] = table.freeze ({
-        "a reliable 000101010200b4b4005000500050000"
+        "a reliable 000108010200b4b4005000500050000"
             .. "00000000000000000000000000000000000b4b4000"
             .. "0000000000000000000000000000000000000006b6"
             .. "969010000000000000000000000000000000000000"
@@ -378,7 +352,7 @@ Golden.frames = table.freeze ({
             .. "1",
     }),
     ["acceptance.delta"] = table.freeze ({
-        "a reliable 0101fbf3ffbfaeffffffff0301015ab"
+        "a reliable 0101fbf3ffbfaeffffffff0308015ab"
             .. "410442da1b2c3f403030007555555555555d53f010"
             .. "000c03f00000000000020c0010000003f000080be0"
             .. "000c03f00000000000020c06969d10207f3026044a"
@@ -398,7 +372,7 @@ Golden.frames = table.freeze ({
         "",
     }),
     ["acceptance.removed"] = table.freeze ({
-        "a reliable 02010101",
+        "a reliable 02010801",
     }),
 } :: { [string]: { string } })
 

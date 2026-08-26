@@ -35,6 +35,9 @@ export type Link = {
     wrote: number,
     over: any,
     kind: number,
+
+    -- The id the run's last question or answer named, which the next one climbs from.
+    last: number,
     toward: Player?,
     lossy: boolean,
     seq: number,
@@ -81,6 +84,7 @@ function Link.new (
         wrote = 0,
         over = nil,
         kind = 0,
+        last = 0,
         toward = nil,
         lossy = false,
         seq = 0,

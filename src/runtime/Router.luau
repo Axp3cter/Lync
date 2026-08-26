@@ -16,6 +16,7 @@ local Serial = require ("@src/shape/Serial")
 local Tally = require ("@src/kernel/Tally")
 local Transport = require ("@src/channel/Transport")
 local Types = require ("@src/Types")
+local Varint = require ("@src/wire/Varint")
 
 local Router = {}
 
@@ -207,19 +208,26 @@ local function asked (
     local held = of.head[SECOND] + 1
     local pos = at + head.bytes
 
-    -- Each question of the run: the id it is owed an answer under, and then what it asks.
-    for _ = 1, held do
-        def.asking.read (b, pos, of.head)
+    --[[
+        Each question of the run: the id it is owed an answer under, and then what it asks. The
+        first says its id whole and every one after says the step it climbed, since the ids a
+        sender hands out climb and a burst of them climbs by one.
+    ]]
+    local id = 0
 
-        local id = of.head[WHOSE]
-        local ends, value = Boundary.ran (
-            of.boundary,
-            def,
-            def.request,
-            def.request.read,
-            b,
-            pos + def.asking.bytes
-        )
+    for index = 1, held do
+        if index == 1 then
+            def.asking.read (b, pos, of.head)
+
+            id = of.head[WHOSE]
+            pos += def.asking.bytes
+        else
+            local step, after = Varint.read (b, pos)
+            id += step
+            pos = after
+        end
+
+        local ends, value = Boundary.ran (of.boundary, def, def.request, def.request.read, b, pos)
         if ends == nil then return nil end
 
         --[[
@@ -267,14 +275,29 @@ local function answered (
     local held = of.head[SECOND] + 1
     local pos = at + head.bytes
 
-    -- Each answer of the run: which question it answers, whether it is one, and what it says.
-    for _ = 1, held do
-        def.answering.read (b, pos, of.head)
+    --[[
+        Each answer of the run: which question it answers, whether it is one, and what it says. The
+        first says the question whole and every one after says the step, with the bit saying which
+        kind of answer it is folded into that step rather than spending a group of its own.
+    ]]
+    local id = 0
 
-        local id = of.head[WHOSE]
-        pos += def.answering.bytes
+    for index = 1, held do
+        local outcome
+        if index == 1 then
+            def.answering.read (b, pos, of.head)
 
-        if of.head[def.answering.fields] ~= ANSWERED then
+            id = of.head[WHOSE]
+            outcome = of.head[def.answering.fields]
+            pos += def.answering.bytes
+        else
+            local step, bit, after = Varint.readFlagged (b, pos)
+            id += step
+            outcome = bit
+            pos = after
+        end
+
+        if outcome ~= ANSWERED then
             of.pending:fail (id, THREW, now)
             continue
         end

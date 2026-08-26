@@ -121,4 +121,24 @@ function Varint.readSigned (b: buffer, at: number): (number, number)
     return value, after
 end
 
+--[[
+    A step of one or more and a flag, written as one, for the reason the pair above folds a sign
+    into the low bit: a number that always carries a second small thing beside it would spend a
+    whole group on it. One or more because a step of nothing is the same number twice.
+]]
+@native
+function Varint.writeFlagged (out: buffer, at: number, step: number, flag: number): number
+    if step < 1 then Log.refuse (`a flagged varint carries a step of one or more, not {step}`) end
+
+    return Varint.write (out, at, (step - 1) * 2 + flag)
+end
+
+-- The same pair, taken apart: the step it climbed and the bit it carried beside it.
+@native
+function Varint.readFlagged (b: buffer, at: number): (number, number, number)
+    local held, after = Varint.read (b, at)
+
+    return held // 2 + 1, held % 2, after
+end
+
 return table.freeze (Varint)

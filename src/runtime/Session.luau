@@ -27,6 +27,7 @@ local Sync = require ("@src/state/Sync")
 local Tally = require ("@src/kernel/Tally")
 local Transport = require ("@src/channel/Transport")
 local Types = require ("@src/Types")
+local Varint = require ("@src/wire/Varint")
 
 local Session = {}
 Session.__index = Session
@@ -189,7 +190,10 @@ local function replying (
     local link = self.link
     Tally.sent (self.counts, def.name, 0)
 
-    if not joins (link, ANSWERS, def, who, false) then Session.shipped (self) end
+    -- The same climb the questions are held to, since these are written the same way back.
+    if not joins (link, ANSWERS, def, who, false) or asked <= link.last then
+        Session.shipped (self)
+    end
 
     if link.holds == 0 then
         link.kind = ANSWERS
@@ -201,14 +205,24 @@ local function replying (
 
     --[[
         Which question this answers and whether it is one, written beside the answer rather than in
-        the block's header, so a run of them shares the header and nothing else.
+        the block's header, so a run of them shares the header and nothing else. The first says the
+        question whole and the rest say the step, with the one bit folded into the step's own.
     ]]
-    local told = self.asked
-    told[1] = asked
-    told[2] = if ok then 0 else 1
-    def.answering.write (link.pending, link.wrote, told)
+    local outcome = if ok then 0 else 1
+    local ends
 
-    local ends = link.wrote + def.answering.bytes
+    if link.holds == 0 then
+        local told = self.asked
+        told[1] = asked
+        told[2] = outcome
+        def.answering.write (link.pending, link.wrote, told)
+
+        ends = link.wrote + def.answering.bytes
+    else
+        ends = Varint.writeFlagged (link.pending, link.wrote, asked - link.last, outcome)
+    end
+
+    link.last = asked
     if ok then ends = def.response.write (link.pending, ends, value) end
 
     link.wrote = ends
@@ -747,6 +761,7 @@ function Session.shipped (self: Self)
     link.kind = 0
     link.over = nil
     link.toward = nil
+    link.last = 0
 
     --[[
         A question and an answer go to exactly whoever they name, where a fire may name an audience
@@ -842,9 +857,11 @@ function Session.ask (
     local link = self.link
     Tally.sent (self.counts, def.name, 0)
 
-    if not joins (link, ASKS, def, to, false) then Session.shipped (self) end
+    -- A run's ids climb, so one that does not opens a block of its own rather than stepping back.
+    if not joins (link, ASKS, def, to, false) or id <= link.last then Session.shipped (self) end
 
-    if link.holds == 0 then
+    local opening = link.holds == 0
+    if opening then
         link.kind = ASKS
         link.over = def
         link.toward = to
@@ -852,11 +869,21 @@ function Session.ask (
         link.wrote = def.asks.bytes
     end
 
-    -- The id belongs to the question rather than to the block, so it is written beside its payload.
-    self.asked[1] = id
-    def.asking.write (link.pending, link.wrote, self.asked)
+    --[[
+        The id belongs to the question rather than to the block, so it is written beside its own
+        payload. Whole for the first of a run and the step from the last for every one after, since
+        ids are handed out by climbing and a burst of them climbs by one.
+    ]]
+    if link.holds == 0 then
+        self.asked[1] = id
+        def.asking.write (link.pending, link.wrote, self.asked)
+        link.wrote += def.asking.bytes
+    else
+        link.wrote = Varint.write (link.pending, link.wrote, id - link.last)
+    end
 
-    link.wrote = def.request.write (link.pending, link.wrote + def.asking.bytes, value)
+    link.last = id
+    link.wrote = def.request.write (link.pending, link.wrote, value)
     link.holds += 1
 
     Session.queued (self, def.name)

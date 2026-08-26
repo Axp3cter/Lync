@@ -141,11 +141,21 @@ local function counts (): Run
         defined = counting,
         label = SENDER,
         wires = function (defs: any, side: string)
-            -- The responder for a question is registered on the side that answers it.
+            --[[
+                One responder, counting or coming apart, so a burst of answers carries both endings.
+                Zero is what it comes apart on, every other number being answered by climbing, and
+                it is registered on whichever side is the one that answers.
+            ]]
+            local function answer (value: number): number
+                if value == 0 then error (REFUSED, 0) end
+
+                return value + 1
+            end
+
             if side == "server" then
-                defs[COUNTED]:onServer (function (value: number): number return value + 1 end)
+                defs[COUNTED]:onServer (answer)
             else
-                defs[COUNTED]:onClient (function (value: number): number return value + 1 end)
+                defs[COUNTED]:onClient (answer)
             end
         end,
     })
@@ -443,5 +453,42 @@ return {
 
         Expect.equal (theirs, THEIRS + 1)
         Expect.equal (mine, MINE + 1)
+    end),
+    --[[
+        A burst where some questions are answered and some come apart. Every answer of a run says
+        which question it answers by the step from the last, with the bit saying which ending it
+        had folded into that step, so an ending read off the wrong one is an ending told to the
+        wrong caller.
+    ]]
+    Harness.case ("query.burst-of-mixed-answers", function ()
+        const MANY = 6
+
+        local of = counts ()
+        local done: { boolean } = {}
+
+        --[[
+            Every other one asks nothing, which is what the responder comes apart on. The answers
+            alternate, so a run carrying one bit for all of them cannot pass by accident.
+        ]]
+        for index = 1, MANY do
+            local asks = if index % 2 == 0 then 0 else index
+
+            of.server.defs[COUNTED]:request (
+                of.player,
+                asks,
+                function (ok: boolean, held: unknown)
+                    done[index] = if asks == 0 then not ok else ok and held == index + 1
+                end
+            )
+        end
+
+        of.server.session:flush ()
+        of.wire:settle ()
+        of.client.session:flush ()
+        of.wire:settle ()
+
+        for index = 1, MANY do
+            Expect.holds (done[index], `the {index} of {MANY} was told the wrong ending`)
+        end
     end),
 }

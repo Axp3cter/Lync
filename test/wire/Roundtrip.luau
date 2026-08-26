@@ -441,4 +441,29 @@ return {
         Expect.throws (function () Turns.wrote (of, -CEILING) end)
         Expect.throws (function () Turns.wrote (of, 1.5) end)
     end),
+
+    --[[
+        A name the frame left out is one the record does not carry, rather than one carrying a
+        stand-in. Whether the field is there is a question about the key, so a record holding it at
+        any value at all answers the opposite of what the wire said.
+    ]]
+    Harness.case ("wire.absent-optional", function ()
+        local of = Turns.built (Lync.struct ({
+            kept = Lync.bool (),
+            gone = Lync.optional (Lync.str (1, 8)),
+        }))
+
+        local bytes, size = Turns.wrote (of, { kept = true })
+        local back = Turns.read (of, bytes, size)
+
+        Expect.equal (back.kept, true)
+        Expect.holds (back.gone == nil, `an absent name came back as {tostring (back.gone)}`)
+
+        local names = 0
+        for _ in back do
+            names += 1
+        end
+
+        Expect.equal (names, 1)
+    end),
 }

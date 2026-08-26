@@ -27,6 +27,12 @@ const BYTE_TOP = 255
 const PAIR_TOP = 65535
 const NARROW_TOP = 7
 
+-- How far either side of nothing a grid reaches when its bottom is not nothing, at one byte wide.
+const EITHER_SIDE = 100
+
+-- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
+const FAR_SIDE = 30000
+
 --[[
     The widest value a byte holds, and its neighbours either side. A run of the middle one carries
     nothing between elements and the other two do, which is what tells a boundary from a length.
@@ -392,6 +398,45 @@ return {
         local bytes, size = Turns.wrote (of, value)
 
         Expect.equal (Turns.read (of, bytes, size), value)
+    end),
+
+    --[[
+        A record on byte boundaries whose fields do not start their grids at nothing, so the index
+        a byte carries is not the value and has to be read back off the grid. The field beside it
+        does start at nothing, which is what keeps the two apart rather than one standing for both.
+    ]]
+    Harness.case ("wire.a-record-on-boundaries-off-its-own-zero", function ()
+        local of = Turns.built (Lync.struct ({
+            shift = Lync.int (-EITHER_SIDE, EITHER_SIDE),
+            flat = Lync.int (0, BYTE_TOP),
+        }))
+
+        for _, one in { -EITHER_SIDE, 0, EITHER_SIDE } do
+            local value = { shift = one, flat = BYTE_TOP }
+            local bytes, size = Turns.wrote (of, value)
+
+            Expect.equal (Turns.read (of, bytes, size), value)
+        end
+    end),
+
+    --[[
+        The same off its own zero where one field is wider than a byte, so the reading back happens
+        in a record laid down by two different calls rather than one repeated. The third field
+        fills the four bytes a word plans at once, which is what keeps the wide one from being cut.
+    ]]
+    Harness.case ("wire.a-wider-record-on-boundaries-off-its-own-zero", function ()
+        local of = Turns.built (Lync.struct ({
+            shift = Lync.int (-EITHER_SIDE, EITHER_SIDE),
+            wider = Lync.int (-FAR_SIDE, FAR_SIDE),
+            flat = Lync.int (0, BYTE_TOP),
+        }))
+
+        for _, one in { -FAR_SIDE, 0, FAR_SIDE } do
+            local value = { shift = EITHER_SIDE, wider = one, flat = BYTE_TOP }
+            local bytes, size = Turns.wrote (of, value)
+
+            Expect.equal (Turns.read (of, bytes, size), value)
+        end
     end),
 
     --[[

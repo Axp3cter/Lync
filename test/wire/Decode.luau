@@ -42,6 +42,10 @@ const SPARE = 512
 ]]
 const SHORT = 200
 
+-- The same, a byte wider, and the byte that is every reading either of them could be handed.
+const SHORT_PAIR = 60000
+const WHOLE_BYTE = 255
+
 -- How many values a byte takes, which is where a run of climbing bytes turns over.
 const BYTES = 256
 
@@ -809,6 +813,25 @@ return {
         }))
 
         local bytes = Turns.held (string.char (SHORT + 1, SHORT + 1))
+        local ok, caught = pcall (of.read, bytes, 0, Turns.CTX)
+
+        Expect.holds (not ok, "a reading past the end of its grid was taken rather than refused")
+        Expect.equal ((caught :: any).code, Catalog.TAG)
+    end),
+
+    --[[
+        The same, where one field is wider than a byte, so the record is laid down in two different
+        calls rather than one repeated. The third field is there to fill the four bytes a word
+        plans in one go, since a wide field with less than its width left is cut in two instead.
+    ]]
+    Harness.case ("total.a-wider-record-on-boundaries-refuses-a-reading-off-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            near = Lync.int (0, SHORT),
+            wider = Lync.int (0, SHORT_PAIR),
+            after = Lync.int (0, SHORT),
+        }))
+
+        local bytes = Turns.held (string.rep (string.char (WHOLE_BYTE), 4))
         local ok, caught = pcall (of.read, bytes, 0, Turns.CTX)
 
         Expect.holds (not ok, "a reading past the end of its grid was taken rather than refused")

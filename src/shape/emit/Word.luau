@@ -432,6 +432,74 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return bare
         end
 
+        --[[
+            What each field needs, by the field. The arrays above are held by the leaf a field
+            starts at, so reaching one costs a step through that number every time a word runs,
+            where the number itself never changes after the word is built.
+        ]]
+        local writes = table.create (reach) :: { (number) -> number? }
+        local readings = table.create (reach) :: { ((number) -> any)? }
+        local bounds = table.create (reach, 0)
+        local checks = table.create (reach, false)
+
+        for index = 1, reach do
+            local cell = starts[index]
+            writes[index] = toIndex[cell]
+            readings[index] = fromIndex[cell]
+            bounds[index] = spans[cell]
+            checks[index] = not whole[cell]
+        end
+
+        -- Whether the wider of the two widths comes up at all, which in most records it does not.
+        local singly = upright
+        for index = 1, reach do
+            if sizes[index] == ONE then continue end
+
+            singly = false
+            break
+        end
+
+        if singly then
+            -- The same pair where every field is one byte, so which call to make is not a question.
+            local function steady (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                for index = 1, reach do
+                    local one = value[keys[index]]
+                    local made = writes[index] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+
+                    buffer.writeu8 (b, pos + seats[index], made :: number)
+                end
+            end
+
+            local function settled (
+                b: buffer,
+                pos: number,
+                into: any,
+                _s: { number },
+                _h: { any }
+            ): any
+                for index = 1, reach do
+                    local raw = buffer.readu8 (b, pos + seats[index])
+
+                    if checks[index] and raw > bounds[index] then
+                        local tag = joins[index].tag
+                        Log.reject (Catalog.TAG, {
+                            pathId = tag.pathId,
+                            expectId = tag.expectId,
+                            got = raw,
+                        })
+                    end
+
+                    local reading = readings[index]
+                    into[keys[index]] = if reading == nil then raw else reading (raw)
+                end
+
+                return nil
+            end
+
+            return steady, settled
+        end
+
         if upright then
             --[[
                 Every field straight to its own bytes. The one definition making a field with no
@@ -441,7 +509,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local function square (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 for index = 1, reach do
                     local one = value[keys[index]]
-                    local made = toIndex[starts[index]] (one)
+                    local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
                     local at = pos + seats[index]
@@ -467,8 +535,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                         then buffer.readu8 (b, at)
                         else buffer.readu16 (b, at)
 
-                    local cell = starts[index]
-                    if not whole[cell] and raw > spans[cell] then
+                    if checks[index] and raw > bounds[index] then
                         local tag = joins[index].tag
                         Log.reject (Catalog.TAG, {
                             pathId = tag.pathId,
@@ -477,7 +544,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                         })
                     end
 
-                    local reading = fromIndex[cell]
+                    local reading = readings[index]
                     into[keys[index]] = if reading == nil then raw else reading (raw)
                 end
 

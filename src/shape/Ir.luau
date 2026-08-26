@@ -169,6 +169,7 @@ export type Pairs = {
     read key: Shape,
     read value: Shape,
     read runs: Grid.Grid?,
+    read keyed: Grid.Grid?,
 }
 
 --[[
@@ -400,15 +401,21 @@ function Ir.pairs (tag: Tag, count: Span, key: Shape, value: Shape): Pairs
         then count.max * value.maxBytes
         else Bytes.whole (count.max * runs.width)
 
+    local keyed = running (key)
+    local keys = if keyed == nil
+        then count.max * key.maxBytes
+        else Bytes.whole (count.max * keyed.width)
+
     return table.freeze ({
         op = "pairs" :: "pairs",
         fixed = count.min == count.max and key.fixed and value.fixed,
-        maxBytes = Bytes.whole (counted (count)) + count.max * key.maxBytes + values,
+        maxBytes = Bytes.whole (counted (count)) + keys + values,
         tag = tag,
         count = table.freeze (count),
         key = key,
         value = value,
         runs = runs,
+        keyed = keyed,
     })
 end
 

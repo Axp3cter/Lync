@@ -89,11 +89,11 @@ Golden.sizes = table.freeze ({
     ["profile.longest"] = 54,
     ["inventory.empty"] = 2,
     ["inventory.one"] = 6,
-    ["inventory.typical"] = 13,
-    ["inventory.largest"] = 81,
+    ["inventory.typical"] = 12,
+    ["inventory.largest"] = 79,
     ["everything.smallest"] = 107,
     ["everything.typical"] = 151,
-    ["everything.largest"] = 257,
+    ["everything.largest"] = 256,
 } :: { [string]: number })
 
 -- The bytes each fixture scenario puts on the wire, per flush.

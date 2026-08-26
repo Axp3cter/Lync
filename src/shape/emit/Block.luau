@@ -404,7 +404,68 @@ function Block.pairs (
     -- The index rides under the rank, so one sort answers both what the order is and whose it is.
     local spread = high + 1
 
+    --[[
+        Keys that are one reading on a grid sort as the numbers they are and lie end to end in the
+        bits they take. Nothing is spelled into scratch to be compared and copied back out, since
+        what orders two keys is what the grid already turned them into.
+    ]]
+    local sorts: Grid.Grid? = of.keyed
+
+    local function running (b: buffer, pos: number, value: any): number
+        local grid = sorts :: Grid.Grid
+
+        table.clear (order)
+        local count = 0
+
+        for key in value do
+            count += 1
+            if count > high then Word.refusedAt (tag, paths, said, count) end
+
+            local made = grid.toIndex (key)
+            if made == nil then Word.refusedAt (tag, paths, said, key) end
+
+            order[count] = made :: number
+            owners[made :: number] = key
+        end
+
+        if count < low then Word.refusedAt (tag, paths, said, count) end
+        table.sort (order)
+
+        for index = 2, count do
+            if order[index] ~= order[index - 1] then continue end
+            Log.refuse (Log.line (Catalog.MAP_ORDER, {
+                path = where,
+                expected = tostring (owners[order[index]]),
+                got = tostring (owners[order[index]]),
+            }))
+        end
+
+        laid (b, pos, held, count - low)
+        local out = Leaf.packed (b, pos + held, grid.width, count, order)
+
+        if runs == nil then
+            for index = 1, count do
+                out = writeValue (b, out, value[owners[order[index]]])
+            end
+
+            return out
+        end
+
+        local held2 = runs :: Grid.Grid
+        for index = 1, count do
+            local one = value[owners[order[index]]]
+            local made = held2.toIndex (one)
+            if made == nil then Word.refusedAt (tag, paths, said, one) end
+
+            marks[index] = made :: number
+        end
+
+        return Leaf.packed (b, out, held2.width, count, marks)
+    end
+
     local function write (b: buffer, pos: number, value: any): number
+        if sorts ~= nil then return running (b, pos, value) end
+
         table.clear (order)
 
         local count = 0
@@ -496,7 +557,68 @@ function Block.pairs (
         return Leaf.packed (b, out, (runs :: Grid.Grid).width, count, marks)
     end
 
+    local function taking (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local grid = sorts :: Grid.Grid
+        local counted = taken (b, pos, held)
+        if counted > span then
+            Log.reject (
+                Catalog.COUNT,
+                { pathId = tag.pathId, expectId = tag.expectId, got = counted }
+            )
+        end
+
+        local count = counted + low
+        local after, clean = Leaf.unpacked (b, pos + held, grid.width, count, order)
+        if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
+
+        --[[
+            Climbing rather than merely sorted, which answers two things at once: a pair out of
+            order and a key the map already holds are both a reading no higher than the last.
+        ]]
+        for index = 1, count do
+            local mark = order[index]
+            if mark > grid.span then
+                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
+            end
+
+            if index > 1 and mark <= order[index - 1] then
+                Log.reject (Catalog.MAP_ORDER, {
+                    pathId = tag.pathId,
+                    expected = tostring (grid.fromIndex (order[index - 1])),
+                    got = tostring (grid.fromIndex (mark)),
+                })
+            end
+        end
+
+        local out: any = {}
+        if runs == nil then
+            local at = after
+            for index = 1, count do
+                at, out[grid.fromIndex (order[index])] = readValue (b, at, ctx)
+            end
+
+            return at, out
+        end
+
+        local spare = runs :: Grid.Grid
+        local ends, tidy = Leaf.unpacked (b, after, spare.width, count, marks)
+        if not tidy then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
+
+        for index = 1, count do
+            local mark = marks[index]
+            if mark > spare.span then
+                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
+            end
+
+            out[grid.fromIndex (order[index])] = spare.fromIndex (mark)
+        end
+
+        return ends, out
+    end
+
     local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        if sorts ~= nil then return taking (b, pos, ctx) end
+
         local counted = taken (b, pos, held)
         if counted > span then
             Log.reject (

@@ -32,6 +32,53 @@ export type Said = {
 -- Public --------------------------------------------------------------
 
 --[[
+    The width a run of numbers packs at, or nothing where packing would not pay for itself. A
+    varint cannot spend under the byte it is, so anything narrower wins and anything wider is
+    left to varints. Both sides are told the width rather than work it out, since only a writer
+    ever sees every value of a run at once.
+]]
+function Slots.width (run: { number }, count: number): number
+    local widest = 0
+    for index = 1, count do
+        local value = run[index]
+        if value > widest then widest = value end
+    end
+
+    local width = Bits.width (widest)
+    if width > NARROW or Bytes.whole (count * width) >= count then return 0 end
+
+    return width
+end
+
+-- A run of numbers at the width its writer chose, or the varints it fell back to.
+function Slots.laid (b: buffer, at: number, run: { number }, count: number, width: number): number
+    if width ~= 0 then return Leaf.packed (b, at, width, count, run) end
+
+    local held = at
+    for index = 1, count do
+        held = Varint.write (b, held, run[index])
+    end
+    return held
+end
+
+-- The same run back, and whether what the packing left over was the zero it has to be.
+function Slots.taken (
+    b: buffer,
+    at: number,
+    run: { number },
+    count: number,
+    width: number
+): (number, boolean)
+    if width ~= 0 then return Leaf.unpacked (b, at, width, count, run) end
+
+    local held = at
+    for index = 1, count do
+        run[index], held = Varint.read (b, held)
+    end
+    return held, true
+end
+
+--[[
     A count and the slots under it. The first slot as it stands and the rest as the step from the
     one before, packed at the width the widest of them needs, since a partition moving together
     steps by one and that is a bit a record where a varint could not have spent under a byte. A
@@ -44,27 +91,16 @@ function Slots.wrote (
     steps: { number },
     count: number
 ): number
-    local widest = 0
     for index = 2, count do
-        local step = slots[index] - slots[index - 1]
-
-        steps[index - 1] = step
-        if step > widest then widest = step end
+        steps[index - 1] = slots[index] - slots[index - 1]
     end
 
-    local width = Bits.width (widest)
-    if width > NARROW or Bytes.whole ((count - 1) * width) >= count - 1 then width = 0 end
-
+    local width = Slots.width (steps, count - 1)
     local held = Varint.write (b, at, count * SPANS + width)
     if count == 0 then return held end
 
     held = Varint.write (b, held, slots[1])
-    if width ~= 0 then return Leaf.packed (b, held, width, count - 1, steps) end
-
-    for index = 1, count - 1 do
-        held = Varint.write (b, held, steps[index])
-    end
-    return held
+    return Slots.laid (b, held, steps, count - 1, width)
 end
 
 --[[
@@ -93,15 +129,10 @@ function Slots.read (
     if count == 0 then return count, after end
 
     local first, held = Varint.read (b, after)
-    if width == 0 then
-        for index = 1, count - 1 do
-            steps[index], held = Varint.read (b, held)
-        end
-    else
-        local clean
-        held, clean = Leaf.unpacked (b, held, width, count - 1, steps)
-        if not clean then Fieldset.broken (said.pad) end
-    end
+
+    local clean
+    held, clean = Slots.taken (b, held, steps, count - 1, width)
+    if not clean then Fieldset.broken (said.pad) end
 
     if first == 0 then Fieldset.broken (said.order) end
     slots[1] = first

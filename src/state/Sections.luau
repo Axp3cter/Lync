@@ -279,18 +279,38 @@ function Sections.keyframe (of: Layout, b: buffer, pos: number, columns: Columns
     local def = of.def
     local count = frame.count
 
+    local at = Slots.wrote (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
+    local ids = frame.ids
+    local steps = frame.steps
+
     --[[
         Each id as the step from the id before it. A keyframe names its records in slot order and
-        slots are handed out as records arrive, so the ids climb wherever a caller numbered them
-        in the order it added them, and a step of one is a byte where the id itself was two.
+        slots go out as records arrive, so ids numbered in the order they were added climb, and a
+        run that climbs packs at the width its widest step needs. One that does not is spelled in
+        signed varints, which is the only form that carries a caller numbering them any way at all.
     ]]
-    local at = Slots.wrote (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
-    local last = 0
-    for index = 1, count do
-        local id = frame.ids[index]
+    local climbs = true
+    for index = 2, count do
+        local step = ids[index] - ids[index - 1]
 
-        at = Varint.writeSigned (b, at, id - last)
-        last = id
+        steps[index - 1] = step
+        if step <= 0 then
+            climbs = false
+            break
+        end
+    end
+
+    local width = if climbs then Slots.width (steps, count - 1) else 0
+    buffer.writeu8 (b, at, width)
+    at += 1
+
+    if count ~= 0 then at = Varint.writeSigned (b, at, ids[1]) end
+    if width ~= 0 then
+        at = Slots.laid (b, at, steps, count - 1, width)
+    else
+        for index = 2, count do
+            at = Varint.writeSigned (b, at, ids[index] - ids[index - 1])
+        end
     end
 
     if #def.newestFields > 0 then
@@ -416,13 +436,35 @@ function Sections.taken (
     if kind == REMOVAL then return kind, at end
 
     if kind == KEYFRAME then
-        local last = 0
-        for index = 1, count do
-            local step
-            step, at = Varint.readSigned (b, at)
+        local ids = frame.ids
+        local steps = frame.steps
 
-            last += step
-            frame.ids[index] = last
+        local width = buffer.readu8 (b, at)
+        at += 1
+
+        local last = 0
+        if count ~= 0 then
+            last, at = Varint.readSigned (b, at)
+            ids[1] = last
+        end
+
+        if width ~= 0 then
+            local clean
+            at, clean = Slots.taken (b, at, steps, count - 1, width)
+            if not clean then Fieldset.broken (SAID.pad) end
+
+            for index = 2, count do
+                last += steps[index - 1]
+                ids[index] = last
+            end
+        else
+            for index = 2, count do
+                local step
+                step, at = Varint.readSigned (b, at)
+
+                last += step
+                ids[index] = last
+            end
         end
 
         if #def.newestFields > 0 then

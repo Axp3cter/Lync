@@ -441,4 +441,35 @@ return {
         Expect.equal (two[POS], START)
         Expect.equal (two[AIM], WON)
     end),
+    --[[
+        Records whose ids are nothing like the slots they land in. A store keeps a column by slot
+        and a record by id, and the two agree in any check that adds one record at a time, so a
+        write that reached for the wrong one of them would look right everywhere but here.
+    ]]
+    Harness.case ("set.ids-are-not-slots", function ()
+        const FAR = 500
+        const APART = 40
+
+        local of = opened ()
+        local ours = of.server.defs[ROSTER]
+
+        -- Three ids far apart, which land in the three slots a partition hands out in order.
+        local ids = { FAR, FAR + APART, FAR + APART * 2 }
+        for _, id in ids do
+            ours:add (id, record ())
+        end
+        ships (of)
+
+        for index, id in ids do
+            ours:update (id, { [AIM] = index, [HP] = HIGH })
+        end
+        ships (of)
+
+        for index, id in ids do
+            local one = of.client.defs[ROSTER]:get (id)
+            Expect.holds (one ~= nil, `nothing came back for {id}`)
+            Expect.equal (one[AIM], index)
+            Expect.equal (one[HP], HIGH)
+        end
+    end),
 }

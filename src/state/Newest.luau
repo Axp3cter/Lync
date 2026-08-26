@@ -452,7 +452,7 @@ function Newest.apply (
         if store.columns[field][slot] == value then continue end
 
         Apply.snapped (heard, store, id)
-        Store.write (store, slot, field, value)
+        Store.write (store, slot, id, field, value)
         Apply.moved (heard, id)
     end
 end

@@ -117,10 +117,10 @@ local function partition (of: Sync, key: any): Partition
 end
 
 -- Every field of a record into the store, which is the whole of what a bind leaves to say.
-local function written (of: Sync, store: Store.Store, slot: number, record: any)
+local function written (of: Sync, store: Store.Store, slot: number, id: number, record: any)
     local names = of.def.fieldNames
     for field = 1, of.def.fieldCount do
-        Store.write (store, slot, field, record[names[field]])
+        Store.write (store, slot, id, field, record[names[field]])
     end
 end
 
@@ -161,7 +161,7 @@ local function migrated (of: Sync, from: Partition, id: number, slot: number)
     local held = Store.bind (into.store, id)
 
     for field = 1, of.def.fieldCount do
-        Store.write (into.store, held, field, row[field])
+        Store.write (into.store, held, id, field, row[field])
     end
 
     marked (into, id, "add")
@@ -493,7 +493,7 @@ function Sync.add (of: Sync, id: number, record: any)
     local part = partition (of, if field == nil then nil else record[field])
     local slot = Store.bind (part.store, id)
 
-    written (of, part.store, slot, record)
+    written (of, part.store, slot, id, record)
     marked (part, id, "add")
     of.partOf[id] = under (part.key)
 end
@@ -570,7 +570,7 @@ function Sync.update (of: Sync, id: number, fields: any)
         local now = if value == Sync.NONE then nil else value
         if alike (was, now) then continue end
 
-        Store.write (store, slot, field, now)
+        Store.write (store, slot, id, field, now)
 
         --[[
             A newest field is written and not marked. The lane that carries one compares what the

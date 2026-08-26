@@ -199,7 +199,7 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
         for index = 1, frame.count do
             local slot = frame.slots[index]
 
-            Store.write (store, slot, field, values[index])
+            Store.write (store, slot, frame.ids[index], field, values[index])
             if held ~= nil then owes (of, held, slot, marks[index]) end
         end
     end
@@ -222,19 +222,23 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
         local marks = frame.at[field]
         local held = store.prev[field]
 
+        -- The column this section speaks for, reached once rather than once a slot it names.
+        local column = store.columns[field]
+
         for index = 1, frame.covered[place] do
             local slot = under[index]
             local id = ids[slot]
             if id == nil or shadow[slot] then continue end
 
-            local before = store.columns[field][slot]
+            local before = column[slot]
+            local value = values[index]
 
             snapped (of, store, id)
-            Store.write (store, slot, field, values[index])
+            Store.write (store, slot, id, field, value)
             if held ~= nil then held[slot] = marks[index] end
 
             -- A value that arrived as what the field already held is no change to report.
-            if before ~= values[index] then moved (of, id) end
+            if before ~= value then moved (of, id) end
         end
     end
 end

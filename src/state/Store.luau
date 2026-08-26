@@ -142,10 +142,14 @@ function Store.spare (of: Store, slot: number) Heap.push (of.free, slot, slot) e
     Both at once: the column and the row are one fact written twice, and they stay one fact only
     because nothing can write either alone.
 ]]
-function Store.write (of: Store, slot: number, field: number, value: any)
+function Store.write (of: Store, slot: number, id: number, field: number, value: any)
     of.columns[field][slot] = value
 
-    local id = of.ids[slot]
+    --[[
+        The id taken rather than looked up, because every caller reached the slot through it or
+        holds it for its own reasons: a store asked to work out again what it was just told is a
+        store doing the caller's arithmetic twice.
+    ]]
     local row = of.rows[id]
 
     --[[

@@ -237,6 +237,22 @@ function Block.group (
 
     if not plainly then return write, read end
 
+    --[[
+        The same write. Nothing dissolved, so no part is reached through a record held aside, and
+        no part is an option, so none of them is a bit away from not being written at all.
+    ]]
+    local function laid (b: buffer, pos: number, value: any): number
+        if allow ~= nil then only (allow, of.tag, value) end
+        if pack ~= nil then pack (b, pos, value, slots, held) end
+
+        local at = pos + region
+        for index = 1, reach do
+            at = writes[index] (b, at, value[keys[index]])
+        end
+
+        return at
+    end
+
     -- The same read where each part goes straight onto the record, which is where most of them do.
     local function plain (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         local into: any = table.clone (blank)
@@ -255,7 +271,7 @@ function Block.group (
         return at, into
     end
 
-    return write, plain
+    return laid, plain
 end
 
 -- A value laid down as its parts and built back out of them.

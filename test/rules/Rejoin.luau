@@ -5,6 +5,8 @@
     them was granted.
 ]]
 
+local Lync = require ("@src")
+
 local Doubles = require ("@fixtures/Doubles")
 local Schemas = require ("@fixtures/Schemas")
 
@@ -19,6 +21,9 @@ const SPACE = "rejoin"
 -- The person who leaves and comes back, and the one who stays.
 const SENDER = "alice"
 const WATCHER = "bob"
+
+-- A third machine, which arrives once a key has already been named everybody's.
+const LATE = "carol"
 
 -- The set, keyed by a field, because a grant is per key and a set with no key grants everything.
 const ROSTER = Schemas.ROSTER
@@ -202,5 +207,48 @@ return {
 
         Expect.holds (held:get (REDS[1]) ~= nil, "a record arriving on one key reached nobody")
         Expect.equal (held:get (BLUES[1])[HP], MOVED)
+    end),
+
+    --[[
+        A key handed to one machine, then to everybody, then to another one. What a grant names is
+        who a partition is for, so widening it has to reach the machines that were never named and
+        narrowing it again has to take it back off them. A key that stayed wide once it had been
+        wide would go on sending to whoever happened to be holding it when the caller narrowed it.
+    ]]
+    Harness.case ("set.a-key-widens-and-narrows", function ()
+        local of = Replica.open (OPENS, SENDER)
+        local bob = Replica.joins (of, WATCHER)
+        local set = Replica.ours (of)
+
+        for _, id in REDS do
+            set:add (id, { [TEAM] = RED, [HP] = START })
+        end
+
+        granted (of, RED, { of.player })
+        ships (of)
+
+        local alice = of.viewers[1]
+        Expect.equal (told (alice, ADDED), REDS)
+        Expect.equal (told (bob, ADDED), {})
+
+        -- Named everybody, which reaches the machine that was never one of its holders.
+        set:audience (RED, Lync.all)
+        ships (of)
+        Expect.equal (told (bob, ADDED), REDS)
+
+        --[[
+            A machine arriving after the key was named everybody, which is what tells everybody
+            apart from the holders it happened to have: a list is who was named when it was
+            written, and everybody is whoever is here when the flush goes out.
+        ]]
+        local late = Replica.joins (of, LATE)
+        ships (of)
+        Expect.equal (told (late, ADDED), REDS)
+
+        -- Named one machine again, which takes it back off the ones no longer named.
+        set:audience (RED, { bob.player })
+        ships (of)
+        Expect.equal (told (alice, REMOVED), REDS)
+        Expect.equal (told (bob, REMOVED), {})
     end),
 }

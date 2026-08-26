@@ -296,4 +296,41 @@ return {
             Expect.equal (value, CARRIED)
         end
     end),
+
+    --[[
+        Two senders on the lane that reorders, each with a place on the ring of its own. One ring
+        held for everybody would read one machine's sequence as another's, so the first frame from
+        a machine that had sent nothing would arrive already behind whatever the talkative one had
+        reached, and the quiet machine would be silenced by a number it never wrote.
+    ]]
+    Harness.case ("packet.newest-per-sender", function ()
+        local of = Replica.open ({ space = SPACE, defined = defined }, SENDER)
+        local second = Replica.joins (of, "bob")
+
+        local heard: { number } = {}
+        local whose: { Player } = {}
+
+        -- The value first and the machine that sent it after, which is what the surface states.
+        of.server.defs[LATEST]:onServer (function (value: number, who: Player)
+            table.insert (heard, value)
+            table.insert (whose, who)
+        end)
+
+        -- The first machine talks until its place on the ring is well past where a new one starts.
+        for step = 1, 8 do
+            of.client.defs[LATEST]:fireServer (step)
+            of.client.session:flush ()
+            of.wire:settle ()
+        end
+        Expect.equal (#heard, 8)
+
+        second.machine.defs[LATEST]:fireServer (99)
+        second.machine.session:flush ()
+        of.wire:settle ()
+
+        Expect.equal (#heard, 9)
+        Expect.equal (heard[9], 99)
+        Expect.equal (whose[1], of.player)
+        Expect.equal (whose[9], second.player)
+    end),
 }

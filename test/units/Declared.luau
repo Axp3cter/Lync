@@ -20,6 +20,9 @@ const SET = "roster"
 -- A step a turn does not divide into a whole number of, which is what an angle may not take.
 const ASKEW = 7
 
+-- A name holding what a descriptor separates its own names with, which no definition may.
+const MARKED = "holds;a;mark"
+
 -- Where a declaration says it was written, which every refusal carries.
 const AT = table.freeze ({ file = "Origin", line = 1 })
 
@@ -64,5 +67,23 @@ return {
         )
 
         Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
+    end),
+
+    --[[
+        A definition named what a descriptor separates its own names with. What one machine writes
+        its schema out as is what the other reads back to decide the two agree, so a name holding
+        a separator is one the far side reads as two names and a schema the two never agree on.
+        Read off the name rather than off what it was declared over, which every kind shares.
+    ]]
+    Harness.case ("declared.refuses-a-name-it-cannot-spell", function ()
+        local held = replicating (Lync.struct ({ held = Lync.bool () }))
+        Legality.definition (SET, held)
+
+        local said = Expect.throws (
+            function () Legality.definition (MARKED, held) end,
+            "separates its own names with"
+        )
+
+        Expect.holds (string.find (said, MARKED, 1, true) ~= nil, `it named no definition: {said}`)
     end),
 }

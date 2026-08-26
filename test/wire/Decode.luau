@@ -468,6 +468,23 @@ return {
     end),
 
     --[[
+        A reference whose slot is a varint that never ends. What rides beside a frame is named by
+        an index into it, and the index is the one field here a reader takes on the frame's word
+        alone, so bytes that keep saying there is more are bytes a reader has to stop on rather
+        than follow past the groups a varint is allowed.
+    ]]
+    Harness.case ("total.slot-varint-is-refused", function ()
+        local of = Turns.built (Lync.inst ())
+
+        local b = buffer.create (16)
+        buffer.fill (b, 0, 0xFF)
+
+        local ok, why = pcall (of.read, b, 0, Turns.CTX)
+        Expect.holds (not ok, "a slot varint running past its groups was taken")
+        Expect.equal ((why :: any).code, Catalog.VARINT)
+    end),
+
+    --[[
         A frame whose padding is not zero, which is damage no encoder makes. The bits over the last
         element of a packed run go down as nothing, so a frame carrying anything else in them spells
         one value two ways, and two spellings of one value are what the order of map keys rests on

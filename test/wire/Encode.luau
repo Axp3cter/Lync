@@ -327,4 +327,29 @@ return {
             "a spelled value off its grid"
         )
     end),
+
+    --[[
+        Text and bytes outside the count they were declared to hold, refused where they were
+        written. A count is what a reader is told to walk and the bound is what a caller declared
+        it would never pass, so a value over it would go out under a count the far side refuses,
+        and one under it under a count that reads whatever lies past the value.
+    ]]
+    Harness.case ("wire.counted-refuses-its-bounds", function ()
+        const LEAST = 2
+        const MOST = 4
+
+        for _, mark in { "x", "a" } do
+            local under = string.rep (mark, LEAST - 1)
+            local fits = string.rep (mark, LEAST)
+            local over = string.rep (mark, MOST + 1)
+
+            -- Both text forms, since an alphabet counts its characters in a run of its own.
+            local codec = if mark == "x" then Lync.str (LEAST, MOST) else Lync.str.hex (LEAST, MOST)
+            local of = built (codec)
+
+            Expect.holds (of.write (SLAB, 0, fits) > 0, `{mark} at its floor wrote nothing`)
+            names (refused (of, under, `{mark} under its count`), ROOT, `{mark} under`)
+            names (refused (of, over, `{mark} over its count`), ROOT, `{mark} over`)
+        end
+    end),
 }

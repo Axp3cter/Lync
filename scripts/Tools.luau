@@ -50,6 +50,29 @@ end
 -- The package manager, under whichever of its names this platform can start.
 function Tools.npm (args: { string }): Ruling.Ruling return Tools.run (NPM, args) end
 
+--[[
+    A tool run from inside a directory. Both registries decide what to include relative to where
+    they were started rather than where the manifest sits, so the package is published from within
+    itself and neither reads the repository around it.
+]]
+local function inside (where: string, name: string, args: { string }): Ruling.Ruling
+    local held: process.ExecOptions = { stdio = "forward", cwd = where }
+    local ok, outcome = pcall (process.exec, name, args, held)
+
+    if not ok then return { ok = false, note = `{name} is not on PATH, run setup` } end
+    return { ok = outcome.ok, note = if outcome.ok then nil else `{name} exited {outcome.code}` }
+end
+
+--[[
+    The assembled package, to each registry, as whoever is signed in on this machine.
+
+    No token is read and none is stored. Both tools keep their own credentials from a login the
+    person did, so a release never needs one written down anywhere a repository can reach.
+]]
+function Tools.publishWally (): Ruling.Ruling return inside (Repo.DIST, "wally", { "publish" }) end
+
+function Tools.publishNpm (): Ruling.Ruling return inside (Repo.DIST, NPM, { "publish" }) end
+
 -- Spawns a child that outlives this call. The caller owns it and must kill it.
 function Tools.watch (name: string, args: { string }): process.ChildProcess
     return process.create (name, args)

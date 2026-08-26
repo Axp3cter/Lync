@@ -97,6 +97,8 @@ local STEPS: { [string]: Step } = {
         run = function () return Build.place (Repo.DEFAULT) end,
     },
     dist = { title = "assembling the package", run = Build.dist },
+    wally = { title = "publishing to wally", run = Tools.publishWally },
+    npm = { title = "publishing to npm", run = Tools.publishNpm },
     serve = { title = "serving to Studio", run = function () return Build.serve (Repo.TEST) end },
     staged = {
         title = "staging the test tree",
@@ -117,48 +119,58 @@ local STEPS: { [string]: Step } = {
 }
 
 --[[
-    The commands, in lifecycle order. verify is the CI gate and runs every static check, cheapest
-    first, so a fault a pattern can find is reported before a type check has been waited on.
+    Every static check, cheapest first, so a fault a pattern can find is reported before a type
+    check has been waited on. Named rather than written inside one command, since publishing runs
+    the same gate and a second copy of the list would be one that falls behind.
 ]]
+local CHECKED = {
+    "toolchain",
+    "sourcemap",
+    "cases",
+    "formatted",
+    "width",
+    "prose",
+    "saying",
+    "restating",
+    "twice",
+    "shaped",
+    "citing",
+    "standing",
+    "doors",
+    "catalogued",
+    "stated",
+    "derived",
+    "spelling",
+    "doubles",
+    "answered",
+    "versions",
+    "trees",
+    "tooling",
+    "edges",
+    "constants",
+    "surface",
+    "folded",
+    "configs",
+}
+
+-- The gate, and then everything a release does after it, as the steps one command runs in order.
+local RELEASED = table.clone (CHECKED)
+table.move (
+    { "declaration", "model", "test", "bench", "dist", "wally", "npm" },
+    1,
+    7,
+    #RELEASED + 1,
+    RELEASED
+)
+
+-- The commands, in lifecycle order.
 local COMMANDS: { Command } = {
     {
         name = "setup",
         brief = "Install the toolchain and write the sourcemap.",
         steps = { "install", "sourcemap" },
     },
-    {
-        name = "verify",
-        brief = "Run every static check.",
-        steps = {
-            "toolchain",
-            "sourcemap",
-            "cases",
-            "formatted",
-            "width",
-            "prose",
-            "saying",
-            "restating",
-            "twice",
-            "shaped",
-            "citing",
-            "standing",
-            "doors",
-            "catalogued",
-            "stated",
-            "derived",
-            "spelling",
-            "doubles",
-            "answered",
-            "versions",
-            "trees",
-            "tooling",
-            "edges",
-            "constants",
-            "surface",
-            "folded",
-            "configs",
-        },
-    },
+    { name = "verify", brief = "Run every static check.", steps = CHECKED },
     { name = "fmt", brief = "Format every authored tree.", steps = { "format" } },
     {
         name = "analyze",
@@ -186,6 +198,11 @@ local COMMANDS: { Command } = {
     },
     { name = "build", brief = "Build the library model.", steps = { "model" } },
     { name = "dist", brief = "Assemble the publishable package.", steps = { "dist" } },
+    {
+        name = "publish",
+        brief = "Verify, build, and publish to both registries as whoever is signed in.",
+        steps = RELEASED,
+    },
 }
 
 -- Private -------------------------------------------------------------

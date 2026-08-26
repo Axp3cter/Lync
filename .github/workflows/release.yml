@@ -16,8 +16,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-    outputs:
-      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -43,8 +41,8 @@ jobs:
       - run: lune run scripts/run.luau bench
       - run: lune run scripts/run.luau dist
 
-      # Both registries publish these exact bytes. Building again in each
-      # publish job would ship something no one verified.
+      # What was verified, kept so a published package can be held against it. Publishing
+      # happens from a machine somebody is signed in on rather than from here.
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: dist
@@ -62,18 +60,3 @@ jobs:
             build/default.rbxm
             build/test.rbxl
             build/bench.rbxl
-
-  wally:
-    needs: release
-    uses: ./.github/workflows/publish-wally.yml
-    secrets: inherit
-    permissions:
-      contents: read
-
-  npm:
-    needs: release
-    uses: ./.github/workflows/publish-npm.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write

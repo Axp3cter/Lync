@@ -70,6 +70,11 @@ function Tally.carried (of: Tally, name: string, bytes: number)
     line (of, name).sentBytes += bytes
 end
 
+-- More arrivals against a definition, without bytes to go with them: a run is one block of many.
+function Tally.arrived (of: Tally, name: string, times: number)
+    line (of, name).received += times
+end
+
 -- Counted off the frame, whatever became of what was inside it.
 function Tally.received (of: Tally, name: string, bytes: number)
     local held = line (of, name)

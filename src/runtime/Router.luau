@@ -163,7 +163,14 @@ local function packets (
     local pos = at + head.bytes
     local built = def.built
 
-    while true do
+    --[[
+        The payloads back to back, as many as the header said. A payload says where it ends by
+        being read, so a run needs nothing between two of them, and a definition carrying an
+        instant states no count at all because each of its fires had one of its own.
+    ]]
+    local held = if def.timestamped then 1 else of.head[SECOND] + 1
+
+    for _ = 1, held do
         local ends, value = Boundary.ran (of.boundary, def, built, built.read, b, pos)
         if ends == nil then return nil end
 
@@ -175,8 +182,12 @@ local function packets (
             end
         end
 
-        return ends
+        pos = ends
     end
+
+    -- The block itself is counted where the frame is walked, so what is owed here is the rest.
+    Tally.arrived (of.tally, def.name, held - 1)
+    return pos
 end
 
 -- A request block: one payload, and the answer it is owed put by for the next flush.

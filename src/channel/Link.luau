@@ -23,6 +23,19 @@ export type Link = {
     read transport: Transport.Transport,
     read tally: Tally.Tally,
     read scratch: buffer,
+
+    --[[
+        The run of fires still open, and the buffer it is being written into. Its own rather than
+        the scratch above, because a section written between two fires would land on top of it and
+        a run is only sealed when something else asks to be sent or the flush comes round.
+    ]]
+    read pending: buffer,
+    read room: number,
+    holds: number,
+    wrote: number,
+    over: any,
+    toward: Player?,
+    lossy: boolean,
     seq: number,
     epoch: number,
     sending: boolean,
@@ -61,6 +74,13 @@ function Link.new (
         transport = transport,
         tally = tally,
         scratch = buffer.create (room),
+        pending = buffer.create (room),
+        room = room,
+        holds = 0,
+        wrote = 0,
+        over = nil,
+        toward = nil,
+        lossy = false,
         seq = 0,
         epoch = 0,
         sending = side == "server",

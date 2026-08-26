@@ -191,7 +191,8 @@ local function made (name: string, id: number, over: number, of: Legality.Declar
         ]]
         local head = if lane == "newest"
             then Frames.newest (over, of.isTimestamped)
-            else Frames.packet (over, of.isTimestamped)
+            elseif of.isTimestamped then Frames.stamped (over)
+            else Frames.packet (over)
 
         local bytes = Frames.block (head, built.maxBytes)
         Legality.block (name, of, bytes)

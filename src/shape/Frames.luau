@@ -115,11 +115,21 @@ local function named (over: number): number return Bits.width (over - 1) end
 -- The defId on its own, which is the one field every form opens with.
 function Frames.naming (over: number): Head return headed ({ named (over) }) end
 
--- A packet block: `{ defId }`, or `{ defId, stamp }` where the definition declared one.
-function Frames.packet (over: number, stamped: boolean): Head
-    local id = named (over)
-    return headed (if stamped then { id, STAMP } else { id })
+--[[
+    A packet block: `{ defId, more }`, where `more` is how many payloads follow the first, back to
+    back. A payload says where it ends by being read, so a run needs nothing between two of them,
+    and a definition whose fires come in a burst pays one header for the burst. One short of the
+    count, so a block holding its cap still fits the width the cap asks for.
+]]
+function Frames.packet (over: number): Head
+    return headed ({ named (over), named (Protocol.RUN_CAP) })
 end
+
+--[[
+    The same block where the definition declared an instant. Each fire has one of its own, so a run
+    would have to carry as many as it has payloads, and one header a fire is what that comes to.
+]]
+function Frames.stamped (over: number): Head return headed ({ named (over), STAMP }) end
 
 -- A newest packet block: `{ defId, seq }`, or `{ defId, stamp, seq }`.
 function Frames.newest (over: number, stamped: boolean): Head

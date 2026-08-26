@@ -161,6 +161,9 @@ local function replying (
     ok: boolean,
     value: any
 )
+    -- An answer takes the lane, so a run of fires opened before it is sealed ahead of it.
+    Session.shipped (self)
+
     local link = self.link
     local scratch = link.scratch
     local head = def.answers
@@ -526,6 +529,9 @@ end
 
 -- Everything buffered since the last flush, out.
 function Session.flush (self: Self, budget: number?)
+    -- Whatever a caller fired and this flush is for, before anything is decided about the rest.
+    Session.shipped (self)
+
     local now = reading ()
     local target = budgeted (self, budget, now)
 
@@ -609,45 +615,19 @@ end
 -- One set, by the id the wire names it under, which is what a handle mutates through.
 function Session.set (self: Self, id: number): Sync.Sync return self.sets[id] end
 
--- One packet fired, as the block that carries it.
-function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, value: any)
-    -- A newest packet is held rather than written.
-    if def.delivery == LATEST then
-        local one = self.latest[def.id]
-        one.held, one.value, one.to = true, value, to
-
-        Session.queued (self, def.name)
-        Tally.sent (self.counts, def.name, 0)
-        return
-    end
-
+--[[
+    One block queued at whoever it was aimed at, and counted. A fire at nobody is counted as a fire
+    and not as bytes, since what a caller wants from the tally is whether their audience was empty
+    rather than whether the library did the writing.
+]]
+local function posted (
+    self: Self,
+    def: Compile.Packet,
+    to: Types.Recipient?,
+    loose: boolean,
+    block: Blocks.Block
+)
     local link = self.link
-    local scratch = link.scratch
-    local head = def.head
-
-    local fields = self.fields
-    fields[WHOSE] = def.id
-
-    local at = 1
-    if def.timestamped then
-        at += 1
-        fields[at] = Clock.stamp (Clock.elapsed (reading (), self.router.epoch))
-    end
-
-    head.write (scratch, 0, fields)
-
-    local ends = def.built.write (scratch, head.bytes, value)
-
-    local side = def.built.sidecar
-    local held = if side.bears then side.refs else nil
-    local loose = def.delivery ~= ORDERED
-    local class = if loose then Blocks.LOOSE else Blocks.PACKET
-    local block = Blocks.sealed (scratch, ends, class, Link.next (link), held)
-
-    table.clear (side.refs)
-    table.clear (side.slotOf)
-
-    Session.queued (self, def.name)
 
     if to == nil then
         if loose then
@@ -656,7 +636,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
             Outbox.shared (link, block)
         end
 
-        Tally.sent (self.counts, def.name, block.len)
+        Tally.carried (self.counts, def.name, block.len)
         return
     end
 
@@ -670,8 +650,132 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         Outbox.targeted (link, audience, reach, block)
     end
 
-    -- A fire at nobody counted, and its bytes not.
-    Tally.sent (self.counts, def.name, if reach > 0 then block.len else 0)
+    if reach > 0 then Tally.carried (self.counts, def.name, block.len) end
+end
+
+-- Whether a fire belongs to the run already open, which is one definition aimed at one audience.
+local function joins (
+    link: Link.Link,
+    def: Compile.Packet,
+    to: Types.Recipient?,
+    loose: boolean
+): boolean
+    if link.holds == 0 then return true end
+
+    return link.over == def and link.toward == to and link.lossy == loose
+end
+
+-- One block written on its own, which is every fire a run cannot take.
+local function alone (
+    self: Self,
+    def: Compile.Packet,
+    to: Types.Recipient?,
+    loose: boolean,
+    ends: number
+)
+    local link = self.link
+    local side = def.built.sidecar
+    local held = if side.bears then side.refs else nil
+    local class = if loose then Blocks.LOOSE else Blocks.PACKET
+    local block = Blocks.sealed (link.scratch, ends, class, Link.next (link), held)
+
+    table.clear (side.refs)
+    table.clear (side.slotOf)
+
+    Session.queued (self, def.name)
+    posted (self, def, to, loose, block)
+end
+
+--[[
+    Whatever run is still open, sealed and queued. Its header is written last, since what it states
+    is how many payloads came after it and that is not known until no more are coming. Anything
+    else wanting the lane calls this first, so a block never overtakes the fires that opened it.
+]]
+function Session.shipped (self: Self)
+    local link = self.link
+    if link.holds == 0 then return end
+
+    local def = link.over :: Compile.Packet
+    local fields = self.fields
+    fields[WHOSE] = def.id
+    fields[WHOSE + 1] = link.holds - 1
+
+    def.head.write (link.pending, 0, fields)
+
+    local side = def.built.sidecar
+    local held = if side.bears then side.refs else nil
+    local class = if link.lossy then Blocks.LOOSE else Blocks.PACKET
+    local block = Blocks.sealed (link.pending, link.wrote, class, Link.next (link), held)
+
+    table.clear (side.refs)
+    table.clear (side.slotOf)
+
+    local to = link.toward
+    local loose = link.lossy
+
+    link.holds = 0
+    link.over = nil
+    link.toward = nil
+
+    posted (self, def, to, loose, block)
+end
+
+-- One packet fired, as the block that carries it.
+function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, value: any)
+    -- A newest packet is held rather than written.
+    if def.delivery == LATEST then
+        local one = self.latest[def.id]
+        one.held, one.value, one.to = true, value, to
+
+        Session.queued (self, def.name)
+        Tally.sent (self.counts, def.name, 0)
+        return
+    end
+
+    --[[
+        The fire counted here and its bytes where the block is sealed, because a run is many fires
+        and one block. A caller reading the tally is asking how often they fired, which the sealing
+        cannot answer and the firing cannot price.
+    ]]
+    Tally.sent (self.counts, def.name, 0)
+
+    local link = self.link
+    local loose = def.delivery ~= ORDERED
+
+    --[[
+        A definition that declared an instant is written one block a fire, because the instant is a
+        field of the header and a run carries one header. Everything else opens a run, or joins the
+        one already open where it is for the same definition and the same audience.
+    ]]
+    if def.timestamped then
+        Session.shipped (self)
+
+        local scratch = link.scratch
+        local fields = self.fields
+        fields[WHOSE] = def.id
+        fields[WHOSE + 1] = Clock.stamp (Clock.elapsed (reading (), self.router.epoch))
+
+        def.head.write (scratch, 0, fields)
+        alone (self, def, to, loose, def.built.write (scratch, def.head.bytes, value))
+        return
+    end
+
+    if not joins (link, def, to, loose) then Session.shipped (self) end
+
+    if link.holds == 0 then
+        link.over = def
+        link.toward = to :: Player?
+        link.lossy = loose
+        link.wrote = def.head.bytes
+    end
+
+    link.wrote = def.built.write (link.pending, link.wrote, value)
+    link.holds += 1
+
+    Session.queued (self, def.name)
+    if link.holds == Protocol.RUN_CAP or link.wrote + def.built.maxBytes > link.room then
+        Session.shipped (self)
+    end
 end
 
 -- One question asked, and the answer put where whoever asked it will be told.
@@ -683,6 +787,8 @@ function Session.ask (
     timeout: number?,
     complete: Types.Outcome<any>
 )
+    Session.shipped (self)
+
     local id = self.pending:open (reading (), def.name, to, timeout, complete)
 
     local link = self.link

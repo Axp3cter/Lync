@@ -6,6 +6,7 @@ local Lync = require ("@src")
 local Session = require ("@src/runtime/Session")
 
 local Doubles = require ("@fixtures/Doubles")
+local Protocol = require ("@src/wire/Protocol")
 
 local Expect = require ("@test/harness/Expect")
 local Harness = require ("@test/harness")
@@ -347,5 +348,54 @@ return {
             function () of.server.defs[SURE]:fireServer (CARRIED) end,
             "is a client's call, and this is the server"
         )
+    end),
+    --[[
+        More fires of one definition in one flush than a block may hold. A run states its count in
+        a field of fixed width, so what happens past that width is the whole question: the next
+        block opens, and a caller who fired thirty-five times is a listener told thirty-five.
+    ]]
+    Harness.case ("packet.run-past-its-cap", function ()
+        const OVER = 3
+
+        local of = opened ()
+        local many = Protocol.RUN_CAP + OVER
+
+        for index = 1, many do
+            of.defs[SURE]:fireClient (of.player, index % 101)
+        end
+        of.server:flush ()
+        of.wire:settle ()
+
+        local held = of.heard[SURE]
+        Expect.equal (#held, many)
+
+        for index = 1, many do
+            Expect.equal (held[index].value, index % 101)
+        end
+    end),
+
+    --[[
+        A burst of fires from a definition that declared an instant. The instant is a field of the
+        header and a run carries one header between them, so these cannot share: each fire owes a
+        listener the moment it was sent, and a run of them would hand every one the first.
+    ]]
+    Harness.case ("packet.stamped-burst-keeps-each", function ()
+        const BURST = 4
+
+        local of = opened ()
+
+        for index = 1, BURST do
+            of.defs[STAMPED]:fireClient (of.player, index)
+        end
+        of.server:flush ()
+        of.wire:settle ()
+
+        local held = of.heard[STAMPED]
+        Expect.equal (#held, BURST)
+
+        for index = 1, BURST do
+            Expect.equal (held[index].value, index)
+            Expect.holds (held[index].sent ~= nil, `the {index} of {BURST} carried no instant`)
+        end
     end),
 }

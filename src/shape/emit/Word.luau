@@ -335,6 +335,30 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         --[[
+            What each piece needs, by the piece. A window walks pieces and every one of these is
+            held by the leaf its field starts at, so a walk that does not gather them first steps
+            through that number for each, where the number is settled once the word is built.
+        ]]
+        local owner = table.create (#slot, 0)
+        local puts = table.create (#slot) :: { string }
+        local makes = table.create (#slot) :: { (number) -> number? }
+        local takes = table.create (#slot) :: { ((number) -> any)? }
+        local tops = table.create (#slot, 0)
+        local fills = table.create (#slot, false)
+
+        for part = 1, #slot do
+            local cell = slot[part]
+            local index = whose[cell]
+
+            owner[part] = index
+            puts[part] = keys[index] :: string
+            makes[part] = toIndex[cell]
+            takes[part] = fromIndex[cell]
+            tops[part] = spans[cell]
+            fills[part] = whole[cell]
+        end
+
+        --[[
             Whether every field starts on a byte and is as wide as one call the engine has. A
             window gathers the fields that share a byte, and fields that share none have nothing
             to gather: a field on a boundary is already one of the bytes a window would write.
@@ -370,13 +394,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 local acc = 0
 
                 for part = first[window], last[window] do
-                    local cell = slot[part]
-                    local index = whose[cell]
-
-                    local key = keys[index]
-                    local one = if key == nil then value else value[key]
-                    local made = toIndex[cell] (one)
-                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+                    local one = value[puts[part]]
+                    local made = makes[part] (one)
+                    if made == nil then
+                        local index = owner[part]
+                        Word.refused (wheres[index], wanted[index], one)
+                    end
 
                     acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
                 end
@@ -393,9 +416,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
         end
 
+        --[[
+            The same, taken back up. A field with no key is an optional standing on its own, which
+            is a single field reached through a pull, and both of those are settled above, so every
+            piece here has a key to be put under and neither half asks whether it does.
+        ]]
         local function level (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
-            local bare: any = nil
-
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]
@@ -405,11 +431,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     else buffer.readu32 (b, at)
 
                 for part = first[window], last[window] do
-                    local cell = slot[part]
                     local raw = bit32.extract (acc, offset[part], span[part])
 
-                    if not whole[cell] and raw > spans[cell] then
-                        local tag = joins[whose[cell]].tag
+                    if not fills[part] and raw > tops[part] then
+                        local tag = joins[owner[part]].tag
                         Log.reject (Catalog.TAG, {
                             pathId = tag.pathId,
                             expectId = tag.expectId,
@@ -417,19 +442,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                         })
                     end
 
-                    local reading = fromIndex[cell]
-                    local one = if reading == nil then raw else reading (raw)
-
-                    local key = keys[whose[cell]]
-                    if key == nil then
-                        bare = one
-                    else
-                        into[key] = one
-                    end
+                    local reading = takes[part]
+                    into[puts[part]] = if reading == nil then raw else reading (raw)
                 end
             end
 
-            return bare
+            return nil
         end
 
         --[[

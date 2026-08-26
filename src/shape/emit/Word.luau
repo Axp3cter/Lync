@@ -267,7 +267,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         local bare: any = nil
 
         for index = 1, reach do
-            for leaf = starts[index], ends[index] do
+            local at = starts[index]
+
+            for leaf = at, ends[index] do
                 if slots[leaf] <= spans[leaf] then continue end
 
                 -- Held back to here, since a decode that holds never has a tag to report.
@@ -279,7 +281,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 })
             end
 
-            local at = starts[index]
             local key = keys[index]
 
             local one: any

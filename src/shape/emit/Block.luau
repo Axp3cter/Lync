@@ -102,6 +102,45 @@ function Block.group (
         end
     end
 
+    --[[
+        The record's own names, as a table to copy rather than one to grow, since a record started
+        empty rehashes as each name lands on it. Only where every name is written on every read: a
+        field behind a presence bit is not, and a copy would leave it seeded.
+    ]]
+    local blank: any = nil
+
+    if keyed then
+        local skipped = false
+        for index = 1, reach do
+            if keys[index] ~= nil and inside[index] == 0 and bits[index] ~= 0 then
+                skipped = true
+                break
+            end
+        end
+
+        if not skipped then
+            local shape: { [string]: boolean } = {}
+
+            for index = 1, deep do
+                if unders[index] == 0 then shape[names[index]] = false end
+            end
+
+            if of.word ~= nil then
+                for _, join in of.word.joins do
+                    local key = join.key
+                    if key ~= nil and (join.nest or 0) == 0 then shape[key] = false end
+                end
+            end
+
+            for index = 1, reach do
+                local key = keys[index]
+                if key ~= nil and inside[index] == 0 then shape[key] = false end
+            end
+
+            blank = shape
+        end
+    end
+
     -- A record carries the names it declares and no others, at every depth it dissolved through.
     local function only (of: { [string]: boolean }, tag: Ir.Tag, record: any)
         if type (record) ~= "table" then Word.refusedAt (tag, paths, said, record) end
@@ -143,7 +182,7 @@ function Block.group (
     end
 
     local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local into: any = if keyed then {} else nil
+        local into: any = if blank ~= nil then table.clone (blank) elseif keyed then {} else nil
         local bare: any = nil
 
         for index = 1, deep do

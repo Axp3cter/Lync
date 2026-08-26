@@ -66,6 +66,9 @@ export type Sync = {
     read parts: { [any]: Partition },
     read order: { any },
     read partOf: { [number]: any },
+    read place: { [string]: number },
+    read climbs: boolean,
+    read streams: boolean,
     read row: { any },
     read one: { Player },
     at: number,
@@ -406,12 +409,21 @@ Sync.NONE = table.freeze (CLEARED)
 -- One set, holding nothing.
 function Sync.new (def: Compile.Set): Sync
     local layout = Sections.of (def)
+    local lane = Newest.of (layout)
 
     return {
         def = def,
         layout = layout,
         plan = Plan.of (layout),
-        lane = Newest.of (layout),
+        lane = lane,
+
+        --[[
+            Three answers that hold for the life of a set, kept where a write reads them rather
+            than reached for through the definition every time one lands.
+        ]]
+        place = def.fieldIndex,
+        climbs = def.climbs,
+        streams = lane.streams,
         seen = Audience.new (),
         owed = Catchup.new (),
         heard = Apply.heard (),
@@ -465,16 +477,15 @@ function Sync.update (of: Sync, id: number, fields: any)
 
     local part = of.parts[at]
     local def = of.def
-    local place = def.fieldIndex
+    local place = of.place
     local store = part.store
     local slot = store.slotOf[id]
 
     local dirt = part.dirt
     local mask = dirt.masks[id] or NOTHING
 
-    -- Both are the definition's own answer, so a field of it is the wrong thing to ask.
-    local climbs = def.climbs
-    local streams = of.lane.streams
+    local climbs = of.climbs
+    local streams = of.streams
 
     local moved = false
     for name, value in fields do

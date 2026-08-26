@@ -30,6 +30,13 @@ const NARROW_TOP = 7
 -- How far either side of nothing a grid reaches when its bottom is not nothing, at one byte wide.
 const EITHER_SIDE = 100
 
+--[[
+    A reading between two points of a whole-step grid, and the point it rounds onto. Nearer the
+    upper point, so a reading taken as it stands rather than rounded lands on the lower one.
+]]
+const BETWEEN = 20.8
+const ONTO = 21
+
 -- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
@@ -417,6 +424,21 @@ return {
 
             Expect.equal (Turns.read (of, bytes, size), value)
         end
+    end),
+
+    --[[
+        A record on byte boundaries handed a value between two of its points. Where a field is put
+        down as it stands rather than computed, a value that is already a whole number on the grid
+        is the one this can be done for, and one that is not still has to be rounded onto it.
+    ]]
+    Harness.case ("wire.a-record-on-boundaries-rounds-onto-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            near = Lync.int (0, BYTE_TOP),
+            after = Lync.int (0, BYTE_TOP),
+        }))
+
+        local bytes, size = Turns.wrote (of, { near = BETWEEN, after = 0 })
+        Expect.equal (Turns.read (of, bytes, size), { near = ONTO, after = 0 })
     end),
 
     --[[

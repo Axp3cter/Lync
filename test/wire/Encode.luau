@@ -191,6 +191,15 @@ return {
         Expect.equal (select (2, pcall (of.write, SLAB, 0, { near = 0, after = 0 })), 2)
         refused (of, { near = SHORT + 1, after = 0 }, "int")
         refused (of, { near = 0, after = SHORT + 1 }, "int")
+        refused (of, { near = -1, after = 0 }, "int")
+
+        --[[
+            A value that is no number at all. Where a field is put down as it stands the arithmetic
+            deciding whether it can be is arithmetic on whatever arrived, so what has to come back
+            is the codec's refusal rather than whatever the arithmetic itself would have said.
+        ]]
+        local line = refused (of, { near = "no", after = 0 }, "int")
+        Expect.holds (string.find (line, "expected", 1, true) ~= nil, `it said {line}`)
     end),
 
     --[[

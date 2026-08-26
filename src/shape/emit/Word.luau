@@ -450,6 +450,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             checks[index] = not whole[cell]
         end
 
+        --[[
+            Whether every field's grid runs from nothing in whole steps, where a whole number
+            already inside it is its own index. Recognising that is not a second copy of the
+            rounding: anything the test below does not settle is still handed to the one grid.
+        ]]
+        local plainly = upright
+        for index = 1, reach do
+            if leaves[starts[index]].plain == true then continue end
+
+            plainly = false
+            break
+        end
+
         -- Whether the wider of the two widths comes up at all, which in most records it does not.
         local singly = upright
         for index = 1, reach do
@@ -466,6 +479,21 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     local one = value[keys[index]]
                     local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
+
+                    buffer.writeu8 (b, pos + seats[index], made :: number)
+                end
+            end
+
+            -- The same, where a whole number already on the grid is the index and asks nothing.
+            local function ready (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                for index = 1, reach do
+                    local one = value[keys[index]]
+                    local made = one
+
+                    if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > bounds[index] then
+                        made = writes[index] (one)
+                        if made == nil then Word.refused (wheres[index], wanted[index], one) end
+                    end
 
                     buffer.writeu8 (b, pos + seats[index], made :: number)
                 end
@@ -496,6 +524,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
                 return nil
             end
+
+            if plainly then return ready, settled end
 
             return steady, settled
         end

@@ -58,11 +58,22 @@ function Tally.new (names: { string }): Tally
     }
 end
 
+--[[
+    The row a definition's numbers are kept in. Handed out so a caller sending the same definition
+    many times over can hold it rather than name it again, which is the only reason it is public.
+]]
+function Tally.row (of: Tally, name: string): Row return line (of, name) end
+
+-- One send against a row already in hand, which is where the counting itself is done.
+function Tally.counted (held: Row, bytes: number)
+    held.sent += 1
+    held.sentBytes += bytes
+end
+
 -- Counted where a block is composed, so one bound for two clients still counts once.
 function Tally.sent (of: Tally, name: string, bytes: number)
     local held = line (of, name)
-    held.sent += 1
-    held.sentBytes += bytes
+    Tally.counted (held, bytes)
 end
 
 -- More bytes against a definition, without a call to go with them.

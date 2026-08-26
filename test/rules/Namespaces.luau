@@ -35,6 +35,8 @@ const BEFORE = 3
 ]]
 const DEFINITIONS = {
     beat = Lync.packet (Lync.bool ()),
+    thud = Lync.packet (Lync.bool ()),
+    stamp = Lync.packet (Lync.bool ()):timestamped (),
     ask = Lync.query (Lync.bool (), Lync.bool ()),
     board = Lync.replicate (Lync.struct ({ alive = Lync.bool () })),
 }
@@ -197,6 +199,40 @@ return {
         for name in DEFINITIONS do
             Expect.holds (snap.definitions[name] ~= nil, `{name} has no row`)
         end
+    end),
+
+    --[[
+        Two definitions fired into one flush, counted apart. A run carries one definition and the
+        row it counts into belongs to the run, so a second run that kept the first one's row would
+        put every later fire under a name its caller never fired.
+    ]]
+    Harness.case ("stats.two-definitions-counted-apart", function ()
+        local before = Lync.stats (NAMESPACE).definitions
+
+        DEFINITIONS.beat:fireClient (Lync.all, true)
+        DEFINITIONS.thud:fireClient (Lync.all, true)
+        DEFINITIONS.thud:fireClient (Lync.all, true)
+        Lync.flush (NAMESPACE)
+
+        local after = Lync.stats (NAMESPACE).definitions
+        Expect.equal (after.beat.sent - before.beat.sent, 1)
+        Expect.equal (after.thud.sent - before.thud.sent, 2)
+    end),
+
+    --[[
+        A definition carrying an instant, counted the same. It is written one block a fire because
+        the instant is a field of its header, so it never opens a run and is counted where it is
+        written instead of where a run would have counted it.
+    ]]
+    Harness.case ("stats.an-instant-is-counted-per-fire", function ()
+        local before = Lync.stats (NAMESPACE).definitions
+
+        DEFINITIONS.stamp:fireClient (Lync.all, true)
+        DEFINITIONS.stamp:fireClient (Lync.all, true)
+        Lync.flush (NAMESPACE)
+
+        local after = Lync.stats (NAMESPACE).definitions
+        Expect.equal (after.stamp.sent - before.stamp.sent, 2)
     end),
 
     --[[

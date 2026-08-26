@@ -798,13 +798,6 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         return
     end
 
-    --[[
-        The fire counted here and its bytes where the block is sealed, because a run is many fires
-        and one block. A caller reading the tally is asking how often they fired, which the sealing
-        cannot answer and the firing cannot price.
-    ]]
-    Tally.sent (self.counts, def.name, 0)
-
     local link = self.link
     local loose = def.delivery ~= ORDERED
 
@@ -814,6 +807,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         one already open where it is for the same definition and the same audience.
     ]]
     if def.timestamped then
+        Tally.sent (self.counts, def.name, 0)
         Session.shipped (self)
 
         local scratch = link.scratch
@@ -836,7 +830,16 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         link.wrote = def.head.bytes
         link.runs = def.head.runs :: number
         link.widest = def.built.maxBytes
+        link.tallied = Tally.row (self.counts, def.name)
     end
+
+    --[[
+        The fire counted here and its bytes where the block is sealed, because a run is many fires
+        and one block. A caller reading the tally is asking how often they fired, which the sealing
+        cannot answer and the firing cannot price. The row is the run's, since a run is one
+        definition and naming it again once a fire asks the same question over and over.
+    ]]
+    Tally.counted (link.tallied :: Tally.Row, 0)
 
     link.wrote = def.built.write (link.pending, link.wrote, value)
     link.holds += 1

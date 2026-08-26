@@ -36,6 +36,9 @@ export type Link = {
     runs: number,
     widest: number,
     holds: number,
+
+    -- The tally row of the definition the open run carries, so a fire does not name it again.
+    tallied: Tally.Row?,
     wrote: number,
     over: any,
     kind: number,
@@ -87,6 +90,7 @@ function Link.new (
         runs = 0,
         widest = 0,
         holds = 0,
+        tallied = nil,
         wrote = 0,
         over = nil,
         kind = 0,

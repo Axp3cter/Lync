@@ -202,4 +202,71 @@ return {
         Expect.equal (Turns.read (before, bytes, size), wrap (CARRIED))
         Expect.equal (seen, CARRIED)
     end),
+
+    --[[
+        A check on a field of a record inside a record. A word dissolves the records it holds into
+        one flat run of leaves, so reaching the value a check is about means walking back out
+        through every key it was nested under, innermost last. A walk that stops one short, or runs
+        the other way round, hands the check some other field's value and turns the frame away.
+    ]]
+    Harness.case ("codec.validate-nested", function ()
+        local seen: { number } = {}
+        local given: { Types.ValidateContext } = {}
+
+        local watching = function (value: number, ctx: Types.ValidateContext): string?
+            table.insert (seen, value)
+            table.insert (given, ctx)
+            return nil
+        end
+
+        local of = Turns.built (Lync.struct ({
+            top = Lync.int (0, 100),
+            inner = Lync.struct ({
+                mid = Lync.int (0, 100),
+                deep = Lync.struct ({ leaf = Lync.int (0, 100):validate (watching) }),
+            }),
+        }))
+
+        local value = { top = 1, inner = { mid = 2, deep = { leaf = 3 } } }
+        local bytes, size = Turns.wrote (of, value)
+
+        Expect.equal (Turns.read (of, bytes, size), value)
+        Expect.equal (seen, { 3 })
+        Expect.holds (given[1] ~= nil, "a check two records deep was handed no context")
+    end),
+
+    --[[
+        Two checks at two depths, each turning its own value away, and what each refusal says it
+        was about. A refusal carries the path it happened at so a caller is sent to the line they
+        wrote, and one carrying nothing, or carrying the same nothing as the other, leaves them
+        with a turned-away frame and no field to look at.
+    ]]
+    Harness.case ("codec.validate-nested-names-where", function ()
+        local function refusing (): (any, Types.ValidateContext) -> string?
+            return function (): string? return "turned away" end
+        end
+
+        local function pathOf (codec: any, value: any): number
+            local of = Turns.built (codec)
+            local bytes, size = Turns.wrote (of, value)
+
+            local ok, caught = pcall (Turns.read, of, bytes, size)
+            Expect.holds (not ok, "a checked field was taken rather than turned away")
+            Expect.holds (type (caught) == "table", `it threw {tostring (caught)}`)
+
+            return ((caught :: any).facts :: any).pathId
+        end
+
+        local shallow =
+            pathOf (Lync.struct ({ near = Lync.int (0, 100):validate (refusing ()) }), { near = 1 })
+        local deep = pathOf (
+            Lync.struct ({
+                inner = Lync.struct ({ far = Lync.int (0, 100):validate (refusing ()) }),
+            }),
+            { inner = { far = 1 } }
+        )
+
+        Expect.holds (shallow ~= 0 and deep ~= 0, "a turned value said it was nowhere")
+        Expect.holds (shallow ~= deep, `two fields were turned away under one path {shallow}`)
+    end),
 }

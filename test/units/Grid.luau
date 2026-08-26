@@ -341,6 +341,28 @@ return {
         Expect.equal (of.toIndex (-1), nil)
     end),
 
+    --[[
+        The slack a reading is allowed is the range against a hair, or half a step, whichever is
+        less. A range wide enough to make it the whole half lets a value reach a half past either
+        end, which rounds off the grid and has to be held back onto it.
+    ]]
+    Harness.case ("grid.holds-a-wide-range-onto-its-ends", function ()
+        local of = Grid.of (0, 1048576, 1)
+
+        Expect.equal (of.toIndex (-0.5), 0)
+        Expect.equal (of.toIndex (1048576.5), 1048576)
+        Expect.equal (of.toIndex (-0.5 - 1e-9), nil)
+        Expect.equal (of.toIndex (1048576.5 + 1e-9), nil)
+    end),
+
+    -- A range too narrow for that keeps the slack well under a half, so nothing reaches an end.
+    Harness.case ("grid.a-narrow-range-never-reaches-its-ends", function ()
+        local of = Grid.of (0, 4, 1)
+
+        Expect.equal (of.toIndex (-0.5), nil)
+        Expect.equal (of.toIndex (4.5), nil)
+    end),
+
     -- A flag, which is two points and so one step between them.
     Harness.case ("grid.a-flag-spans-one", function ()
         local of = Grid.flag ()

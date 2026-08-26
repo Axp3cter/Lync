@@ -108,10 +108,25 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         since the branch would then be taken once a field on every frame.
     ]]
     if min == 0 and step == 1 then
-        local function toIndex (value: any): number?
-            if type (value) ~= "number" then return nil end
-            if not (value >= under and value <= over) then return nil end
-            return math.clamp (math.round (value), 0, span)
+        local toIndex: (value: any) -> number?
+
+        --[[
+            A value the test let through is at most the slack out of place, so where the slack is
+            under half a step it rounds back onto the grid by itself and holding it there is work
+            no reading can reach. Only a range wide enough to make the slack a whole half needs it.
+        ]]
+        if room < step / 2 then
+            toIndex = function (value: any): number?
+                if type (value) ~= "number" then return nil end
+                if not (value >= under and value <= over) then return nil end
+                return math.round (value)
+            end
+        else
+            toIndex = function (value: any): number?
+                if type (value) ~= "number" then return nil end
+                if not (value >= under and value <= over) then return nil end
+                return math.clamp (math.round (value), 0, span)
+            end
         end
 
         return {

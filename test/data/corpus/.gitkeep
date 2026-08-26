@@ -1,0 +1,2 @@
+Shrunk failing cases, one file a declaration, written by a run that found one.
+Rojo maps each into a StringValue the runner reads back and replays first.

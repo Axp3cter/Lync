@@ -1,317 +1,108 @@
 --!strict
 --!optimize 2
--- Packet definition: send, on, once, wait, stats.
+-- The packet handle: what a caller declares before start, and what they fire and hear after it.
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local Baseline = require(script.Parent.Parent.internal.Baseline)
-local Channel = require(script.Parent.Parent.internal.Channel)
-local Log = require(script.Parent.Parent.util.Log)
-local Middleware = require(script.Parent.Parent.internal.Middleware)
-local Player = require(script.Parent.Parent.util.Player)
-local Registry = require(script.Parent.Parent.internal.Registry)
-local Shared = require(script.Parent.Parent.codec.composite.Shared)
-local Transport = require(script.Parent.Parent.internal.Transport)
-local Types = require(script.Parent.Parent.Types)
-
--- Constants --------------------------------------------------------------
-
-local IS_SERVER = RunService:IsServer()
-
--- mode: TS_* tag; headerSize: 1 (frame byte) + timestamp bytes (1, 2, or 8).
-local TS_MODES: { [string]: { mode: number, headerSize: number } } = table.freeze({
-    frame = table.freeze({ mode = Channel.TS_FRAME, headerSize = 2 }),
-    offset = table.freeze({ mode = Channel.TS_OFFSET, headerSize = 3 }),
-    full = table.freeze({ mode = Channel.TS_FULL, headerSize = 9 }),
-})
-
-local EMPTY_OPTIONS: Types.PacketOptions = table.freeze({})
-
--- Private ----------------------------------------------------------------
-
-local isPlayer = Player.is
-
-local function resolveTimestampMode(ts: ("frame" | "offset" | "full")?): (number, number)
-    if ts == nil then
-        return Channel.TS_NONE, 1
-    end
-    local entry = TS_MODES[ts]
-    Channel.enableTimestamps()
-    return entry.mode, entry.headerSize
-end
-
--- Public types -----------------------------------------------------------
-
-export type PacketHandle<T> = {
-    send: (self: PacketHandle<T>, data: T, target: any?) -> (),
-    on: (
-        self: PacketHandle<T>,
-        fn: (data: T, sender: Player?, timestamp: number?) -> ()
-    ) -> Types.Connection,
-    once: (
-        self: PacketHandle<T>,
-        fn: (data: T, sender: Player?, timestamp: number?) -> ()
-    ) -> Types.Connection,
-    wait: (self: PacketHandle<T>) -> (T, Player?, number?),
-    name: (self: PacketHandle<T>) -> string,
-    stats: (self: PacketHandle<T>) -> Types.PacketStats,
-}
-
--- Public -----------------------------------------------------------------
+local Base = require ("@src/codec/Base")
+local Define = require ("@src/api/Define")
+local Handles = require ("@src/runtime/Handles")
+local Legality = require ("@src/shape/Legality")
+local Serial = require ("@src/shape/Serial")
+local Types = require ("@src/Types")
 
 local Packet = {}
+Packet.__index = Packet
 
-function Packet.define<T>(
-    name: string,
-    codec: Types.InternalCodec<T>,
-    options: Types.PacketOptions?
-): PacketHandle<T>
-    local opts = options or EMPTY_OPTIONS
-    local isUnreliable = opts.unreliable or false
+-- Private -------------------------------------------------------------
 
-    -- Delta + unreliable is unsafe: a dropped frame permanently desyncs the receiver baseline.
-    if isUnreliable and codec._isDelta then
-        Log.error(
-            `"{name}" delta codecs need reliable transport (lost packets desync the baseline)`
-        )
-    end
+local function hears (self: any, fn: (...any) -> ()): Types.Connection
+    local live = self.live
 
-    if codec._hasUnknown and not opts.validate then
-        Log.warn(`"{name}" uses unknown codec without validate; data bypasses schema validation`)
-    end
-
-    if codec._isDelta then
-        Baseline.markHasDelta()
-    end
-
-    local tsMode, headerSize = resolveTimestampMode(opts.timestamp)
-    local openFn = Channel.resolveOpenFn(tsMode, name)
-
-    local reg = Registry.register({
-        name = name,
-        kind = Registry.KIND_PACKET,
-        codec = codec,
-        isUnreliable = isUnreliable,
-        partner = nil,
-        needsGate = IS_SERVER,
-        headerSize = headerSize,
-        timestampMode = tsMode,
-        openFn = openFn,
-        rateLimit = opts.rateLimit,
-        validate = opts.validate,
-        maxPayloadBytes = opts.maxPayloadBytes,
-    })
-
-    local function sendToPlayer(player: Player, data: any): ()
-        local ch = Transport.server().getChannel(player, isUnreliable)
-        Channel.writeBatch(ch, reg, data)
-    end
-
-    local function bumpFires(): ()
-        if Channel.statsEnabled() then
-            reg.fires += 1
-        end
-    end
-
-    --[[
-        Run the send middleware chain. Returns (dropped, value). A nil value
-        is a legitimate payload (Lync.nothing); only the explicit Lync.DROP
-        sentinel or a hook returning DROP triggers the drop branch.
-    ]]
-    local function applySend(data: any, player: Player?): (boolean, any)
-        if not Middleware.hasSendHooks() then
-            return false, data
-        end
-        local sendData = Middleware.runSend(data, name, player)
-        if typeof(sendData) == "table" and sendData._lyncKind == "drop" then
-            return true, nil
-        end
-        return false, sendData
-    end
-
-    -- Non-delta codecs are stateless wire-encoders, so broadcast can encode
-    -- once and bufCopy the payload to every player. Falls through if the
-    -- encoded payload includes ref indices (the indices would need rewriting
-    -- per channel, which no codec exposes).
-    local canEncodeOnce = not codec._isDelta and not codec._hasDelta
-
-    local function broadcast(players: { Player }, data: any): ()
-        local count = #players
-        if count == 0 then
-            bumpFires()
-            return
-        end
-
-        if canEncodeOnce then
-            local scratch = Shared.acquireScratch()
-            scratch.currentPacket = name
-            codec.write(scratch, data)
-            scratch.currentPacket = nil
-            if scratch.refCount == 0 then
-                local payload = scratch.buff
-                local payloadLen = scratch.cursor
-                local server = Transport.server()
-                local getChannel = if isUnreliable
-                    then server.getUnreliableChannel
-                    else server.getReliableChannel
-                -- Channel.writeBatchEncoded is hot-swapped by enableStats; re-read per call.
-                local writeBatchEncoded = Channel.writeBatchEncoded
-                for i = 1, count do
-                    writeBatchEncoded(getChannel(players[i]), reg, payload, payloadLen)
-                end
-                Shared.releaseScratch()
-                bumpFires()
-                return
-            end
-            Shared.releaseScratch()
-        end
-
-        for i = 1, count do
-            sendToPlayer(players[i], data)
-        end
-        bumpFires()
-    end
-
-    --[[
-        Resolve a target table into a { Player } list. Returns nil for unknown
-        sentinel kinds; the caller errors with the original target type.
-    ]]
-    local function resolveAudience(target: any): { Player }?
-        local kind = target._lyncKind
-        if kind == "all" then
-            return Players:GetPlayers()
-        end
-
-        if kind == "except" then
-            local excluded = target._excluded :: { [Player]: boolean }
-            local all = Players:GetPlayers()
-            local list = table.create(#all)
-            local n = 0
-            for _, player in all do
-                if not excluded[player] then
-                    n += 1
-                    list[n] = player
-                end
-            end
-            return list
-        end
-
-        if kind == "group" then
-            local members = target._members :: { [Player]: boolean }
-            local list: { Player } = {}
-            local n = 0
-            for player in members do
-                n += 1
-                list[n] = player
-            end
-            return list
-        end
-
-        if kind == nil then
-            -- Plain { Player } array. Validate entries on the way to a clean list.
-            local list: { Player } = {}
-            local n = 0
-            for _, player in target do
-                if isPlayer(player) then
-                    n += 1
-                    list[n] = player :: Player
-                end
-            end
-            return list
-        end
-
-        return nil
-    end
-
-    local function sendToTarget(data: any, target: any): ()
-        if isPlayer(target) then
-            local dropped, sendData = applySend(data, target :: Player)
-            if dropped then
-                return
-            end
-            sendToPlayer(target :: Player, sendData)
-            bumpFires()
-            return
-        end
-
-        if typeof(target) == "table" then
-            local dropped, sendData = applySend(data, nil)
-            if dropped then
-                return
-            end
-            local audience = resolveAudience(target)
-            if audience then
-                broadcast(audience, sendData)
-                return
-            end
-        end
-
-        Log.error(`"{name}" expected Player, table, Group, or Lync.all, got {typeof(target)}`)
-    end
-
-    local function sendFromServer(data: any, target: any): ()
-        if target == nil then
-            Log.error(`"{name}" server send requires a target`)
-        end
-        sendToTarget(data, target)
-    end
-
-    local function sendFromClient(data: any): ()
-        local dropped, sendData = applySend(data, nil)
-        if dropped then
-            return
-        end
-        local ch = Transport.client().getChannel(isUnreliable)
-        Channel.writeBatch(ch, reg, sendData)
-        bumpFires()
-    end
-
-    type Self = PacketHandle<T>
-    type Listener = (data: T, sender: Player?, timestamp: number?) -> ()
-
-    local handle = {
-        send = function(_self: Self, data: T, target: any?): ()
-            if IS_SERVER then
-                sendFromServer(data, target)
-            else
-                sendFromClient(data)
-            end
-        end,
-
-        on = function(_self: Self, fn: Listener): Types.Connection
-            return reg.signal:connect(fn :: any)
-        end,
-
-        once = function(_self: Self, fn: Listener): Types.Connection
-            local conn: Types.Connection
-            conn = reg.signal:connect(function(...: any)
-                conn:disconnect()
-                fn(...)
-            end)
-            return conn
-        end,
-
-        wait = function(_self: Self): (T, Player?, number?)
-            return reg.signal:wait()
-        end,
-
-        name = function(_self: Self): string
-            return reg.name
-        end,
-
-        stats = function(_self: Self): Types.PacketStats
-            return {
-                bytesSent = reg.bytesSent,
-                bytesReceived = reg.bytesReceived,
-                fires = reg.fires,
-                recvFires = reg.recvFires,
-                drops = reg.drops,
-            }
-        end,
-    }
-
-    return table.freeze(handle) :: PacketHandle<T>
+    -- The id is read inside, because a handle attached before it was bound has none yet.
+    return Handles.later (live, function (of) return of:listen (live.id :: number, fn) end)
 end
 
-return table.freeze(Packet)
+-- Public --------------------------------------------------------------
+
+function Packet.new <T>(of: Types.Codec<T>): Types.Packet<T>
+    --[[
+        Level two is the caller, so a schema refused at start names the line a caller declared on
+        rather than the line that found the fault.
+    ]]
+    local file, line = debug.info (2, "sl")
+    local self = {
+        kind = "packet" :: "packet",
+        of = of,
+        isUnreliable = false,
+        isNewest = false,
+        hz = nil :: number?,
+        isTimestamped = false,
+        at = { file = file, line = line },
+        live = Handles.live (),
+    }
+
+    return (setmetatable (self, Packet) :: any) :: Types.Packet<T>
+end
+
+-- Lossy and unordered, and every fire still goes out.
+function Packet.unreliable (self: any): any
+    Define.declaring (self.live, "unreliable")
+    self.isUnreliable = true
+    return self
+end
+
+-- Lossy, latest wins, and rate capped where a rate is named.
+function Packet.newest (self: any, hz: number?): any
+    Define.declaring (self.live, "newest")
+    self.isNewest = true
+    self.hz = hz
+    return self
+end
+
+-- Stamped with the instant it was fired, which is comparable across clients.
+function Packet.timestamped (self: any): any
+    Define.declaring (self.live, "timestamped")
+    self.isTimestamped = true
+    return self
+end
+
+--[[
+    One fire at the server, which is the only place a client can reach.
+
+    No recipient, because there is one. That asymmetry is the surface's own and is not composed
+    here: a client naming who to send to would be naming the machine it is already talking to.
+]]
+function Packet.fireServer (self: any, value: any)
+    local session = Define.asking (self.live, "fireServer")
+    session:fire (self.live.def, nil, value)
+end
+
+-- One fire at whoever the recipient names, which only a server has anybody to name.
+function Packet.fireClient (self: any, to: Types.Recipient, value: any)
+    local session = Define.serving (self.live, "fireClient")
+    session:fire (self.live.def, to, value)
+end
+
+--[[
+    The number both listeners take last is the instant of the fire, and it arrives only where the
+    packet was declared stamped. Every other fire hands the listener nothing in its place.
+]]
+function Packet.onServer (self: any, fn: (any, Player, number?) -> ()): Types.Connection
+    return hears (self, fn)
+end
+
+function Packet.onClient (self: any, fn: (any, number?) -> ()): Types.Connection
+    return hears (self, fn)
+end
+
+-- The schema as text, which is what a report quotes back when a decode is refused.
+function Packet.describe (self: any): string
+    return Serial.frame ({
+        kind = "packet",
+        of = { cell = Base.cell (self.of) },
+        delivery = Legality.delivery (self),
+        hz = self.hz,
+        timestamped = self.isTimestamped,
+    })
+end
+
+return table.freeze (Packet)

@@ -3,24 +3,29 @@
     "tree": {
         "$className": "DataModel",
         "ReplicatedStorage": {
-            "$className": "ReplicatedStorage",
             "Lync": {
-                "$path": "src",
-                "bench": {
-                    "$path": "bench"
+                "$path": "src"
+            },
+            "Fixtures": {
+                "$path": "fixtures"
+            },
+            "Bench": {
+                "$className": "Folder",
+                "harness": {
+                    "$path": "bench/harness"
+                },
+                "suite": {
+                    "$path": "bench/suite"
                 }
             }
         },
         "ServerScriptService": {
-            "$className": "ServerScriptService",
             "RunBench": {
                 "$path": "bench/Run.server.luau"
             }
         },
         "StarterPlayer": {
-            "$className": "StarterPlayer",
             "StarterPlayerScripts": {
-                "$className": "StarterPlayerScripts",
                 "RunBench": {
                     "$path": "bench/Run.client.luau"
                 }

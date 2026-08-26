@@ -1,13 +1,36 @@
 {
-    "luau-lsp.require.mode": "relativeToFile",
-    "luau-lsp.sourcemap.rojoProjectFile": "dev.project.json",
     "editor.formatOnSave": true,
-    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.rulers": [100],
+    "files.eol": "\n",
+    "[luau]": {
+        "editor.defaultFormatter": "JohnnyMorganz.stylua"
+    },
+    "stylua.searchBinaryInPATH": true,
+    "luau-lsp.platform.type": "roblox",
+    "luau-lsp.fflags.enableNewSolver": true,
+    "luau-lsp.sourcemap.rojoProjectFile": "test.project.json",
+    "luau-lsp.types.definitionFiles": {
+        "roblox": "./typedefs/roblox.d.luau"
+    },
+    "luau-lsp.ignoreGlobs": ["build/**", "dist/**", "typedefs/**"],
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "search.exclude": {
+        "build": true,
+        "dist": true,
+        "typedefs/roblox.d.luau": true
+    },
+    "files.watcherExclude": {
+        "**/build/**": true,
+        "**/dist/**": true,
+        "**/typedefs/**": true
+    },
     "files.exclude": {
-        "node_modules": true,
-        "out": true,
         "*.rbxl": true,
         "*.rbxl.lock": true,
-        "sourcemap.json": true
+        "*.rbxm": true,
+        "build": true,
+        "dist": true,
+        "node_modules": true
     }
 }

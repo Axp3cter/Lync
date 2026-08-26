@@ -1,39 +1,22 @@
 {
     "name": "@axpecter/lync",
-    "version": "2.3.3",
-    "description": "Buffer networking for Roblox. Delta compression, XOR framing, built-in security",
-    "main": "src/init.luau",
-    "types": "src/index.d.ts",
-    "module": "commonjs",
-    "author": "Axp3cter",
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/Axp3cter/Lync.git"
-    },
+    "version": "3.0.0",
+    "description": "Typed buffer networking for Roblox: packets, queries, and replicated sets.",
+    "keywords": ["roblox", "roblox-ts", "luau", "networking", "buffer", "packets", "replication"],
     "homepage": "https://github.com/Axp3cter/Lync",
-    "bugs": {
-        "url": "https://github.com/Axp3cter/Lync/issues"
-    },
-    "publishConfig": {
-        "access": "public"
-    },
-    "keywords": [
-        "roblox",
-        "networking",
-        "buffer",
-        "delta",
-        "compression",
-        "roblox-ts",
-        "luau"
-    ],
-    "files": [
-        "src",
-        "README.md"
-    ],
+    "bugs": { "url": "https://github.com/Axp3cter/Lync/issues" },
+    "repository": { "type": "git", "url": "git+https://github.com/Axp3cter/Lync.git" },
+    "license": "MIT",
+    "author": "Axp3cter",
+    "main": "init.luau",
+    "types": "index.d.ts",
+    "files": ["**/*.luau", "index.d.ts"],
+    "scripts": { "check": "tsc" },
+    "publishConfig": { "access": "public", "provenance": true },
+    "peerDependencies": { "@rbxts/types": "^1.0.0" },
     "devDependencies": {
         "@rbxts/compiler-types": "^3.0.0-types.0",
-        "@rbxts/types": "^1.0.0",
-        "typescript": "^5.6.0"
+        "@rbxts/types": "^1.0.941",
+        "typescript": "5.5.3"
     }
 }

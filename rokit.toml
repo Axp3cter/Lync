@@ -1,4 +1,7 @@
 [tools]
-rojo = "rojo-rbx/rojo@7.6.1"
-StyLua = "JohnnyMorganz/StyLua@2.4.0"
+darklua = "seaofvoices/darklua@0.19.0"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.69.0"
+lune = "lune-org/lune@0.10.5"
+rojo = "rojo-rbx/rojo@7.7.0"
+stylua = "JohnnyMorganz/StyLua@2.5.2"
 wally = "UpliftGames/wally@0.3.2"

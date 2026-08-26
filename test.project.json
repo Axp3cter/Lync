@@ -1,0 +1,47 @@
+{
+    "name": "Lync-test",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "Lync": {
+                "$path": "src"
+            },
+            "Fixtures": {
+                "$path": "fixtures"
+            },
+            "Test": {
+                "$className": "Folder",
+                "harness": {
+                    "$path": "test/harness"
+                },
+                "units": {
+                    "$path": "test/units"
+                },
+                "rules": {
+                    "$path": "test/rules"
+                },
+                "wire": {
+                    "$path": "test/wire"
+                },
+                "live": {
+                    "$path": "test/live"
+                },
+                "data": {
+                    "$path": "test/data"
+                }
+            }
+        },
+        "ServerScriptService": {
+            "RunTest": {
+                "$path": "test/Run.server.luau"
+            }
+        },
+        "StarterPlayer": {
+            "StarterPlayerScripts": {
+                "RunTest": {
+                    "$path": "test/Run.client.luau"
+                }
+            }
+        }
+    }
+}

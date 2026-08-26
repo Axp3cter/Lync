@@ -1,0 +1,15 @@
+{
+    "loaders": { "test/data/**": "copy" },
+    "rules": [
+        { "rule": "inject_global_value", "identifier": "__DEV__", "value": true },
+        {
+            "rule": "convert_require",
+            "current": { "name": "luau" },
+            "target": {
+                "name": "roblox",
+                "rojo_sourcemap": "sourcemap.json",
+                "indexing_style": "property"
+            }
+        }
+    ]
+}

@@ -1,0 +1,43 @@
+--!strict
+--!optimize 2
+-- One record's mutations across a flush: the net effect that ships, and the fields it named.
+
+local Wide = require ("@src/kernel/Wide")
+
+local Coalesce = {}
+
+-- Types ---------------------------------------------------------------
+
+--[[
+    What an entry has pending. `replace` is produced and never taken: an add onto a removal is a new
+    record under an old id, and a receiver has to be told the one it holds is gone before it is
+    handed another.
+]]
+export type Kind = "add" | "update" | "remove" | "replace"
+
+-- Public --------------------------------------------------------------
+
+--[[
+    Nothing pending takes whatever came. An update never changes what an entry is, since a keyframe
+    already states every field and a delta is still a delta. An add can only follow a removal, which
+    is a replace. A remove ends the entry, and ends it as nothing where the add it cancels never
+    reached anybody.
+]]
+function Coalesce.merge (was: Kind?, took: Kind): Kind?
+    if was == nil then return took end
+    if took == "update" then return was end
+    if took == "add" then return "replace" end
+    return if was == "add" then nil else "remove"
+end
+
+function Coalesce.touched (mask: Wide.Word, field: number): Wide.Word
+    return Wide.union (mask, Wide.bit (field))
+end
+
+-- Tested bit by bit and never read as a number, because the widest field is the sign.
+function Coalesce.migrates (mask: Wide.Word, key: number?): boolean
+    if key == nil then return false end
+    return Wide.meets (mask, Wide.bit (key))
+end
+
+return table.freeze (Coalesce)

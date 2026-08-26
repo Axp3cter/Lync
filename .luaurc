@@ -1,3 +1,12 @@
 {
-    "languageMode": "strict"
+    "languageMode": "strict",
+    "lint": { "*": true },
+    "lintErrors": true,
+    "globals": ["__DEV__"],
+    "aliases": {
+        "bench": "./bench",
+        "fixtures": "./fixtures",
+        "src": "./src",
+        "test": "./test"
+    }
 }

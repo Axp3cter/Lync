@@ -1,6 +1,14 @@
-sourcemap.json
-node_modules/
-out/
+/.data/
+
+/build/
+/dist/
+/sourcemap.json
+
 *.rbxl
 *.rbxl.lock
 *.rbxm
+
+/Packages/
+/ServerPackages/
+/DevPackages/
+/node_modules/

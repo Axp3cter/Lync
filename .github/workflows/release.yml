@@ -1,32 +1,79 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  github-release:
-    runs-on: ubuntu-latest
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rokit
-        uses: CompeyDev/setup-rokit@v0.1.2
-
-      - name: Build
-        run: |
-          rojo build default.project.json -o Lync.rbxm
-          rojo build dev.project.json -o Lync-dev.rbxl
-          rojo build bench.project.json -o Lync-bench.rbxl
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/checkout@v7.0.1
         with:
-          files: |
-            Lync.rbxm
-            Lync-dev.rbxl
-            Lync-bench.rbxl
+          persist-credentials: false
+      - uses: CompeyDev/setup-rokit@v0.2.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The release gate is the merge gate. Nothing ships that would not merge.
+      - run: lune run scripts/run.luau verify
+      - run: lune run scripts/run.luau check
+
+      # wally.toml is the one home of the version; every other file is a copy
+      # the versions check already holds to it.
+      - id: version
+        run: echo "value=$(grep -m1 '^version' wally.toml | sed -E 's/.*\"(.*)\".*/\1/')" >> "$GITHUB_OUTPUT"
+
+      - run: lune run scripts/run.luau build
+      - run: lune run scripts/run.luau test
+      - run: lune run scripts/run.luau bench
+      - run: lune run scripts/run.luau dist
+
+      # Both registries publish these exact bytes. Building again in each
+      # publish job would ship something no one verified.
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - uses: softprops/action-gh-release@v3.0.0
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: Cut against ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: |
+            build/default.rbxm
+            build/test.rbxl
+            build/bench.rbxl
+
+  wally:
+    needs: release
+    uses: ./.github/workflows/publish-wally.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
+  npm:
+    needs: release
+    uses: ./.github/workflows/publish-npm.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write

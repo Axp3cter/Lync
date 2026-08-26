@@ -1,16 +1,8 @@
 --!strict
 --!optimize 2
--- Studio entry point. Mounted to ServerScriptService.RunTests by dev.project.json.
+-- The test place's server entry: runs every suite this side owns.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Harness = require ("@test/harness")
 
-local testFolder = ReplicatedStorage:WaitForChild("Lync"):WaitForChild("test")
-
-require(testFolder)
-
-local Runner = require(testFolder:WaitForChild("runner"))
-local passed = Runner.run({ reporter = "compact" })
-
-if not passed then
-    error("[Lync] Tests failed")
-end
+-- Pass a seed as the second argument to replay a failure a run reported.
+Harness.run ("server")

@@ -1,0 +1,9 @@
+{
+    "languageMode": "strict",
+    "lint": { "*": true },
+    "lintErrors": true,
+    "globals": ["__DEV__"],
+    "aliases": {
+        "lune": "../typedefs/lune"
+    }
+}

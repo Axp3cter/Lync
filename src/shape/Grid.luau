@@ -1,0 +1,169 @@
+--!strict
+--!optimize 2
+-- The quantization grid every ranged and stepped kind indexes through.
+
+local Bits = require ("@src/kernel/Bits")
+local Protocol = require ("@src/wire/Protocol")
+
+local Grid = {}
+
+-- Constants -----------------------------------------------------------
+
+--[[
+    A quarter turn, which is what an octahedral precision is read against: a component of the fold
+    runs a quarter of the way round the sphere per unit, so a precision in degrees is that many
+    ninetieths of one. A whole turn is not here, because an angle is the codec that declares one and
+    a cyclic grid takes the range it is handed rather than a turn it assumes.
+]]
+const QUARTER = Protocol.QUARTER_TURN
+
+-- How far the three components a smallest-three keeps can reach.
+const BOUND = Protocol.QUAT_BOUND
+
+-- What a division is allowed to be out by before its answer is read as the whole number it is.
+const HAIR = 2 ^ -48
+
+-- What a reading is allowed to be out by before it is read as the point it obviously is.
+const READING = 2 ^ -20
+
+-- Types ---------------------------------------------------------------
+
+-- A mapping between the values a declaration carries and the indices the wire carries.
+export type Grid = {
+    read span: number,
+    read width: number,
+    read wrap: boolean?,
+    read toIndex: (value: any) -> number?,
+    read fromIndex: (index: number) -> any,
+}
+
+-- Private -------------------------------------------------------------
+
+-- What a number may be out by and still be the point it obviously is, at a stated width.
+local function allowed (min: number, max: number, step: number, width: number): number
+    return math.min ((max - min) * width, step / 2)
+end
+
+-- How many whole steps a range holds, which is a division and so not always the number it is.
+local function spanned (min: number, max: number, step: number): number
+    local whole = math.floor ((max - min) / step)
+    if min + (whole + 1) * step <= max + allowed (min, max, step, HAIR) then return whole + 1 end
+
+    return whole
+end
+
+-- Public --------------------------------------------------------------
+
+--[[
+    A midpoint rounds up. That is arbitrary and it is pinned, because two machines splitting one
+    differently disagree about the bytes.
+]]
+function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
+    local span = spanned (min, max, step)
+    local width = Bits.width (span)
+
+    local function fromIndex (index: number): any return min + index * step end
+
+    --[[
+        A cyclic grid reduces the value into one turn before rounding, never the index after:
+        rounding away from zero takes a midpoint up above the bottom and down below it, so a
+        negative angle reduced afterwards lands a point off. The reduction is also the test for a
+        reading that is no place on the line, since neither an infinity nor a NaN survives it.
+    ]]
+    if wraps then
+        local points = span + 1
+        local turn = points * step
+
+        local function toIndex (value: any): number?
+            if type (value) ~= "number" then return nil end
+
+            local turned = (value - min) % turn
+            if not (turned >= 0) then return nil end
+            return math.round (turned / step) % points
+        end
+
+        return {
+            span = span,
+            width = width,
+            wrap = true,
+            toIndex = toIndex,
+            fromIndex = fromIndex,
+        }
+    end
+
+    --[[
+        One test rather than two rejections, so a reading that is no place falls out of it as well.
+        The index is clamped because a range holding two and a half steps rounds its top to three
+        and the grid has two, and the nearest point a grid actually has is the last one.
+    ]]
+    local room = allowed (min, max, step, READING)
+    local under = min - room
+    local over = max + room
+
+    local function toIndex (value: any): number?
+        if type (value) ~= "number" then return nil end
+        if not (value >= under and value <= over) then return nil end
+        return math.clamp (math.round ((value - min) / step), 0, span)
+    end
+
+    return { span = span, width = width, toIndex = toIndex, fromIndex = fromIndex }
+end
+
+-- One bit, and the two values it is, which is the one grid holding nothing a number could be.
+function Grid.flag (): Grid
+    local function toIndex (value: any): number?
+        if value == true then return 1 end
+        if value == false then return 0 end
+        return nil
+    end
+
+    local function fromIndex (index: number): any return index == 1 end
+
+    return { span = 1, width = 1, toIndex = toIndex, fromIndex = fromIndex }
+end
+
+-- A ranged int over a count of things, which is where every tag and every chosen name lands.
+function Grid.index (count: number): Grid return Grid.of (0, count - 1, 1) end
+
+-- The names a declaration lists, indexed by where each one sits in it.
+function Grid.named (names: { string }): Grid
+    local span = #names - 1
+    local index: { [string]: number } = {}
+
+    for place, name in names do
+        index[name] = place - 1
+    end
+
+    local function toIndex (value: any): number? return index[value] end
+    local function fromIndex (at: number): any return names[at + 1] end
+
+    return { span = span, width = Bits.width (span), toIndex = toIndex, fromIndex = fromIndex }
+end
+
+--[[
+    One component of an octahedral mapping, which is the unit sphere folded onto a square and the
+    square read at a precision in degrees. Both components are this, and nothing else is.
+]]
+function Grid.plane (precision: number): Grid return Grid.of (-1, 1, precision / QUARTER) end
+
+--[[
+    One component a smallest-three kept. The same number of points as a plane at the same precision,
+    over a range scaled down by the bound: the component dropped was the largest, so no kept one is
+    larger than it and two of them squared cannot pass one.
+]]
+function Grid.chord (precision: number): Grid
+    return Grid.of (-BOUND, BOUND, BOUND * precision / QUARTER)
+end
+
+-- One channel of a packed colour, which is the whole of none to all of it in the bits it has.
+function Grid.channel (bits: number): Grid return Grid.of (0, 1, 1 / (2 ^ bits - 1)) end
+
+-- Whether a step divides a range, which is a division and so not always the answer it is.
+function Grid.divides (reach: number, step: number): boolean
+    local points = reach / step
+    local near = math.round (points)
+
+    return math.abs (points - near) < math.max (1, points) * HAIR
+end
+
+return table.freeze (Grid)

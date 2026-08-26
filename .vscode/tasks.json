@@ -1,38 +1,146 @@
 {
     "version": "2.0.0",
+    "options": {
+        "cwd": "${workspaceFolder}"
+    },
+    "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "clear": true,
+        "showReuseMessage": false
+    },
     "tasks": [
         {
-            "label": "stylua: format all",
+            "label": "setup",
+            "detail": "Install the toolchain and write the sourcemap.",
             "type": "shell",
-            "command": "stylua",
-            "args": ["src/", "test/", "bench/"],
-            "group": "build",
-            "presentation": { "reveal": "silent", "close": true },
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "setup"],
             "problemMatcher": []
         },
         {
-            "label": "rojo: serve dev",
+            "label": "verify",
+            "detail": "Run every static check.",
             "type": "shell",
-            "command": "rojo",
-            "args": ["serve", "dev.project.json"],
-            "group": "build",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "verify"],
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": [
+                {
+                    "owner": "luau",
+                    "source": "luau-lsp",
+                    "fileLocation": ["relative", "${workspaceFolder}"],
+                    "severity": "error",
+                    "pattern": {
+                        "regexp": "^(.+?)\\((\\d+),(\\d+)\\):\\s+(\\w+):\\s+(.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "code": 4,
+                        "message": 5
+                    }
+                }
+            ]
+        },
+        {
+            "label": "fmt",
+            "detail": "Format every authored tree.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "fmt"],
+            "problemMatcher": []
+        },
+        {
+            "label": "analyze",
+            "detail": "Type-check the trees and the tooling.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "analyze"],
+            "group": "test",
+            "problemMatcher": [
+                {
+                    "owner": "luau",
+                    "source": "luau-lsp",
+                    "fileLocation": ["relative", "${workspaceFolder}"],
+                    "severity": "error",
+                    "pattern": {
+                        "regexp": "^(.+?)\\((\\d+),(\\d+)\\):\\s+(\\w+):\\s+(.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "code": 4,
+                        "message": 5
+                    }
+                }
+            ]
+        },
+        {
+            "label": "check",
+            "detail": "Type-check index.d.ts under the pinned TypeScript.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "check"],
+            "group": "test",
+            "problemMatcher": ["$tsc"]
+        },
+        {
+            "label": "sourcemap",
+            "detail": "Regenerate sourcemap.json.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "sourcemap"],
+            "problemMatcher": []
+        },
+        {
+            "label": "test",
+            "detail": "Build the test place for Studio.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "test"],
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "bench",
+            "detail": "Build the bench place for Studio.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "bench"],
+            "problemMatcher": []
+        },
+        {
+            "label": "serve",
+            "detail": "Serve the test place to Studio.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "serve"],
             "isBackground": true,
             "problemMatcher": []
         },
         {
-            "label": "rojo: serve bench",
+            "label": "place",
+            "detail": "Build the test place in Studio without a sync plugin.",
             "type": "shell",
-            "command": "rojo",
-            "args": ["serve", "bench.project.json"],
-            "group": "build",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "place"],
             "isBackground": true,
             "problemMatcher": []
         },
         {
-            "label": "rojo: build release",
+            "label": "build",
+            "detail": "Build the library model.",
             "type": "shell",
-            "command": "rojo",
-            "args": ["build", "default.project.json", "-o", "lync.rbxm"],
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "build"],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "dist",
+            "detail": "Assemble the publishable package.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "dist"],
             "group": "build",
             "problemMatcher": []
         }

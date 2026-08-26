@@ -1,0 +1,118 @@
+--!strict
+--!optimize 2
+-- How a buffer holds things: a field at a bit, the order two ranges compare in, and a seal.
+
+local Protocol = require ("@src/wire/Protocol")
+local Wide = require ("@src/kernel/Wide")
+
+local Bytes = {}
+
+-- Constants -----------------------------------------------------------
+
+-- Bytes in the wide word, whichever of its two carriers this build got.
+const STRIDE = 8
+
+const BYTE = Protocol.BYTE_BITS
+
+-- Public --------------------------------------------------------------
+
+-- A run of bits as the whole bytes that hold it, rounded up.
+function Bytes.whole (bits: number): number return math.ceil (bits / BYTE) end
+
+-- One value of `width` bits at a bit offset, and the offset past it.
+function Bytes.put (b: buffer, at: number, width: number, value: number): number
+    local held = at
+    local left = width
+    local of = value
+
+    while left > 0 do
+        local byte = held // BYTE
+        local shift = held % BYTE
+        local room = BYTE - shift
+        local step = if left < room then left else room
+
+        local was = if shift == 0 then 0 else buffer.readu8 (b, byte)
+        local piece = bit32.lshift (bit32.extract (of, 0, step), shift)
+        buffer.writeu8 (b, byte, bit32.bor (was, piece))
+
+        of = bit32.rshift (of, step)
+        held += step
+        left -= step
+    end
+
+    return at + width
+end
+
+--[[
+    The same value back, and the offset past it. A width of nothing is a value of nothing, which is
+    what a ranged int over one possibility is, and it reads no byte at all.
+]]
+function Bytes.take (b: buffer, at: number, width: number): (number, number)
+    local of = 0
+    local held = at
+    local left = width
+    local got = 0
+
+    while left > 0 do
+        local byte = held // BYTE
+        local shift = held % BYTE
+        local room = BYTE - shift
+        local step = if left < room then left else room
+
+        local piece = bit32.extract (buffer.readu8 (b, byte), shift, step)
+        of = bit32.bor (of, bit32.lshift (piece, got))
+
+        got += step
+        held += step
+        left -= step
+    end
+
+    return of, at + width
+end
+
+-- The byte a bit run ends on, and whether what it left above itself is zero.
+function Bytes.aligned (b: buffer, at: number): (number, boolean)
+    local over = at % BYTE
+    if over == 0 then return at // BYTE, true end
+
+    local pad = bit32.rshift (buffer.readu8 (b, at // BYTE), over)
+    return at // BYTE + 1, pad == 0
+end
+
+--[[
+    The swap makes the word compare a byte compare: a read takes the first byte as the least of the
+    word, and reversing it spells the magnitude the bytes read as. A word is taken only where a
+    whole one remains inside the shorter range, because the bytes past it are not ours. Never
+    through a float, where plus and minus zero are equal and one NaN payload is unequal.
+]]
+@native
+function Bytes.rangeLess (b: buffer, atA: number, lenA: number, atB: number, lenB: number): boolean
+    local shared = math.min (lenA, lenB)
+    local words = shared - shared % STRIDE
+    local at = 0
+
+    while at < words do
+        local wordA = Wide.ordered (b, atA + at)
+        local wordB = Wide.ordered (b, atB + at)
+        if not Wide.same (wordA, wordB) then return Wide.below (wordA, wordB) end
+        at += STRIDE
+    end
+
+    while at < shared do
+        local byteA = buffer.readu8 (b, atA + at)
+        local byteB = buffer.readu8 (b, atB + at)
+        if byteA ~= byteB then return byteA < byteB end
+        at += 1
+    end
+
+    return lenA < lenB
+end
+
+-- A copy rather than the scratch, because the next block encodes into that same scratch.
+function Bytes.seal (scratch: buffer, length: number): buffer
+    local sealed = buffer.create (length)
+    buffer.copy (sealed, 0, scratch, 0, length)
+    return sealed
+end
+
+return table.freeze (Bytes)

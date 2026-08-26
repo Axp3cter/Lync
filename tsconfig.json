@@ -1,16 +1,16 @@
 {
     "compilerOptions": {
-        "rootDir": "src",
-        "outDir": "out",
-        "declaration": true,
-        "strict": true,
-        "noEmit": true,
-        "skipLibCheck": true,
         "target": "ESNext",
-        "module": "commonjs",
-        "moduleResolution": "node10",
-        "ignoreDeprecations": "6.0",
-        "typeRoots": ["node_modules/@rbxts"]
+        "module": "CommonJS",
+        "moduleDetection": "force",
+        "moduleResolution": "Node10",
+        "noLib": true,
+        "strict": true,
+        "allowSyntheticDefaultImports": true,
+        "typeRoots": ["node_modules/@rbxts"],
+        "types": ["compiler-types", "types"],
+        "skipLibCheck": true,
+        "noEmit": true
     },
-    "include": ["src/index.d.ts"]
+    "files": ["index.d.ts", "test/Declaration.ts"]
 }

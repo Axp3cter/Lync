@@ -1,0 +1,444 @@
+--!strict
+--!optimize 2
+-- Bytes and back: what a codec writes, what it reads, and how wide it ever gets.
+
+local Lync = require ("@src")
+local Protocol = require ("@src/wire/Protocol")
+
+local Expect = require ("@test/harness/Expect")
+local Generate = require ("@test/harness/Generate")
+local Harness = require ("@test/harness")
+local Rng = require ("@test/harness/Rng")
+local Turns = require ("@test/harness/Turns")
+
+-- Constants -----------------------------------------------------------
+
+--[[
+    The two widths the tagged pair in `wire.max-bytes-together` is built from.
+
+    Different on purpose, so neither field can stand in for the other: a value taking one wide
+    variant and one thin falls short by exactly what the other would have added.
+]]
+const WIDE = 40
+const NARROW = 12
+
+--[[
+    The bounded grid `wire.bounded-shortest` reaches into, and a length it cannot hold.
+
+    A stride of one means everything under half of one comes to no length at all, so a seventh of a
+    unit is comfortably inside the class and nowhere near the boundary the rounding sits on.
+]]
+const REACH = 13
+const STRIDE = 1
+const SHORT = 0.14
+
+-- The grid `wire.quat-one-spelling` uses, and how far a rotation may land from where it was asked.
+const GRIDS = table.freeze ({ 1, 4, 10 })
+
+--[[
+    Two families of quaternion, each walked across the surface where its two largest components
+    change places.
+]]
+const CROSSINGS = table.freeze ({
+    table.freeze ({ 0.2, 0.3, 0.6, 0.9 }),
+    table.freeze ({ -0.27, 0.18, 0.62, 0.66 }),
+})
+
+--[[
+    How a crossing is swept: how many points either side of it, and how far the sweep reaches.
+
+    Wide enough that the last point is well clear of the crossing and fine enough that no two
+    neighbours skip over it, which is what makes a tag that flips somewhere in between visible.
+]]
+const WALKED = 60
+const SWING = 0.4
+
+--[[
+    The rotation the fuzzer found, which rounds to one two tags spell exactly. Which of them is
+    nearest is not a question that rotation can answer, so the two spellings took turns until the
+    choice was pinned. Kept as it was asked about, since that is where the answers part.
+]]
+const SPELT = table.freeze ({
+    0.5646991197162609,
+    0.3605041335340491,
+    0.2667711667861969,
+    0.6928093666139885,
+})
+
+-- The widest whole number a varint carries, and the first one it refuses.
+const CEILING = Protocol.EXACT
+
+const DEPTH = Generate.DEEP
+
+--[[
+    The codecs whose width does not depend on the value, and one value each. Every encode of one of
+    these is the same size, so the bound and the encoding are the same number and a suite can say so
+    without drawing anything.
+]]
+const FIXED = table.freeze ({
+    table.freeze ({ of = "bool", codec = Lync.bool (), value = true }),
+    table.freeze ({ of = "int", codec = Lync.int (-5, 1000), value = 7 }),
+    table.freeze ({ of = "quant", codec = Lync.quant (0, 10, 0.5), value = 2.5 }),
+    table.freeze ({ of = "angle", codec = Lync.angle (1), value = 90 }),
+    table.freeze ({ of = "f32", codec = Lync.f32 (), value = 0.5 }),
+    table.freeze ({ of = "f64", codec = Lync.f64 (), value = 0.5 }),
+    table.freeze ({ of = "enum", codec = Lync.enum ({ "a", "b", "c" }), value = "b" }),
+    table.freeze ({
+        of = "bitfield",
+        codec = Lync.bitfield ({ "a", "b" }),
+        value = { a = true, b = false },
+    }),
+    table.freeze ({ of = "color3.rgb565", codec = Lync.color3.rgb565 (), value = Color3.new () }),
+})
+
+-- Bounds that put a count in two, three and four bytes, and how full a list at each one is filled.
+const COUNTS = table.freeze ({
+    table.freeze ({ max = 256, bytes = 2, carried = 256 }),
+    table.freeze ({ max = 65536, bytes = 3, carried = 65536 }),
+    table.freeze ({ max = 16777216, bytes = 4, carried = 0 }),
+})
+
+-- Where the letters a one-character element is drawn from start, which is a byte that is never nil.
+const LETTER = 65
+
+-- The element shapes a wide count sits in front of, which are written by two different hands.
+const ELEMENTS: { Element } = table.freeze ({
+    table.freeze ({
+        what = "bool",
+        of = Lync.bool (),
+        bits = 1,
+        rows = 3,
+        value = function (at: number): any return at % 2 == 1 end,
+    }),
+    table.freeze ({
+        what = "f32",
+        of = Lync.f32 (),
+        bits = 32,
+        rows = 2,
+        value = function (at: number): any return at % 2 end,
+    }),
+    table.freeze ({
+        what = "str",
+        of = Lync.str (1, 1),
+        bits = 8,
+        rows = 2,
+        value = function (at: number): any return string.char (LETTER + at % 26) end,
+    }),
+})
+
+-- Types ---------------------------------------------------------------
+
+--[[
+    One element a wide-count list is filled with, as the codec, what a value of it is, and how far
+    up the bounds it is asked. Untyped in the codec, because the three answer three value types and
+    a list over the union of them has no element type to infer.
+]]
+type Element = {
+    read what: string,
+    read of: any,
+    read bits: number,
+    read rows: number,
+    read value: (at: number) -> any,
+}
+
+-- Private -------------------------------------------------------------
+
+--[[
+    A decoded value against the one encoded, at the distance the kind itself declares. A kind that
+    keeps less than it was handed declares no distance at all, and what stands in for one is a
+    re-encode landing on the bytes that came in.
+]]
+local function carried (shape: Generate.Shape, want: any, got: any)
+    local slack = Generate.slack (shape)
+    if slack == nil then return end
+    if slack == 0 then
+        Expect.equal (got, want)
+        return
+    end
+    Expect.near (got, want, slack)
+end
+
+--[[
+    One value through a codec and back. Both properties below ask this and differ only in how they
+    choose what to ask it of, so the claim is written once and the difference between them stays
+    visible as the draw it is.
+]]
+local function carries (shape: Generate.Shape, value: any, what: string)
+    local of = Turns.built (Generate.codec (shape))
+
+    local bytes, size = Turns.wrote (of, value)
+    local got = Turns.read (of, bytes, size)
+    carried (shape, value, got)
+
+    local again, twice = Turns.wrote (of, got)
+    if buffer.readstring (again, 0, twice) == buffer.readstring (bytes, 0, size) then return end
+
+    if twice ~= size then
+        Expect.holds (false, `{what} re-encoded to {twice} bytes and not the {size} it read`)
+        return
+    end
+    Expect.holds (false, `{what} re-encoded {size} different bytes`)
+end
+
+-- One rotation encoded, read back, and encoded again, held to writing the same bytes both times.
+local function stable (of: any, turn: CFrame, slack: number)
+    local bytes, size = Turns.wrote (of, turn)
+    local got = Turns.read (of, bytes, size)
+
+    local again, twice = Turns.wrote (of, got)
+    Expect.equal (twice, size)
+    Expect.equal (buffer.readstring (again, 0, twice), buffer.readstring (bytes, 0, size))
+
+    Expect.near (got, turn, slack)
+end
+
+-- Public --------------------------------------------------------------
+
+return {
+    -- A count wider than one byte, which nothing else in the tree reaches.
+    Harness.case ("wire.wide-counts", function ()
+        for _, elem in ELEMENTS do
+            for index = 1, elem.rows do
+                local bound = COUNTS[index]
+                local of = Turns.built (Lync.array (elem.of, 0, bound.max))
+
+                local empty, none = Turns.wrote (of, {})
+                Expect.holds (none == bound.bytes, `{elem.what} spent {none} on an empty count`)
+                Expect.equal (#Turns.read (of, empty, none), 0)
+
+                local reach = bound.carried
+                if reach == 0 then continue end
+
+                local held = table.create (reach) :: { any }
+                for at = 1, reach do
+                    held[at] = elem.value (at)
+                end
+
+                local bytes, size = Turns.wrote (of, held)
+                Expect.equal (size, bound.bytes + reach * elem.bits // 8)
+
+                local got = Turns.read (of, bytes, size)
+                Expect.equal (#got, reach)
+                for _, at in { 1, reach // 2, reach } do
+                    Expect.holds (got[at] == held[at], `{elem.what} lost the element at {at}`)
+                end
+            end
+        end
+    end),
+
+    --[[
+        Every kind, at every size it can be asked for. The draw is stratified, so the kinds with the
+        most to get wrong get a thirtieth of the budget each rather than the share a flat draw would
+        give them.
+    ]]
+    Harness.property ("wire.matrix", "kinds", function (rng: Rng.Rng)
+        local at = Rng.pick (rng, Generate.KINDS)
+        local size = Rng.pick (rng, Generate.SIZED)
+
+        local shape = Generate.among (rng, { at }, DEPTH)
+        carries (shape, Generate.sized (shape, size, rng), `{at} {size}`)
+    end),
+
+    --[[
+        Any codec at all, over a value drawn from the parameters that built it, at the iteration a
+        fuzzer runs. The matrix above says every kind holds at every size a person would name. This
+        says the ones nobody named hold too: a map of tagged variants of optionals, four deep, with
+        the counts and lengths wherever the tape put them.
+    ]]
+    Harness.property ("wire.identity", "encode", function (rng: Rng.Rng)
+        local shape = Generate.shape (rng, DEPTH)
+        carries (shape, Generate.value (shape, rng), shape.at)
+    end),
+
+    --[[
+        The bound is exact, both ways round. No value the codec accepts encodes past it, and some
+        value it accepts reaches it, which is the half a suite forgets: a bound that is merely large
+        passes every encode and tells a frame assembler to reserve room nobody needs.
+    ]]
+    Harness.property ("wire.max-bytes", "kinds", function (rng: Rng.Rng)
+        local shape = Generate.shape (rng, DEPTH)
+        local of = Turns.built (Generate.codec (shape))
+
+        local _, drawn = Turns.wrote (of, Generate.value (shape, rng))
+        Expect.holds (drawn <= of.maxBytes, `{shape.at} wrote {drawn} of {of.maxBytes} bytes`)
+
+        local reached = 0
+        for _, candidate in Generate.widest (shape) do
+            local _, size = Turns.wrote (of, candidate)
+            if size > reached then reached = size end
+        end
+
+        if reached == of.maxBytes then return end
+        Expect.holds (false, `{shape.at} promises {of.maxBytes} bytes and reaches {reached}`)
+    end),
+
+    --[[
+        Rotations whose largest component is not settled by rounding, encoded twice. The scheme
+        drops one and names it and the three that travel are rounded, so the bytes can say one place
+        while the rebuilt value says another and the two spellings take turns forever.
+    ]]
+    Harness.case ("wire.quat-one-spelling", function ()
+        for _, apart in GRIDS do
+            local of = Turns.built (Lync.rotation.quat (apart))
+            local slack = 2 * math.sin (math.rad (apart) / 2)
+
+            for _, held in CROSSINGS do
+                for step = 0, WALKED do
+                    local moved = SWING * (step / WALKED - 0.5)
+
+                    stable (
+                        of,
+                        CFrame.new (0, 0, 0, held[1], held[2], held[3] + moved, held[4] - moved),
+                        slack
+                    )
+                end
+            end
+
+            stable (of, CFrame.new (0, 0, 0, SPELT[1], SPELT[2], SPELT[3], SPELT[4]), slack)
+        end
+    end),
+
+    --[[
+        Vectors too short for the grid to give a length, which are all one value and so all one set
+        of bytes. Below half a step the distance comes to none, and anything reading back the same
+        has to write the same or the bytes carry what no reader can see.
+    ]]
+    Harness.case ("wire.bounded-shortest", function ()
+        local of = Turns.built (Lync.vec3.bounded (REACH, STRIDE))
+
+        local first = nil
+        for _, one in
+            {
+                Vector3.zero,
+                Vector3.new (SHORT, 0, 0),
+                Vector3.new (-SHORT, -SHORT, SHORT),
+                Vector3.new (0, 0, -SHORT),
+            }
+        do
+            local bytes, size = Turns.wrote (of, one)
+            local held = buffer.readstring (bytes, 0, size)
+
+            Expect.equal (Turns.read (of, bytes, size), Vector3.zero)
+            if first == nil then first = held end
+
+            Expect.equal (held, first)
+        end
+    end),
+
+    -- A record whose width two of its fields decide together.
+    Harness.case ("wire.max-bytes-together", function ()
+        local of = Turns.built (Lync.struct ({
+            left = Lync.tagged ("tag", {
+                thin = Lync.struct ({ v = Lync.bool () }),
+                wide = Lync.struct ({ v = Lync.str (0, WIDE) }),
+            }),
+            right = Lync.tagged ("tag", {
+                thin = Lync.struct ({ v = Lync.bool () }),
+                wide = Lync.struct ({ v = Lync.str (0, NARROW) }),
+            }),
+        }))
+
+        local widest = {
+            left = { tag = "wide", v = string.rep ("x", WIDE) },
+            right = { tag = "wide", v = string.rep ("x", NARROW) },
+        }
+
+        local _, reached = Turns.wrote (of, widest)
+        Expect.equal (reached, of.maxBytes)
+
+        -- Either field left thin falls short, which is what makes the bound theirs together.
+        for _, name in { "left", "right" } do
+            local held = { left = widest.left, right = widest.right }
+            held[name] = { tag = "thin", v = true }
+
+            local _, short = Turns.wrote (of, held)
+            Expect.holds (short < of.maxBytes, `{name} alone reached the bound`)
+        end
+    end),
+
+    --[[
+        A codec the compiler calls fixed writes one width for every value it takes. That is what
+        lets a word plan resolve at compile time and a frame reserve its room without looking, so a
+        kind marked fixed that is not would be a wrong number everywhere downstream rather than a
+        wrong value anywhere here.
+    ]]
+    Harness.case ("wire.fixed-width", function ()
+        for _, entry in FIXED do
+            local of = Turns.built (entry.codec)
+            if not of.fixed then
+                Expect.holds (false, `{entry.of} is not marked fixed`)
+                continue
+            end
+
+            local _, size = Turns.wrote (of, entry.value)
+            if size == of.maxBytes then continue end
+            Expect.holds (false, `{entry.of} wrote {size} of a fixed {of.maxBytes}`)
+        end
+    end),
+
+    --[[
+        The degenerate sizes, which are where an off-by-one lives. An empty collection is a count
+        and nothing else, and a range holding one value is a count of no bits at all, so both come
+        to nothing on the wire and both still have to come back.
+    ]]
+    Harness.case ("wire.degenerate", function ()
+        local empty = {
+            { of = "str", codec = Lync.str (0, 0), value = "" },
+            { of = "buffer", codec = Lync.buffer (0, 0), value = buffer.create (0) },
+            { of = "array", codec = Lync.array (Lync.bool (), 0, 0), value = {} },
+            { of = "map", codec = Lync.map (Lync.int (0, 3), Lync.bool (), 0, 0), value = {} },
+        }
+        for _, entry in empty do
+            local of = Turns.built (entry.codec)
+            local bytes, size = Turns.wrote (of, entry.value)
+
+            Expect.equal (size, 0)
+            Expect.equal (of.maxBytes, 0)
+            Expect.equal (Turns.read (of, bytes, size), entry.value)
+        end
+
+        local one = Turns.built (Lync.int (5, 5))
+        Expect.equal (one.maxBytes, 0)
+
+        local bytes, size = Turns.wrote (one, 5)
+        Expect.equal (size, 0)
+        Expect.equal (Turns.read (one, bytes, size), 5)
+    end),
+
+    --[[
+        A varint carries every whole number a double counts exactly, and refuses the first one it
+        does not. The ceiling is where the zigzag of a signed value needs a fifty-fourth bit, which
+        is why the design computes the mapping in the integer domain and the group cap enforces the
+        same ceiling on the way back in.
+    ]]
+    Harness.case ("codec.vlq", function ()
+        local of = Turns.built (Lync.vlq ())
+
+        for _, value in { 0, 1, 127, 128, 2 ^ 32, CEILING - 1 } do
+            local bytes, size = Turns.wrote (of, value)
+            Expect.equal (Turns.read (of, bytes, size), value)
+        end
+
+        Expect.throws (function () Turns.wrote (of, CEILING) end)
+        Expect.throws (function () Turns.wrote (of, -1) end)
+        Expect.throws (function () Turns.wrote (of, 1.5) end)
+    end),
+
+    --[[
+        The signed form, at both ends and at the sign itself. Minus one is the value a zigzag maps
+        to one, so an encoder that shifted without folding would spend nine groups on it and still
+        read it back, which is a size fault that no round trip notices and every golden does.
+    ]]
+    Harness.case ("codec.vli", function ()
+        local of = Turns.built (Lync.vli ())
+
+        for _, value in { 0, -1, 1, -127, 128, -(CEILING - 1), CEILING - 1 } do
+            local bytes, size = Turns.wrote (of, value)
+            Expect.equal (Turns.read (of, bytes, size), value)
+        end
+
+        Expect.throws (function () Turns.wrote (of, CEILING) end)
+        Expect.throws (function () Turns.wrote (of, -CEILING) end)
+        Expect.throws (function () Turns.wrote (of, 1.5) end)
+    end),
+}

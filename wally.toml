@@ -1,10 +1,11 @@
 [package]
 name = "axp3cter/lync"
-version = "2.3.3"
-description = "Buffer networking for Roblox. Delta compression, XOR framing, built-in security"
-license = "MIT"
+version = "3.0.0"
+description = "Typed buffer networking for Roblox: packets, queries, and replicated sets."
 authors = ["Axp3cter"]
-registry = "https://github.com/UpliftGames/wally-index"
+license = "MIT"
+homepage = "https://github.com/Axp3cter/Lync"
+repository = "https://github.com/Axp3cter/Lync.git"
 realm = "shared"
-
-[dependencies]
+registry = "https://github.com/UpliftGames/wally-index"
+exclude = ["index.d.ts", "package.json"]

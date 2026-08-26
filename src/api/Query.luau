@@ -1,338 +1,149 @@
 --!strict
 --!optimize 2
--- Query definition: handle, request with correlation IDs and timeout.
+-- The query handle: one responder a side, and a request that answers rather than throws or hangs.
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local Channel = require(script.Parent.Parent.internal.Channel)
-local Log = require(script.Parent.Parent.util.Log)
-local Player = require(script.Parent.Parent.util.Player)
-local Registry = require(script.Parent.Parent.internal.Registry)
-local Transport = require(script.Parent.Parent.internal.Transport)
-local Types = require(script.Parent.Parent.Types)
-
--- Constants --------------------------------------------------------------
-
-local IS_SERVER = RunService:IsServer()
-local DEFAULT_TIMEOUT = 5
-
-local EMPTY_OPTIONS: Types.QueryOptions = table.freeze({})
-
--- State ------------------------------------------------------------------
-
-local _nextCorrId = 0
--- Correlation -> waiting thread / completion closure. Cleared on resolve or timeout.
-local _pending: { [number]: thread } = {}
-local _pendingGather: { [number]: (any) -> () } = {}
-
--- Private ----------------------------------------------------------------
-
-local isPlayer = Player.is
-
-local function nextCorr(): number
-    _nextCorrId += 1
-    return _nextCorrId
-end
-
-local function writeQueryTracked(
-    ch: Types.ChannelState,
-    reg: Types.Registration,
-    corrId: number,
-    codec: Types.InternalCodec<any>?,
-    data: any
-): ()
-    if Channel.statsEnabled() then
-        local before = ch.cursor
-        Channel.writeQuery(ch, reg.id, corrId, codec, data, reg.name)
-        reg.bytesSent += ch.cursor - before
-    else
-        Channel.writeQuery(ch, reg.id, corrId, codec, data, reg.name)
-    end
-end
-
-local function collectTargets(target: any): { Player }
-    local targets: { Player } = {}
-    if typeof(target) ~= "table" then
-        return targets
-    end
-
-    local kind = target._lyncKind
-    if kind == "all" then
-        for _, p in Players:GetPlayers() do
-            table.insert(targets, p)
-        end
-    elseif kind == "group" then
-        for p in target._members do
-            table.insert(targets, p)
-        end
-    else
-        for _, p in target do
-            if isPlayer(p) then
-                table.insert(targets, p :: Player)
-            end
-        end
-    end
-    return targets
-end
-
--- Public types -----------------------------------------------------------
-
---[[
-    Server `request(data, target)` returns `Resp?` for a Player target and
-    `{ [Player]: Resp? }` for a multi-target table; Luau lacks overloads on
-    table fields, so the type advertises `Resp?` and multi-target callers cast.
-]]
-export type QueryHandle<Req, Resp> = {
-    handle: (
-        self: QueryHandle<Req, Resp>,
-        fn: (request: Req, player: Player?) -> Resp?
-    ) -> Types.Connection,
-    request: (self: QueryHandle<Req, Resp>, data: Req, target: any?) -> Resp?,
-    name: (self: QueryHandle<Req, Resp>) -> string,
-    stats: (self: QueryHandle<Req, Resp>) -> Types.PacketStats,
-}
-
--- Public -----------------------------------------------------------------
+local Base = require ("@src/codec/Base")
+local Define = require ("@src/api/Define")
+local Handles = require ("@src/runtime/Handles")
+local Serial = require ("@src/shape/Serial")
+local Types = require ("@src/Types")
 
 local Query = {}
+Query.__index = Query
 
-function Query.define<Req, Resp>(
-    name: string,
-    requestCodec: Types.InternalCodec<Req>,
-    responseCodec: Types.InternalCodec<Resp>,
-    options: Types.QueryOptions?
-): QueryHandle<Req, Resp>
-    local opts = options or EMPTY_OPTIONS
-    local timeout = opts.timeout or DEFAULT_TIMEOUT
+-- Private -------------------------------------------------------------
 
-    local reqOpenFn = Channel.resolveOpenFn(Channel.TS_NONE, name)
-    -- Embedded "\0resp" suffix stays uniquely paired with the request reg.
-    local respName = `{name}\0resp`
-    local respOpenFn = Channel.resolveOpenFn(Channel.TS_NONE, respName)
+-- The one responder this side gets, held until there is a dispatch to hand it to.
+local function answers (self: any, said: string, fn: (...any) -> any)
+    local live = self.live
+    local under = Define.naming (live, said)
 
-    local reqReg = Registry.register({
-        name = name,
-        kind = Registry.KIND_REQUEST,
-        codec = requestCodec,
-        isUnreliable = false,
-        partner = nil,
-        needsGate = IS_SERVER,
-        headerSize = 1,
-        timestampMode = Channel.TS_NONE,
-        openFn = reqOpenFn,
-        rateLimit = opts.rateLimit or { maxPerSecond = 30 },
-        validate = opts.validate,
-        maxPayloadBytes = nil,
-    })
+    local session = live.session
+    if session ~= nil and session.started then
+        Define.refuse (`{said} after {under} started, and start seals responders`, under)
+    end
 
-    local respReg = Registry.register({
-        name = respName,
-        kind = Registry.KIND_RESPONSE,
-        codec = responseCodec,
-        isUnreliable = false,
-        partner = reqReg.id,
-        needsGate = false,
-        headerSize = 1,
-        timestampMode = Channel.TS_NONE,
-        openFn = respOpenFn,
-        rateLimit = nil,
-        validate = nil,
-        maxPayloadBytes = nil,
-    })
+    if self.answering ~= nil then
+        Define.refuse (`{under} already has a responder, and a query has one`, under)
+    end
 
-    reqReg.partner = respReg.id
+    self.answering = fn
+    Handles.waiting (live, function (session) session:respond (live.id :: number, under, fn) end)
+end
 
-    -- Single active handler; replacing it disconnects the prior one via handlerToken.
-    local activeHandler: ((any, Player?) -> any)? = nil
-    local handlerToken = 0
+--[[
+    A client's request, which yields until it is answered or told why it will not be. A third
+    argument is the server form's completion and the client form has no third, so a call carrying
+    one is the server's made on the wrong machine. The lookup below cannot refuse, the caller
+    having branched on the side it tests, and what it is called for is the session.
+]]
+local function asked (
+    self: any,
+    value: any,
+    timeout: number?,
+    complete: any
+): (boolean, any, Types.OutcomeData?)
+    local session = Define.asking (self.live, "request")
+    if complete ~= nil then
+        Define.refuse (
+            "request with a completion is the server's call, and this is a client",
+            Define.naming (self.live, "request")
+        )
+    end
 
-    respReg.signal:connect(function(value: any, _sender: Player?, corrId: number)
-        local single = _pending[corrId]
-        if single then
-            _pending[corrId] = nil
-            task.spawn(single, value)
-            return
-        end
-        local gather = _pendingGather[corrId]
-        if gather then
-            _pendingGather[corrId] = nil
-            gather(value)
-        end
+    local settled = false
+    local parked: thread? = nil
+
+    local ok: boolean
+    local result: any
+    local data: Types.OutcomeData?
+
+    session:ask (self.live.def, nil, value, timeout, function (answered, gave, about)
+        ok, result, data = answered, gave, about
+        settled = true
+
+        local held = parked
+        if held ~= nil then task.spawn (held) end
     end)
 
-    reqReg.signal:connect(function(value: any, sender: Player?, corrId: number)
-        local handler = activeHandler
-        if not handler then
-            return
-        end
-
-        local ok, response = pcall(handler, value, sender)
-        if not ok then
-            Log.warn(`query "{name}" handler errored: {response}`)
-        end
-        -- pcall failure path returns nil response (writeQuery encodes a nil-MSB header).
-        local payloadCodec = if ok then responseCodec else nil
-        local payloadData = if ok then response else nil
-
-        local ch: Types.ChannelState? = if IS_SERVER
-            then (if sender then Transport.server().getChannel(sender, false) else nil)
-            else Transport.client().getChannel(false)
-        if ch then
-            writeQueryTracked(ch, respReg, corrId, payloadCodec, payloadData)
-        end
-    end)
-
-    -- Resolve the waiting thread with nil after `timeout` seconds.
-    local function scheduleSingleTimeout(corrId: number, running: thread): ()
-        task.delay(timeout, function()
-            if _pending[corrId] == running then
-                _pending[corrId] = nil
-                task.spawn(running, nil)
-            end
-        end)
+    if not settled then
+        parked = coroutine.running ()
+        coroutine.yield ()
     end
 
-    -- Issue a single-target query on `ch` and yield until reply or timeout.
-    local function requestOnChannel(ch: Types.ChannelState, data: any): any
-        local corrId = nextCorr()
-        writeQueryTracked(ch, reqReg, corrId, requestCodec, data)
+    return ok, result, data
+end
 
-        local running = coroutine.running()
-        _pending[corrId] = running
-        scheduleSingleTimeout(corrId, running)
-        return coroutine.yield()
-    end
+-- Public --------------------------------------------------------------
 
-    local function requestMulti(targets: { Player }, data: any): { [Player]: any }
-        local targetCount = #targets
-        if targetCount == 0 then
-            return {}
-        end
-
-        local results: { [Player]: any } = {}
-        local remaining = targetCount
-        local running = coroutine.running()
-        local resolved = false
-        local corrIds = table.create(targetCount)
-
-        --[[
-            On timeout, surface the partial result table AND evict every
-            still-pending closure. Without eviction each unanswered closure
-            keeps `results`/`remaining`/`resolveOnce` alive: a slow leak.
-        ]]
-        local function resolveOnce(): ()
-            if resolved then
-                return
-            end
-            resolved = true
-            for i = 1, targetCount do
-                _pendingGather[corrIds[i]] = nil
-            end
-            task.spawn(running, results)
-        end
-
-        local Server = Transport.server()
-        for i, p in targets do
-            local pCorr = nextCorr()
-            corrIds[i] = pCorr
-            local ch = Server.getChannel(p, false)
-            writeQueryTracked(ch, reqReg, pCorr, requestCodec, data)
-
-            local pRef = p
-            _pendingGather[pCorr] = function(response: any)
-                results[pRef] = response
-                remaining -= 1
-                if remaining == 0 then
-                    resolveOnce()
-                end
-            end
-        end
-
-        task.delay(timeout, resolveOnce)
-        return coroutine.yield()
-    end
-
-    local function requestFromServer(data: any, target: any): any
-        if target == nil then
-            Log.error(`"{name}" server request requires a target`)
-        end
-        if isPlayer(target) then
-            return requestOnChannel(Transport.server().getChannel(target :: Player, false), data)
-        end
-        return requestMulti(collectTargets(target), data)
-    end
-
-    local function requestFromClient(data: any): any
-        return requestOnChannel(Transport.client().getChannel(false), data)
-    end
-
-    type Self = QueryHandle<Req, Resp>
-
-    local handle = {
-        --[[
-            Replace the active handler. The returned Connection only clears
-            the active slot if no later :handle has overwritten it: token
-            comparison guards against a stale disconnect wiping a fresh handler.
-        ]]
-        handle = function(
-            _self: Self,
-            fn: (request: Req, player: Player?) -> Resp?
-        ): Types.Connection
-            handlerToken += 1
-            local myToken = handlerToken
-            activeHandler = fn :: any
-
-            local conn: Types.Connection
-            conn = {
-                connected = true,
-                disconnect = function(self): ()
-                    if not self.connected then
-                        return
-                    end
-                    self.connected = false
-                    if handlerToken == myToken then
-                        activeHandler = nil
-                    end
-                end,
-            }
-            return conn
-        end,
-
-        request = function(_self: Self, data: Req, target: any?): Resp?
-            if IS_SERVER then
-                return requestFromServer(data, target)
-            end
-            return requestFromClient(data)
-        end,
-
-        name = function(_self: Self): string
-            return name
-        end,
-
-        stats = function(_self: Self): Types.PacketStats
-            return {
-                bytesSent = reqReg.bytesSent + respReg.bytesSent,
-                bytesReceived = reqReg.bytesReceived + respReg.bytesReceived,
-                fires = reqReg.fires + respReg.fires,
-                recvFires = reqReg.recvFires + respReg.recvFires,
-                drops = reqReg.drops + respReg.drops,
-            }
-        end,
+--[[
+    Two builds and one handle, because a request and its reply are one agreement between two
+    machines, and they share one definition and two consecutive ids.
+]]
+function Query.new <Q, R>(of: Types.Codec<Q>, reply: Types.Codec<R>): Types.Query<Q, R>
+    --[[
+        Level two is the caller rather than this frame, so a schema refused at start points at the
+        declaration instead of the start that caught it.
+    ]]
+    local file, line = debug.info (2, "sl")
+    local self = {
+        kind = "query" :: "query",
+        of = of,
+        reply = reply,
+        at = { file = file, line = line },
+        live = Handles.live (),
+        answering = nil :: ((...any) -> any)?,
     }
 
-    return table.freeze(handle) :: QueryHandle<Req, Resp>
+    return (setmetatable (self, Query) :: any) :: Types.Query<Q, R>
 end
 
-function Query.pendingCount(): number
-    local count = 0
-    for _ in _pending do
-        count += 1
+--[[
+    The responder, on whichever side is answering.
+
+    Two names for one registration, because what a responder is handed differs between the sides
+    and what it is registered as does not.
+]]
+function Query.onServer (self: any, fn: (any, Player) -> any) answers (self, "onServer", fn) end
+
+function Query.onClient (self: any, fn: (any) -> any) answers (self, "onClient", fn) end
+
+--[[
+    One request, in whichever of its two forms this machine has. Which form comes off the machine
+    and never off the arguments, so a call before start names the namespace that has not opened
+    rather than an argument. What the arguments say afterwards is whether the caller made the other
+    side's call, which is the one mistake here that used to answer with somebody else's error.
+]]
+function Query.request (self: any, first: any, second: any, third: any, fourth: any): ...any
+    if self.live.isServer then
+        --[[
+            The server form carries a completion and the client form has no third argument, so a
+            call reaching here without one is the client's. The lookup below cannot refuse, the
+            branch above having settled the side before it is asked, and what it is called for is
+            the session and the namespace it names when there is none.
+        ]]
+        local session = Define.serving (self.live, "request")
+        if typeof (third) ~= "function" then
+            Define.refuse (
+                "request without a completion is a client's call, and this is the server",
+                Define.naming (self.live, "request")
+            )
+        end
+
+        session:ask (self.live.def, first, second, fourth, third)
+        return
     end
-    for _ in _pendingGather do
-        count += 1
-    end
-    return count
+
+    return asked (self, first, second, third)
 end
 
-return table.freeze(Query)
+-- The schema as text, which is the wording a refused request is answered with.
+function Query.describe (self: any): string
+    return Serial.frame ({
+        kind = "query",
+        of = { cell = Base.cell (self.of) },
+        reply = { cell = Base.cell (self.reply) },
+    })
+end
+
+return table.freeze (Query)

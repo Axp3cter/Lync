@@ -1,0 +1,39 @@
+name: Publish (npm)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # registry-url writes the .npmrc that reads NODE_AUTH_TOKEN. No npm ci:
+      # publishing needs the package, never its development dependencies.
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # The release built and verified these bytes. Building again here would
+      # publish something nothing checked.
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      # The flag is stated even though the manifest sets publishConfig.provenance,
+      # because a config that goes unread fails by publishing without an
+      # attestation, which is silent, while the flag fails loudly.
+      - run: npm publish --provenance
+        working-directory: dist
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,95 @@
+--!strict
+--!optimize 2
+-- The connection a registration hands back, and the fan that reaches every one still live.
+
+local Listeners = {}
+
+-- Types ---------------------------------------------------------------
+
+--[[
+    `connected` and `disconnect` are exactly what `Types.Connection` names, so a link is handed back
+    as the connection itself and the two cannot drift apart.
+]]
+export type Link<A...> = {
+    connected: boolean,
+    disconnect: (self: any) -> (),
+    fn: (A...) -> (),
+}
+
+-- How a listener is reached, which is the one thing about a fan that is not this module's.
+export type Run<A...> = (fn: (A...) -> (), A...) -> ()
+
+export type List<A...> = {
+    links: { Link<A...> },
+    live: number,
+    fanning: number,
+    run: Run<A...>,
+}
+
+-- Private -------------------------------------------------------------
+
+-- The links that are no longer connected, taken out in place, once nothing is walking them.
+local function swept (of: List<...any>)
+    local links = of.links
+    local held = #links
+    if of.fanning > 0 or held == of.live then return end
+
+    local at = 1
+    for index = 1, held do
+        local link = links[index]
+        if link.connected then
+            links[at] = link
+            at += 1
+        end
+    end
+    for index = held, at, -1 do
+        links[index] = nil
+    end
+end
+
+-- Public --------------------------------------------------------------
+
+function Listeners.list <A...>(run: Run<A...>): List<A...>
+    return { links = {}, live = 0, fanning = 0, run = run }
+end
+
+-- At the end of the order, which is the order a fan walks.
+function Listeners.connect <A...>(of: List<A...>, fn: (A...) -> ()): Link<A...>
+    local link: Link<A...> = {
+        connected = true,
+        fn = fn,
+        disconnect = function (self: any)
+            if not self.connected then return end
+            self.connected = false
+
+            of.live -= 1
+            swept (of)
+        end,
+    }
+
+    table.insert (of.links, link)
+    of.live += 1
+    return link
+end
+
+--[[
+    Everything still listening, in the order it was registered, each on a thread of its own.
+
+    The count is read once before the walk, so a listener attached by a listener is reached by the
+    next fan and not this one. A walk over a list still growing would have no end it could name.
+]]
+function Listeners.fan <A...>(of: List<A...>, ...: A...)
+    local links, run = of.links, of.run
+    local held = #links
+
+    of.fanning += 1
+    for index = 1, held do
+        local link = links[index]
+        if link.connected then run (link.fn, ...) end
+    end
+    of.fanning -= 1
+
+    swept (of)
+end
+
+return table.freeze (Listeners)

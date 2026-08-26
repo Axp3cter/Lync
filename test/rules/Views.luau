@@ -51,6 +51,21 @@ const DOUBLING: Doubles.Faults = table.freeze ({ lose = 0, double = 1, hold = 0 
 
 -- More records than one flush at the floor budget can carry, and how wide each of them is.
 const MANY = 200
+
+--[[
+    A cap on how often a streamed field goes out, and how many flushes a check drives past it. Four
+    a second is a quarter second a window, and a handful of flushes in a row is over in far less
+    than that whichever clock is under them, so every flush but the first falls inside one window.
+]]
+const RATE = 4
+const RAPID = 5
+
+--[[
+    The most a run that short may put on the wire. One window holds all of it, so what a rate lets
+    through is the first and nothing after it, and the second is room for a run that opened just as
+    a window closed. A lane with no rate under it sends nearly every flush and is well past this.
+]]
+const LETS = 2
 const NOTE = "note"
 const WIDTH = 64
 const FILLED = string.rep ("x", WIDTH)
@@ -93,6 +108,16 @@ local function streamed (): any
         [ROSTER] = Lync.replicate (Lync.struct ({
             [HP] = Lync.int (0, 100),
             [POS] = Lync.int (0, 100):newest (),
+        })),
+    }
+end
+
+-- The same streamed set, with the cap on how often the field that streams may go out.
+local function paced (): any
+    return {
+        [ROSTER] = Lync.replicate (Lync.struct ({
+            [HP] = Lync.int (0, 100),
+            [POS] = Lync.int (0, 100):newest (RATE),
         })),
     }
 end
@@ -550,5 +575,29 @@ return {
         Expect.equal (#alice.seen, was + 1)
         Expect.equal (alice.seen[was + 1].kind, "removed")
         Expect.equal (alice.seen[was + 1].id, ID)
+    end),
+
+    --[[
+        A streamed field with a rate on it, written faster than the rate lets it out. `hz` caps how
+        often a field goes out and not how often a place may write one, so writing every frame is
+        the thing a rate exists for, and a lane putting every write on the wire is a lane that
+        never had a rate at all.
+    ]]
+    Harness.case ("set.streamed-rate", function ()
+        local of = opened (paced)
+        local set = Replica.ours (of)
+
+        set:add (1, { [HP] = 1, [POS] = 1 })
+        Replica.ships (of)
+
+        local was = Replica.crossed (of)
+        for step = 1, RAPID do
+            set:update (1, { [POS] = step })
+            Replica.ships (of)
+        end
+
+        local frames = Replica.crossed (of) - was
+        Expect.holds (frames > 0, "a streamed field with a rate on it moved nothing at all")
+        Expect.holds (frames <= LETS, `a rate of {RATE} let {frames} of {RAPID} flushes through`)
     end),
 }

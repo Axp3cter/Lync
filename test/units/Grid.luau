@@ -305,4 +305,47 @@ return {
             Expect.holds (within (chosen, away, of.step), `{other} sits nearer {value} than {at}`)
         end
     end),
+
+    --[[
+        How many steps a span holds, counted rather than divided. A tenth is not a tenth in a
+        double, so a span of three tenths divides to a shade under three and a division believed
+        answers two, which is a grid one point short of what a caller declared.
+    ]]
+    Harness.case ("grid.counts-its-steps", function ()
+        Expect.equal (Grid.of (0, 0.3, 0.1).span, 3)
+        Expect.equal (Grid.of (0, 1, 0.1).span, 10)
+        Expect.equal (Grid.of (0, TURN, 0.1).span, TURN * 10)
+    end),
+
+    --[[
+        The hair a count is taken within, which has to be wide enough to close the gap a tenth
+        leaves and narrow enough not to close a real one. A span stopping a hair short of three
+        holds two steps and not three, however near the third it came.
+    ]]
+    Harness.case ("grid.counts-within-a-hair", function ()
+        Expect.equal (Grid.of (0, 2.999999, 1).span, 2)
+        Expect.equal (Grid.of (0, 3, 1).span, 3)
+    end),
+
+    --[[
+        A reading a hair under the bottom, which is a value a caller measured rather than one they
+        made up. Rounding it up onto the first point is what the room below the bottom is for, and
+        a grid without it turns away a number that is the bottom for every purpose but a compare.
+    ]]
+    Harness.case ("grid.takes-a-hair-under-its-bottom", function ()
+        local of = Grid.of (0, 4, 1)
+
+        -- Compared rather than equated, since rounding a number under nothing answers a signed one.
+        Expect.holds (of.toIndex (-1e-15) == 0, "a hair under the bottom is off the first point")
+        Expect.equal (of.toIndex (4 + 1e-15), 4)
+        Expect.equal (of.toIndex (-1), nil)
+    end),
+
+    -- A flag, which is two points and so one step between them.
+    Harness.case ("grid.a-flag-spans-one", function ()
+        local of = Grid.flag ()
+
+        Expect.equal (of.span, 1)
+        Expect.equal (of.width, 1)
+    end),
 }

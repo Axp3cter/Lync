@@ -56,10 +56,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     -- Per leaf, in wire order.
     local spans = table.create (held, 0)
     local toIndex = table.create (held) :: { (number) -> number? }
-    local fromIndex = table.create (held) :: { (number) -> number }
-
-    -- The leaves whose value is the index, which are read back without reaching for the mapping.
-    local plain = table.create (held, false) :: { boolean }
+    --[[
+        The reading each leaf needs, and nothing at all for the leaves whose value is already the
+        index. Absence rather than a second array beside this one, since a decode then asks one
+        question where it used to ask two and the answer to the first was almost always no.
+    ]]
+    local fromIndex = table.create (held) :: { ((number) -> any)? }
 
     -- The leaves that fill their bits, which no reading can carry off the grid.
     local whole = table.create (held, false) :: { boolean }
@@ -67,8 +69,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     for index, grid in leaves do
         spans[index] = grid.span
         toIndex[index] = grid.toIndex
-        fromIndex[index] = grid.fromIndex
-        plain[index] = grid.plain == true
+        fromIndex[index] = if grid.plain == true then nil else grid.fromIndex
         whole[index] = grid.whole == true
     end
 
@@ -243,10 +244,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local one: any
             if push ~= nil then
                 one = push (slots, at)
-            elseif plain[at] then
-                one = slots[at]
             else
-                one = fromIndex[at] (slots[at])
+                local reading = fromIndex[at]
+                one = if reading == nil then slots[at] else reading (slots[at])
             end
 
             local key = keys[index]

@@ -4,13 +4,12 @@
 
 local Apply = require ("@src/state/Apply")
 local Bits = require ("@src/kernel/Bits")
-local Fieldset = require ("@src/state/Fieldset")
 local Protocol = require ("@src/wire/Protocol")
 local Sections = require ("@src/state/Sections")
 local Sequence = require ("@src/wire/Sequence")
+local Slots = require ("@src/state/Slots")
 local Store = require ("@src/state/Store")
 local Types = require ("@src/Types")
-local Varint = require ("@src/wire/Varint")
 
 local Newest = {}
 
@@ -28,11 +27,8 @@ const GROUP = Protocol.VARINT_BITS
 ]]
 const STAMPED = 1
 
---[[
-    The least an entry can spend, which is a slot varint at its shortest and nothing else that has
-    to be there, and is what a count is held against before the lists it drives are walked.
-]]
-const LEAST = 1
+-- What this lane carries beside each slot, which is nothing: a slot run and then the columns.
+const LEAST = 0
 
 --[[
     Where a stream header keeps the two fields a sender states outright, the third being the
@@ -42,8 +38,12 @@ const LEAST = 1
 const WHOSE = 1
 const WHICH = 2
 
-const TOO_MANY = "a newest section naming more records than its own bytes could hold"
-const OUT_OF_ORDER = "a newest section naming its slots out of order"
+-- What a slot run of this lane refuses under.
+const SAID: Slots.Said = table.freeze ({
+    many = "a newest section naming more records than its own bytes could hold",
+    order = "a newest section naming its slots out of order",
+    pad = "a newest section padding its slot run with something other than zero",
+})
 
 -- Types ---------------------------------------------------------------
 
@@ -69,6 +69,7 @@ export type Lane = {
     read seqAt: number,
     key: any,
     read slots: { number },
+    read steps: { number },
     read gens: { number },
     read marks: { any },
     read values: { any },
@@ -122,6 +123,7 @@ function Newest.of (layout: Sections.Layout): Lane
         seqAt = def.stream.fields,
         key = nil,
         slots = {},
+        steps = {},
         gens = {},
         marks = {},
         values = {},
@@ -241,10 +243,7 @@ function Newest.section (
     local key = def.keyIndex
     if key ~= nil then held = def.fieldBuilt[key].write (b, held, of.key) end
 
-    held = Varint.write (b, held, count)
-    for index = 1, count do
-        held = Varint.write (b, held, of.slots[index])
-    end
+    held = Slots.wrote (b, held, of.slots, of.steps, count)
 
     held = layout.generations.whole (b, held, of.gens :: any, layout.spare, count)
     held = layout.fields[field].whole (b, held, of.values, layout.spare, count)
@@ -282,18 +281,7 @@ function Newest.taken (
     end
 
     local count
-    count, held = Varint.read (b, held)
-    if count * LEAST > buffer.len (b) - held then Fieldset.broken (TOO_MANY) end
-
-    local last = 0
-    for index = 1, count do
-        local slot
-        slot, held = Varint.read (b, held)
-        if slot <= last then Fieldset.broken (OUT_OF_ORDER) end
-
-        of.slots[index] = slot
-        last = slot
-    end
+    count, held = Slots.read (b, held, of.slots, of.steps, LEAST, SAID)
 
     held = layout.generations.back (b, held, of.gens :: any, layout.spare, count, ctx)
     held = layout.fields[of.fields[at]].back (b, held, of.values, layout.spare, count, ctx)

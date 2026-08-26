@@ -360,13 +360,13 @@ Golden.frames = table.freeze ({
             .. "7fe0f046c796e630c0000c03f00001040000070c00"
             .. "100f00100010802c413010000003f5a00018020000"
             .. "0003f0000803e0000403f062008bd396a69d102",
-        "a unreliable 4100000101010019500a50c94f",
+        "a unreliable 4100000108010019500a50c94f",
     }),
     ["acceptance.cleared"] = table.freeze ({
         "",
     }),
     ["acceptance.newest"] = table.freeze ({
-        "a unreliable 81000001010100325000506450",
+        "a unreliable 81000001080100325000506450",
     }),
     ["acceptance.idle"] = table.freeze ({
         "",

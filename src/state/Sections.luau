@@ -3,13 +3,12 @@
 -- The state sections: one partition's flush, as the bytes it becomes.
 
 local Bits = require ("@src/kernel/Bits")
-local Bytes = require ("@src/wire/Bytes")
 local Column = require ("@src/shape/emit/Column")
 local Compile = require ("@src/shape/Compile")
 local Fieldset = require ("@src/state/Fieldset")
-local Leaf = require ("@src/shape/emit/Leaf")
 local Protocol = require ("@src/wire/Protocol")
 local Shape = require ("@src/shape")
+local Slots = require ("@src/state/Slots")
 local Types = require ("@src/Types")
 local Varint = require ("@src/wire/Varint")
 
@@ -38,22 +37,18 @@ const RUNS = Protocol.BIT_CEILING
 -- What the widest varint spends, which is what a slot and an id are each bounded by.
 const WIDEST = Protocol.VARINT_GROUPS
 
--- Bits in a byte, which a bound counted in one is measured against.
-const BYTE = Protocol.BYTE_BITS
-
 -- What a keyframe carries beside each slot, which is the id it is bound to and at least a byte.
-const PAIRED = 8
+const PAIRED = Protocol.BYTE_BITS
 
 -- What the other kinds carry beside a slot, which is nothing at all.
 const LONE = 0
 
--- How many widths the count shares its number with, and the widest of them worth packing at.
-const SPANS = 8
-const NARROW = SPANS - 1
-
-const TOO_MANY = "a section naming more records than its own bytes could hold"
-const OUT_OF_ORDER = "a section naming its slots out of order"
-const PADDED = "a section padding its slot run with something other than zero"
+-- What a slot run of this lane refuses under.
+const SAID: Slots.Said = table.freeze ({
+    many = "a section naming more records than its own bytes could hold",
+    order = "a section naming its slots out of order",
+    pad = "a section padding its slot run with something other than zero",
+})
 const GENERATIONS = "a generation run"
 const PRESENCE = "a presence run"
 
@@ -199,63 +194,6 @@ local function covering (of: Frame, place: number, count: number): number
     return reach
 end
 
---[[
-    A count, the width its steps are packed at, and both against the bytes left to hold them.
-
-    One number carries the pair. A width of nothing means the steps were spelled as varints, which
-    is what a list too spread out to pack falls back to, and a byte is the least one of those takes.
-]]
-local function counted (b: buffer, at: number, least: number): (number, number, number)
-    local held, after = Varint.read (b, at)
-
-    local width = held % SPANS
-    local count = (held - width) // SPANS
-
-    local steps = if width == 0 then count * BYTE else BYTE + (count - 1) * width
-    local bits = count * least + (if count == 0 then 0 else steps)
-
-    if bits > (buffer.len (b) - after) * BYTE then Fieldset.broken (TOO_MANY) end
-
-    return count, width, after
-end
-
---[[
-    A slot list, read back from the steps between its entries.
-
-    A step of nothing is the one thing the climb refuses, and a step backwards cannot be spelled
-    at all, so what arrives is ascending or it is broken.
-]]
-local function listed (of: Frame, b: buffer, at: number, count: number, width: number): number
-    if count == 0 then return at end
-
-    local steps = of.steps
-    local first, held = Varint.read (b, at)
-
-    if width == 0 then
-        for index = 1, count - 1 do
-            steps[index], held = Varint.read (b, held)
-        end
-    else
-        local clean
-        held, clean = Leaf.unpacked (b, held, width, count - 1, steps)
-        if not clean then Fieldset.broken (PADDED) end
-    end
-
-    if first == 0 then Fieldset.broken (OUT_OF_ORDER) end
-    of.slots[1] = first
-
-    local last = first
-    for index = 2, count do
-        local step = steps[index - 1]
-        if step == 0 then Fieldset.broken (OUT_OF_ORDER) end
-
-        last += step
-        of.slots[index] = last
-    end
-
-    return held
-end
-
 -- A section's header and the key of the partition it is about, which every kind opens with.
 local function opened (of: Layout, b: buffer, pos: number, kind: number): number
     local def = of.def
@@ -267,48 +205,6 @@ local function opened (of: Layout, b: buffer, pos: number, kind: number): number
     if key == nil then return at end
 
     return def.fieldBuilt[key].write (b, at, of.frame.key)
-end
-
---[[
-    The count and the slots under it, which three of the four kinds carry and one does not.
-
-    The step from the slot before rather than the slot itself. A list that climbs spells a step in
-    fewer bytes than the number it climbed to, and the whole of a set moving is a step of one.
-]]
-local function spelled (of: Layout, b: buffer, at: number): number
-    local frame = of.frame
-    local count = frame.count
-    local steps = frame.steps
-
-    --[[
-        The first slot as it stands and the rest as the step from the one before. A section that
-        opens partway up a partition would otherwise carry that offset into every width it picks.
-    ]]
-    local widest = 0
-    for index = 2, count do
-        local step = frame.slots[index] - frame.slots[index - 1]
-
-        steps[index - 1] = step
-        if step > widest then widest = step end
-    end
-
-    --[[
-        A step under a byte wide is spelled in bits and the rest in varints, since a varint cannot
-        spend less than the byte it is, and a list spread too far to pack would only spend more.
-    ]]
-    local width = Bits.width (widest)
-    if width > NARROW or Bytes.whole ((count - 1) * width) >= count - 1 then width = 0 end
-
-    local held = Varint.write (b, at, count * SPANS + width)
-    if count == 0 then return held end
-
-    held = Varint.write (b, held, frame.slots[1])
-    if width ~= 0 then return Leaf.packed (b, held, width, count - 1, steps) end
-
-    for index = 1, count - 1 do
-        held = Varint.write (b, held, steps[index])
-    end
-    return held
 end
 
 -- Public --------------------------------------------------------------
@@ -383,7 +279,7 @@ function Sections.keyframe (of: Layout, b: buffer, pos: number, columns: Columns
     local def = of.def
     local count = frame.count
 
-    local at = spelled (of, b, opened (of, b, pos, KEYFRAME))
+    local at = Slots.wrote (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
     for index = 1, count do
         at = Varint.writeSigned (b, at, frame.ids[index])
     end
@@ -413,7 +309,7 @@ function Sections.delta (of: Layout, b: buffer, pos: number, columns: Columns, w
     local count = frame.count
 
     local at = of.set.write (b, opened (of, b, pos, DELTA), chosen)
-    at = spelled (of, b, at)
+    at = Slots.wrote (b, at, frame.slots, frame.steps, count)
 
     for place = 1, chosen.count do
         if chosen.full[place] ~= COVERS then
@@ -444,7 +340,9 @@ end
     the audience that was meant to be the only thing that knew of it.
 ]]
 function Sections.removal (of: Layout, b: buffer, pos: number): number
-    return spelled (of, b, opened (of, b, pos, REMOVAL))
+    local frame = of.frame
+
+    return Slots.wrote (b, opened (of, b, pos, REMOVAL), frame.slots, frame.steps, frame.count)
 end
 
 -- A clear: the partition and nothing about it, which is the whole of what emptying one says.
@@ -497,10 +395,15 @@ function Sections.taken (
     if kind == DELTA then at = of.set.read (b, at, chosen) end
 
     local count
-    local width
-    count, width, at = counted (b, at, if kind == KEYFRAME then PAIRED else LONE)
+    count, at = Slots.read (
+        b,
+        at,
+        frame.slots,
+        frame.steps,
+        if kind == KEYFRAME then PAIRED else LONE,
+        SAID
+    )
     frame.count = count
-    at = listed (frame, b, at, count, width)
     if kind == REMOVAL then return kind, at end
 
     if kind == KEYFRAME then

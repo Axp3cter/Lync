@@ -1,6 +1,6 @@
 {
     "name": "@axpecter/lync",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "description": "Typed buffer networking for Roblox: packets, queries, and replicated sets.",
     "keywords": ["roblox", "roblox-ts", "luau", "networking", "buffer", "packets", "replication"],
     "homepage": "https://github.com/Axp3cter/Lync",

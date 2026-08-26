@@ -28,6 +28,9 @@ const WORD = 4
 const HALF = 2 ^ 16
 const HIGH = 2 ^ (WORD * BYTE)
 
+-- One bit, which is what a flag takes and the width a whole byte of elements lands on exactly.
+const FLAG = 1
+
 -- The slot a reference nobody made takes, which is none, since the array it indexes starts at one.
 const NOTHING = 0
 
@@ -143,6 +146,35 @@ function Leaf.packed (
         return at
     end
 
+    --[[
+        Flags, eight to a byte. The loop below carries part of an element into the next byte and
+        looks for a boundary after every one, where single bits meet the boundary exactly and
+        there is never anything to carry, so a byte is gathered and put down on its own.
+    ]]
+    if width == FLAG then
+        local index = 1
+        while index + BYTE - 1 <= count do
+            local byte = 0
+            for step = BYTE - 1, 0, -1 do
+                byte = byte * 2 + indices[index + step]
+            end
+
+            buffer.writeu8 (b, at, byte)
+            at += 1
+            index += BYTE
+        end
+
+        if index > count then return at end
+
+        local byte = 0
+        for step = count - index, 0, -1 do
+            byte = byte * 2 + indices[index + step]
+        end
+
+        buffer.writeu8 (b, at, byte)
+        return at + 1
+    end
+
     local acc, used = 0, 0
 
     for index = 1, count do
@@ -183,6 +215,32 @@ function Leaf.unpacked (
         end
 
         return at, true
+    end
+
+    -- The same run of flags, taken back a byte at a time. What is left over is the pad.
+    if width == FLAG then
+        local index = 1
+        while index + BYTE - 1 <= count do
+            local byte = buffer.readu8 (b, at)
+            at += 1
+
+            for step = 0, BYTE - 1 do
+                into[index + step] = byte % 2
+                byte //= 2
+            end
+
+            index += BYTE
+        end
+
+        if index > count then return at, true end
+
+        local byte = buffer.readu8 (b, at)
+        for step = 0, count - index do
+            into[index + step] = byte % 2
+            byte //= 2
+        end
+
+        return at + 1, byte == 0
     end
 
     local acc, used = 0, 0

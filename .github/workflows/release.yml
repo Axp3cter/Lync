@@ -50,6 +50,13 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # The names a person downloads, which the readme names and every release before this used.
+      # The build names say which project made them, and say nothing to whoever is fetching one.
+      - run: |
+          mv build/default.rbxm build/Lync.rbxm
+          mv build/test.rbxl build/Lync-dev.rbxl
+          mv build/bench.rbxl build/Lync-bench.rbxl
+
       - uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: v${{ steps.version.outputs.value }}
@@ -57,6 +64,6 @@ jobs:
           fail_on_unmatched_files: true
           body: Cut against ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           files: |
-            build/default.rbxm
-            build/test.rbxl
-            build/bench.rbxl
+            build/Lync.rbxm
+            build/Lync-dev.rbxl
+            build/Lync-bench.rbxl

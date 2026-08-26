@@ -61,7 +61,7 @@ Lync = "axp3cter/lync@3.0.0"
 npm install @axpecter/lync
 ```
 
-Or drop `lync.rbxm` from the latest release into `ReplicatedStorage`.
+Or drop `Lync.rbxm` from the latest release into `ReplicatedStorage`.
 
 ---
 

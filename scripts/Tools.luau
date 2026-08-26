@@ -2,6 +2,7 @@
 -- The pinned tools: how each is invoked, the one place a child is spawned, and the version probe.
 
 local process = require ("@lune/process")
+local stdio = require ("@lune/stdio")
 
 local Reading = require ("./Reading")
 local Repo = require ("./Repo")
@@ -71,7 +72,29 @@ end
 ]]
 function Tools.publishWally (): Ruling.Ruling return inside (Repo.DIST, "wally", { "publish" }) end
 
-function Tools.publishNpm (): Ruling.Ruling return inside (Repo.DIST, NPM, { "publish" }) end
+--[[
+    The package to npm, tried once without a second factor, since an account that wants no code is
+    never asked and a prompt it could not answer would stop a release with nothing wrong with it.
+    The code is read after that attempt rather than before, one read earlier having expired while
+    the gate ahead of this ran.
+]]
+function Tools.publishNpm (): Ruling.Ruling
+    local held: process.ExecOptions = { cwd = Repo.DIST }
+    local ok, outcome = pcall (process.exec, NPM, { "publish" }, held)
+    if not ok then return { ok = false, note = `{NPM} is not on PATH, run setup` } end
+
+    local first = outcome :: process.ExecResult
+    stdio.write (first.stdout)
+    stdio.write (first.stderr)
+    if first.ok then return { ok = true } end
+
+    if string.find (first.stderr, "EOTP", 1, true) == nil then
+        return { ok = false, note = `npm exited {first.code}` }
+    end
+
+    local code = stdio.prompt ("text", "one time password")
+    return inside (Repo.DIST, NPM, { "publish", `--otp={code}` })
+end
 
 -- Spawns a child that outlives this call. The caller owns it and must kill it.
 function Tools.watch (name: string, args: { string }): process.ChildProcess

@@ -58,6 +58,10 @@ return {
 
         Expect.equal (table.isfrozen (of.keys :: any), true)
         Expect.equal (table.isfrozen (of.parts :: any), true)
+
+        -- A group carries its parts the same way, and is walked the same way to reach them.
+        local grouped = Ir.group (TAG, nil, { { key = "a", nest = nil, of = held () } })
+        Expect.equal (table.isfrozen (grouped.parts :: any), true)
     end),
 
     --[[
@@ -150,6 +154,14 @@ return {
 
         Expect.equal (Ir.opt (TAG, 1, same).fixed, false)
         Expect.equal (Ir.branch (TAG, "kind", { "a", "b" }, { same, same }).fixed, false)
+
+        -- A value that comes apart is as fixed as the parts it comes apart into, the same way.
+        local function apart (of: Ir.Shape): boolean
+            return Ir.apart (TAG, "vector", { "x" }, { of }, function (): any return nil end).fixed
+        end
+
+        Expect.equal (apart (same), true)
+        Expect.equal (apart (one), false)
     end),
 
     --[[
@@ -170,4 +182,31 @@ return {
         "ir.the-joins-of-a-region-are-shut",
         function () Expect.equal (table.isfrozen (worded ().joins :: any), true) end
     ),
+
+    --[[
+        Whether a map is one width, which is its count and both halves of every pair. A map reading
+        only its keys answers fixed for one whose values vary, and one reading only its count
+        answers fixed for a map of one length holding something that does not.
+    ]]
+    Harness.case ("ir.a-map-reads-every-half", function ()
+        local one = Ir.varint (TAG, false)
+        local same = Ir.wide (TAG, landing ())
+
+        Expect.equal (Ir.pairs (TAG, { min = 2, max = 2 }, same, same).fixed, true)
+        Expect.equal (Ir.pairs (TAG, { min = 2, max = 2 }, one, same).fixed, false)
+        Expect.equal (Ir.pairs (TAG, { min = 2, max = 2 }, same, one).fixed, false)
+        Expect.equal (Ir.pairs (TAG, { min = 1, max = 2 }, same, same).fixed, false)
+    end),
+
+    --[[
+        The nests every group with none of its own carries, which is one table rather than one
+        each. There is nothing to say in any of them that is not said in every other, so a table
+        apiece is a table apiece to keep for no reading anybody makes.
+    ]]
+    Harness.case ("ir.groups-with-no-nests-share-one", function ()
+        local one = Ir.group (TAG, nil, {})
+        local two = Ir.group (TAG, nil, {})
+
+        Expect.holds (one.nests == two.nests, "two groups with no nests held two tables")
+    end),
 }

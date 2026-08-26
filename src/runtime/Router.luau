@@ -192,14 +192,10 @@ local function packets (
     end
 
     --[[
-        Gathered before any of them is handed over, since what a listener costs is a thread and a
-        block of thirty was thirty of them. What the boundary turned away is left out rather than
-        left nil, so the count a listener is handed is the count it is given.
-    ]]
-    --[[
-        Its own rather than the wiring's, because what is gathered outlives the gathering: a
-        listener that parks partway along holds this until it wakes, and a scratch one would by
-        then be the next block's payloads under the same name.
+        Gathered before any is handed over, since what a listener costs is a thread and a block of
+        thirty was thirty of them. Its own array rather than the wiring's, because what is gathered
+        outlives the gathering: a listener parking partway along holds it until it wakes, and a
+        scratch one would by then be the next block's payloads under the same name.
     ]]
     local values = table.create (held)
     local taken = 0

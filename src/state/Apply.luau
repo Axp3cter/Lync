@@ -224,6 +224,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
 
         -- The column this section speaks for, reached once rather than once a slot it names.
         local column = store.columns[field]
+        local put = store.writers[field]
 
         for index = 1, frame.covered[place] do
             local slot = under[index]
@@ -234,7 +235,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
             local value = values[index]
 
             snapped (of, store, id)
-            Store.write (store, slot, id, field, value)
+            put (slot, id, value)
             if held ~= nil then held[slot] = marks[index] end
 
             -- A value that arrived as what the field already held is no change to report.

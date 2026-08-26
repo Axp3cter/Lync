@@ -119,8 +119,10 @@ end
 -- Every field of a record into the store, which is the whole of what a bind leaves to say.
 local function written (of: Sync, store: Store.Store, slot: number, id: number, record: any)
     local names = of.def.fieldNames
+    local writers = store.writers
+
     for field = 1, of.def.fieldCount do
-        Store.write (store, slot, id, field, record[names[field]])
+        writers[field] (slot, id, record[names[field]])
     end
 end
 
@@ -160,8 +162,9 @@ local function migrated (of: Sync, from: Partition, id: number, slot: number)
     local into = partition (of, row[of.def.keyIndex :: number])
     local held = Store.bind (into.store, id)
 
+    local writers = into.store.writers
     for field = 1, of.def.fieldCount do
-        Store.write (into.store, held, id, field, row[field])
+        writers[field] (held, id, row[field])
     end
 
     marked (into, id, "add")
@@ -531,6 +534,7 @@ function Sync.update (of: Sync, id: number, fields: any)
 
     local climbs = of.climbs
     local streams = of.streams
+    local writers = store.writers
 
     local moved = false
     for name, value in fields do
@@ -570,7 +574,7 @@ function Sync.update (of: Sync, id: number, fields: any)
         local now = if value == Sync.NONE then nil else value
         if alike (was, now) then continue end
 
-        Store.write (store, slot, id, field, now)
+        writers[field] (slot, id, now)
 
         --[[
             A newest field is written and not marked. The lane that carries one compares what the

@@ -21,6 +21,9 @@ const LATEST: Compile.Marker = "newest"
 -- A record as a caller reads one, which is the same table the callbacks are handed.
 export type Record = { [string]: any }
 
+-- One field's write, by the slot it lands on and the id whose record carries it.
+export type Writer = (slot: number, id: number, value: any) -> ()
+
 --[[
     One partition, held twice. `columns` is the wire's truth, one field across every slot, which a
     section writes as one lookup and then array reads. `rows` is the caller's, one record under its
@@ -37,6 +40,13 @@ export type Store = {
     read prev: { { [number]: number }? },
     read sent: { { [number]: any }? },
     read gens: { [number]: number }?,
+
+    --[[
+        One writer a field, holding the column and the name that field is known by. Both are
+        settled when the partition is made, so a caller writing a whole column of slots reaches
+        them once rather than working them out again for every slot it puts down.
+    ]]
+    read writers: { Writer },
     read free: Heap.Heap,
     high: number,
     count: number,
@@ -79,7 +89,7 @@ function Store.new (of: Compile.Set): Store
         sent[index] = if newest then {} else nil
     end
 
-    return {
+    local store: Store = {
         def = of,
         fields = fields,
         columns = columns,
@@ -92,7 +102,37 @@ function Store.new (of: Compile.Set): Store
         free = Heap.new (),
         high = 0,
         count = 0,
+        writers = table.create (fields) :: { Writer },
     }
+
+    local rows = store.rows
+    local names = of.fieldNames
+
+    for index = 1, fields do
+        local column = columns[index]
+        local name = names[index]
+
+        store.writers[index] = function (slot: number, id: number, value: any)
+            column[slot] = value
+
+            local row = rows[id]
+
+            --[[
+                A row a caller has been handed is frozen in a development build, so this writes a
+                copy rather than raising on it. What the caller holds stays what they were told it
+                was: the record as it read at the moment they took it, and borrowed rather than
+                live.
+            ]]
+            if __DEV__ and table.isfrozen (row) then
+                row = table.clone (row)
+                rows[id] = row
+            end
+
+            row[name] = value
+        end
+    end
+
+    return store
 end
 
 -- A record under an id, at the slot it will keep until it is removed.
@@ -137,32 +177,12 @@ end
 function Store.spare (of: Store, slot: number) Heap.push (of.free, slot, slot) end
 
 --[[
-    One field of one record, in both of the places it is held.
-
-    Both at once: the column and the row are one fact written twice, and they stay one fact only
-    because nothing can write either alone.
+    One field of one record, in both of the places it is held: the column and the row are one fact
+    written twice, and they stay one fact only because nothing can write either alone. Naming the
+    field reaches its writer, which a caller putting down many slots of one field holds instead.
 ]]
 function Store.write (of: Store, slot: number, id: number, field: number, value: any)
-    of.columns[field][slot] = value
-
-    --[[
-        The id taken rather than looked up, because every caller reached the slot through it or
-        holds it for its own reasons: a store asked to work out again what it was just told is a
-        store doing the caller's arithmetic twice.
-    ]]
-    local row = of.rows[id]
-
-    --[[
-        A row a caller has been handed is frozen in a development build, so this writes a copy
-        rather than raising on it. What the caller holds stays what they were told it was: the
-        record as it read at the moment they took it, and borrowed rather than live.
-    ]]
-    if __DEV__ and table.isfrozen (row) then
-        row = table.clone (row)
-        of.rows[id] = row
-    end
-
-    row[of.def.fieldNames[field]] = value
+    of.writers[field] (slot, id, value)
 end
 
 -- A partition emptied, and every slot it handed out back at the beginning.

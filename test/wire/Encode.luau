@@ -292,10 +292,54 @@ return {
             of.write (SLAB, 0, { 1, 2, 3 }) > 0,
             "a run of values on its grid wrote nothing"
         )
-        -- Named, since a run writing a nothing raises where the nothing is read instead.
-        names (refused (of, { 1, 9 }, "a run element over its grid"), ROOT, "an element over")
-        names (refused (of, { -1, 2 }, "a run element under its grid"), ROOT, "an element under")
-        names (refused (of, { 1, 0 / 0 }, "a run element on no grid"), ROOT, "an element off")
+
+        -- A run asks one grid across every element, so what it names is the array it is.
+        for _, one in { { 1, 9 }, { -1, 2 }, { 1, 0 / 0 } } do
+            names (refused (of, one, "a run element off its grid"), ROOT, "an element off its grid")
+        end
+    end),
+
+    --[[
+        An element that is a record of its own, refused by the field inside it. An array names what
+        it holds `element` so the path down to a field carries it, and one that did not would read
+        as the array's own field, which is a declaration the caller never wrote.
+    ]]
+    Harness.case ("wire.run-element-is-named", function ()
+        local of = built (Lync.array (Lync.struct ({ n = Lync.int (0, 3) }), 1, 4))
+
+        Expect.holds (
+            of.write (SLAB, 0, { { n = 1 } }) > 0,
+            "a record element on its grid wrote nothing"
+        )
+
+        local said = refused (of, { { n = 9 } }, "a record element off its grid")
+        names (said, "element", "an element by its own name")
+        names (said, "n", "the field inside it")
+    end),
+
+    --[[
+        An optional's payload off its grid, named by the payload rather than by the optional. What
+        a caller declared is a value that may be absent, so a refusal about the value it carries
+        when it is there has to say so, or it reads as a refusal about the absence itself.
+    ]]
+    Harness.case ("wire.optional-payload-off-its-grid", function ()
+        local of = built (Lync.optional (Lync.int (0, 3)))
+
+        Expect.holds (of.write (SLAB, 0, nil) > 0, "an optional holding nothing wrote nothing")
+        Expect.holds (of.write (SLAB, 0, 2) > 0, "an optional on its grid wrote nothing")
+
+        names (refused (of, 9, "an optional payload off its grid"), ROOT, "a payload off its grid")
+
+        --[[
+            The same inside a record, which is the form a caller writes most and the one that
+            lowers through a field rather than standing on its own.
+        ]]
+        local held = built (Lync.struct ({ maybe = Lync.optional (Lync.int (0, 3)) }))
+        Expect.holds (held.write (SLAB, 0, { maybe = 2 }) > 0, "an optional field wrote nothing")
+
+        local said = refused (held, { maybe = 9 }, "an optional field off its grid")
+        names (said, "maybe", "a payload by the field holding it")
+        names (said, "inner", "a payload by its own name")
     end),
 
     --[[

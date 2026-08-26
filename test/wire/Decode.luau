@@ -59,6 +59,9 @@ const HIGH = 2
 -- The widest a byte-wide key or value reaches, which is what puts each of them in one byte.
 const BYTE_WIDE = 255
 
+-- Not an instance, which is what a sender is free to leave where one is looked up.
+const PRETEND = table.freeze ({ pretending = true })
+
 -- Three colours, which is a span of three and one index the wire can say it has not.
 const PALETTE = table.freeze ({ Color3.new (1, 0, 0), Color3.new (0, 1, 0), Color3.new (0, 0, 1) })
 
@@ -440,6 +443,21 @@ return {
                     )
                 end
             end
+        end
+    end),
+
+    --[[
+        The sender fills the reference array, so a frame can name a slot holding anything at all.
+        A reader handing back whatever it finds there answers a value its own writer would never
+        produce, and nothing else here reaches that array.
+    ]]
+    Harness.case ("total.sidecar-holds", function ()
+        for _, of in { Turns.built (Lync.inst ()), Turns.built (Lync.inst ("Player")) } do
+            local out = buffer.create (math.max (of.maxBytes, 1))
+            of.write (out, 0, PRETEND)
+
+            Expect.equal (typeof (of.sidecar.refs[1]), "table")
+            Expect.holds (not (pcall (of.read, out, 0, Turns.CTX)), "a reference answered a table")
         end
     end),
 }

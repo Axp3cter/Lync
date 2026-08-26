@@ -27,6 +27,9 @@ const LOBBY = "lobby"
 -- The one client, because a budget is per client and one of them is what makes the number plain.
 const SENDER = "alice"
 
+-- The one who arrives after the records did, which is what a catch-up is owed to.
+const LATE = "bob"
+
 -- One packet and one set in each namespace, under the same two names in both.
 const BEAT = "beat"
 const BOARD = "board"
@@ -260,5 +263,31 @@ return {
         end
 
         Expect.throws (function () of[ARENA].server.session:flush () end, "one fire takes")
+    end),
+
+    --[[
+        A client that arrived after the records did, caught up under a budget. The backlog goes
+        over as chunks and each takes its room out of what is left, so one flush hands over some
+        of the set and the rest waits. A catch-up cutting every chunk against the room the first
+        one had would hand the whole backlog over at a budget that never moved.
+    ]]
+    Harness.case ("ns.catch-up-budget", function ()
+        local of = Replica.open ({ space = ARENA, defined = defined }, SENDER)
+
+        for id = 1, RECORDS do
+            of.server.defs[BOARD]:add (id, { [TEXT] = spelled (id) })
+        end
+        Replica.ships (of)
+
+        local late = Replica.joins (of, LATE)
+        of.server.session:flush (FLOOR)
+        of.wire:settle ()
+
+        local held = #late.machine.defs[BOARD]
+        Expect.holds (held > 0, "a late join under a budget was caught up on nothing at all")
+        Expect.holds (
+            held < RECORDS,
+            `a late join took all {RECORDS} records at a budget of {FLOOR}`
+        )
     end),
 }

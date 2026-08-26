@@ -277,6 +277,74 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         return bare
     end
 
+    --[[
+        One field in one window, which is what a bare number is and what every key and value of a
+        map are. The loops above walk arrays to find what is already known here, so the same work
+        is the reading, the bounds and the one write, with nothing looked up to reach them.
+    ]]
+    if
+        reach == 1
+        and windows == 1
+        and first[1] == last[1]
+        and pulls[1] == nil
+        and pushes[1] == nil
+        and direct[1]
+        and offset[1] == 0
+        and inside[1] == 0
+    then
+        local key = keys[1]
+        local cell = starts[1]
+        local edge = ends[1]
+        local reading = fromIndex[cell]
+        local writing = toIndex[cell]
+        local bound = spans[cell]
+        local said, want = wheres[1], wanted[1]
+        local seat, bytes = where[1], width[1]
+        local sign = joins[1].tag
+        local named, meant = sign.pathId, sign.expectId
+
+        local function only (b: buffer, pos: number, value: any, slots: { number }, _held: { any })
+            local one = if key == nil then value else value[key]
+            local made = writing (one)
+            if made == nil then Word.refused (said, want, one) end
+
+            local at = pos + seat
+            if bytes == ONE then
+                buffer.writeu8 (b, at, made :: number)
+            elseif bytes == PAIR then
+                buffer.writeu16 (b, at, made :: number)
+            else
+                buffer.writeu32 (b, at, made :: number)
+            end
+        end
+
+        local function sole (
+            b: buffer,
+            pos: number,
+            into: any,
+            slots: { number },
+            _held: { any }
+        ): any
+            local at = pos + seat
+            local raw = if bytes == ONE
+                then buffer.readu8 (b, at)
+                elseif bytes == PAIR then buffer.readu16 (b, at)
+                else buffer.readu32 (b, at)
+
+            if edge >= cell and raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            local one = if reading == nil then raw else reading (raw)
+            if key == nil then return one end
+
+            into[key] = one
+            return nil
+        end
+
+        return only, sole
+    end
+
     return pack, unpack
 end
 

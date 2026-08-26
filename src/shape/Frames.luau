@@ -93,6 +93,45 @@ local function run (widths: { number }): (Write, Read, number)
         end
     end
 
+    --[[
+        A head of one field lying in one piece, which is what a namespace's own is and what every
+        header a run repeats is. The loops above walk arrays to find what is already known here, so
+        the same work is one read, one cut and one store, and the two places the general form adds
+        are held to being zero rather than assumed to be.
+    ]]
+    local first = plan[1]
+    if
+        held == 1
+        and windows == 1
+        and #first.parts == 1
+        and first.at == 0
+        and first.parts[1].offset == 0
+    then
+        local size = first.bytes
+        local wide = first.parts[1].width
+
+        local function lone (b: buffer, pos: number, of: { number })
+            if size == ONE then
+                buffer.writeu8 (b, pos, of[1])
+            elseif size == PAIR then
+                buffer.writeu16 (b, pos, of[1])
+            else
+                buffer.writeu32 (b, pos, of[1])
+            end
+        end
+
+        local function sole (b: buffer, pos: number, into: { number })
+            local acc = if size == ONE
+                then buffer.readu8 (b, pos)
+                elseif size == PAIR then buffer.readu16 (b, pos)
+                else buffer.readu32 (b, pos)
+
+            into[1] = bit32.extract (acc, 0, wide)
+        end
+
+        return lone, sole, bytes
+    end
+
     return write, read, bytes
 end
 

@@ -16,6 +16,7 @@ const SEQ = Bits.width (Protocol.NEWEST_WINDOW * 2 - 1)
 const ASKED = Bits.width (Protocol.QUERY_CAP * 2 - 1)
 const OUTCOME = Protocol.OUTCOME_BITS
 const KIND = Bits.width (Protocol.SECTION_CLEAR)
+const BYTE = Protocol.BYTE_BITS
 
 -- The narrow windows a plan cuts, read from the module that cuts them. The widest is the last arm.
 const ONE = Words.ONE
@@ -32,6 +33,9 @@ export type Head = {
     read bytes: number,
     read write: Write,
     read read: Read,
+
+    -- How many payloads one block of this form may carry, which only a running form answers.
+    read runs: number?,
 }
 
 -- Private -------------------------------------------------------------
@@ -161,7 +165,23 @@ function Frames.naming (over: number): Head return headed ({ named (over) }) end
     answer alike: what separates those is the header each payload carries, not this one.
 ]]
 function Frames.running (over: number): Head
-    return headed ({ named (over), named (Protocol.RUN_CAP) })
+    local id = named (over)
+
+    --[[
+        The count is spelled in the bits rounding the id up to its byte, which were spare before it
+        wanted them. What that buys is a block that never runs costing exactly what it did when no
+        block could, and what it costs is a cap that a crowded namespace holds to more tightly.
+    ]]
+    local spare = BYTE - id % BYTE
+    local head = headed ({ id, spare })
+
+    return table.freeze ({
+        fields = head.fields,
+        bytes = head.bytes,
+        write = head.write,
+        read = head.read,
+        runs = 2 ^ spare,
+    })
 end
 
 --[[

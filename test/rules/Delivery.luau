@@ -6,7 +6,6 @@ local Lync = require ("@src")
 local Session = require ("@src/runtime/Session")
 
 local Doubles = require ("@fixtures/Doubles")
-local Protocol = require ("@src/wire/Protocol")
 
 local Expect = require ("@test/harness/Expect")
 local Harness = require ("@test/harness")
@@ -355,10 +354,15 @@ return {
         block opens, and a caller who fired thirty-five times is a listener told thirty-five.
     ]]
     Harness.case ("packet.run-past-its-cap", function ()
-        const OVER = 3
+        --[[
+            Past any cap a block of this namespace could have. What the cap is comes off the width
+            of the id the header already spends, so a check naming a number of its own would be a
+            check about arithmetic somewhere else.
+        ]]
+        const MANY = 200
 
         local of = opened ()
-        local many = Protocol.RUN_CAP + OVER
+        local many = MANY
 
         for index = 1, many do
             of.defs[SURE]:fireClient (of.player, index % 101)

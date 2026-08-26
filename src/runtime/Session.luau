@@ -228,7 +228,7 @@ local function replying (
     link.wrote = ends
     link.holds += 1
 
-    if link.holds == Protocol.RUN_CAP or link.wrote + def.response.maxBytes > link.room then
+    if link.holds == def.answers.runs or link.wrote + def.response.maxBytes > link.room then
         Session.shipped (self)
     end
 end
@@ -838,7 +838,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     link.holds += 1
 
     Session.queued (self, def.name)
-    if link.holds == Protocol.RUN_CAP or link.wrote + def.built.maxBytes > link.room then
+    if link.holds == def.head.runs or link.wrote + def.built.maxBytes > link.room then
         Session.shipped (self)
     end
 end
@@ -888,7 +888,7 @@ function Session.ask (
 
     Session.queued (self, def.name)
 
-    if link.holds == Protocol.RUN_CAP or link.wrote + def.request.maxBytes > link.room then
+    if link.holds == def.asks.runs or link.wrote + def.request.maxBytes > link.room then
         Session.shipped (self)
     end
 end

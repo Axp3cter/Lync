@@ -5,7 +5,7 @@
 local Protocol = {}
 
 -- What both machines have to agree on before either spends a byte on the other's schema.
-Protocol.VERSION = 10
+Protocol.VERSION = 11
 
 --[[
     The handshake lane's whole grammar: what each of the two messages weighs, where a verdict keeps
@@ -79,14 +79,6 @@ Protocol.UNRELIABLE_CEILING = 1000
 Protocol.UNRELIABLE_MARGIN = 0
 Protocol.UNRELIABLE_CAP = Protocol.UNRELIABLE_CEILING - Protocol.UNRELIABLE_MARGIN
 Protocol.MAX_FIRE = 1000000
-
---[[
-    How many fires one block may carry before the next opens, which bounds the count its header
-    states rather than anything a caller reaches: past it the fires keep going and only the sharing
-    stops. Narrow because the count sits beside the definition id, and a wider one would push the
-    header of every lone fire into a second byte to save nothing a burst would notice.
-]]
-Protocol.RUN_CAP = 32
 
 -- Budgets, in bytes, and the detector window in seconds.
 Protocol.BUDGET_RATE = 32768

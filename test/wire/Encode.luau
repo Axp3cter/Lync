@@ -78,6 +78,14 @@ const UNREAL = table.freeze ({ 0 / 0, math.huge, -math.huge })
 ]]
 const COARSE = Lync.quant (0, 1, 0.5)
 const KEYS = 4
+
+--[[
+    What a bounded map may hold, and the two counts either side of it. A map counts its entries as
+    it walks them, so the bound is held once a key rather than once a call, and a walk that never
+    reaches the count is a walk that never reaches the bound either.
+]]
+const FEWEST = 2
+const MOST = 3
 const TOGETHER = table.freeze ({ [0.1] = true, [0.2] = false })
 const APART = table.freeze ({ [0] = true, [1] = false })
 
@@ -224,5 +232,36 @@ return {
         names (refused (of, TOGETHER, "two keys on one point"), ROOT, "a key collision")
 
         Expect.holds (of.write (SLAB, 0, APART) > 0, "two keys on two points wrote nothing")
+    end),
+
+    --[[
+        A map holding more than its bound, and one holding less, refused where they were written.
+        Both key forms are put to it: keys that sit on a grid sort as the indices they land on and
+        keys spelled as bytes sort by what they spell, so each counts its own entries and a bound
+        held by one of them is not a bound held by the other.
+    ]]
+    Harness.case ("wire.map-bounds", function ()
+        local forms = {
+            { of = "gridded", codec = Lync.map (Lync.int (0, 15), Lync.bool (), FEWEST, MOST) },
+            { of = "spelled", codec = Lync.map (Lync.str (1, 2), Lync.bool (), FEWEST, MOST) },
+        }
+
+        for _, form in forms do
+            local of = built (form.codec)
+
+            local function holding (count: number): any
+                local made: any = {}
+                for index = 1, count do
+                    made[if form.of == "gridded" then index else tostring (index)] = true
+                end
+                return made
+            end
+
+            refused (of, holding (FEWEST - 1), `a {form.of} map under its bound of {FEWEST}`)
+            refused (of, holding (MOST + 1), `a {form.of} map over its bound of {MOST}`)
+
+            local wrote = of.write (SLAB, 0, holding (FEWEST))
+            Expect.holds (wrote > 0, `a {form.of} map inside its bounds wrote nothing`)
+        end
     end),
 }

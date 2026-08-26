@@ -18,7 +18,6 @@ const OUTCOME = Protocol.OUTCOME_BITS
 const KIND = Bits.width (Protocol.SECTION_CLEAR)
 
 -- The byte a run's continuation bit is written in, and what a block that has one spends on it.
-const CONTINUED = 1
 const ALONE = 0
 
 -- The narrow windows a plan cuts, read from the module that cuts them. The widest is the last arm.
@@ -124,7 +123,7 @@ function Frames.naming (over: number): Head return headed ({ named (over) }, ALO
 -- A packet block: `{ defId }`, or `{ defId, stamp }` where the definition declared one.
 function Frames.packet (over: number, stamped: boolean): Head
     local id = named (over)
-    return headed (if stamped then { id, STAMP } else { id }, CONTINUED)
+    return headed (if stamped then { id, STAMP } else { id }, ALONE)
 end
 
 -- A newest packet block: `{ defId, seq }`, or `{ defId, stamp, seq }`.
@@ -157,14 +156,5 @@ end
     eventually add the wrong two.
 ]]
 function Frames.block (of: Head, payload: number): number return of.bytes + payload + of.trailer end
-
--- The bit that says another payload follows, in the byte alignment gives it.
-function Frames.more (b: buffer, pos: number, yes: boolean)
-    buffer.writeu8 (b, pos, if yes then CONTINUED else ALONE)
-end
-
-function Frames.continues (b: buffer, pos: number): boolean
-    return bit32.band (buffer.readu8 (b, pos), CONTINUED) == CONTINUED
-end
 
 return table.freeze (Frames)

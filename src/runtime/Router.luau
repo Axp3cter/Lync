@@ -28,9 +28,6 @@ const SECOND = 2
 -- What a response says about itself, which is a bit and is the only thing a failed one carries.
 const ANSWERED = 0
 
--- What a run's continuation byte costs, which is the byte alignment gives one bit.
-const AFTER = 1
-
 -- The delivery a definition declares that puts it on the lane which may reorder and may lose.
 const NEWEST: Serial.Delivery = "newest"
 
@@ -178,18 +175,7 @@ local function packets (
             end
         end
 
-        --[[
-            The bit saying another payload follows is written after one, and only where the form has
-            a place for it. A newest block carries exactly one payload, so a byte read here would be
-            the first byte of whatever block came next.
-        ]]
-        if head.trailer == 0 then return ends end
-        if ends >= len then return ends end
-
-        local more = Frames.continues (b, ends)
-        pos = ends + AFTER
-
-        if not more then return pos end
+        return ends
     end
 end
 

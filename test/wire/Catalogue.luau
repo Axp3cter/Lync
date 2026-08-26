@@ -170,6 +170,21 @@ local function replays (into: Survey, of: Run, frame: Doubles.Carried, from: Pla
             noting (into, function () of.wire:hands (hostile) end)
         end
     end
+
+    --[[
+        The same frame cut short at every length it could arrive at. A corrupted byte reaches a
+        header that says the wrong thing, and a cut reaches one that is not all there, which is a
+        different refusal and one no length of frame should be needed to provoke.
+    ]]
+    for size = 0, buffer.len (frame.bytes) - 1 do
+        local bytes = buffer.create (size)
+        buffer.copy (bytes, 0, frame.bytes, 0, size)
+
+        local hostile: Doubles.Carried =
+            { at = frame.at, from = from, to = to, bytes = bytes, refs = frame.refs }
+
+        noting (into, function () of.wire:hands (hostile) end)
+    end
 end
 
 -- A read of hostile bytes, with whatever it refused with noted down.

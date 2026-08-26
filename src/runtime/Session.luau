@@ -9,7 +9,6 @@ local Catchup = require ("@src/state/Catchup")
 local Clock = require ("@src/wire/Clock")
 local Compile = require ("@src/shape/Compile")
 local Dispatch = require ("@src/runtime/Dispatch")
-local Frames = require ("@src/shape/Frames")
 local Group = require ("@src/channel/Group")
 local Handles = require ("@src/runtime/Handles")
 local Handshake = require ("@src/runtime/Handshake")
@@ -276,10 +275,6 @@ local function latest (self: Self, now: number)
         fields[at] = ring
 
         head.write (scratch, 0, fields)
-        if head.trailer > 0 then
-            Frames.more (scratch, ends, false)
-            ends += head.trailer
-        end
 
         local carried = if side.bears then side.refs else nil
         local block = Blocks.sealed (scratch, ends, Blocks.LOOSE, Link.next (link), carried)
@@ -642,10 +637,6 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     head.write (scratch, 0, fields)
 
     local ends = def.built.write (scratch, head.bytes, value)
-    if head.trailer > 0 then
-        Frames.more (scratch, ends, false)
-        ends += head.trailer
-    end
 
     local side = def.built.sidecar
     local held = if side.bears then side.refs else nil

@@ -455,7 +455,14 @@ function Checks.constants (): Ruling.Ruling
         if source == nil then continue end
 
         homes[home.path] = true
-        for value in string.gmatch (source, `{home.name}%.[%u_]+%s*=%s*([^\n]+)`) do
+        for name, value in string.gmatch (source, `{home.name}%.([%u_]+)%s*=%s*([^\n]+)`) do
+            --[[
+                The generation counter is left out. Its value says which grammar is spoken and
+                nothing about how a byte is laid out, so no other file can restate it, and
+                holding every digit it lands on would break this the first time it is small.
+            ]]
+            if name == "VERSION" then continue end
+
             local trimmed = string.match (value, "^%s*(.-)%s*$") :: string
             if tonumber (trimmed) ~= nil and COINCIDENTAL[trimmed] == nil then
                 values[trimmed] = true

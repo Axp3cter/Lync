@@ -130,6 +130,13 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     local span: { number } = {}
     local shift: { number } = {}
 
+    --[[
+        Whether a piece is the whole of the reading it comes from. A field wide enough to straddle
+        two windows arrives as two pieces and each has to be cut out of it, and a field that fits
+        one is already the piece, so cutting it out asks for every bit it already has.
+    ]]
+    local direct: { boolean } = {}
+
     for index, window in plan do
         width[index] = window.bytes
         where[index] = window.at
@@ -140,6 +147,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             table.insert (offset, part.offset)
             table.insert (span, part.width)
             table.insert (shift, part.shift)
+            table.insert (
+                direct,
+                part.shift == 0 and bit32.lshift (1, part.width) - 1 >= spans[part.field]
+            )
         end
 
         last[index] = #slot
@@ -176,7 +187,11 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         for index = 1, windows do
             local acc = 0
             for part = first[index], last[index] do
-                local piece = bit32.extract (slots[slot[part]], shift[part], span[part])
+                local cell = slot[part]
+                local piece = if direct[part]
+                    then slots[cell]
+                    else bit32.extract (slots[cell], shift[part], span[part])
+
                 acc = bit32.bor (acc, bit32.lshift (piece, offset[part]))
             end
 

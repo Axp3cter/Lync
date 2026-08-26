@@ -385,6 +385,17 @@ function Block.pairs (
         return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
     end
 
+    --[[
+        Keys of one narrow width order by a number rather than by their bytes, and a sort told to
+        order numbers calls nothing to ask. A comparison that reaches a function of ours is one the
+        sort pays for on every pair it looks at, which is most of what a map spends.
+    ]]
+    local even = of.key.fixed and Bytes.ranks (of.key.maxBytes)
+    local wide = of.key.maxBytes
+
+    -- The index rides under the rank, so one sort answers both what the order is and whose it is.
+    local spread = high + 1
+
     local function write (b: buffer, pos: number, value: any): number
         table.clear (order)
 
@@ -404,14 +415,39 @@ function Block.pairs (
         end
 
         if count < low then Word.refusedAt (tag, paths, said, count) end
-        table.sort (order, before)
+
+        if even then
+            for index = 1, count do
+                order[index] = Bytes.ranked (room, starts[index], wide) * spread + index
+            end
+        end
+
+        if even then
+            table.sort (order)
+        else
+            table.sort (order, before)
+        end
 
         laid (b, pos, held, count - low)
 
         local out = pos + held
+        local ranked = 0
         for index = 1, count do
-            local place = order[index]
-            if index > 1 and not before (order[index - 1], place) then
+            local held = order[index]
+            local place = if even then held % spread else held
+
+            if even then
+                local rank = (held - place) / spread
+                if index > 1 and rank == ranked then
+                    Log.refuse (Log.line (Catalog.MAP_ORDER, {
+                        path = where,
+                        expected = tostring (keys[place]),
+                        got = tostring (keys[place]),
+                    }))
+                end
+
+                ranked = rank
+            elseif index > 1 and not before (order[index - 1], place) then
                 local last = keys[order[index - 1]]
                 Log.refuse (Log.line (Catalog.MAP_ORDER, {
                     path = where,

@@ -80,6 +80,25 @@ function Bytes.aligned (b: buffer, at: number): (number, boolean)
 end
 
 --[[
+    A run of bytes as the one number they order by, which is what they spell read first byte first.
+    Narrow enough that a caller may carry something else under it and have every bit survive a
+    double, since a rounded number answers something other than what the bytes would have.
+]]
+const RANKED = 4
+
+function Bytes.ranks (len: number): boolean return len <= RANKED end
+
+@native
+function Bytes.ranked (b: buffer, at: number, len: number): number
+    local sum = 0
+    for step = 0, len - 1 do
+        sum = sum * 256 + buffer.readu8 (b, at + step)
+    end
+
+    return sum
+end
+
+--[[
     The swap makes the word compare a byte compare: a read takes the first byte as the least of the
     word, and reversing it spells the magnitude the bytes read as. A word is taken only where a
     whole one remains inside the shorter range, because the bytes past it are not ours. Never

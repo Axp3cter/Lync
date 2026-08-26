@@ -14,6 +14,12 @@ local Turns = require ("@test/harness/Turns")
 -- Constants -----------------------------------------------------------
 
 --[[
+    A pair of keys whose bytes add to the same total and read in a definite order, and the domain
+    wide enough to hold both in two bytes. What separates ordering by a key from summing one.
+]]
+const TIED = table.freeze ({ low = 258, high = 513, top = 65535 })
+
+--[[
     The widest value a byte holds, and its neighbours either side. A run of the middle one carries
     nothing between elements and the other two do, which is what tells a boundary from a length.
 ]]
@@ -495,5 +501,21 @@ return {
                 Expect.equal (back[index], held[index])
             end
         end
+    end),
+
+    --[[
+        Keys that tie when their bytes are added and do not when they are read in order. A map is
+        ordered by what its keys spell rather than by what they add up to, and the two agree often
+        enough that a pair which parts them is the only thing that says which one is being used.
+    ]]
+    Harness.case ("wire.map-key-order", function ()
+        local of = Turns.built (Lync.map (Lync.int (0, TIED.top), Lync.int (0, 9), 0, 8))
+
+        local held = { [TIED.low] = 1, [TIED.high] = 2 }
+        local bytes, size = Turns.wrote (of, held)
+        local back = Turns.read (of, bytes, size)
+
+        Expect.equal (back[TIED.low], 1)
+        Expect.equal (back[TIED.high], 2)
     end),
 }

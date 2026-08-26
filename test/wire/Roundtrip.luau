@@ -27,8 +27,13 @@ const BYTE_TOP = 255
 const PAIR_TOP = 65535
 const NARROW_TOP = 7
 
--- How far either side of nothing a grid reaches when its bottom is not nothing, at one byte wide.
-const EITHER_SIDE = 100
+--[[
+    How far either side of nothing a grid reaches when its bottom is not nothing, at one byte wide.
+    Split unevenly so the grid fills the byte, since one stopping short of it would be held back by
+    the bounds it is read against rather than by needing its reading taken off the grid at all.
+]]
+const UNDER_ZERO = 128
+const OVER_ZERO = 127
 
 --[[
     A reading between two points of a whole-step grid, and the point it rounds onto. Nearer the
@@ -414,11 +419,11 @@ return {
     ]]
     Harness.case ("wire.a-record-on-boundaries-off-its-own-zero", function ()
         local of = Turns.built (Lync.struct ({
-            shift = Lync.int (-EITHER_SIDE, EITHER_SIDE),
+            shift = Lync.int (-UNDER_ZERO, OVER_ZERO),
             flat = Lync.int (0, BYTE_TOP),
         }))
 
-        for _, one in { -EITHER_SIDE, 0, EITHER_SIDE } do
+        for _, one in { -UNDER_ZERO, 0, OVER_ZERO } do
             local value = { shift = one, flat = BYTE_TOP }
             local bytes, size = Turns.wrote (of, value)
 
@@ -448,13 +453,13 @@ return {
     ]]
     Harness.case ("wire.a-wider-record-on-boundaries-off-its-own-zero", function ()
         local of = Turns.built (Lync.struct ({
-            shift = Lync.int (-EITHER_SIDE, EITHER_SIDE),
+            shift = Lync.int (-UNDER_ZERO, OVER_ZERO),
             wider = Lync.int (-FAR_SIDE, FAR_SIDE),
             flat = Lync.int (0, BYTE_TOP),
         }))
 
         for _, one in { -FAR_SIDE, 0, FAR_SIDE } do
-            local value = { shift = EITHER_SIDE, wider = one, flat = BYTE_TOP }
+            local value = { shift = OVER_ZERO, wider = one, flat = BYTE_TOP }
             local bytes, size = Turns.wrote (of, value)
 
             Expect.equal (Turns.read (of, bytes, size), value)

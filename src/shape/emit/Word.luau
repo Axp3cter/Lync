@@ -463,6 +463,15 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             break
         end
 
+        -- Whether a read does anything past taking the bytes, which for a full grid it does not.
+        local bluntly = plainly
+        for index = 1, reach do
+            if not checks[index] then continue end
+
+            bluntly = false
+            break
+        end
+
         -- Whether the wider of the two widths comes up at all, which in most records it does not.
         local singly = upright
         for index = 1, reach do
@@ -525,6 +534,22 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 return nil
             end
 
+            -- The same read where every grid fills its bits, so a byte is the value it stands for.
+            local function blunt (
+                b: buffer,
+                pos: number,
+                into: any,
+                _s: { number },
+                _h: { any }
+            ): any
+                for index = 1, reach do
+                    into[keys[index]] = buffer.readu8 (b, pos + seats[index])
+                end
+
+                return nil
+            end
+
+            if bluntly then return ready, blunt end
             if plainly then return ready, settled end
 
             return steady, settled

@@ -4,6 +4,7 @@
 
 local Apply = require ("@src/state/Apply")
 local Bits = require ("@src/kernel/Bits")
+local Fieldset = require ("@src/state/Fieldset")
 local Protocol = require ("@src/wire/Protocol")
 local Sections = require ("@src/state/Sections")
 local Sequence = require ("@src/wire/Sequence")
@@ -37,12 +38,14 @@ const LEAST = 0
 ]]
 const WHOSE = 1
 const WHICH = 2
+const MORE = WHICH + 1
 
 -- What a slot run of this lane refuses under.
-const SAID: Slots.Said = table.freeze ({
+const SAID = table.freeze ({
     many = "a newest section naming more records than its own bytes could hold",
     order = "a newest section naming its slots out of order",
     pad = "a newest section padding its slot run with something other than zero",
+    stream = "a newest section naming a field this set does not stream",
 })
 
 -- Types ---------------------------------------------------------------
@@ -74,12 +77,39 @@ export type Lane = {
     read marks: { any },
     read values: { any },
     read head: { number },
+    read next: { number },
+
+    --[[
+        One run a field, kept apart so the flush can hold several at once and ask whether two are
+        the same before it has written either. The shared arrays above are what a section is
+        written out of and read back into, and these are only what a group is decided from.
+    ]]
+    read runs: { { number } },
+    read held: { { any } },
+    read stood: { { any } },
+    read counts: { number },
+
+    -- Which fields a section speaks for and the order each of their streams stands in.
+    read group: { number },
+    read seqs: { number },
 }
 
 -- Private -------------------------------------------------------------
 
 -- What a field with no one index is remembered by, which is the value a caller handed over.
 local function same (value: any): any return value end
+
+--[[
+    Which stream a frame's field number stands for, refused where this endpoint holds no such
+    stream. A number nobody wrote reaches here as readily as one somebody did, and a lane indexed
+    by it would answer with whatever the last section left in its scratch.
+]]
+local function named (of: Lane, which: number): number
+    local at = of.place[which + 1]
+    if at == nil then Fieldset.broken (SAID.stream) end
+
+    return at :: number
+end
 
 -- Public --------------------------------------------------------------
 
@@ -99,6 +129,16 @@ function Newest.of (layout: Sections.Layout): Lane
 
     local head = table.create (def.stream.fields, 0)
     head[WHOSE] = def.id
+
+    local runs = table.create (reach) :: { { number } }
+    local held = table.create (reach) :: { { any } }
+    local stood = table.create (reach) :: { { any } }
+
+    for index = 1, reach do
+        runs[index] = {}
+        held[index] = {}
+        stood[index] = {}
+    end
 
     for index, field in def.newestFields do
         local built = def.fieldBuilt[field]
@@ -128,6 +168,13 @@ function Newest.of (layout: Sections.Layout): Lane
         marks = {},
         values = {},
         head = head,
+        next = table.create (def.follow.fields, 0),
+        runs = runs,
+        held = held,
+        stood = stood,
+        counts = table.create (reach, 0),
+        group = table.create (reach, 0),
+        seqs = table.create (reach, 0),
     }
 end
 
@@ -177,14 +224,17 @@ function Newest.changed (
     streams: Streams,
     store: Store.Store,
     at: number,
-    now: number
+    now: number,
+    spent: number
 ): number
-    if not Sequence.opened (now, streams.last[at], of.hz[at]) then return 0 end
+    if not Sequence.opened (now, streams.last[at], of.hz[at]) then
+        of.counts[at] = 0
+        return 0
+    end
 
     local field = of.fields[at]
     local column = store.columns[field]
     local sent = store.sent[field] :: { [number]: any }
-    local gens = store.gens :: { [number]: number }
     local mark = of.mark[at]
     local ids = store.ids
 
@@ -194,8 +244,12 @@ function Newest.changed (
         difference is a section three times the size for the same values.
     ]]
     local wide = math.max (1, math.ceil (Bits.width (store.high) / GROUP))
-    local reach = math.max (1, (CAP - of.opening) // (wide + of.spent[at]))
+    local reach = math.max (1, (CAP - of.opening) // (wide + spent))
     local held = 0
+
+    local slots = of.runs[at]
+    local values = of.held[at]
+    local marks = of.stood[at]
 
     for slot = streams.from[at] + 1, store.high do
         if ids[slot] == nil then continue end
@@ -205,16 +259,33 @@ function Newest.changed (
         if one == sent[slot] then continue end
 
         held += 1
-        of.slots[held] = slot
-        of.values[held] = value
-        of.marks[held] = one
-        of.gens[held] = gens[slot]
+        slots[held] = slot
+        values[held] = value
+        marks[held] = one
 
         if held == reach then break end
     end
 
-    streams.from[at] = if held < reach then 0 else of.slots[held]
+    streams.from[at] = if held < reach then 0 else slots[held]
+    of.counts[at] = held
     return held
+end
+
+-- Whether a stream's rate window is open this flush, which is what decides if it says anything.
+function Newest.opened (of: Lane, streams: Streams, at: number, now: number): boolean
+    return Sequence.opened (now, streams.last[at], of.hz[at])
+end
+
+-- Whether two streams named the same records this flush, which is what lets them share a run.
+function Newest.alike (of: Lane, left: number, right: number): boolean
+    local count = of.counts[left]
+    if count ~= of.counts[right] then return false end
+
+    local ours, theirs = of.runs[left], of.runs[right]
+    for index = 1, count do
+        if ours[index] ~= theirs[index] then return false end
+    end
+    return true
 end
 
 -- One stream's section, and the stream moved on past it.
@@ -222,7 +293,7 @@ function Newest.section (
     of: Lane,
     streams: Streams,
     store: Store.Store,
-    at: number,
+    many: number,
     b: buffer,
     pos: number,
     now: number,
@@ -230,30 +301,61 @@ function Newest.section (
 ): number
     local layout = of.layout
     local def = layout.def
-    local field = of.fields[at]
 
-    local seq = Sequence.next (streams.at[at])
-    streams.at[at] = seq
+    local first = of.group[1]
+    local seq = Sequence.next (streams.at[first])
+    streams.at[first] = seq
 
-    of.head[WHICH] = field - 1
+    of.head[WHICH] = of.fields[first] - 1
+    of.head[MORE] = many - 1
     of.head[of.seqAt] = seq
     def.stream.write (b, pos, of.head)
 
     local held = pos + def.stream.bytes
+
+    -- Each field behind the first, named before the run they all share is spelled out.
+    for index = 2, many do
+        local at = of.group[index]
+        local ours = Sequence.next (streams.at[at])
+        streams.at[at] = ours
+
+        of.next[1] = of.fields[at] - 1
+        of.next[2] = ours
+        def.follow.write (b, held, of.next)
+        held += def.follow.bytes
+    end
+
     local key = def.keyIndex
     if key ~= nil then held = def.fieldBuilt[key].write (b, held, of.key) end
 
-    held = Slots.wrote (b, held, of.slots, of.steps, count)
-
-    held = layout.generations.whole (b, held, of.gens :: any, layout.spare, count)
-    held = layout.fields[field].whole (b, held, of.values, layout.spare, count)
-
-    local sent = store.sent[field] :: { [number]: any }
+    --[[
+        The generation a slot stands at, which is the slot's and not the field's, so one run of
+        them answers for every field of the group the same way the slot run does.
+    ]]
+    local slots = of.runs[first]
+    local gens = store.gens :: { [number]: number }
     for index = 1, count do
-        sent[of.slots[index]] = of.marks[index]
+        of.gens[index] = gens[slots[index]]
     end
 
-    streams.last[at] = now
+    held = Slots.wrote (b, held, slots, of.steps, count)
+    held = layout.generations.whole (b, held, of.gens :: any, layout.spare, count)
+
+    for index = 1, many do
+        local at = of.group[index]
+        local field = of.fields[at]
+        local marks = of.stood[at]
+
+        held = layout.fields[field].whole (b, held, of.held[at], layout.spare, count)
+
+        local sent = store.sent[field] :: { [number]: any }
+        for one = 1, count do
+            sent[slots[one]] = marks[one]
+        end
+
+        streams.last[at] = now
+    end
+
     return held
 end
 
@@ -266,15 +368,26 @@ function Newest.taken (
     b: buffer,
     pos: number,
     ctx: Types.ValidateContext
-): (number, number, number, number)
+): (number, number, number)
     local layout = of.layout
     local def = layout.def
 
     def.stream.read (b, pos, of.head)
-    local at = of.place[of.head[WHICH] + 1]
-    local seq = of.head[of.seqAt]
+
+    local many = of.head[MORE] + 1
+    of.group[1] = named (of, of.head[WHICH])
+    of.seqs[1] = of.head[of.seqAt]
 
     local held = pos + def.stream.bytes
+
+    for index = 2, many do
+        def.follow.read (b, held, of.next)
+        held += def.follow.bytes
+
+        of.group[index] = named (of, of.next[1])
+        of.seqs[index] = of.next[2]
+    end
+
     local key = def.keyIndex
     if key ~= nil then
         held, of.key = def.fieldBuilt[key].read (b, held, ctx)
@@ -284,9 +397,27 @@ function Newest.taken (
     count, held = Slots.read (b, held, of.slots, of.steps, LEAST, SAID)
 
     held = layout.generations.back (b, held, of.gens :: any, layout.spare, count, ctx)
-    held = layout.fields[of.fields[at]].back (b, held, of.values, layout.spare, count, ctx)
+    return many, count, held
+end
 
-    return at, seq, count, held
+-- One field of a section that has already given up its slots, read where the last one stopped.
+function Newest.values (
+    of: Lane,
+    b: buffer,
+    pos: number,
+    ctx: Types.ValidateContext,
+    index: number,
+    count: number
+): number
+    local layout = of.layout
+    return layout.fields[of.fields[of.group[index]]].back (
+        b,
+        pos,
+        of.values,
+        layout.spare,
+        count,
+        ctx
+    )
 end
 
 --[[

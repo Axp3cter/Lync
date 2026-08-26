@@ -374,11 +374,48 @@ local function streamed (of: Sync, link: Link.Link, part: Partition, open: boole
 
     lane.key = part.key
 
+    --[[
+        What one record of a section costs when every stream open this flush rides in it. Walked
+        with the widest of them rather than each with its own, so two streams that named the same
+        records stopped at the same one and their runs can be compared for being the same at all.
+    ]]
+    local spent = 0
     for at = 1, reach do
-        local count = Newest.changed (lane, streams, store, at, now)
-        if count == 0 then continue end
+        if Newest.opened (lane, streams, at, now) then
+            spent += lane.spent[at]
+        end
+    end
+    if spent == 0 then return end
 
-        local ends = Newest.section (lane, streams, store, at, scratch, 0, now, count)
+    for at = 1, reach do
+        Newest.changed (lane, streams, store, at, now, spent)
+    end
+
+    --[[
+        The streams grouped by the records they named, each group one section. A run is spelled
+        once for the group and the generations with it, so a second field over the same records
+        costs its own values and the two numbers naming its stream, and nothing else.
+    ]]
+    local taken = table.create (reach, false)
+
+    for at = 1, reach do
+        if taken[at] or lane.counts[at] == 0 then continue end
+
+        local many = 1
+        lane.group[1] = at
+        taken[at] = true
+
+        for other = at + 1, reach do
+            if taken[other] or lane.counts[other] == 0 then continue end
+            if not Newest.alike (lane, at, other) then continue end
+
+            many += 1
+            lane.group[many] = other
+            taken[other] = true
+        end
+
+        local count = lane.counts[at]
+        local ends = Newest.section (lane, streams, store, many, scratch, 0, now, count)
         local block = sealed (of, link, ends, Blocks.LOOSE)
 
         if open then
@@ -737,10 +774,27 @@ end
 -- One newest section off the wire, into the partition it is about.
 function Sync.stream (of: Sync, b: buffer, pos: number, ctx: Types.ValidateContext): number
     local lane = of.lane
-    local at, seq, count, ends = Newest.taken (lane, b, pos, ctx)
+    local many, count, ends = Newest.taken (lane, b, pos, ctx)
     local part = partition (of, lane.key)
 
-    Newest.apply (lane, part.streams, part.store, of.heard, at, seq, count)
+    --[[
+        Each field of the section read and applied before the next is, since the values of one are
+        taken into the scratch the next will take its own into. The slots and the generations
+        stand for all of them and are read once above.
+    ]]
+    for index = 1, many do
+        ends = Newest.values (lane, b, ends, ctx, index, count)
+        Newest.apply (
+            lane,
+            part.streams,
+            part.store,
+            of.heard,
+            lane.group[index],
+            lane.seqs[index],
+            count
+        )
+    end
+
     return ends
 end
 

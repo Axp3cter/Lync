@@ -139,10 +139,17 @@ end
 -- A state section's block: `{ defId, kind }`, and everything after it is the section's own grammar.
 function Frames.section (over: number): Head return headed ({ named (over), KIND }) end
 
--- A newest state section's block: `{ defId, fieldId, seq }`.
+--[[
+    A newest block: `{ defId, which, more, seq }`, where `more` counts the fields riding behind
+    the first. Several fields that moved over the same slots in one flush spell those slots once,
+    so what follows the header is the run, and then one column of values a field that shares it.
+]]
 function Frames.stream (over: number, fields: number): Head
-    return headed ({ named (over), named (fields), SEQ })
+    return headed ({ named (over), named (fields), named (fields), SEQ })
 end
+
+-- One of those fields behind the first: which it is, and the order its own stream stands in.
+function Frames.follow (fields: number): Head return headed ({ named (fields), SEQ }) end
 
 --[[
     What one payload's block comes to, which is the header, the payload, and whatever follows it.

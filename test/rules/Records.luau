@@ -102,6 +102,20 @@ end
 -- A record, fresh each time, because a set holds what it is handed.
 local function record (): any return { [HP] = START, [POS] = START, [AIM] = START } end
 
+--[[
+    The same record with both of its moving fields on the lossy lane, which is where two streams
+    can name the same records in one flush and spell them once between them.
+]]
+local function twinned (): any
+    return {
+        [ROSTER] = Lync.replicate (Lync.struct ({
+            [HP] = Lync.int (0, 100),
+            [POS] = Lync.int (0, 100):newest (),
+            [AIM] = Lync.int (0, 100):newest (),
+        })),
+    }
+end
+
 -- The wide record's definitions, and one of its records, both built the way the narrow one is.
 local function widened (): any
     local fields = {}
@@ -164,8 +178,16 @@ local function opened (chance: Doubles.Faults?, draw: (() -> number)?): Run
     return Replica.open (opening, SENDER)
 end
 
+-- The same two machines over the record whose two moving fields both stream.
+local function twins (): Run
+    return Replica.open ({ space = SPACE, defined = twinned, watched = ROSTER }, SENDER)
+end
+
 -- What the client holds for the one record, which is the view every check reads.
 local function held (of: Run): any return of.client.defs[ROSTER]:get (ID) end
+
+-- The same, for whichever record a check about two streams is asking after.
+local function holds (of: Run, id: number): any return of.client.defs[ROSTER]:get (id) end
 
 -- Public --------------------------------------------------------------
 
@@ -375,5 +397,48 @@ return {
         Expect.equal (seen[1].kind, "added")
         Expect.equal (seen[2].kind, "changed")
         Expect.equal (seen[3].kind, "changed")
+    end),
+    --[[
+        Two streams that moved over the same records in one flush. The slots they name are one run
+        and the generations one run, so what tells the two apart on the wire is the pair of numbers
+        naming each stream and the column of values behind it, and a viewer owes both fields.
+    ]]
+    Harness.case ("set.two-streams-together", function ()
+        local of = twins ()
+        local ours = of.server.defs[ROSTER]
+
+        ours:add (ID, record ())
+        ships (of)
+
+        ours:update (ID, { [POS] = HIGH, [AIM] = WON })
+        ships (of)
+
+        local one = held (of)
+        Expect.equal (one[POS], HIGH)
+        Expect.equal (one[AIM], WON)
+    end),
+
+    --[[
+        The same two streams where each moved over a record the other did not. Nothing is shared
+        then, and a lane that shared anyway would hand one record the other's value: the run a
+        section spells has to be the run its every column was gathered against.
+    ]]
+    Harness.case ("set.two-streams-apart", function ()
+        local of = twins ()
+        local ours = of.server.defs[ROSTER]
+
+        ours:add (ID, record ())
+        ours:add (OTHER, record ())
+        ships (of)
+
+        ours:update (ID, { [POS] = HIGH })
+        ours:update (OTHER, { [AIM] = WON })
+        ships (of)
+
+        local one, two = holds (of, ID), holds (of, OTHER)
+        Expect.equal (one[POS], HIGH)
+        Expect.equal (one[AIM], START)
+        Expect.equal (two[POS], START)
+        Expect.equal (two[AIM], WON)
     end),
 }

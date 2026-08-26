@@ -89,6 +89,14 @@ const MOST = 3
 const TOGETHER = table.freeze ({ [0.1] = true, [0.2] = false })
 const APART = table.freeze ({ [0] = true, [1] = false })
 
+--[[
+    The same pair for a key spelled as bytes rather than landing on a grid. A float of four bytes
+    holds fewer numbers than a double does, so two doubles a caller keys a table by come out as one
+    key, which a map of fixed-width keys finds by the two spelling the same bytes.
+]]
+const NEARLY = table.freeze ({ [1.0000000001] = true, [1.0000000002] = false })
+const CLEARLY = table.freeze ({ [1] = true, [2] = false })
+
 -- Private -------------------------------------------------------------
 
 local function built (codec: any): any
@@ -232,6 +240,12 @@ return {
         names (refused (of, TOGETHER, "two keys on one point"), ROOT, "a key collision")
 
         Expect.holds (of.write (SLAB, 0, APART) > 0, "two keys on two points wrote nothing")
+
+        -- The same, for keys spelled as bytes, which a map sorts by what they spell instead.
+        local spelled = built (Lync.map (Lync.f32 (), Lync.bool (), 0, KEYS))
+        names (refused (spelled, NEARLY, "two keys on one float"), ROOT, "a spelled collision")
+
+        Expect.holds (spelled.write (SLAB, 0, CLEARLY) > 0, "two floats apart wrote nothing")
     end),
 
     --[[

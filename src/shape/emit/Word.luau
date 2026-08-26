@@ -318,6 +318,90 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
+        Every field in one piece, wherever the windows put them. The pair above walks a scratch
+        array between the fields and the bytes, which is a write and a read a field for a value
+        that never leaves the call, so where nothing is cut the two passes are one. A piece a field
+        is the whole of what that needs: a cut one has a piece shifted up it and a piece that is
+        not its whole reading, and counting pieces against fields settles both at once.
+    ]]
+    if simple and #slot == reach and reach > 1 then
+        -- Which field each piece belongs to, by the piece, since a window walks its own.
+        local whose = table.create (held, 0)
+        for index = 1, reach do
+            whose[starts[index]] = index
+        end
+
+        local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+            for window = 1, windows do
+                local acc = 0
+
+                for part = first[window], last[window] do
+                    local cell = slot[part]
+                    local index = whose[cell]
+
+                    local key = keys[index]
+                    local one = if key == nil then value else value[key]
+                    local made = toIndex[cell] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+
+                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
+                end
+
+                local at = pos + where[window]
+                local bytes = width[window]
+                if bytes == ONE then
+                    buffer.writeu8 (b, at, acc)
+                elseif bytes == PAIR then
+                    buffer.writeu16 (b, at, acc)
+                else
+                    buffer.writeu32 (b, at, acc)
+                end
+            end
+        end
+
+        local function level (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local bare: any = nil
+
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    local cell = slot[part]
+                    local raw = bit32.extract (acc, offset[part], span[part])
+
+                    if not whole[cell] and raw > spans[cell] then
+                        local tag = joins[whose[cell]].tag
+                        Log.reject (Catalog.TAG, {
+                            pathId = tag.pathId,
+                            expectId = tag.expectId,
+                            got = raw,
+                        })
+                    end
+
+                    local reading = fromIndex[cell]
+                    local one = if reading == nil then raw else reading (raw)
+
+                    local key = keys[whose[cell]]
+                    if key == nil then
+                        bare = one
+                    else
+                        into[key] = one
+                    end
+                end
+            end
+
+            return bare
+        end
+
+        return flat, level
+    end
+
+    --[[
         One field in one window, which is what a bare number is and what every key and value of a
         map are. The loops above walk arrays to find what is already known here, so the same work
         is the reading, the bounds and the one write, with nothing looked up to reach them.

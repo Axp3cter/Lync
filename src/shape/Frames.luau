@@ -17,9 +17,6 @@ const ASKED = Bits.width (Protocol.QUERY_CAP * 2 - 1)
 const OUTCOME = Protocol.OUTCOME_BITS
 const KIND = Bits.width (Protocol.SECTION_CLEAR)
 
--- The byte a run's continuation bit is written in, and what a block that has one spends on it.
-const ALONE = 0
-
 -- The narrow windows a plan cuts, read from the module that cuts them. The widest is the last arm.
 const ONE = Words.ONE
 const PAIR = Words.PAIR
@@ -33,7 +30,6 @@ export type Read = (b: buffer, pos: number, into: { number }) -> ()
 export type Head = {
     read fields: number,
     read bytes: number,
-    read trailer: number,
     read write: Write,
     read read: Read,
 }
@@ -101,13 +97,12 @@ local function run (widths: { number }): (Write, Read, number)
 end
 
 -- A form's fields, as the head that writes them.
-local function headed (widths: { number }, trailer: number): Head
+local function headed (widths: { number }): Head
     local write, read, bytes = run (widths)
 
     return table.freeze ({
         fields = #widths,
         bytes = bytes,
-        trailer = trailer,
         write = write,
         read = read,
     })
@@ -118,35 +113,35 @@ local function named (over: number): number return Bits.width (over - 1) end
 -- Public --------------------------------------------------------------
 
 -- The defId on its own, which is the one field every form opens with.
-function Frames.naming (over: number): Head return headed ({ named (over) }, ALONE) end
+function Frames.naming (over: number): Head return headed ({ named (over) }) end
 
 -- A packet block: `{ defId }`, or `{ defId, stamp }` where the definition declared one.
 function Frames.packet (over: number, stamped: boolean): Head
     local id = named (over)
-    return headed (if stamped then { id, STAMP } else { id }, ALONE)
+    return headed (if stamped then { id, STAMP } else { id })
 end
 
 -- A newest packet block: `{ defId, seq }`, or `{ defId, stamp, seq }`.
 function Frames.newest (over: number, stamped: boolean): Head
     local id = named (over)
-    return headed (if stamped then { id, STAMP, SEQ } else { id, SEQ }, ALONE)
+    return headed (if stamped then { id, STAMP, SEQ } else { id, SEQ })
 end
 
 -- A request block: `{ defId, id }`, where the id is the one its response comes back under.
-function Frames.request (over: number): Head return headed ({ named (over), ASKED }, ALONE) end
+function Frames.request (over: number): Head return headed ({ named (over), ASKED }) end
 
 -- A response block: `{ defId, id, outcome }`.
 function Frames.response (over: number): Head
     local id = named (over)
-    return headed ({ id, ASKED, OUTCOME }, ALONE)
+    return headed ({ id, ASKED, OUTCOME })
 end
 
 -- A state section's block: `{ defId, kind }`, and everything after it is the section's own grammar.
-function Frames.section (over: number): Head return headed ({ named (over), KIND }, ALONE) end
+function Frames.section (over: number): Head return headed ({ named (over), KIND }) end
 
 -- A newest state section's block: `{ defId, fieldId, seq }`.
 function Frames.stream (over: number, fields: number): Head
-    return headed ({ named (over), named (fields), SEQ }, ALONE)
+    return headed ({ named (over), named (fields), SEQ })
 end
 
 --[[
@@ -155,6 +150,6 @@ end
     Stated once: the three parts are the grammar, and a caller adding two of them is one who will
     eventually add the wrong two.
 ]]
-function Frames.block (of: Head, payload: number): number return of.bytes + payload + of.trailer end
+function Frames.block (of: Head, payload: number): number return of.bytes + payload end
 
 return table.freeze (Frames)

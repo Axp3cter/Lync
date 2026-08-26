@@ -19,11 +19,15 @@ export type Link<A...> = {
 -- How a listener is reached, which is the one thing about a fan that is not this module's.
 export type Run<A...> = (fn: (A...) -> (), A...) -> ()
 
+-- The same, over a run of payloads rather than one, which only a list of blocks is given.
+export type Walk = (fn: (...any) -> (), count: number, values: { any }, ...any) -> ()
+
 export type List<A...> = {
     links: { Link<A...> },
     live: number,
     fanning: number,
     run: Run<A...>,
+    walk: Walk?,
 }
 
 -- Private -------------------------------------------------------------
@@ -49,8 +53,31 @@ end
 
 -- Public --------------------------------------------------------------
 
-function Listeners.list <A...>(run: Run<A...>): List<A...>
-    return { links = {}, live = 0, fanning = 0, run = run }
+--[[
+    Every listener handed a block's payloads, one thread apiece rather than one a payload. Only a
+    list built with a walker takes this, since what it hands over is a run of values where the fan
+    below hands over one, and a list of one value a call has no run to give it.
+]]
+function Listeners.fanned <A...>(of: List<A...>, count: number, values: { any }, ...: any)
+    local walk = of.walk
+    if walk == nil then return end
+
+    local links = of.links
+    local held = #links
+    if held == 0 then return end
+
+    of.fanning += 1
+    for index = 1, held do
+        local link = links[index]
+        if link.connected then walk (link.fn :: any, count, values, ...) end
+    end
+    of.fanning -= 1
+
+    swept (of)
+end
+
+function Listeners.list <A...>(run: Run<A...>, walk: Walk?): List<A...>
+    return { links = {}, live = 0, fanning = 0, run = run, walk = walk }
 end
 
 -- At the end of the order, which is the order a fan walks.

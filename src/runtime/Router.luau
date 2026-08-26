@@ -59,6 +59,7 @@ export type Wiring = {
     read space: Compile.Compiled,
     read tally: Tally.Tally,
     read naming: Frames.Head,
+    read values: { any },
     read into: { number },
     read head: { number },
     read boundary: Boundary.Boundary,
@@ -165,13 +166,18 @@ local function packets (
     local built = def.built
 
     --[[
-        The payloads back to back, as many as the header said. A payload says where it ends by
-        being read, so a run needs nothing between two of them, and a definition carrying an
-        instant states no count at all because each of its fires had one of its own.
+        How many payloads follow, back to back, which only a running form states. A newest block
+        spells a sequence where a running one spells its count and a stamped one an instant, so
+        neither is asked: each carries the one payload its header had no room to count.
     ]]
-    local held = if def.timestamped then 1 else of.head[SECOND] + 1
+    local held = if def.timestamped or def.delivery == NEWEST then 1 else of.head[SECOND] + 1
 
-    for _ = 1, held do
+    --[[
+        A block of one handed straight over. Gathering is what lets a run of them share the thread
+        a listener is called on, and a block carrying one has no run to share: what it would buy is
+        a store and a walk over the one value it already had.
+    ]]
+    if held == 1 then
         local ends, value = Boundary.ran (of.boundary, def, built, built.read, b, pos)
         if ends == nil then return nil end
 
@@ -183,7 +189,35 @@ local function packets (
             end
         end
 
+        return ends
+    end
+
+    --[[
+        Gathered before any of them is handed over, since what a listener costs is a thread and a
+        block of thirty was thirty of them. What the boundary turned away is left out rather than
+        left nil, so the count a listener is handed is the count it is given.
+    ]]
+    local values = of.values
+    local taken = 0
+
+    for _ = 1, held do
+        local ends, value = Boundary.ran (of.boundary, def, built, built.read, b, pos)
+        if ends == nil then return nil end
+
+        if not stale and of.boundary.took then
+            taken += 1
+            values[taken] = value
+        end
+
         pos = ends
+    end
+
+    if taken > 0 then
+        if from == nil then
+            Dispatch.packets (of.heard, def.id, def.name, taken, values, sent)
+        else
+            Dispatch.packets (of.heard, def.id, def.name, taken, values, from, sent)
+        end
     end
 
     -- The block itself is counted where the frame is walked, so what is owed here is the rest.
@@ -343,6 +377,9 @@ function Router.wiring (
         tally = tally,
         answered = function () end,
         naming = Frames.naming (space.count),
+
+        -- Where a block's payloads are gathered before the listeners are handed them.
+        values = {},
         into = { 0 },
         head = { 0, 0, 0 },
         boundary = boundary,

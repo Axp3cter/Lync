@@ -85,6 +85,26 @@ function Log.contained <A...>(call: (A...) -> (), ...: A...)
 end
 
 --[[
+    One listener handed every payload a block carried, in the order it carried them, and caught a
+    payload at a time rather than around the walk: a listener that comes apart on one is a listener
+    still handed the next, which is what it would have been on a thread apiece.
+]]
+local function eaching (call: (...any) -> (), count: number, values: { any }, ...: any)
+    for index = 1, count do
+        Log.caught (call, values[index], ...)
+    end
+end
+
+--[[
+    The same containment over a block's payloads rather than over one. A block of thirty carried to
+    one listener was thirty threads and is now one, and what that costs is a listener parking on the
+    fifth keeping the sixth waiting where the two used to race.
+]]
+function Log.contains (call: (...any) -> (), count: number, values: { any }, ...: any)
+    Threads.spawn (eaching :: any, call :: any, count, values, ...)
+end
+
+--[[
     Something the library dropped and moved past. A caller reads these to learn what their schema or
     somebody else's client is doing, so a warning is never a fault and never a throw to come.
 ]]

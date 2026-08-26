@@ -50,7 +50,7 @@ function Dispatch.wiring (): Wiring return { heard = {}, answering = {} } end
 function Dispatch.listen (of: Wiring, id: number, fn: (...any) -> ()): Types.Connection
     local heard = of.heard[id]
     if heard == nil then
-        heard = Listeners.list (Log.contained :: Listeners.Run<...any>)
+        heard = Listeners.list (Log.contained :: Listeners.Run<...any>, Log.contains)
         of.heard[id] = heard
     end
 
@@ -78,6 +78,28 @@ function Dispatch.packet (of: Wiring, id: number, name: string, ...: any)
     end
 
     Listeners.fan (heard, ...)
+end
+
+--[[
+    Every payload one block carried, handed over together. A listener takes them one at a time as
+    it always did, and what a block shares is the thread they arrive on, which was one apiece and
+    is now one between them.
+]]
+function Dispatch.packets (
+    of: Wiring,
+    id: number,
+    name: string,
+    count: number,
+    values: { any },
+    ...: any
+)
+    local heard = of.heard[id]
+    if heard == nil or heard.live == 0 then
+        unheard (name)
+        return
+    end
+
+    Listeners.fanned (heard, count, values, ...)
 end
 
 -- A decoded request, run, and whether there is anything to send back.

@@ -402,4 +402,128 @@ return {
             Expect.holds (held[index].sent ~= nil, `the {index} of {BURST} carried no instant`)
         end
     end),
+    --[[
+        A newest fire and a plain one in the one flush. A newest block spells a sequence where a
+        running block spells how many payloads follow, so a reader that asked it for a count would
+        walk off the end of it and abandon everything the frame carried behind it.
+    ]]
+    Harness.case ("packet.newest-does-not-eat-the-frame", function ()
+        const SAID = 7
+
+        local of = opened ()
+
+        of.defs[LATEST]:fireClient (of.player, SAID)
+        of.defs[SURE]:fireClient (of.player, SAID)
+        of.server:flush ()
+        of.wire:settle ()
+
+        Expect.equal (#of.heard[LATEST], 1)
+        Expect.equal (of.heard[LATEST][1].value, SAID)
+        Expect.equal (#of.heard[SURE], 1)
+        Expect.equal (of.heard[SURE][1].value, SAID)
+    end),
+    --[[
+        A run of fires reaching two listeners, one of which comes apart partway along. A block's
+        payloads share the thread each listener is called on, so what has to hold is that sharing
+        the thread is all they share: every listener is walked, and one that raises on the third is
+        still handed the fourth.
+    ]]
+    Harness.case ("packet.run-reaches-every-listener", function ()
+        const MANY = 5
+        const BREAKS = 3
+
+        local wire = Doubles.wire ()
+        local roster = Doubles.roster ()
+
+        local function defines (): any return { run = Lync.packet (Lync.int (0, 100)) } end
+
+        local ours = defines ()
+        local server = Session.new (SPACE, ours, wire:server (), roster, "server")
+        server:start ()
+
+        local player = roster:join (SENDER)
+        local defs = defines ()
+
+        local mine: { number } = {}
+        local theirs: { number } = {}
+
+        defs.run:onClient (function (value: number)
+            table.insert (mine, value)
+            if value == BREAKS then error ("this one came apart", 0) end
+        end)
+        defs.run:onClient (function (value: number) table.insert (theirs, value) end)
+
+        local client = Session.new (SPACE, defs, wire:client (player), roster, "client")
+        client:start ()
+        wire:settle ()
+
+        for index = 1, MANY do
+            ours.run:fireClient (player, index)
+        end
+        server:flush ()
+        wire:settle ()
+
+        Expect.equal (#mine, MANY)
+        Expect.equal (#theirs, MANY)
+        Expect.equal (mine[MANY], MANY)
+        Expect.equal (theirs[MANY], MANY)
+    end),
+    --[[
+        A run one of whose payloads the far side turns away. The payloads of a block are gathered
+        before any listener is handed them, so what is gathered has to be what was taken: a refused
+        one left in place would reach a listener as a value its own schema had already refused.
+    ]]
+    Harness.case ("packet.run-leaves-out-what-was-turned-away", function ()
+        const REFUSED = "this value is not welcome"
+        const TURNED = 0
+
+        local wire = Doubles.wire ()
+        local roster = Doubles.roster ()
+
+        local function defines (): any
+            return {
+                run = Lync.packet (
+                    Lync.int (0, 100):validate (
+                        function (value: number): string?
+                            return if value == TURNED then REFUSED else nil
+                        end
+                    )
+                ),
+            }
+        end
+
+        local ours = defines ()
+        local server = Session.new (SPACE, ours, wire:server (), roster, "server")
+        server:start ()
+
+        local player = roster:join (SENDER)
+        local defs = defines ()
+
+        --[[
+            Counted rather than gathered, because a payload handed over as nothing is a call that
+            `table.insert` would decline to record and a check reading the list would not see.
+        ]]
+        local seen: { number } = {}
+        local calls = 0
+
+        defs.run:onClient (function (value: number)
+            calls += 1
+            seen[calls] = value
+        end)
+
+        local client = Session.new (SPACE, defs, wire:client (player), roster, "client")
+        client:start ()
+        wire:settle ()
+
+        -- The middle one is the one the far side refuses, so a run carries it and drops it.
+        for _, value in { 1, TURNED, 2 } do
+            ours.run:fireClient (player, value)
+        end
+        server:flush ()
+        wire:settle ()
+
+        Expect.equal (calls, 2)
+        Expect.equal (seen[1], 1)
+        Expect.equal (seen[2], 2)
+    end),
 }

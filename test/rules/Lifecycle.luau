@@ -29,6 +29,9 @@ const ASKS = "asks"
 -- A packet legal to declare and illegal to compile, which is what asks when the compiling happens.
 const MARKED = "marked"
 
+-- A set, for the readings one answers before there is a session under it.
+const ROSTER = "roster"
+
 const CARRIED = true
 
 --[[
@@ -69,6 +72,7 @@ local function defined (): any
     return {
         [HEARD] = Lync.packet (Lync.bool ()),
         [ASKS] = Lync.query (Lync.bool (), Lync.bool ()),
+        [ROSTER] = Lync.replicate (Lync.struct ({ [MARKED] = Lync.bool () })),
     }
 end
 
@@ -130,6 +134,38 @@ end
 -- Public --------------------------------------------------------------
 
 return {
+    --[[
+        The calls a place makes on a library that has not started, which are refused rather than
+        answered. Nothing is open until a place starts, so a flush has no session to spend, a close
+        has none to let go and a reading has nothing to count. Sealed, since this is the one window
+        the question exists in and it closes the moment anything calls start.
+    ]]
+    Harness.sealed ("life.surface-before-start", function ()
+        for _, said in { "flush", "close", "stats" } do
+            Expect.throws (function () (Lync :: any)[said] (Lync) end, `{said} before start`)
+        end
+    end),
+
+    --[[
+        A set read before the machine started, which answers empty rather than refusing. A handle
+        exists from the moment it is declared and a place wires its interface against one, so the
+        readings have to hold before anything is bound: nothing under any id, nothing held, and
+        nothing to walk. A set answering otherwise tells a caller about records that do not exist.
+    ]]
+    Harness.case ("life.set-before-start", function ()
+        local defs = defined ()
+        local set = defs[ROSTER]
+
+        Expect.equal (set:get (1), nil)
+        Expect.equal (#set, 0)
+
+        local walked = 0
+        for _ in set do
+            walked += 1
+        end
+        Expect.equal (walked, 0)
+    end),
+
     --[[
         A listener attached before the machine started, and the traffic it hears afterwards, which
         is the ordinary way a caller wires one. A definitions module is required on both sides and

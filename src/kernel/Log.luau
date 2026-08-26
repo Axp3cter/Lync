@@ -89,9 +89,33 @@ end
     payload at a time rather than around the walk: a listener that comes apart on one is a listener
     still handed the next, which is what it would have been on a thread apiece.
 ]]
-local function eaching (call: (...any) -> (), count: number, values: { any }, ...: any)
-    for index = 1, count do
-        Log.caught (call, values[index], ...)
+local function eaching (
+    at: { number },
+    call: (...any) -> (),
+    count: number,
+    values: { any },
+    ...: any
+)
+    while at[1] < count do
+        at[1] += 1
+        call (values[at[1]], ...)
+    end
+end
+
+--[[
+    A walk caught once rather than an item at a time, resumed past whatever came apart. The walk
+    keeps where it reached where the catch can read it, so a listener raising on the fifth is
+    reported and the sixth is handed over: the same isolation, at one call rather than a count.
+]]
+local function walking (walk: any, call: (...any) -> (), count: number, ...: any)
+    local at = { 0 }
+
+    while at[1] < count do
+        local ok, held = xpcall (walk, traced, at, call, count, ...)
+        if ok then return end
+
+        local file, line = debug.info (call, "sl")
+        said ("error", held, NO_FACTS, file, line)
     end
 end
 
@@ -101,7 +125,7 @@ end
     fifth keeping the sixth waiting where the two used to race.
 ]]
 function Log.contains (call: (...any) -> (), count: number, values: { any }, ...: any)
-    Threads.spawn (eaching :: any, call :: any, count, values, ...)
+    Threads.spawn (walking :: any, eaching :: any, call :: any, count, values, ...)
 end
 
 --[[
@@ -109,15 +133,17 @@ end
     a set tells a caller: an id, the record it names, and what that record was. Caught an item at a
     time for the reason the walk above is, and a settle of two hundred is one thread and not two.
 ]]
-local function besides (
+local function alongside (
+    at: { number },
     call: (...any) -> (),
     count: number,
     ones: { any },
     twos: { any },
     threes: { any }
 )
-    for index = 1, count do
-        Log.caught (call, ones[index], twos[index], threes[index])
+    while at[1] < count do
+        at[1] += 1
+        call (ones[at[1]], twos[at[1]], threes[at[1]])
     end
 end
 
@@ -128,7 +154,7 @@ function Log.beside (
     twos: { any },
     threes: { any }
 )
-    Threads.spawn (besides :: any, call :: any, count, ones, twos, threes)
+    Threads.spawn (walking :: any, alongside :: any, call :: any, count, ones, twos, threes)
 end
 
 --[[

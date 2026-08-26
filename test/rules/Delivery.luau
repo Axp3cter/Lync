@@ -447,6 +447,11 @@ return {
         local mine: { number } = {}
         local theirs: { number } = {}
 
+        local said: { string } = {}
+        local watching = Lync.onLog (function (kind: string, message: string)
+            if kind == "error" then table.insert (said, message) end
+        end)
+
         defs.run:onClient (function (value: number)
             table.insert (mine, value)
             if value == BREAKS then error ("this one came apart", 0) end
@@ -463,10 +468,18 @@ return {
         server:flush ()
         wire:settle ()
 
+        --[[
+            The one that came apart is reported as well as stepped over. A walk of a run is caught
+            once and resumed past whatever raised, so the report is the only thing saying it raised
+            at all: a resume that stayed quiet would look exactly like a listener that never ran.
+        ]]
+        Expect.equal (#said, 1)
         Expect.equal (#mine, MANY)
         Expect.equal (#theirs, MANY)
         Expect.equal (mine[MANY], MANY)
         Expect.equal (theirs[MANY], MANY)
+
+        watching:disconnect ()
     end),
     --[[
         A run one of whose payloads the far side turns away. The payloads of a block are gathered

@@ -490,10 +490,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             break
         end
 
-        -- Whether the wider of the two widths comes up at all, which in most records it does not.
+        --[[
+            Whether every field is one byte and sits on the byte after the one before it. A word
+            laid out that way needs no seat kept for it: the seat is the step, so a walk that
+            counts as it goes reaches each field where it is without being told where that is.
+        ]]
         local singly = upright
         for index = 1, reach do
-            if sizes[index] == ONE then continue end
+            if sizes[index] == ONE and seats[index] == index - 1 then continue end
 
             singly = false
             break
@@ -502,17 +506,20 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         if singly then
             -- The same pair where every field is one byte, so which call to make is not a question.
             local function steady (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local at = pos
                 for index = 1, reach do
                     local one = value[keys[index]]
                     local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
-                    buffer.writeu8 (b, pos + seats[index], made :: number)
+                    buffer.writeu8 (b, at, made :: number)
+                    at += 1
                 end
             end
 
             -- The same, where a whole number already on the grid is the index and asks nothing.
             local function ready (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local at = pos
                 for index = 1, reach do
                     local one = value[keys[index]]
                     local made = one
@@ -522,7 +529,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                         if made == nil then Word.refused (wheres[index], wanted[index], one) end
                     end
 
-                    buffer.writeu8 (b, pos + seats[index], made :: number)
+                    buffer.writeu8 (b, at, made :: number)
+                    at += 1
                 end
             end
 
@@ -533,8 +541,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 _s: { number },
                 _h: { any }
             ): any
+                local at = pos
                 for index = 1, reach do
-                    local raw = buffer.readu8 (b, pos + seats[index])
+                    local raw = buffer.readu8 (b, at)
+                    at += 1
 
                     if checks[index] and raw > bounds[index] then
                         local tag = joins[index].tag
@@ -560,8 +570,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 _s: { number },
                 _h: { any }
             ): any
+                local at = pos
                 for index = 1, reach do
-                    into[keys[index]] = buffer.readu8 (b, pos + seats[index])
+                    into[keys[index]] = buffer.readu8 (b, at)
+                    at += 1
                 end
 
                 return nil

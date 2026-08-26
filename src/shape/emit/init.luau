@@ -199,14 +199,20 @@ end
 -- A shape and everything under it, as the pair the whole tree became.
 function Emit.emit (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
     local write, read = made (of, at)
-    local held = if of.tag.checks == nil then read else checked (read, of.tag)
+    return write, if of.tag.checks == nil then read else checked (read, of.tag)
+end
 
-    -- The root, which is the one place a parked reason becomes a refusal.
-    local function taken (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+--[[
+    A check under a field that packs into a word never becomes a read of its own, so the reason it
+    parks has to be collected once the whole read is done rather than raised as it happens. One
+    shape collecting it beats all of them doing so by a call and a clearing on every field.
+]]
+function Emit.rooted (read: Ir.Read): Ir.Read
+    return function (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         parkedPath = nil
         parkedReason = nil
 
-        local ends, value = held (b, pos, ctx)
+        local ends, value = read (b, pos, ctx)
         if parkedPath == nil then return ends, value end
 
         local path, reason = parkedPath, parkedReason
@@ -215,8 +221,6 @@ function Emit.emit (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
 
         return Log.reject (Catalog.VALIDATE, { pathId = path, reason = reason, at = ends })
     end
-
-    return write, taken
 end
 
 return table.freeze (Emit)

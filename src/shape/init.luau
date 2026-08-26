@@ -59,6 +59,7 @@ function Shape.build (of: Types.Codec<any>, at: string, shared: Site?): Built
 
     local shape = Lower.of (cell, at, site)
     local write, read = Emit.emit (shape, site)
+    read = Emit.rooted (read)
 
     return table.freeze ({
         cell = cell,

@@ -35,6 +35,14 @@ const TOP = 100
 const TAGGED = "tagged"
 const VARIANTS = table.freeze ({ "red", "green", "blue" })
 
+--[[
+    A sixth, whose fields are packed into a word and whose grid stops short of the bits carrying
+    it. Six is three bits and holds five, so the two patterns above it are ones a frame can spell
+    and the schema cannot answer, which is the refusal a word raises for itself.
+]]
+const NARROW = "narrow"
+const REACH = 5
+
 -- What each guard says, in words nothing else in the tree uses.
 const REFUSED = "the first guard turned it away"
 const DIFFERENT = "the second guard turned it away"
@@ -66,6 +74,9 @@ local function defined (): any
         [HEARD] = Lync.packet (Lync.bool ()),
         [UNHEARD] = Lync.packet (Lync.bool ()),
         [TAGGED] = Lync.packet (Lync.enum (VARIANTS)),
+        [NARROW] = Lync.packet (
+            Lync.struct ({ low = Lync.int (0, REACH), high = Lync.int (0, REACH) })
+        ),
     }
 end
 
@@ -81,7 +92,7 @@ local function opened (): Run
         defined = defined,
         label = SENDER,
         wires = function (defs: any, side: string)
-            for _, name in { GUARDED, OTHER, HEARD, TAGGED } do
+            for _, name in { GUARDED, OTHER, HEARD, TAGGED, NARROW } do
                 if side == "server" then
                     defs[name]:onServer (function () end)
                 else
@@ -343,6 +354,32 @@ return {
             dropped[TAG] ~= nil,
             `nothing in the frame reached the schema's own domain, only {shown (dropped)}`
         )
+    end),
+
+    --[[
+        A word's field read past the end of its grid, which the word refuses for itself rather
+        than leaving to the frame around it. What the refusal carries is the code naming a value
+        outside its domain and the index that arrived, and a drop catalogued as something else or
+        reporting nothing of what it read leaves a reader with damage they cannot go and look at.
+    ]]
+    Harness.case ("log.word-past-its-grid", function ()
+        local of = opened ()
+        local frame = carried (of, function () fromClient (of, NARROW, { low = 1, high = 2 }) end)
+
+        local seen = false
+        for at = 0, buffer.len (frame.bytes) - 1 do
+            for _, one in Records.made (function () of.wire:hands (louder (frame, at)) end) do
+                if one.data.code ~= TAG then continue end
+
+                seen = true
+                Expect.holds (
+                    one.data.got ~= nil and one.data.got ~= 0,
+                    `a value past its grid was refused reporting {tostring (one.data.got)}`
+                )
+            end
+        end
+
+        Expect.holds (seen, "no byte of a narrow word was refused for the grid it ran past")
     end),
 
     -- What a drop record says it is about, held by discrimination rather than by wording.

@@ -219,7 +219,43 @@ function Block.group (
         return at, (if keyed then into else bare)
     end
 
-    return write, read
+    --[[
+        Whether every part of this group lands on the record itself and is always there. Dissolving
+        nothing settles where a part goes, since a part is only put inside a record that dissolved,
+        and holding the keys settles that there is a shape to copy. What is left to ask is whether
+        any part is an option, which is a bit deciding at read time whether it came at all.
+    ]]
+    local plainly = deep == 0 and keyed
+    if plainly then
+        for index = 1, reach do
+            if bits[index] == 0 then continue end
+
+            plainly = false
+            break
+        end
+    end
+
+    if not plainly then return write, read end
+
+    -- The same read where each part goes straight onto the record, which is where most of them do.
+    local function plain (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local into: any = table.clone (blank)
+
+        -- Holding the keys means every part has one, so nothing here is read without a key.
+        if unpack ~= nil then unpack (b, pos, into, slots, held) end
+
+        local at = pos + region
+        for index = 1, reach do
+            local one: any
+            at, one = reads[index] (b, at, ctx)
+
+            into[keys[index]] = one
+        end
+
+        return at, into
+    end
+
+    return write, plain
 end
 
 -- A value laid down as its parts and built back out of them.

@@ -29,6 +29,7 @@ export type Op =
     | "vlq"
     | "vli"
     | "bytes"
+    | "unknown"
     | "run"
     | "list"
     | "pairs"
@@ -141,6 +142,19 @@ export type Bytes = {
     read form: "string" | "buffer",
 }
 
+--[[
+    A value the schema does not describe, which describes itself instead. Every part carries a tag,
+    so nothing about it can be planned: never one width, never landing on a grid, and bounded only
+    by the room the declaration gave it.
+]]
+export type Unknown = {
+    read op: "unknown",
+    read fixed: boolean,
+    read maxBytes: number,
+    read tag: Tag,
+    read count: Span,
+}
+
 export type Run = {
     read op: "run",
     read fixed: boolean,
@@ -248,6 +262,7 @@ export type Shape =
     | Float
     | Varint
     | Bytes
+    | Unknown
     | Run
     | List
     | Pairs
@@ -341,6 +356,17 @@ function Ir.bytes (tag: Tag, count: Span, form: "string" | "buffer", alphabet: s
         count = table.freeze (count),
         alphabet = alphabet,
         form = form,
+    })
+end
+
+-- A value that says what it is as it goes, bounded by the room its declaration gave it.
+function Ir.unknown (tag: Tag, count: Span): Unknown
+    return table.freeze ({
+        op = "unknown" :: "unknown",
+        fixed = false,
+        maxBytes = count.max + Protocol.UNKNOWN_SLACK,
+        tag = tag,
+        count = table.freeze (count),
     })
 end
 

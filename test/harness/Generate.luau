@@ -77,9 +77,14 @@ const COMPOSITES = table.freeze ({
 const ALL =
     table.freeze (table.move (COMPOSITES, 1, #COMPOSITES, #LEAVES + 1, table.clone (LEAVES)))
 
--- The constructors no case here builds, each for its own reason.
+--[[
+    The constructors no case here builds, each for its own reason. `unknown` is the one whose
+    reason is the kind itself: a drawn schema is what every value here is drawn from, and that one
+    declares no shape to draw. What it carries is walked by a corpus in the wire suite instead.
+]]
 const UNGENERATED = table.freeze ({
     "inst",
+    "unknown",
     "str.alphanum",
     "str.base32",
     "str.base64",

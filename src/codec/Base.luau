@@ -46,6 +46,7 @@ export type Kind =
     | "rotation"
     | "color3"
     | "inst"
+    | "unknown"
 
 export type Marker = "none" | "monotonic" | "newest"
 

@@ -122,6 +122,7 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
     if of.op == "f32" or of.op == "f64" then return Leaf.float (of, paths, expected) end
     if of.op == "vlq" or of.op == "vli" then return Leaf.varint (of, paths, expected) end
     if of.op == "bytes" then return Leaf.bytes (of, paths, expected) end
+    if of.op == "unknown" then return Leaf.unknown (of, paths, expected) end
     if of.op == "run" then return Leaf.run (of, paths, expected) end
 
     if of.op == "group" then

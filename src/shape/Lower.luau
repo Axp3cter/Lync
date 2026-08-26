@@ -303,6 +303,7 @@ local function shaped (
 
     if kind == "str" then return Ir.bytes (tag, counted (params), "string", params.symbols) end
     if kind == "buffer" then return Ir.bytes (tag, counted (params), "buffer", nil) end
+    if kind == "unknown" then return Ir.unknown (tag, counted (params)) end
 
     --[[
         An array is a packed run where its element is one leaf that fits, and a list of aligned

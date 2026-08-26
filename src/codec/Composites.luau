@@ -125,4 +125,15 @@ function Composites.bitfield (names: { string }): Types.Codec<{ [string]: boolea
     return Base.make ("bitfield", { names = labelled ("bitfield", names) })
 end
 
+--[[
+    A value whose shape the schema does not state, spelled out as it is written. Everything else
+    here says what it holds first, which is what buys the packing and the bound checks. This says
+    only how much room it may take, and pays a tag beside every part of what it carries. Reach for
+    it where the shape is genuinely somebody else's.
+]]
+function Composites.unknown (maxBytes: number): Types.Codec<any>
+    Legality.counts ("unknown", 0, maxBytes)
+    return Base.make ("unknown", { min = 0, max = maxBytes })
+end
+
 return table.freeze (Composites)

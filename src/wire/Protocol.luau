@@ -25,8 +25,35 @@ Protocol.BYTE_BITS = 8
     as far in each direction and its edge sits a bit below the one a double counts exactly to.
 ]]
 Protocol.EXACT = 2 ^ 53
+
+--[[
+    How deep a value nobody declared may nest, since a frame stating its own nesting is a sender
+    picking the reader's stack depth. Past anything written by hand and under what a walk costs.
+]]
+Protocol.UNKNOWN_DEPTH = 8
+
+--[[
+    What each part of one is spelled as, which is all a reader knows before it reads one. A tag
+    apiece is what buys saying nothing about the shape in the schema.
+]]
+Protocol.UNKNOWN_NOTHING = 0
+Protocol.UNKNOWN_FALSE = 1
+Protocol.UNKNOWN_TRUE = 2
+Protocol.UNKNOWN_WHOLE = 3
+Protocol.UNKNOWN_REAL = 4
+Protocol.UNKNOWN_TEXT = 5
+Protocol.UNKNOWN_BYTES = 6
+Protocol.UNKNOWN_LIST = 7
+Protocol.UNKNOWN_PAIRS = 8
 Protocol.VLI_EDGE = 2 ^ 52 - 1
 Protocol.VARINT_GROUPS = 8
+
+--[[
+    The room a frame keeps past such a value's own bound, which is the widest a tag and the number
+    behind it can come to. A writer discovers a varint's width by writing it, so the slack is what
+    it lands in when the bound is what refuses it.
+]]
+Protocol.UNKNOWN_SLACK = Protocol.VARINT_GROUPS + 1
 Protocol.BIT_CEILING = 24
 
 --[[

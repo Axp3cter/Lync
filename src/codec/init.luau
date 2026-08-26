@@ -27,6 +27,7 @@ local Codecs = {
     tagged = Composites.tagged,
     enum = Composites.enum,
     bitfield = Composites.bitfield,
+    unknown = Composites.unknown,
 
     vec2 = Datatypes.vec2,
     vec3 = Datatypes.vec3,

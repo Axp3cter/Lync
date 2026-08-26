@@ -4,6 +4,7 @@
 
 local Catalog = require ("@src/kernel/Catalog")
 local Lync = require ("@src")
+local Protocol = require ("@src/wire/Protocol")
 
 local Expect = require ("@test/harness/Expect")
 local Generate = require ("@test/harness/Generate")
@@ -740,5 +741,84 @@ return {
         local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
         Expect.holds (not ok, "two keys reading as one were taken rather than refused")
         Expect.equal ((caught :: any).code, Catalog.MAP_ORDER)
+    end),
+
+    --[[
+        Every shape a value nobody declared can take, written and read back. This is the one kind
+        with no schema to draw from, so the corpus is what stands in for one: each entry is a form
+        the tags spell, and a value that comes back different is a tag whose two halves disagree.
+    ]]
+    Harness.case ("total.unknown-comes-back-as-it-went", function ()
+        --[[
+            A whole past what a varint keeps in one group, so the wide branch is walked rather than
+            asserted. Two to the fortieth takes six groups where every other entry takes one.
+        ]]
+        const WIDE = 2 ^ 40
+
+        local of = Turns.built (Lync.unknown (Protocol.SECTION_BYTES))
+
+        local corpus: { any } = {
+            true,
+            false,
+            0,
+            -1,
+            WIDE,
+            -WIDE,
+            0.5,
+            "",
+            "a string",
+            buffer.fromstring ("opaque"),
+            { 1, 2, 3 },
+            { a = 1, b = "two" },
+            { [1] = "one", [true] = "yes" },
+            { {}, { { 1 } } },
+        }
+
+        for _, value in corpus do
+            local bytes, size = Turns.wrote (of, value)
+            local at, got = of.read (bytes, 0, Turns.CTX)
+
+            Expect.equal (at, size)
+            Expect.equal (got, value)
+        end
+
+        -- Nothing, which is the one value a list of them cannot hold and so is asked on its own.
+        local bytes, size = Turns.wrote (of, nil)
+        local at, got = of.read (bytes, 0, Turns.CTX)
+
+        Expect.equal (at, size)
+        Expect.equal (got, nil)
+    end),
+
+    --[[
+        Bytes nobody wrote where a value describes itself. A tag no writer spells and a count past
+        the bytes there are are the two ways such a frame goes wrong, and both are the reader's to
+        refuse: the declaration said only how much room it takes, so there is nothing else to check
+        the bytes against.
+    ]]
+    Harness.case ("total.unknown-refuses-a-frame-nobody-wrote", function ()
+        -- A tag past every one the wire spells, which is what a byte nobody wrote reads as.
+        const UNSPELLED = 200
+
+        local of = Turns.built (Lync.unknown (Protocol.SECTION_BYTES))
+        local bytes = Turns.held (string.char (UNSPELLED))
+
+        local ok, caught = pcall (of.read, bytes, 0, Turns.CTX)
+        Expect.holds (not ok, "a tag nobody spells was taken rather than refused")
+        Expect.equal ((caught :: any).code, Catalog.TAG)
+
+        --[[
+            A string tag with a count past the room the declaration gave it. Each part costs at
+            least the byte its tag takes, so a count over the bytes left is one no writer could
+            have spelled, whatever the parts behind it would have come to. The count is one group
+            wide, since a frame that stops inside the count is a shorter frame than this one asks.
+        ]]
+        const OVER = 100
+
+        local long = Turns.held (string.char (Protocol.UNKNOWN_TEXT, OVER))
+        local fine, why = pcall (of.read, long, 0, Turns.CTX)
+
+        Expect.holds (not fine, "a count past the bytes was taken rather than refused")
+        Expect.equal ((why :: any).code, Catalog.COUNT)
     end),
 }

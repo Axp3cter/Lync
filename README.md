@@ -129,6 +129,7 @@ UDim2, Region3, Ray and the rest go over with `:as`.
 | `tagged(field, { k = c })` | union | One struct per variant, the chosen name rides in `field`. |
 | `enum({ "a", "b" })` | `string` | One of a fixed set. |
 | `bitfield({ "a", "b" })` | `{ a: boolean }` | Packed flags, one bit each. |
+| `unknown(maxBytes)` | `any` | A shape you do not declare. Costs a tag per part, packs nothing. |
 
 ### Modifiers
 

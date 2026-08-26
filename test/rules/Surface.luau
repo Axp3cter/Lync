@@ -81,6 +81,7 @@ const SURFACE = table.freeze ({
             "tagged",
             "enum",
             "bitfield",
+            "unknown",
         }),
     }),
     table.freeze ({
@@ -133,11 +134,11 @@ const CARRIERS = table.freeze ({
 })
 
 -- What the two counts above have to come to.
-const NAMES = 37
-const FORMS = 36
+const NAMES = 38
+const FORMS = 37
 
 -- Codec constructors among the names, which is what the forms are counted from.
-const CONSTRUCTORS = 23
+const CONSTRUCTORS = 24
 
 const DEPTH = Generate.DEEP
 

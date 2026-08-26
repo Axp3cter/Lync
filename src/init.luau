@@ -79,6 +79,7 @@ local Lync = {
     tagged = Codecs.tagged,
     enum = Codecs.enum,
     bitfield = Codecs.bitfield,
+    unknown = Codecs.unknown,
 
     vec2 = Codecs.vec2,
     vec3 = Codecs.vec3,

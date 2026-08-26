@@ -3,6 +3,7 @@
 -- The edge of a domain from the writing side: what a codec refuses, and what it says.
 
 local Lync = require ("@src")
+local Protocol = require ("@src/wire/Protocol")
 local Shape = require ("@src/shape")
 
 local Expect = require ("@test/harness/Expect")
@@ -433,5 +434,64 @@ return {
 
         Expect.equal (of.maxBytes, HELD * EACH)
         Expect.equal (of.write (SLAB, 0, { 1, 2 }), HELD * EACH)
+    end),
+    --[[
+        The four things a value nobody declared is held to, since its declaration says only how
+        much room it may take. Every one of them is the only bound left once the shape is gone:
+        what it may hold, how deep it may nest, how much room it fills, and that the room is what
+        the frame keeps rather than what the writer discovers.
+    ]]
+    Harness.case ("wire.unknown-holds-what-it-can", function ()
+        --[[
+            Sixteen bytes takes a tag, a count and fourteen characters, so fifteen is the first
+            string that cannot fit. The bound is exact rather than approached, which is the whole
+            claim: nothing is written past what the declaration asked for.
+        ]]
+        const ROOM = 16
+        const FITS = 14
+
+        local of = built (Lync.unknown (ROOM))
+
+        Expect.equal (of.write (SLAB, 0, string.rep ("x", FITS)), ROOM)
+        names (refused (of, string.rep ("x", FITS + 1), "a string over the room"), ROOT, "over")
+
+        -- A value the schema has no tag for, which is every Luau type a frame cannot carry.
+        names (refused (of, print, "a function"), ROOT, "a function")
+
+        --[[
+            Nesting past what a reader walks, which a sender rather than a schema chooses. Asked in
+            room nothing could fill, because a nest deep enough is also a nest wide enough and the
+            two refusals would otherwise stand in for one another.
+        ]]
+        local wide = built (Lync.unknown (Protocol.SECTION_BYTES))
+        local deep: any = {}
+        local walk = deep
+        for _ = 1, Protocol.UNKNOWN_DEPTH + 1 do
+            local under = {}
+            walk[1] = under
+            walk = under
+        end
+        names (refused (wide, deep, "a value nested past the depth"), ROOT, "nested")
+    end),
+
+    --[[
+        That the frame keeps the room the writer needs to discover a varint's width. A varint says
+        how wide it is by being written, so the bytes it takes past the bound land in slack the
+        frame reserved and the refusal drops the frame. Without the slack the write is what runs
+        past the buffer, and a schema cannot say afterwards that it should not have.
+    ]]
+    Harness.case ("wire.unknown-keeps-room-for-the-widest", function ()
+        --[[
+            Room a whole starts inside and ends past. A tag and the six groups two to the fortieth
+            folds into come to seven, so four bytes is room the write begins in and cannot finish
+            in: the refusal has to come from what the write discovered, since nothing before it
+            had anything to go on.
+        ]]
+        const ROOM = 4
+
+        local of = built (Lync.unknown (ROOM))
+
+        Expect.equal (of.maxBytes, ROOM + Protocol.UNKNOWN_SLACK)
+        names (refused (of, WIDEST, "a whole wider than the room"), ROOT, "wide")
     end),
 }

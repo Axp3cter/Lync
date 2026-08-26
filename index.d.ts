@@ -271,6 +271,8 @@ interface LyncModule {
         this: void,
         names: T,
     ): Lync.Codec<{ [K in T[number]]: boolean }>;
+    /** A value the schema does not describe. Costs a tag per part and skips every packing. */
+    unknown(this: void, maxBytes: number): Lync.Codec<unknown>;
 
     vec2(this: void, component?: Lync.Codec<number>): Lync.Codec<Vector2>;
     readonly vec3: Lync.Vec3;

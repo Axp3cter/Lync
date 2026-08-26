@@ -269,4 +269,68 @@ return {
         Expect.holds (shallow ~= 0 and deep ~= 0, "a turned value said it was nowhere")
         Expect.holds (shallow ~= deep, `two fields were turned away under one path {shallow}`)
     end),
+
+    --[[
+        A check on an optional, run once for the value and not at all for the bit saying it is
+        there. A presence bit is the frame answering whether a value follows rather than a value a
+        caller declared anything about, so a check reaching it is asked about a truth the schema
+        never mentions, and a caller counting their own calls sees one they did not make.
+    ]]
+    Harness.case ("codec.validate-runs-once-under-an-optional", function ()
+        local ran = 0
+        local of = Turns.built (Lync.optional (Lync.int (0, 3):validate (function (): string?
+            ran += 1
+            return nil
+        end)))
+
+        local bytes, size = Turns.wrote (of, 2)
+
+        ran = 0
+        Expect.equal (Turns.read (of, bytes, size), 2)
+        Expect.equal (ran, 1)
+
+        local absent, held = Turns.wrote (of, nil)
+
+        ran = 0
+        Expect.equal (Turns.read (of, absent, held), nil)
+        Expect.equal (ran, 0)
+    end),
+
+    --[[
+        Two optionals in one record, each reading the bit that is its own. The bits sit together
+        ahead of the values a record carries, so a field reading the first of them answers whatever
+        the field before it said, and a record where one is there and the other is not comes back
+        with both or neither.
+    ]]
+    Harness.case ("codec.two-optionals-read-their-own-bits", function ()
+        local of = Turns.built (Lync.struct ({
+            near = Lync.optional (Lync.int (0, 3)),
+            far = Lync.optional (Lync.int (0, 3)),
+        }))
+
+        for _, one in
+            { { near = 1, far = 2 }, { near = 1 }, { far = 2 }, {} } :: { { [string]: number } }
+        do
+            local bytes, size = Turns.wrote (of, one)
+            local back = Turns.read (of, bytes, size)
+
+            Expect.equal (back.near, one.near)
+            Expect.equal (back.far, one.far)
+        end
+    end),
+
+    --[[
+        A vector declared over a component codec, which is what its components are rather than the
+        floats a vector is otherwise. A caller writing one is asking for three of what they named,
+        so answering floats is three fields of thirty two bits where they declared a handful.
+    ]]
+    Harness.case ("codec.vector-takes-its-component", function ()
+        local plain = Turns.built (Lync.vec3 ())
+        local held = Turns.built (Lync.vec3 (Lync.int (0, 3)))
+
+        Expect.holds (
+            held.maxBytes < plain.maxBytes,
+            `a vector of components cost {held.maxBytes} where floats cost {plain.maxBytes}`
+        )
+    end),
 }

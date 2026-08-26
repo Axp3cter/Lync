@@ -34,6 +34,7 @@ export type Grid = {
     read width: number,
     read wrap: boolean?,
     read plain: boolean?,
+    read whole: boolean?,
     read toIndex: (value: any) -> number?,
     read fromIndex: (index: number) -> any,
 }
@@ -111,6 +112,7 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         span = span,
         width = width,
         plain = min == 0 and step == 1,
+        whole = span == bit32.lshift (1, width) - 1,
         toIndex = toIndex,
         fromIndex = fromIndex,
     }
@@ -126,7 +128,7 @@ function Grid.flag (): Grid
 
     local function fromIndex (index: number): any return index == 1 end
 
-    return { span = 1, width = 1, toIndex = toIndex, fromIndex = fromIndex }
+    return { span = 1, width = 1, whole = true, toIndex = toIndex, fromIndex = fromIndex }
 end
 
 -- A ranged int over a count of things, which is where every tag and every chosen name lands.

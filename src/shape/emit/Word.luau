@@ -61,11 +61,15 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     -- The leaves whose value is the index, which are read back without reaching for the mapping.
     local plain = table.create (held, false) :: { boolean }
 
+    -- The leaves that fill their bits, which no reading can carry off the grid.
+    local whole = table.create (held, false) :: { boolean }
+
     for index, grid in leaves do
         spans[index] = grid.span
         toIndex[index] = grid.toIndex
         fromIndex[index] = grid.fromIndex
         plain[index] = grid.plain == true
+        whole[index] = grid.whole == true
     end
 
     -- The leaves that occupy no bits, which is every grid holding one value.
@@ -85,6 +89,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     local wheres = table.create (reach) :: { string }
     local wanted = table.create (reach) :: { string }
 
+    --[[
+        Whether a field has a reading that could be off its grid. Where none of its leaves does,
+        the walk that would look is one nothing can find anything in.
+    ]]
+    local watched = table.create (reach, false) :: { boolean }
+
     for index, join in joins do
         starts[index] = join.at
         ends[index] = join.at + join.count - 1
@@ -94,6 +104,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         pushes[index] = join.push
         wheres[index] = paths.texts[join.tag.pathId]
         wanted[index] = expected.texts[join.tag.expectId]
+
+        for leaf = join.at, join.at + join.count - 1 do
+            if whole[leaf] then continue end
+            watched[index] = true
+            break
+        end
     end
 
     -- Per window, and then the parts of every window end to end.
@@ -203,16 +219,18 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         local bare: any = nil
 
         for index = 1, reach do
-            for leaf = starts[index], ends[index] do
-                if slots[leaf] <= spans[leaf] then continue end
+            if watched[index] then
+                for leaf = starts[index], ends[index] do
+                    if slots[leaf] <= spans[leaf] then continue end
 
-                -- Held back to here, since a decode that holds never has a tag to report.
-                local tag = joins[index].tag
-                Log.reject (Catalog.TAG, {
-                    pathId = tag.pathId,
-                    expectId = tag.expectId,
-                    got = slots[leaf],
-                })
+                    -- Held back to here, since a decode that holds never has a tag to report.
+                    local tag = joins[index].tag
+                    Log.reject (Catalog.TAG, {
+                        pathId = tag.pathId,
+                        expectId = tag.expectId,
+                        got = slots[leaf],
+                    })
+                end
             end
 
             local push = pushes[index]

@@ -5,7 +5,7 @@
 local Protocol = {}
 
 -- What both machines have to agree on before either spends a byte on the other's schema.
-Protocol.VERSION = 5
+Protocol.VERSION = 6
 
 --[[
     The handshake lane's whole grammar: what each of the two messages weighs, where a verdict keeps
@@ -66,7 +66,13 @@ Protocol.QUERY_CAP = 32768
 -- Sequences and stamps.
 Protocol.NEWEST_WINDOW = 32768
 Protocol.NEWEST_GENS = 4
-Protocol.STAMP_BITS = 32
+
+--[[
+    A stamp is unwrapped against the reader's own count, so the field holds the disagreement
+    between two machines rather than the age of the session. Hours of it, where what they can
+    disagree by is a lane's latency, and a session of any length wraps through this unharmed.
+]]
+Protocol.STAMP_BITS = 24
 Protocol.STAMP_RATE = 1000
 
 -- A packed colour's channel widths, least significant first.

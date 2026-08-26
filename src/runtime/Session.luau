@@ -201,6 +201,8 @@ local function replying (
         link.toward = who
         link.lossy = false
         link.wrote = def.answers.bytes
+        link.runs = def.answers.runs :: number
+        link.widest = def.response.maxBytes
     end
 
     --[[
@@ -228,7 +230,7 @@ local function replying (
     link.wrote = ends
     link.holds += 1
 
-    if link.holds == def.answers.runs or link.wrote + def.response.maxBytes > link.room then
+    if link.holds == link.runs or link.wrote + link.widest > link.room then
         Session.shipped (self)
     end
 end
@@ -832,13 +834,15 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         link.toward = to :: Player?
         link.lossy = loose
         link.wrote = def.head.bytes
+        link.runs = def.head.runs :: number
+        link.widest = def.built.maxBytes
     end
 
     link.wrote = def.built.write (link.pending, link.wrote, value)
     link.holds += 1
 
     Session.queued (self, def.name)
-    if link.holds == def.head.runs or link.wrote + def.built.maxBytes > link.room then
+    if link.holds == link.runs or link.wrote + link.widest > link.room then
         Session.shipped (self)
     end
 end
@@ -867,6 +871,8 @@ function Session.ask (
         link.toward = to
         link.lossy = false
         link.wrote = def.asks.bytes
+        link.runs = def.asks.runs :: number
+        link.widest = def.request.maxBytes
     end
 
     --[[
@@ -888,7 +894,7 @@ function Session.ask (
 
     Session.queued (self, def.name)
 
-    if link.holds == def.asks.runs or link.wrote + def.request.maxBytes > link.room then
+    if link.holds == link.runs or link.wrote + link.widest > link.room then
         Session.shipped (self)
     end
 end

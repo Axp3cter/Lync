@@ -31,6 +31,10 @@ export type Link = {
     ]]
     read pending: buffer,
     read room: number,
+
+    -- What the open run is held to: how many it may carry, and the widest one payload may come to.
+    runs: number,
+    widest: number,
     holds: number,
     wrote: number,
     over: any,
@@ -80,6 +84,8 @@ function Link.new (
         scratch = buffer.create (room),
         pending = buffer.create (room),
         room = room,
+        runs = 0,
+        widest = 0,
         holds = 0,
         wrote = 0,
         over = nil,

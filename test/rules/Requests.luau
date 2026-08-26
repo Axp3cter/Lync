@@ -161,6 +161,34 @@ local function counts (): Run
     })
 end
 
+--[[
+    One query whose answer is wide enough that a run of them cannot all fit one block. What that
+    reaches is the other half of a run's sealing: it closes on the room left as well as on the
+    count, and a run held to a width that is not its own would write past the buffer it is in.
+]]
+const HEAVY = "heavy"
+const SPELLED = 200
+const ASKS = 20
+
+local function weighty (): any
+    return { [HEAVY] = Lync.query (Lync.int (0, ASKS), Lync.str (0, SPELLED)) }
+end
+
+local function weighs (): Run
+    return Replica.paired ({
+        space = BESIDE,
+        defined = weighty,
+        label = SENDER,
+        wires = function (defs: any, side: string)
+            if side == "server" then return end
+
+            defs[HEAVY]:onClient (
+                function (value: number): string return string.rep ("x", SPELLED - value) end
+            )
+        end,
+    })
+end
+
 -- Public --------------------------------------------------------------
 
 return {
@@ -489,6 +517,32 @@ return {
 
         for index = 1, MANY do
             Expect.holds (done[index], `the {index} of {MANY} was told the wrong ending`)
+        end
+    end),
+    --[[
+        A run of answers too wide to share one block. A run seals on the room it has left as well
+        as on how many it holds, and the width it measures against has to be its own: a run of
+        answers held to a fire's or to nothing would keep writing into a buffer already full.
+    ]]
+    Harness.case ("query.answers-seal-on-the-room-left", function ()
+        local of = weighs ()
+        local done: { string } = {}
+
+        for index = 1, ASKS do
+            of.server.defs[HEAVY]:request (of.player, index, function (ok: boolean, held: unknown)
+                if ok then done[index] = held :: string end
+            end)
+        end
+
+        of.server.session:flush ()
+        of.wire:settle ()
+        of.client.session:flush ()
+        of.wire:settle ()
+
+        for index = 1, ASKS do
+            local said = done[index]
+            Expect.holds (said ~= nil, `the {index} of {ASKS} was never answered`)
+            Expect.equal (#said, SPELLED - index)
         end
     end),
 }

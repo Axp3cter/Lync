@@ -157,30 +157,56 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
+        Whether every field of this word is its own whole reading and sits on the record itself.
+        Where that holds of one field it holds of all of them, so the two arrays saying so answer
+        the same both times, and a word that asks them once asks them a field fewer than it has.
+    ]]
+    local simple = true
+    for index = 1, reach do
+        if pulls[index] ~= nil or pushes[index] ~= nil or inside[index] ~= 0 then
+            simple = false
+            break
+        end
+    end
+
+    --[[
         Every field to its index, then every window to its bytes. In that order rather than one
         pass, because a field can straddle two windows and a window can hold pieces of fields that
         are nowhere near each other in the record.
     ]]
     local function pack (b: buffer, pos: number, value: any, slots: { number }, held: { any })
-        for index = 1, reach do
-            local key = keys[index]
-            local within = inside[index]
-            local from = if within == 0 then value else held[within]
-
-            local one = if key == nil then from else from[key]
-            local pull = pulls[index]
-
-            if pull == nil then
+        if simple then
+            for index = 1, reach do
+                local key = keys[index]
+                local one = if key == nil then value else value[key]
                 local at = starts[index]
                 local made = toIndex[at] (one)
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
                 slots[at] = made :: number
-                continue
             end
+        else
+            for index = 1, reach do
+                local key = keys[index]
 
-            if not pull (one, slots, starts[index]) then
-                Word.refused (wheres[index], wanted[index], one)
+                local within = inside[index]
+                local from = if within == 0 then value else held[within]
+
+                local one = if key == nil then from else from[key]
+                local pull = pulls[index]
+
+                if pull == nil then
+                    local at = starts[index]
+                    local made = toIndex[at] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+
+                    slots[at] = made :: number
+                    continue
+                end
+
+                if not pull (one, slots, starts[index]) then
+                    Word.refused (wheres[index], wanted[index], one)
+                end
             end
         end
 
@@ -253,8 +279,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 })
             end
 
-            local push = pushes[index]
             local at = starts[index]
+            local key = keys[index]
+
+            local push = if simple then nil else pushes[index]
             local one: any
             if push ~= nil then
                 one = push (slots, at)
@@ -263,9 +291,13 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 one = if reading == nil then slots[at] else reading (slots[at])
             end
 
-            local key = keys[index]
             if key == nil then
                 bare = one
+                continue
+            end
+
+            if simple then
+                into[key] = one
                 continue
             end
 

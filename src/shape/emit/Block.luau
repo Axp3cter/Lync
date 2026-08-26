@@ -6,7 +6,9 @@
 local Bits = require ("@src/kernel/Bits")
 local Bytes = require ("@src/wire/Bytes")
 local Catalog = require ("@src/kernel/Catalog")
+local Grid = require ("@src/shape/Grid")
 local Ir = require ("@src/shape/Ir")
+local Leaf = require ("@src/shape/emit/Leaf")
 local Log = require ("@src/kernel/Log")
 local Serial = require ("@src/shape/Serial")
 local Types = require ("@src/Types")
@@ -390,6 +392,12 @@ function Block.pairs (
         order numbers calls nothing to ask. A comparison that reaches a function of ours is one the
         sort pays for on every pair it looks at, which is most of what a map spends.
     ]]
+    local marks: { number } = {}
+    local owners: { any } = {}
+
+    -- How the values lie, which the shape decided when it said what it weighs.
+    local runs: Grid.Grid? = of.runs
+
     local even = of.key.fixed and Bytes.ranks (of.key.maxBytes)
     local wide = of.key.maxBytes
 
@@ -469,9 +477,23 @@ function Block.pairs (
             local cut = if even then wide else widths[place]
 
             buffer.copy (b, out, room, from, cut)
-            out = writeValue (b, out + cut, value[keys[place]])
+            out += cut
+
+            local one = value[keys[place]]
+            if runs == nil then
+                out = writeValue (b, out, one)
+                continue
+            end
+
+            local made = (runs :: Grid.Grid).toIndex (one)
+            if made == nil then Word.refusedAt (tag, paths, said, one) end
+
+            marks[index] = made :: number
         end
-        return out
+
+        if runs == nil then return out end
+
+        return Leaf.packed (b, out, (runs :: Grid.Grid).width, count, marks)
     end
 
     local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
@@ -512,9 +534,34 @@ function Block.pairs (
 
             was, wide, last = from, at - from, key
 
-            at, out[key] = readValue (b, at, ctx)
+            if runs == nil then
+                at, out[key] = readValue (b, at, ctx)
+            else
+                owners[index] = key
+            end
         end
-        return at, out
+
+        if runs == nil then return at, out end
+
+        --[[
+            Every value of the map, read off the run its keys were followed by. A reading past the
+            grid is one no writer of this schema produced, so it is turned away rather than folded
+            back onto the last point the grid has.
+        ]]
+        local grid = runs :: Grid.Grid
+        local after, clean = Leaf.unpacked (b, at, grid.width, count, marks)
+        if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
+
+        for index = 1, count do
+            local mark = marks[index]
+            if mark > grid.span then
+                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
+            end
+
+            out[owners[index]] = grid.fromIndex (mark)
+        end
+
+        return after, out
     end
 
     return write, read

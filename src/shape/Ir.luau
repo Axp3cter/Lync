@@ -168,6 +168,7 @@ export type Pairs = {
     read count: Span,
     read key: Shape,
     read value: Shape,
+    read runs: Grid.Grid?,
 }
 
 --[[
@@ -371,20 +372,43 @@ function Ir.list (tag: Tag, count: Span, elem: Shape): List
 end
 
 --[[
+    Whether the value is one reading on a grid, which is what lets every value lie end to end in
+    the bits it takes rather than each opening a byte. Asked where the width is worked out, so
+    what a shape promises to weigh and what it writes cannot answer this differently.
+]]
+local function running (value: Shape): Grid.Grid?
+    local of: any = value
+    if of.op ~= "word" or #of.leaves ~= 1 or #of.joins ~= 1 then return nil end
+
+    local join = of.joins[1]
+    if join.key ~= nil or join.pull ~= nil or join.push ~= nil or join.count ~= 1 then
+        return nil
+    end
+
+    return of.leaves[1]
+end
+
+--[[
     A map, as its two halves and what it may hold between them.
 
     The worst case multiplies the pair rather than either half, since a map of no pairs writes its
     count and nothing else and a map of many writes both of them that many times.
 ]]
 function Ir.pairs (tag: Tag, count: Span, key: Shape, value: Shape): Pairs
+    local runs = running (value)
+    local values = if runs == nil
+        then count.max * value.maxBytes
+        else Bytes.whole (count.max * runs.width)
+
     return table.freeze ({
         op = "pairs" :: "pairs",
         fixed = count.min == count.max and key.fixed and value.fixed,
-        maxBytes = Bytes.whole (counted (count)) + count.max * (key.maxBytes + value.maxBytes),
+        maxBytes = Bytes.whole (counted (count)) + count.max * key.maxBytes + values,
         tag = tag,
         count = table.freeze (count),
         key = key,
         value = value,
+        runs = runs,
     })
 end
 

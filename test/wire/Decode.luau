@@ -325,7 +325,12 @@ return {
         local answered = decoded (of, bytes)
         Expect.holds (answered, "the map this codec wrote was refused")
 
-        local reversed = string.sub (bytes, PAIRED + 1) .. string.sub (bytes, 1, PAIRED)
+        -- The keys the other way about, which the values after them are no longer in the order of.
+        local reversed = string.sub (bytes, LOW + 1, LOW + 1)
+            .. string.sub (bytes, LOW, LOW)
+            .. string.sub (bytes, PAIRED + 1)
+
+        Expect.equal (#reversed, #bytes)
         Expect.equal (decoded (of, reversed), false)
     end),
 

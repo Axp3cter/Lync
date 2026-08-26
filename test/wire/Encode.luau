@@ -283,4 +283,48 @@ return {
         names (refused (of, { -1, 2 }, "a run element under its grid"), ROOT, "an element under")
         names (refused (of, { 1, 0 / 0 }, "a run element on no grid"), ROOT, "an element off")
     end),
+
+    --[[
+        The values a composite has nowhere to put, refused where they were written and named where
+        they were. A record is what a group reads its fields out of, a tag is what a union picks an
+        arm by, and a map asks its grids once a key and once a value, so each of them turns away a
+        value of its own kind and each says which one it was.
+    ]]
+    Harness.case ("wire.composites-refuse-what-they-cannot-hold", function ()
+        local nested = built (Lync.struct ({ inner = Lync.struct ({ n = Lync.int (0, 5) }) }))
+        names (
+            refused (nested, { inner = 7 }, "a record given something that is not one"),
+            ROOT,
+            "a record of no table"
+        )
+
+        local picked = built (Lync.tagged ("tag", {
+            a = Lync.struct ({ x = Lync.bool () }),
+            b = Lync.struct ({ y = Lync.bool () }),
+        }))
+        names (
+            refused (picked, { tag = "c", z = true }, "a tag naming no arm"),
+            ROOT,
+            "a tag of no arm"
+        )
+
+        --[[
+            Both map forms, since keys on a grid sort as the indices they land on and keys spelled
+            as bytes sort by what they spell, and each asks its own grids in a walk of its own.
+        ]]
+        local gridded = built (Lync.map (Lync.int (0, 5), Lync.int (0, 5), 0, 4))
+        names (refused (gridded, { [9] = 1 }, "a map key off its grid"), ROOT, "a key off its grid")
+        names (
+            refused (gridded, { [1] = 9 }, "a map value off its grid"),
+            ROOT,
+            "a value off its grid"
+        )
+
+        local spelled = built (Lync.map (Lync.str (1, 1), Lync.int (0, 5), 0, 4))
+        names (
+            refused (spelled, { a = 9 }, "a spelled map's value off its grid"),
+            ROOT,
+            "a spelled value off its grid"
+        )
+    end),
 }

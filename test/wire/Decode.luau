@@ -2,6 +2,7 @@
 --!optimize 2
 -- The second law: bytes nobody wrote come back as a value or a refusal, and never as anything else.
 
+local Catalog = require ("@src/kernel/Catalog")
 local Lync = require ("@src")
 
 local Expect = require ("@test/harness/Expect")
@@ -463,6 +464,42 @@ return {
 
             Expect.equal (typeof (of.sidecar.refs[1]), "table")
             Expect.holds (not (pcall (of.read, out, 0, Turns.CTX)), "a reference answered a table")
+        end
+    end),
+
+    --[[
+        A frame whose padding is not zero, which is damage no encoder makes. The bits over the last
+        element of a packed run go down as nothing, so a frame carrying anything else in them spells
+        one value two ways, and two spellings of one value are what the order of map keys rests on
+        being impossible. Each of the three forms that leave a pad behind is put to it.
+    ]]
+    Harness.case ("total.pad-is-refused", function ()
+        local forms = {
+            { of = "a run", codec = Lync.array (Lync.int (0, 3), 3, 3), value = { 1, 2, 3 } },
+            { of = "an alphabet", codec = Lync.str.hex (3, 3), value = "abc" },
+            { of = "a wide field", codec = Lync.int (0, 2 ^ 40), value = 12345 },
+        }
+
+        for _, form in forms do
+            local of = Turns.built (form.codec)
+            local text = Turns.text (of, form.value)
+
+            local padded = false
+            for at = 1, #text do
+                local byte = string.byte (text, at)
+                for bit = 0, 7 do
+                    local moved = string.char (bit32.bxor (byte, bit32.lshift (1, bit)))
+                    local hostile =
+                        `{string.sub (text, 1, at - 1)}{moved}{string.sub (text, at + 1)}`
+
+                    local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
+                    if not ok and type (caught) == "table" and caught.code == Catalog.PAD then
+                        padded = true
+                    end
+                end
+            end
+
+            Expect.holds (padded, `no bit of {form.of} reached the pad it left over`)
         end
     end),
 }

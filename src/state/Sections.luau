@@ -194,18 +194,23 @@ local function counted (b: buffer, at: number, least: number): (number, number)
     return count, after
 end
 
--- A slot list, ascending, which determinism asks for and one comparison holds it to.
+--[[
+    A slot list, read back from the steps between its entries.
+
+    A step of nothing is the one thing the climb refuses, and a step backwards cannot be spelled
+    at all, so what arrives is ascending or it is broken.
+]]
 local function listed (of: Frame, b: buffer, at: number, count: number): number
     local held = at
     local last = 0
 
     for index = 1, count do
-        local slot
-        slot, held = Varint.read (b, held)
-        if slot <= last then Fieldset.broken (OUT_OF_ORDER) end
+        local step
+        step, held = Varint.read (b, held)
+        if step == 0 then Fieldset.broken (OUT_OF_ORDER) end
 
-        of.slots[index] = slot
-        last = slot
+        last += step
+        of.slots[index] = last
     end
 
     return held
@@ -224,13 +229,22 @@ local function opened (of: Layout, b: buffer, pos: number, kind: number): number
     return def.fieldBuilt[key].write (b, at, of.frame.key)
 end
 
--- The count and the slots under it, which three of the four kinds carry and one does not.
+--[[
+    The count and the slots under it, which three of the four kinds carry and one does not.
+
+    The step from the slot before rather than the slot itself. A list that climbs spells a step in
+    fewer bytes than the number it climbed to, and the whole of a set moving is a step of one.
+]]
 local function spelled (of: Layout, b: buffer, at: number): number
     local frame = of.frame
     local held = Varint.write (b, at, frame.count)
 
+    local last = 0
     for index = 1, frame.count do
-        held = Varint.write (b, held, frame.slots[index])
+        local slot = frame.slots[index]
+
+        held = Varint.write (b, held, slot - last)
+        last = slot
     end
     return held
 end

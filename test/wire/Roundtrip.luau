@@ -20,6 +20,14 @@ local Turns = require ("@test/harness/Turns")
 const TIED = table.freeze ({ low = 258, high = 513, top = 65535 })
 
 --[[
+    The widest value each of the two single-call widths holds, and one narrower than either. A
+    record built from the first two sits on byte boundaries and the third never does.
+]]
+const BYTE_TOP = 255
+const PAIR_TOP = 65535
+const NARROW_TOP = 7
+
+--[[
     The widest value a byte holds, and its neighbours either side. A run of the middle one carries
     nothing between elements and the other two do, which is what tells a boundary from a length.
 ]]
@@ -366,6 +374,59 @@ return {
             local _, short = Turns.wrote (of, held)
             Expect.holds (short < of.maxBytes, `{name} alone reached the bound`)
         end
+    end),
+
+    --[[
+        A record whose fields each start on a byte and are as wide as one call the engine has,
+        laid down where each field sits rather than gathered through a window first. Both widths
+        are here because a word writing every field as one byte would still carry the narrow one.
+    ]]
+    Harness.case ("wire.a-record-on-byte-boundaries", function ()
+        local of = Turns.built (Lync.struct ({
+            small = Lync.int (0, BYTE_TOP),
+            wide = Lync.int (0, PAIR_TOP),
+            after = Lync.int (0, BYTE_TOP),
+        }))
+
+        local value = { small = BYTE_TOP, wide = PAIR_TOP - 1, after = 1 }
+        local bytes, size = Turns.wrote (of, value)
+
+        Expect.equal (Turns.read (of, bytes, size), value)
+    end),
+
+    --[[
+        The same widths where a bit ahead of them puts every field off its boundary, which has to
+        keep going through the windows: a field written to the byte it nearly starts on would
+        stand on the one before it.
+    ]]
+    Harness.case ("wire.a-record-a-bit-off-its-boundaries", function ()
+        local of = Turns.built (Lync.struct ({
+            flag = Lync.bool (),
+            small = Lync.int (0, BYTE_TOP),
+            wide = Lync.int (0, PAIR_TOP),
+        }))
+
+        local value = { flag = true, small = BYTE_TOP, wide = PAIR_TOP - 1 }
+        local bytes, size = Turns.wrote (of, value)
+
+        Expect.equal (Turns.read (of, bytes, size), value)
+    end),
+
+    --[[
+        A field on a boundary at a width no single call reaches, beside one that is. Writing the
+        narrow field as though it were a whole word would carry off the bytes behind it.
+    ]]
+    Harness.case ("wire.a-record-on-boundaries-at-an-odd-width", function ()
+        local of = Turns.built (Lync.struct ({
+            small = Lync.int (0, BYTE_TOP),
+            narrow = Lync.int (0, NARROW_TOP),
+            after = Lync.int (0, BYTE_TOP),
+        }))
+
+        local value = { small = BYTE_TOP, narrow = NARROW_TOP, after = BYTE_TOP }
+        local bytes, size = Turns.wrote (of, value)
+
+        Expect.equal (Turns.read (of, bytes, size), value)
     end),
 
     --[[

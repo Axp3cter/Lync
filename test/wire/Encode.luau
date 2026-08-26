@@ -78,6 +78,12 @@ const UNREAL = table.freeze ({ 0 / 0, math.huge, -math.huge })
     repeat from a pair.
 ]]
 const COARSE = Lync.quant (0, 1, 0.5)
+--[[
+    A grid stopping short of the whole byte that carries it, so a byte holds readings it has no
+    point for. A record of two sits on byte boundaries whichever way round it lays them down.
+]]
+const SHORT = 200
+
 const KEYS = 4
 
 --[[
@@ -169,6 +175,22 @@ return {
 
         if totalled (shape) then return end
         refused (of, Generate.outside (shape, rng), shape.at)
+    end),
+
+    --[[
+        A record laid down on byte boundaries, handed a value its grid has no point for. Writing
+        each field where it sits skips the scratch array a window walk fills, and the guard in
+        front of that array goes with it, so the one left in its place is the whole of the refusal.
+    ]]
+    Harness.case ("wire.a-record-on-boundaries-refuses-a-value-off-its-grid", function ()
+        local of = built (Lync.struct ({
+            near = Lync.int (0, SHORT),
+            after = Lync.int (0, SHORT),
+        }))
+
+        Expect.equal (select (2, pcall (of.write, SLAB, 0, { near = 0, after = 0 })), 2)
+        refused (of, { near = SHORT + 1, after = 0 }, "int")
+        refused (of, { near = 0, after = SHORT + 1 }, "int")
     end),
 
     --[[

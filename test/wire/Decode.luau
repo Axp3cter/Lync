@@ -36,6 +36,12 @@ const HOSTILE = table.freeze ({ 0x00, 0x55, 0xAA, 0xFF })
 -- How many bytes are laid after a frame to give a believed count something to eat.
 const SPARE = 512
 
+--[[
+    A grid stopping short of the whole byte that carries it, so the byte holds readings the grid
+    has no point for. That gap is where a reading nobody wrote lands.
+]]
+const SHORT = 200
+
 -- How many values a byte takes, which is where a run of climbing bytes turns over.
 const BYTES = 256
 
@@ -788,6 +794,25 @@ return {
 
         Expect.equal (at, size)
         Expect.equal (got, nil)
+    end),
+
+    --[[
+        A record whose fields each sit on their own byte, read from bytes carrying a reading the
+        grids under them have no point for. A whole byte of room against a grid that stops short
+        of it is exactly the gap a frame nobody wrote reaches into. Both grids stop short and both
+        bytes are past them, so which field a record lays down first does not come into it.
+    ]]
+    Harness.case ("total.a-record-on-boundaries-refuses-a-reading-off-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            near = Lync.int (0, SHORT),
+            after = Lync.int (0, SHORT),
+        }))
+
+        local bytes = Turns.held (string.char (SHORT + 1, SHORT + 1))
+        local ok, caught = pcall (of.read, bytes, 0, Turns.CTX)
+
+        Expect.holds (not ok, "a reading past the end of its grid was taken rather than refused")
+        Expect.equal ((caught :: any).code, Catalog.TAG)
     end),
 
     --[[

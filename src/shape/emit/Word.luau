@@ -6,6 +6,7 @@
 local Catalog = require ("@src/kernel/Catalog")
 local Ir = require ("@src/shape/Ir")
 local Log = require ("@src/kernel/Log")
+local Protocol = require ("@src/wire/Protocol")
 local Serial = require ("@src/shape/Serial")
 local Words = require ("@src/shape/Words")
 
@@ -15,6 +16,9 @@ local Word = {}
 
 -- The same two widths a frame header reads, a region and a header being one kind of bit run.
 const ONE = Words.ONE
+
+-- How many bits a byte holds, which is what turns a field's width into the call that writes it.
+const BYTE = Protocol.BYTE_BITS
 const PAIR = Words.PAIR
 
 -- Types ---------------------------------------------------------------
@@ -330,6 +334,37 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             whose[starts[index]] = index
         end
 
+        --[[
+            Whether every field starts on a byte and is as wide as one call the engine has. A
+            window gathers the fields that share a byte, and fields that share none have nothing
+            to gather: a field on a boundary is already one of the bytes a window would write.
+        ]]
+        local seats = table.create (reach, 0)
+        local sizes = table.create (reach, 0)
+        local upright = true
+
+        for window = 1, windows do
+            for part = first[window], last[window] do
+                -- One piece a field is settled above, and a leaf is capped well under four bytes.
+                local bits = span[part]
+                local wide = if bits == BYTE * ONE
+                    then ONE
+                    elseif bits == BYTE * PAIR then PAIR
+                    else 0
+
+                if wide == 0 then
+                    upright = false
+                    break
+                end
+
+                local index = whose[slot[part]]
+                seats[index] = where[window] + offset[part] // BYTE
+                sizes[index] = wide
+            end
+
+            if not upright then break end
+        end
+
         local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
             for window = 1, windows do
                 local acc = 0
@@ -395,6 +430,61 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
 
             return bare
+        end
+
+        if upright then
+            --[[
+                Every field straight to its own bytes. The one definition making a field with no
+                key is an optional standing alone, which is a single field reached through a pull,
+                and both of those are settled above, so every field here has one to be put under.
+            ]]
+            local function square (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                for index = 1, reach do
+                    local one = value[keys[index]]
+                    local made = toIndex[starts[index]] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+
+                    local at = pos + seats[index]
+                    if sizes[index] == ONE then
+                        buffer.writeu8 (b, at, made :: number)
+                    else
+                        buffer.writeu16 (b, at, made :: number)
+                    end
+                end
+            end
+
+            -- The same bytes back, each read where it lies rather than cut out of a window.
+            local function upward (
+                b: buffer,
+                pos: number,
+                into: any,
+                _s: { number },
+                _h: { any }
+            ): any
+                for index = 1, reach do
+                    local at = pos + seats[index]
+                    local raw = if sizes[index] == ONE
+                        then buffer.readu8 (b, at)
+                        else buffer.readu16 (b, at)
+
+                    local cell = starts[index]
+                    if not whole[cell] and raw > spans[cell] then
+                        local tag = joins[index].tag
+                        Log.reject (Catalog.TAG, {
+                            pathId = tag.pathId,
+                            expectId = tag.expectId,
+                            got = raw,
+                        })
+                    end
+
+                    local reading = fromIndex[cell]
+                    into[keys[index]] = if reading == nil then raw else reading (raw)
+                end
+
+                return nil
+            end
+
+            return square, upward
         end
 
         return flat, level

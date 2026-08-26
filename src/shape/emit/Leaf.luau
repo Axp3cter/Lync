@@ -116,6 +116,19 @@ function Leaf.packed (
     count: number,
     indices: { number }
 ): number
+    --[[
+        A run of whole bytes, which the loop below would take apart and put back together a byte at
+        a time. There is nothing to carry between two elements that start and end on a boundary.
+    ]]
+    if width == BYTE then
+        for index = 1, count do
+            buffer.writeu8 (b, at, indices[index])
+            at += 1
+        end
+
+        return at
+    end
+
     local acc, used = 0, 0
 
     for index = 1, count do
@@ -148,6 +161,16 @@ function Leaf.unpacked (
     count: number,
     into: { number }
 ): (number, boolean)
+    -- The same run, and the same reason. A whole byte leaves no bits over, so the pad is never set.
+    if width == BYTE then
+        for index = 1, count do
+            into[index] = buffer.readu8 (b, at)
+            at += 1
+        end
+
+        return at, true
+    end
+
     local acc, used = 0, 0
     local mask = bit32.lshift (1, width) - 1
 

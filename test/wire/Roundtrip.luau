@@ -14,6 +14,12 @@ local Turns = require ("@test/harness/Turns")
 -- Constants -----------------------------------------------------------
 
 --[[
+    The widest value a byte holds, and its neighbours either side. A run of the middle one carries
+    nothing between elements and the other two do, which is what tells a boundary from a length.
+]]
+const TOPS = table.freeze ({ under = 254, whole = 255, over = 256 })
+
+--[[
     The two widths the tagged pair in `wire.max-bytes-together` is built from.
 
     Different on purpose, so neither field can stand in for the other: a value taking one wide
@@ -465,5 +471,29 @@ return {
         end
 
         Expect.equal (names, 1)
+    end),
+
+    --[[
+        A run whose elements are exactly a byte, which is the width where nothing is carried from
+        one element to the next. The run either side of it is what says the boundary is where the
+        difference is, rather than anywhere a run of that length happens to land.
+    ]]
+    Harness.case ("wire.byte-wide-run", function ()
+        for _, top in { TOPS.under, TOPS.whole, TOPS.over } do
+            local of = Turns.built (Lync.array (Lync.int (0, top), 0, 32))
+
+            local held = {}
+            for index = 1, 32 do
+                held[index] = (index * 7) % (top + 1)
+            end
+
+            local bytes, size = Turns.wrote (of, held)
+            local back = Turns.read (of, bytes, size)
+
+            Expect.equal (#back, 32)
+            for index = 1, 32 do
+                Expect.equal (back[index], held[index])
+            end
+        end
     end),
 }

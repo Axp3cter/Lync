@@ -37,6 +37,13 @@ const RUNS = Protocol.BIT_CEILING
 -- What the widest varint spends, which is what a slot and an id are each bounded by.
 const WIDEST = Protocol.VARINT_GROUPS
 
+--[[
+    What a section spends before its first record: the count with the width it carries, and the
+    byte saying how the ids after it are spelled. The count is held at the widest a varint runs
+    to, since what it comes to is not known until the records that fit under it are counted.
+]]
+const COUNTED = WIDEST + 1
+
 -- What a keyframe carries beside each slot, which is the id it is bound to and at least a byte.
 const PAIRED = Protocol.BYTE_BITS
 
@@ -263,7 +270,9 @@ function Sections.of (def: Compile.Set): Layout
         },
         held = { def.id, KEYFRAME },
         spare = {},
-        opening = def.head.bytes + (if key == nil then 0 else def.fieldBuilt[key].maxBytes) + 1,
+        opening = def.head.bytes
+            + (if key == nil then 0 else def.fieldBuilt[key].maxBytes)
+            + COUNTED,
         entry = entry,
         each = table.freeze (each),
         gained = table.freeze (gained),

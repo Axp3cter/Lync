@@ -526,4 +526,63 @@ return {
         Expect.equal (seen[1], 1)
         Expect.equal (seen[2], 2)
     end),
+    --[[
+        A run whose listener parks partway along, and a second run read while it sleeps. What a
+        block gathers is handed to a thread that may hold it across any number of frames, so the
+        gathering cannot be somewhere the next block writes: a listener waking up owes the payloads
+        of the block it was called for and not whatever has arrived since.
+    ]]
+    Harness.case ("packet.run-outlives-a-listener-that-parks", function ()
+        const FIRST = 1
+        const SECOND = 2
+        const THIRD = 3
+        const FOURTH = 4
+
+        local wire = Doubles.wire ()
+        local roster = Doubles.roster ()
+
+        local function defines (): any return { run = Lync.packet (Lync.int (0, 100)) } end
+
+        local ours = defines ()
+        local server = Session.new (SPACE, ours, wire:server (), roster, "server")
+        server:start ()
+
+        local player = roster:join (SENDER)
+        local defs = defines ()
+
+        local seen: { number } = {}
+        local parked: thread? = nil
+
+        defs.run:onClient (function (value: number)
+            table.insert (seen, value)
+            if #seen > 1 then return end
+
+            parked = coroutine.running ()
+            coroutine.yield ()
+        end)
+
+        local client = Session.new (SPACE, defs, wire:client (player), roster, "client")
+        client:start ()
+        wire:settle ()
+
+        ours.run:fireClient (player, FIRST)
+        ours.run:fireClient (player, SECOND)
+        server:flush ()
+        wire:settle ()
+
+        -- Parked on the first, so the second of that block is still owed.
+        Expect.equal (#seen, 1)
+
+        ours.run:fireClient (player, THIRD)
+        ours.run:fireClient (player, FOURTH)
+        server:flush ()
+        wire:settle ()
+
+        local held = parked
+        Expect.holds (held ~= nil, "the listener never parked")
+        coroutine.resume (held :: thread)
+
+        -- What it wakes to is its own block's second payload, and never the later block's.
+        Expect.equal (seen[#seen], SECOND)
+    end),
 }

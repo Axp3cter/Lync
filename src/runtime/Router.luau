@@ -59,7 +59,6 @@ export type Wiring = {
     read space: Compile.Compiled,
     read tally: Tally.Tally,
     read naming: Frames.Head,
-    read values: { any },
     read into: { number },
     read head: { number },
     read boundary: Boundary.Boundary,
@@ -197,7 +196,12 @@ local function packets (
         block of thirty was thirty of them. What the boundary turned away is left out rather than
         left nil, so the count a listener is handed is the count it is given.
     ]]
-    local values = of.values
+    --[[
+        Its own rather than the wiring's, because what is gathered outlives the gathering: a
+        listener that parks partway along holds this until it wakes, and a scratch one would by
+        then be the next block's payloads under the same name.
+    ]]
+    local values = table.create (held)
     local taken = 0
 
     for _ = 1, held do
@@ -377,9 +381,6 @@ function Router.wiring (
         tally = tally,
         answered = function () end,
         naming = Frames.naming (space.count),
-
-        -- Where a block's payloads are gathered before the listeners are handed them.
-        values = {},
         into = { 0 },
         head = { 0, 0, 0 },
         boundary = boundary,

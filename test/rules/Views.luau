@@ -713,4 +713,22 @@ return {
             Expect.equal (told, REMOVED)
         end
     end),
+
+    --[[
+        An add and an update folded into the one flush, where the field moved rides the lossy lane.
+        A record cannot change into existence, so what a viewer is owed is a single arrival already
+        carrying the later value, and never the pair of tellings the two calls might suggest.
+    ]]
+    Harness.case ("set.arrival-outlives-a-stream", function ()
+        local of = opened (streamed)
+        local set = Replica.ours (of)
+
+        set:add (ID, record ())
+        set:update (ID, { [POS] = HIGH })
+        Replica.ships (of)
+
+        Expect.equal (table.concat (kinds (of.seen), ","), "added")
+        Expect.equal (of.seen[1].record[POS], HIGH)
+        Expect.equal (of.viewers[1].set:get (ID)[POS], HIGH)
+    end),
 }

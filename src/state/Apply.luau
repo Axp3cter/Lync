@@ -111,7 +111,17 @@ local function born (of: Heard, store: Store.Store, id: number)
     of.net[id] = ARRIVED
 end
 
-local function moved (of: Heard, id: number) Apply.moved (of, id) end
+--[[
+    A record this frame changed, marked once however many of its fields moved. An arrival stands,
+    because a record that came and then moved is one a receiver is told about once and told it
+    arrived, and a change into existence is not a thing a viewer can be handed.
+]]
+local function moved (of: Heard, id: number)
+    local was = of.net[id]
+    if was == ARRIVED or was == REPLACED then return end
+
+    of.net[id] = CHANGED
+end
 
 -- A record taken away, which cancels an arrival rather than following it.
 local function lost (of: Heard, store: Store.Store, id: number, why: Types.Cause)
@@ -232,12 +242,7 @@ end
 -- Public --------------------------------------------------------------
 
 -- One record changed, said once however many times a frame says it.
-function Apply.moved (of: Heard, id: number)
-    local was = of.net[id]
-    if was == ARRIVED or was == REPLACED then return end
-
-    of.net[id] = CHANGED
-end
+function Apply.moved (of: Heard, id: number) moved (of, id) end
 
 -- What the frame came to, as the three lists the fan reads, each in id order.
 function Apply.parted (of: Heard): ({ number }, { number }, { number })

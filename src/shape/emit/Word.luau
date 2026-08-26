@@ -282,8 +282,20 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local at = starts[index]
             local key = keys[index]
 
-            local push = if simple then nil else pushes[index]
             local one: any
+            if simple then
+                local reading = fromIndex[at]
+                one = if reading == nil then slots[at] else reading (slots[at])
+
+                if key == nil then
+                    bare = one
+                else
+                    into[key] = one
+                end
+                continue
+            end
+
+            local push = pushes[index]
             if push ~= nil then
                 one = push (slots, at)
             else
@@ -293,11 +305,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
             if key == nil then
                 bare = one
-                continue
-            end
-
-            if simple then
-                into[key] = one
                 continue
             end
 

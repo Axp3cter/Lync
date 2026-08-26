@@ -66,6 +66,9 @@ const RAPID = 5
     a window closed. A lane with no rate under it sends nearly every flush and is well past this.
 ]]
 const LETS = 2
+
+-- Flushes enough to walk a partition of `MANY` end to end however few slots one section takes.
+const DRAINS = 24
 const NOTE = "note"
 const WIDTH = 64
 const FILLED = string.rep ("x", WIDTH)
@@ -599,5 +602,51 @@ return {
         local frames = Replica.crossed (of) - was
         Expect.holds (frames > 0, "a streamed field with a rate on it moved nothing at all")
         Expect.holds (frames <= LETS, `a rate of {RATE} let {frames} of {RAPID} flushes through`)
+    end),
+
+    --[[
+    A set emptied and filled again, with a field that streams and records enough that the stream
+    walks the partition over several flushes. What the set holds afterwards is what was written
+    after the clear, under every id, rather than anything the partition stood at before it.
+]]
+    Harness.case ("set.clear-sweeps-streams", function ()
+        local of = opened (streamed)
+        local set = Replica.ours (of)
+        local held = of.viewers[1].set
+
+        --[[
+            Enough records that a stream walks the partition over more flushes than one, since a
+            mark that resumes where the last flush stopped only matters where there is a next one.
+        ]]
+        for id = 1, MANY do
+            set:add (id, { [HP] = 1, [POS] = 1 })
+        end
+        for _ = 1, DRAINS do
+            set:update (1, { [POS] = 2 })
+            Replica.ships (of)
+        end
+
+        set:clear ()
+        Replica.ships (of)
+        Expect.equal (#held, 0)
+
+        for id = 1, MANY do
+            set:add (id, { [HP] = 2, [POS] = 1 })
+        end
+        Replica.ships (of)
+
+        -- Streamed after the refill, since an add carries every field and asks the stream nothing.
+        for id = 1, MANY do
+            set:update (id, { [POS] = 3 })
+        end
+        for _ = 1, DRAINS do
+            Replica.ships (of)
+        end
+
+        for id = 1, MANY do
+            local one = held:get (id)
+            Expect.holds (one ~= nil, `a record filled after a clear reached nobody under {id}`)
+            Expect.equal (one[POS], 3)
+        end
     end),
 }

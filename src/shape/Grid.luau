@@ -33,6 +33,7 @@ export type Grid = {
     read span: number,
     read width: number,
     read wrap: boolean?,
+    read plain: boolean?,
     read toIndex: (value: any) -> number?,
     read fromIndex: (index: number) -> any,
 }
@@ -106,7 +107,13 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         return math.clamp (math.round ((value - min) / step), 0, span)
     end
 
-    return { span = span, width = width, toIndex = toIndex, fromIndex = fromIndex }
+    return {
+        span = span,
+        width = width,
+        plain = min == 0 and step == 1,
+        toIndex = toIndex,
+        fromIndex = fromIndex,
+    }
 end
 
 -- One bit, and the two values it is, which is the one grid holding nothing a number could be.

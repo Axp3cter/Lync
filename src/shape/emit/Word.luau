@@ -58,10 +58,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     local toIndex = table.create (held) :: { (number) -> number? }
     local fromIndex = table.create (held) :: { (number) -> number }
 
+    -- The leaves whose value is the index, which are read back without reaching for the mapping.
+    local plain = table.create (held, false) :: { boolean }
+
     for index, grid in leaves do
         spans[index] = grid.span
         toIndex[index] = grid.toIndex
         fromIndex[index] = grid.fromIndex
+        plain[index] = grid.plain == true
     end
 
     -- The leaves that occupy no bits, which is every grid holding one value.
@@ -199,20 +203,28 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         local bare: any = nil
 
         for index = 1, reach do
-            local join = joins[index]
             for leaf = starts[index], ends[index] do
                 if slots[leaf] <= spans[leaf] then continue end
+
+                -- Held back to here, since a decode that holds never has a tag to report.
+                local tag = joins[index].tag
                 Log.reject (Catalog.TAG, {
-                    pathId = join.tag.pathId,
-                    expectId = join.tag.expectId,
+                    pathId = tag.pathId,
+                    expectId = tag.expectId,
                     got = slots[leaf],
                 })
             end
 
             local push = pushes[index]
-            local one = if push == nil
-                then fromIndex[starts[index]] (slots[starts[index]])
-                else push (slots, starts[index])
+            local at = starts[index]
+            local one: any
+            if push ~= nil then
+                one = push (slots, at)
+            elseif plain[at] then
+                one = slots[at]
+            else
+                one = fromIndex[at] (slots[at])
+            end
 
             local key = keys[index]
             if key == nil then

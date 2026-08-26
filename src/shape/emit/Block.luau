@@ -659,7 +659,13 @@ function Block.pairs (
             if runs == nil then
                 at, out[key] = readValue (b, at, ctx)
             else
+                --[[
+                    Put down under its key before the values are read, so the check above reads a
+                    map holding every key that came before this one either way. The values arrive
+                    as one run after the keys, and each of them lands on its own key below.
+                ]]
                 owners[index] = key
+                out[key] = key
             end
         end
 

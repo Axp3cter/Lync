@@ -686,4 +686,33 @@ return {
             end
         end
     end),
+
+    --[[
+        Two keys a frame spells apart and a reader answers as one. A map holds its keys to climbing
+        by what they spell, which every pair spelled differently passes, so the pair that reads back
+        as one key walks straight through it and the second takes the place of the first. What comes
+        back is a map a pair short of the count it stated, which is why the key is refused instead.
+    ]]
+    Harness.case ("total.map-keys-that-read-as-one", function ()
+        local of = Turns.built (Lync.map (Lync.f32 (), Lync.bool (), 0, 4))
+        local text = Turns.text (of, { [0] = true, [1] = false })
+
+        --[[
+            A float of one, and the same four bytes turned into a zero signed the other way. The
+            pair still climbs, since the sign sits in the byte that sorts last, and both of them
+            read back as the one zero every reader answers with.
+        ]]
+        local ONE = string.char (0, 0, 128, 63)
+        local SIGNED = string.char (0, 0, 0, 128)
+
+        local at = string.find (text, ONE, 1, true)
+        Expect.holds (at ~= nil, "a float of one was not spelled where a key goes")
+
+        local held = at :: number
+        local hostile = `{string.sub (text, 1, held - 1)}{SIGNED}{string.sub (text, held + #ONE)}`
+
+        local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
+        Expect.holds (not ok, "two keys reading as one were taken rather than refused")
+        Expect.equal ((caught :: any).code, Catalog.MAP_ORDER)
+    end),
 }

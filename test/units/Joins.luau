@@ -8,6 +8,7 @@ local Base = require ("@src/codec/Base")
 local Ir = require ("@src/shape/Ir")
 local Joins = require ("@src/shape/Joins")
 local Lync = require ("@src")
+local Scalars = require ("@src/codec/Scalars")
 
 local Expect = require ("@test/harness/Expect")
 local Harness = require ("@test/harness")
@@ -22,6 +23,9 @@ const ABSENT = "swimming"
 const LOW = 0
 const HIGH = 15
 const STEP = 0.25
+
+-- What an angle closes on, which is the number this file measures a span of one against.
+const TURN = Scalars.TURN
 
 -- Where a field sits in the run, and where a case writes its truths from, which are not the same.
 const AT = 3
@@ -270,5 +274,26 @@ return {
             Expect.equal (back[name], was[name])
         end
         Expect.equal (back[ABSENT], nil)
+    end),
+
+    --[[
+        The grid an angle lands on, which closes a step short of a whole turn and wraps there. A
+        turn brings a direction back to where it started, so a grid holding both ends holds one
+        direction twice and spends a point saying the same thing, and one that does not wrap turns
+        away every reading past its top rather than folding it round.
+    ]]
+    Harness.case ("joins.an-angle-wraps-a-step-short", function ()
+        const HALF = 0.5
+
+        local of = Joins.grid (Base.cell (Lync.angle (HALF)))
+        Expect.holds (of ~= nil, "an angle carried no grid")
+
+        local held = of :: any
+        Expect.equal (held.span, TURN / HALF - 1)
+        Expect.equal (held.wrap, true)
+
+        -- A whole turn is the first point again, which is what wrapping there means.
+        Expect.equal (held.toIndex (TURN), held.toIndex (0))
+        Expect.equal (held.toIndex (TURN + HALF), held.toIndex (HALF))
     end),
 }

@@ -273,7 +273,7 @@ function Rotation.smallest (of: Grid.Grid): Smallest
         component is not the triple nearest as a rotation. One of the cell's eight corners is always
         the answer.
     ]]
-    local function parts (
+    local function searched (
         _x: number,
         _y: number,
         _z: number,
@@ -413,6 +413,55 @@ function Rotation.smallest (of: Grid.Grid): Smallest
         end
 
         return took, heldA, heldB, heldC
+    end
+
+    --[[
+        The last matrix asked about and what it answered. A sender standing still, or turning about
+        one axis, hands the same rotation frame after frame, and the search above walks eight
+        corners over four tags every time it is asked. Nine comparisons buy skipping all of it.
+    ]]
+    local warm = false
+    local w00, w01, w02, w10, w11, w12, w20, w21, w22 = 0, 0, 0, 0, 0, 0, 0, 0, 0
+    local gotTag, gotA, gotB, gotC = 0, nil :: number?, nil :: number?, nil :: number?
+
+    local function parts (
+        x: number,
+        y: number,
+        z: number,
+        r00: number,
+        r01: number,
+        r02: number,
+        r10: number,
+        r11: number,
+        r12: number,
+        r20: number,
+        r21: number,
+        r22: number
+    ): (number, number?, number?, number?)
+        if
+            warm
+            and r00 == w00
+            and r01 == w01
+            and r02 == w02
+            and r10 == w10
+            and r11 == w11
+            and r12 == w12
+            and r20 == w20
+            and r21 == w21
+            and r22 == w22
+        then
+            return gotTag, gotA, gotB, gotC
+        end
+
+        local tag, ia, ib, ic = searched (x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22)
+
+        w00, w01, w02 = r00, r01, r02
+        w10, w11, w12 = r10, r11, r12
+        w20, w21, w22 = r20, r21, r22
+        gotTag, gotA, gotB, gotC = tag, ia, ib, ic
+        warm = true
+
+        return tag, ia, ib, ic
     end
 
     return table.freeze ({ parts = parts, whole = whole })

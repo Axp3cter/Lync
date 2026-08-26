@@ -84,6 +84,16 @@ const COARSE = Lync.quant (0, 1, 0.5)
 ]]
 const SHORT = 200
 
+--[[
+    The field both refusals hand a value that is no number. Its name is what separates the codec's
+    own line from whatever the arithmetic underneath would have said, since a line about a bad
+    argument names the call it was made to and never the field a caller wrote.
+]]
+const NAMED = "near"
+
+-- A grid whose top is the whole of the byte carrying it, which is the one a mask can stand for.
+const FULL = 255
+
 const KEYS = 4
 
 --[[
@@ -199,7 +209,27 @@ return {
             is the codec's refusal rather than whatever the arithmetic itself would have said.
         ]]
         local line = refused (of, { near = "no", after = 0 }, "int")
-        Expect.holds (string.find (line, "expected", 1, true) ~= nil, `it said {line}`)
+        Expect.holds (string.find (line, NAMED, 1, true) ~= nil, `it said {line}`)
+    end),
+
+    --[[
+        The same where both grids fill the bytes carrying them. A grid whose top is its byte's own
+        is held to by masking the reading down to the byte rather than by comparing against the
+        top, so all three of over the top, under the bottom and no number at all have to come back
+        as the codec's refusal and not as whatever the mask would have made of them.
+    ]]
+    Harness.case ("wire.a-record-filling-its-bytes-refuses-a-value-off-its-grid", function ()
+        local of = built (Lync.struct ({
+            near = Lync.int (0, FULL),
+            after = Lync.int (0, FULL),
+        }))
+
+        Expect.equal (select (2, pcall (of.write, SLAB, 0, { near = FULL, after = 0 })), 2)
+        refused (of, { near = FULL + 1, after = 0 }, "int")
+        refused (of, { near = -1, after = 0 }, "int")
+
+        local said = refused (of, { near = "no", after = 0 }, "int")
+        Expect.holds (string.find (said, NAMED, 1, true) ~= nil, `it said {said}`)
     end),
 
     --[[

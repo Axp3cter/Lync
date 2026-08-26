@@ -579,7 +579,31 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 return nil
             end
 
-            if bluntly then return ready, blunt end
+            --[[
+                The same write where every grid fills its byte, so its top is the byte's own and
+                every field shares it. A whole number inside the grid is one the byte carries
+                unchanged, and masking a reading to the byte answers all three of not a whole
+                number, under the bottom and over the top in the one question.
+            ]]
+            local top = bounds[1]
+
+            local function filled (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local at = pos
+                for index = 1, reach do
+                    local one = value[keys[index]]
+                    local made = one
+
+                    if type (one) ~= "number" or bit32.band (one, top) ~= one then
+                        made = writes[index] (one)
+                        if made == nil then Word.refused (wheres[index], wanted[index], one) end
+                    end
+
+                    buffer.writeu8 (b, at, made :: number)
+                    at += 1
+                end
+            end
+
+            if bluntly then return filled, blunt end
             if plainly then return ready, settled end
 
             return steady, settled

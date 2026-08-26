@@ -49,6 +49,9 @@ const BROKEN = "the responder came apart"
 const UNANSWERED: Types.OutcomeCode = "unanswered"
 
 const TOP = 10
+
+-- Wide enough that a burst can give every question of it a number of its own.
+const WIDE = 99
 const BEYOND = 99
 const CARRIED = true
 
@@ -120,6 +123,32 @@ local function asking (of: Run, name: string): { Done }
         end
     )
     return done
+end
+
+--[[
+    One query carrying a number each way, and a responder on either side. Its own definition rather
+    than one of those above, because a burst has to tell its answers apart and a bool cannot.
+]]
+const COUNTED = "counted"
+
+local function counting (): any
+    return { [COUNTED] = Lync.query (Lync.int (0, WIDE), Lync.int (0, WIDE)) }
+end
+
+local function counts (): Run
+    return Replica.paired ({
+        space = BESIDE,
+        defined = counting,
+        label = SENDER,
+        wires = function (defs: any, side: string)
+            -- The responder for a question is registered on the side that answers it.
+            if side == "server" then
+                defs[COUNTED]:onServer (function (value: number): number return value + 1 end)
+            else
+                defs[COUNTED]:onClient (function (value: number): number return value + 1 end)
+            end
+        end,
+    })
 end
 
 -- Public --------------------------------------------------------------
@@ -350,5 +379,69 @@ return {
         Expect.equal (held[1], true)
         Expect.equal (held[2], TOP)
         Expect.equal (whose, { of.player })
+    end),
+    --[[
+        A burst of questions asked in one flush. A run of them spells one header and then one id a
+        question, and the answers come back the same way, so what this holds is that every question
+        is answered, and answered under its own id rather than under the first one's.
+    ]]
+    Harness.case ("query.burst-of-questions", function ()
+        const MANY = 7
+
+        local of = counts ()
+        local done: { boolean } = {}
+
+        for index = 1, MANY do
+            of.server.defs[COUNTED]:request (
+                of.player,
+                index,
+                function (ok: boolean, held: unknown) done[index] = ok and held == index + 1 end
+            )
+        end
+
+        of.server.session:flush ()
+        of.wire:settle ()
+        of.client.session:flush ()
+        of.wire:settle ()
+
+        for index = 1, MANY do
+            Expect.holds (done[index], `the {index} of {MANY} was not answered with its own`)
+        end
+    end),
+
+    --[[
+        Questions and answers over the one definition in the one flush, which a client does when the
+        server asked it something and it has something to ask back. Both are aimed at the server and
+        both are that one query, so what keeps them from sharing a header is only what they are.
+    ]]
+    Harness.case ("query.asking-while-answering", function ()
+        const MINE = 4
+        const THEIRS = 9
+
+        local of = counts ()
+        local theirs, mine = nil :: any, nil :: any
+
+        --[[
+            The server asks first and the client answers where the question is taken, so the answer
+            is already waiting on the client's lane when the client opens a question of its own. A
+            client asks by yielding, so its call is put on a thread and left parked.
+        ]]
+        of.server.defs[COUNTED]:request (
+            of.player,
+            THEIRS,
+            function (_ok: boolean, held: unknown) theirs = held end
+        )
+        of.server.session:flush ()
+        of.wire:settle ()
+
+        task.spawn (function () mine = select (2, of.client.defs[COUNTED]:request (MINE)) end)
+
+        of.client.session:flush ()
+        of.wire:settle ()
+        of.server.session:flush ()
+        of.wire:settle ()
+
+        Expect.equal (theirs, THEIRS + 1)
+        Expect.equal (mine, MINE + 1)
     end),
 }

@@ -204,32 +204,50 @@ local function asked (
 
     head.read (b, at, of.head)
 
-    local id = of.head[SECOND]
-    local ends, value =
-        Boundary.ran (of.boundary, def, def.request, def.request.read, b, at + head.bytes)
-    if ends == nil then return nil end
-    if not of.boundary.took then return ends end
+    local held = of.head[SECOND] + 1
+    local pos = at + head.bytes
 
-    --[[
-        The value first and who asked after it, and nothing after that on a client, which is what
-        the surface declares a responder takes. A responder on a server is told who asked and one on
-        a client has only ever been asked by the server, so there is nobody to name.
-    ]]
-    local ok, answer
-    if from == nil then
-        ok, answer = Dispatch.request (of.heard, def.id, value)
-    else
-        ok, answer = Dispatch.request (of.heard, def.id, value, from)
+    -- Each question of the run: the id it is owed an answer under, and then what it asks.
+    for _ = 1, held do
+        def.asking.read (b, pos, of.head)
+
+        local id = of.head[WHOSE]
+        local ends, value = Boundary.ran (
+            of.boundary,
+            def,
+            def.request,
+            def.request.read,
+            b,
+            pos + def.asking.bytes
+        )
+        if ends == nil then return nil end
+
+        --[[
+            The value first and who asked after it, which is what the surface declares a responder
+            takes: one on a server is told who asked, and one on a client was only ever asked by
+            the server. A question turned away is stepped over, since the rest of the run follows.
+        ]]
+        if of.boundary.took then
+            local ok, answer
+            if from == nil then
+                ok, answer = Dispatch.request (of.heard, def.id, value)
+            else
+                ok, answer = Dispatch.request (of.heard, def.id, value, from)
+            end
+
+            --[[
+                Composed at once, so a responder answering something its own codec refuses raises
+                on the line that returned it. A flush is as far from the responder as this machine
+                can put that raise, and on one that never flushes again it lands nowhere at all.
+            ]]
+            of.answered (def, id, from, ok, answer)
+        end
+
+        pos = ends
     end
 
-    --[[
-        Composed at once, so a responder answering something its own codec refuses raises on the
-        line that returned it. A flush is as far from the responder as this machine can put that
-        raise, and on one that never flushes again it lands nowhere at all.
-    ]]
-    of.answered (def, id, from, ok, answer)
-
-    return ends
+    Tally.arrived (of.tally, def.name, held - 1)
+    return pos
 end
 
 -- A response block: the id it answers, whether it was answered at all, and the payload if it was.
@@ -246,19 +264,30 @@ local function answered (
 
     head.read (b, at, of.head)
 
-    local id = of.head[SECOND]
+    local held = of.head[SECOND] + 1
     local pos = at + head.bytes
 
-    if of.head[head.fields] ~= ANSWERED then
-        of.pending:fail (id, THREW, now)
-        return pos
+    -- Each answer of the run: which question it answers, whether it is one, and what it says.
+    for _ = 1, held do
+        def.answering.read (b, pos, of.head)
+
+        local id = of.head[WHOSE]
+        pos += def.answering.bytes
+
+        if of.head[def.answering.fields] ~= ANSWERED then
+            of.pending:fail (id, THREW, now)
+            continue
+        end
+
+        local ends, value = Boundary.ran (of.boundary, def, def.response, def.response.read, b, pos)
+        if ends == nil then return nil end
+        if of.boundary.took then of.pending:answer (id, value) end
+
+        pos = ends
     end
 
-    local ends, value = Boundary.ran (of.boundary, def, def.response, def.response.read, b, pos)
-    if ends == nil then return nil end
-    if of.boundary.took then of.pending:answer (id, value) end
-
-    return ends
+    Tally.arrived (of.tally, def.name, held - 1)
+    return pos
 end
 
 -- A state block, on whichever lane it arrived.

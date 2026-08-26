@@ -44,6 +44,15 @@ const LATEST: Serial.Delivery = "newest"
 -- The field a header opens with, which is the definition it is about, in every form there is.
 const WHOSE = 1
 
+--[[
+    What a run of blocks is a run of. A question carries an id and an answer an outcome beside it,
+    so the three cannot share a header even where they share a lane, and the one pending slot has
+    to say which of them it is holding.
+]]
+const FIRES = 1
+const ASKS = FIRES + 1
+const ANSWERS = ASKS + 1
+
 const FLOOR = Protocol.BUDGET_FLOOR
 const RATE = Protocol.BUDGET_RATE
 const WINDOW = Protocol.DETECTOR_WINDOW
@@ -104,6 +113,9 @@ type Self = {
     purse: { [Player]: number },
     one: { Player },
     fields: { number },
+
+    -- The numbers a question and an answer carry, which their block's header no longer does.
+    asked: { number },
     unhook: { () -> () },
     started: boolean,
     closed: boolean,
@@ -152,6 +164,19 @@ local function owing (self: Self): boolean
     return false
 end
 
+-- Whether a block belongs to the run already open, which is one definition aimed at one audience.
+local function joins (
+    link: Link.Link,
+    kind: number,
+    def: any,
+    to: Types.Recipient?,
+    loose: boolean
+): boolean
+    if link.holds == 0 then return true end
+
+    return link.kind == kind and link.over == def and link.toward == to and link.lossy == loose
+end
+
 -- One responder's answer, as the block that carries it.
 local function replying (
     self: Self,
@@ -161,34 +186,37 @@ local function replying (
     ok: boolean,
     value: any
 )
-    -- An answer takes the lane, so a run of fires opened before it is sealed ahead of it.
-    Session.shipped (self)
-
     local link = self.link
-    local scratch = link.scratch
-    local head = def.answers
+    Tally.sent (self.counts, def.name, 0)
 
-    head.write (scratch, 0, { def.id + 1, asked, if ok then 0 else 1 })
+    if not joins (link, ANSWERS, def, who, false) then Session.shipped (self) end
 
-    local ends = head.bytes
-    if ok then ends = def.response.write (scratch, ends, value) end
-
-    local side = def.response.sidecar
-    local held = if side.bears then side.refs else nil
-    local block = Blocks.sealed (scratch, ends, Blocks.RESPONSE, Link.next (link), held)
-    Tally.sent (self.counts, def.name, block.len)
-
-    table.clear (side.refs)
-    table.clear (side.slotOf)
-
-    if who == nil then
-        Outbox.shared (link, block)
-        return
+    if link.holds == 0 then
+        link.kind = ANSWERS
+        link.over = def
+        link.toward = who
+        link.lossy = false
+        link.wrote = def.answers.bytes
     end
 
-    local one = self.one
-    one[1] = who
-    Outbox.targeted (link, one, 1, block)
+    --[[
+        Which question this answers and whether it is one, written beside the answer rather than in
+        the block's header, so a run of them shares the header and nothing else.
+    ]]
+    local told = self.asked
+    told[1] = asked
+    told[2] = if ok then 0 else 1
+    def.answering.write (link.pending, link.wrote, told)
+
+    local ends = link.wrote + def.answering.bytes
+    if ok then ends = def.response.write (link.pending, ends, value) end
+
+    link.wrote = ends
+    link.holds += 1
+
+    if link.holds == Protocol.RUN_CAP or link.wrote + def.response.maxBytes > link.room then
+        Session.shipped (self)
+    end
 end
 
 -- What each client is behind on, cut against what the shared stream already spent on it.
@@ -467,6 +495,7 @@ function Session.new (
         purse = {},
         one = table.create (1) :: { Player },
         fields = table.create (named, 0) :: { number },
+        asked = table.create (2, 0) :: { number },
         unhook = {},
         started = false,
         closed = false,
@@ -653,18 +682,6 @@ local function posted (
     if reach > 0 then Tally.carried (self.counts, def.name, block.len) end
 end
 
--- Whether a fire belongs to the run already open, which is one definition aimed at one audience.
-local function joins (
-    link: Link.Link,
-    def: Compile.Packet,
-    to: Types.Recipient?,
-    loose: boolean
-): boolean
-    if link.holds == 0 then return true end
-
-    return link.over == def and link.toward == to and link.lossy == loose
-end
-
 -- One block written on its own, which is every fire a run cannot take.
 local function alone (
     self: Self,
@@ -695,16 +712,29 @@ function Session.shipped (self: Self)
     local link = self.link
     if link.holds == 0 then return end
 
-    local def = link.over :: Compile.Packet
+    local kind = link.kind
+    local def = link.over :: any
+
+    local head = if kind == FIRES then def.head elseif kind == ASKS then def.asks else def.answers
+
     local fields = self.fields
-    fields[WHOSE] = def.id
+    fields[WHOSE] = if kind == ANSWERS then def.id + 1 else def.id
     fields[WHOSE + 1] = link.holds - 1
+    head.write (link.pending, 0, fields)
 
-    def.head.write (link.pending, 0, fields)
+    local built = if kind == FIRES
+        then def.built
+        elseif kind == ASKS then def.request
+        else def.response
 
-    local side = def.built.sidecar
+    local class = if kind == ASKS
+        then Blocks.REQUEST
+        elseif kind == ANSWERS then Blocks.RESPONSE
+        elseif link.lossy then Blocks.LOOSE
+        else Blocks.PACKET
+
+    local side = built.sidecar
     local held = if side.bears then side.refs else nil
-    local class = if link.lossy then Blocks.LOOSE else Blocks.PACKET
     local block = Blocks.sealed (link.pending, link.wrote, class, Link.next (link), held)
 
     table.clear (side.refs)
@@ -714,10 +744,29 @@ function Session.shipped (self: Self)
     local loose = link.lossy
 
     link.holds = 0
+    link.kind = 0
     link.over = nil
     link.toward = nil
 
-    posted (self, def, to, loose, block)
+    --[[
+        A question and an answer go to exactly whoever they name, where a fire may name an audience
+        and a broadcast names none. The two are one call apart, so the queue they land in is what
+        the kind decides and everything before it is the same.
+    ]]
+    if kind == FIRES then
+        posted (self, def, to, loose, block)
+        return
+    end
+
+    Tally.carried (self.counts, def.name, block.len)
+    if to == nil then
+        Outbox.shared (link, block)
+        return
+    end
+
+    local audience = link.audience
+    audience[1] = to :: Player
+    Outbox.targeted (link, audience, 1, block)
 end
 
 -- One packet fired, as the block that carries it.
@@ -760,9 +809,10 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         return
     end
 
-    if not joins (link, def, to, loose) then Session.shipped (self) end
+    if not joins (link, FIRES, def, to, loose) then Session.shipped (self) end
 
     if link.holds == 0 then
+        link.kind = FIRES
         link.over = def
         link.toward = to :: Player?
         link.lossy = loose
@@ -787,39 +837,33 @@ function Session.ask (
     timeout: number?,
     complete: Types.Outcome<any>
 )
-    Session.shipped (self)
-
     local id = self.pending:open (reading (), def.name, to, timeout, complete)
 
     local link = self.link
-    local scratch = link.scratch
-    local head = def.asks
+    Tally.sent (self.counts, def.name, 0)
 
-    local fields = self.fields
-    fields[WHOSE] = def.id
-    fields[WHOSE + 1] = id
+    if not joins (link, ASKS, def, to, false) then Session.shipped (self) end
 
-    head.write (scratch, 0, fields)
+    if link.holds == 0 then
+        link.kind = ASKS
+        link.over = def
+        link.toward = to
+        link.lossy = false
+        link.wrote = def.asks.bytes
+    end
 
-    local ends = def.request.write (scratch, head.bytes, value)
-    local side = def.request.sidecar
-    local held = if side.bears then side.refs else nil
-    local block = Blocks.sealed (scratch, ends, Blocks.REQUEST, Link.next (link), held)
-    Tally.sent (self.counts, def.name, block.len)
+    -- The id belongs to the question rather than to the block, so it is written beside its payload.
+    self.asked[1] = id
+    def.asking.write (link.pending, link.wrote, self.asked)
 
-    table.clear (side.refs)
-    table.clear (side.slotOf)
+    link.wrote = def.request.write (link.pending, link.wrote + def.asking.bytes, value)
+    link.holds += 1
 
     Session.queued (self, def.name)
 
-    if to == nil then
-        Outbox.shared (link, block)
-        return
+    if link.holds == Protocol.RUN_CAP or link.wrote + def.request.maxBytes > link.room then
+        Session.shipped (self)
     end
-
-    local audience = link.audience
-    audience[1] = to
-    Outbox.targeted (link, audience, 1, block)
 end
 
 -- What this namespace has done, as the reading two of which subtract into a rate.

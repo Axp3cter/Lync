@@ -52,7 +52,9 @@ export type Query = {
     read request: Shape.Built,
     read response: Shape.Built,
     read asks: Frames.Head,
+    read asking: Frames.Head,
     read answers: Frames.Head,
+    read answering: Frames.Head,
     read blockBytes: number,
 }
 
@@ -192,7 +194,7 @@ local function made (name: string, id: number, over: number, of: Legality.Declar
         local head = if lane == "newest"
             then Frames.newest (over, of.isTimestamped)
             elseif of.isTimestamped then Frames.stamped (over)
-            else Frames.packet (over)
+            else Frames.running (over)
 
         local bytes = Frames.block (head, built.maxBytes)
         Legality.block (name, of, bytes)
@@ -222,8 +224,8 @@ local function made (name: string, id: number, over: number, of: Legality.Declar
         local request = Shape.build (of.of, Serial.under (name, Legality.REQUEST))
         local response = Shape.build (of.reply, Serial.under (name, Legality.RESPONSE))
 
-        local asks = Frames.request (over)
-        local answers = Frames.response (over)
+        local asks = Frames.running (over)
+        local answers = Frames.running (over)
 
         return table.freeze ({
             id = id,
@@ -236,6 +238,8 @@ local function made (name: string, id: number, over: number, of: Legality.Declar
             response = response,
             asks = asks,
             answers = answers,
+            asking = Frames.asking (),
+            answering = Frames.answering (),
             blockBytes = math.max (
                 Frames.block (asks, request.maxBytes),
                 Frames.block (answers, response.maxBytes)

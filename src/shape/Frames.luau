@@ -116,34 +116,34 @@ local function named (over: number): number return Bits.width (over - 1) end
 function Frames.naming (over: number): Head return headed ({ named (over) }) end
 
 --[[
-    A packet block: `{ defId, more }`, where `more` is how many payloads follow the first, back to
-    back. A payload says where it ends by being read, so a run needs nothing between two of them,
-    and a definition whose fires come in a burst pays one header for the burst. One short of the
-    count, so a block holding its cap still fits the width the cap asks for.
+    A block that may carry a run: `{ defId, more }`, one short of how many payloads it holds, so a
+    block filled to its cap still fits the width the cap asks for. A payload says where it ends by
+    being read, so nothing goes between two of them, and one shape serves a fire, a question and an
+    answer alike: what separates those is the header each payload carries, not this one.
 ]]
-function Frames.packet (over: number): Head
+function Frames.running (over: number): Head
     return headed ({ named (over), named (Protocol.RUN_CAP) })
 end
 
 --[[
-    The same block where the definition declared an instant. Each fire has one of its own, so a run
-    would have to carry as many as it has payloads, and one header a fire is what that comes to.
+    A fire from a definition that declared an instant. Each has one of its own, so these never run
+    together and the block carries the instant where a run would have carried its count.
 ]]
 function Frames.stamped (over: number): Head return headed ({ named (over), STAMP }) end
 
--- A newest packet block: `{ defId, seq }`, or `{ defId, stamp, seq }`.
+-- One question of a run: the id it is owed an answer under.
+function Frames.asking (): Head return headed ({ ASKED }) end
+
+-- One answer of a run: the question it answers, and whether it is an answer or a refusal.
+function Frames.answering (): Head return headed ({ ASKED, OUTCOME }) end
+
+--[[
+    A newest packet's block: `{ defId, seq }`, or `{ defId, stamp, seq }`. It never runs, because a
+    newest sender coalesces to one value before it is sequenced and a second would be the first.
+]]
 function Frames.newest (over: number, stamped: boolean): Head
     local id = named (over)
     return headed (if stamped then { id, STAMP, SEQ } else { id, SEQ })
-end
-
--- A request block: `{ defId, id }`, where the id is the one its response comes back under.
-function Frames.request (over: number): Head return headed ({ named (over), ASKED }) end
-
--- A response block: `{ defId, id, outcome }`.
-function Frames.response (over: number): Head
-    local id = named (over)
-    return headed ({ id, ASKED, OUTCOME })
 end
 
 -- A state section's block: `{ defId, kind }`, and everything after it is the section's own grammar.

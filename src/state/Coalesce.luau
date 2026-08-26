@@ -2,9 +2,24 @@
 --!optimize 2
 -- One record's mutations across a flush: the net effect that ships, and the fields it named.
 
+local Protocol = require ("@src/wire/Protocol")
 local Wide = require ("@src/kernel/Wide")
 
 local Coalesce = {}
+
+-- State ---------------------------------------------------------------
+
+--[[
+    Every field's own bit, worked out once for the whole run of the library. A field's bit is a
+    constant of its place and nothing else, and the one home for what that constant is answers a
+    call and a lookup deep, which is a price a mask pays on every field of every write.
+]]
+local BITS: { Wide.Word } = table.create (Protocol.MAX_FIELDS)
+for field = 1, Protocol.MAX_FIELDS do
+    BITS[field] = Wide.bit (field)
+end
+
+table.freeze (BITS)
 
 -- Types ---------------------------------------------------------------
 
@@ -31,13 +46,14 @@ function Coalesce.merge (was: Kind?, took: Kind): Kind?
 end
 
 function Coalesce.touched (mask: Wide.Word, field: number): Wide.Word
-    return Wide.union (mask, Wide.bit (field))
+    return Wide.union (mask, BITS[field])
 end
 
 -- Tested bit by bit and never read as a number, because the widest field is the sign.
 function Coalesce.migrates (mask: Wide.Word, key: number?): boolean
     if key == nil then return false end
-    return Wide.meets (mask, Wide.bit (key))
+
+    return Wide.meets (mask, BITS[key])
 end
 
 return table.freeze (Coalesce)

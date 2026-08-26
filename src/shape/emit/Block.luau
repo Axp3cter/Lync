@@ -407,18 +407,27 @@ function Block.pairs (
             if count > high then Word.refusedAt (tag, paths, said, count) end
 
             keys[count] = key
-            starts[count] = at
+
+            local from = at
             at = writeKey (room, at, key)
 
-            widths[count] = at - starts[count]
-            order[count] = count
+            --[[
+                Where a key sits and how wide it is, for keys that do not all spell the same width.
+                The ones that do are found by counting instead, and the order they sort in is put
+                down below rather than here, so nothing is written that is written over.
+            ]]
+            if not even then
+                starts[count] = from
+                widths[count] = at - from
+                order[count] = count
+            end
         end
 
         if count < low then Word.refusedAt (tag, paths, said, count) end
 
         if even then
             for index = 1, count do
-                order[index] = Bytes.ranked (room, starts[index], wide) * spread + index
+                order[index] = Bytes.ranked (room, (index - 1) * wide, wide) * spread + index
             end
         end
 
@@ -456,8 +465,11 @@ function Block.pairs (
                 }))
             end
 
-            buffer.copy (b, out, room, starts[place], widths[place])
-            out = writeValue (b, out + widths[place], value[keys[place]])
+            local from = if even then (place - 1) * wide else starts[place]
+            local cut = if even then wide else widths[place]
+
+            buffer.copy (b, out, room, from, cut)
+            out = writeValue (b, out + cut, value[keys[place]])
         end
         return out
     end

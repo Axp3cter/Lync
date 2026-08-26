@@ -338,20 +338,39 @@ function Rotation.smallest (of: Grid.Grid): Smallest
             local lowA, lowB, lowC = under (of, pa), under (of, pb), under (of, pc)
             if lowA == nil or lowB == nil or lowC == nil then continue end
 
-            for stepA = 0, 1 do
-                for stepB = 0, 1 do
-                    for stepC = 0, 1 do
-                        local tryA = math.clamp (lowA + stepA, 0, span)
-                        local tryB = math.clamp (lowB + stepB, 0, span)
-                        local tryC = math.clamp (lowC + stepC, 0, span)
+            --[[
+                Each of the three moves by one step at most, so there are two spellings of each
+                and two readings, and eight triples over them. The loops vary which of the two a
+                triple takes and never what the two are, so reading them once is four fewer
+                readings apiece.
+            ]]
+            local a0, a1 = math.clamp (lowA, 0, span), math.clamp (lowA + 1, 0, span)
+            local b0, b1 = math.clamp (lowB, 0, span), math.clamp (lowB + 1, 0, span)
+            local c0, c1 = math.clamp (lowC, 0, span), math.clamp (lowC + 1, 0, span)
 
-                        local ka, kb, kc = fromIndex (tryA), fromIndex (tryB), fromIndex (tryC)
+            local ka0, ka1 = fromIndex (a0), fromIndex (a1)
+            local kb0, kb1 = fromIndex (b0), fromIndex (b1)
+            local kc0, kc1 = fromIndex (c0), fromIndex (c1)
+
+            for stepA = 0, 1 do
+                local tryA = if stepA == 0 then a0 else a1
+                local ka = if stepA == 0 then ka0 else ka1
+                local sumA = ka * ka
+
+                for stepB = 0, 1 do
+                    local tryB = if stepB == 0 then b0 else b1
+                    local kb = if stepB == 0 then kb0 else kb1
+                    local sumB = sumA + kb * kb
+
+                    for stepC = 0, 1 do
+                        local tryC = if stepC == 0 then c0 else c1
+                        local kc = if stepC == 0 then kc0 else kc1
 
                         --[[
                             A triple that overruns the unit quaternion, which is not a spelling of
                             anything.
                         ]]
-                        local over = ka * ka + kb * kb + kc * kc
+                        local over = sumB + kc * kc
                         if over > 1 then continue end
 
                         local kd = math.sqrt (math.max (0, 1 - over))

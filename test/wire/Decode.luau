@@ -615,4 +615,75 @@ return {
             )
         end
     end),
+
+    --[[
+        The three ways a map can be a frame no encoder wrote, told apart by what each is refused
+        under. A count past the bound it declared, an entry naming no point on its grid, and keys
+        that do not climb are separate faults with separate codes, and a reader answering one of
+        them for another sends whoever reads the log to the wrong half of the schema.
+    ]]
+    Harness.case ("total.map-refusals-are-told-apart", function ()
+        --[[
+            Each form reaches one of the checks and not the other of its pair: a grid holding every
+            pattern its bits spell has no value off it, so a map built of one on one side is a map
+            whose only way to a tag is the other side.
+        ]]
+        local WHOLE = Lync.int (0, 255)
+        local PART = Lync.int (0, 5)
+
+        local forms = {
+            {
+                of = "a gridded map",
+                codec = Lync.map (PART, PART, 0, 3),
+                value = { [1] = 1, [3] = 2, [5] = 3 } :: any,
+                wants = { Catalog.COUNT, Catalog.TAG, Catalog.MAP_ORDER },
+            },
+            {
+                of = "a gridded map's keys",
+                codec = Lync.map (PART, WHOLE, 0, 3),
+                value = { [1] = 1, [3] = 2, [5] = 3 } :: any,
+                wants = { Catalog.TAG },
+            },
+            {
+                of = "a gridded map's values",
+                codec = Lync.map (WHOLE, PART, 0, 3),
+                value = { [1] = 1, [3] = 2, [5] = 3 } :: any,
+                wants = { Catalog.TAG },
+            },
+            {
+                of = "a spelled map",
+                codec = Lync.map (Lync.str (1, 1), PART, 0, 3),
+                value = { a = 1, b = 2, c = 3 } :: any,
+                wants = { Catalog.COUNT, Catalog.TAG, Catalog.MAP_ORDER },
+            },
+            {
+                of = "a tagged union",
+                codec = Lync.tagged ("tag", TAGS),
+                value = { tag = "a", x = true } :: any,
+                wants = { Catalog.TAG },
+            },
+        }
+
+        for _, form in forms do
+            local of = Turns.built (form.codec)
+            local text = Turns.text (of, form.value)
+
+            local seen: { [string]: boolean } = {}
+            for at = 1, #text do
+                local byte = string.byte (text, at)
+                for bit = 0, 7 do
+                    local moved = string.char (bit32.bxor (byte, bit32.lshift (1, bit)))
+                    local hostile =
+                        `{string.sub (text, 1, at - 1)}{moved}{string.sub (text, at + 1)}`
+
+                    local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
+                    if not ok and type (caught) == "table" then seen[caught.code] = true end
+                end
+            end
+
+            for _, code in form.wants do
+                Expect.holds (seen[code], `{form.of} was never refused as {code}`)
+            end
+        end
+    end),
 }

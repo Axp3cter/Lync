@@ -118,4 +118,56 @@ return {
         "ir.a-slot-costs-the-cap",
         function () Expect.equal (Ir.slot (TAG, nil).maxBytes, Protocol.VARINT_GROUPS) end
     ),
+
+    --[[
+        Whether a collection is one width, which is both its count and what it holds. A list of one
+        length over an element that varies is not fixed and neither is a list of many lengths over
+        one that does not, so a node reading only half the question answers fixed for both.
+    ]]
+    Harness.case ("ir.a-list-reads-both-halves", function ()
+        local one = Ir.varint (TAG, false)
+        local same = Ir.wide (TAG, landing ())
+
+        Expect.equal (Ir.list (TAG, { min = 2, max = 2 }, same).fixed, true)
+        Expect.equal (Ir.list (TAG, { min = 2, max = 2 }, one).fixed, false)
+        Expect.equal (Ir.list (TAG, { min = 1, max = 2 }, same).fixed, false)
+    end),
+
+    --[[
+        The nodes that hold something else, and whether holding a loose one makes them loose. A
+        group is as fixed as every part it carries, and an optional and a branch never are: one
+        may not be there at all and the other is whichever arm arrived.
+    ]]
+    Harness.case ("ir.what-holding-something-loose-costs", function ()
+        local one = Ir.varint (TAG, false)
+        local same = Ir.wide (TAG, landing ())
+
+        local tight = Ir.group (TAG, nil, { { key = "a", nest = nil, of = same } })
+        local loose = Ir.group (TAG, nil, { { key = "a", nest = nil, of = one } })
+
+        Expect.equal (tight.fixed, true)
+        Expect.equal (loose.fixed, false)
+
+        Expect.equal (Ir.opt (TAG, 1, same).fixed, false)
+        Expect.equal (Ir.branch (TAG, "kind", { "a", "b" }, { same, same }).fixed, false)
+    end),
+
+    --[[
+        What a branch spends naming its arm, and the names it keeps. Two arms is one bit, since the
+        tag is an index over the arms rather than a count of them, and a bit too many is a frame
+        every reader of the same schema walks off by one.
+    ]]
+    Harness.case ("ir.a-branch-names-its-arm", function ()
+        local same = Ir.wide (TAG, landing ())
+        local of = Ir.branch (TAG, "kind", { "a", "b" }, { same, same })
+
+        Expect.equal (of.tagWidth, 1)
+        Expect.equal (table.isfrozen (of.names :: any), true)
+    end),
+
+    -- The joins a region is read through, which say which leaves each field of it reaches.
+    Harness.case (
+        "ir.the-joins-of-a-region-are-shut",
+        function () Expect.equal (table.isfrozen (worded ().joins :: any), true) end
+    ),
 }

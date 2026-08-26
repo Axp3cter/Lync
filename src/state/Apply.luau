@@ -191,15 +191,21 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
         end
     end
 
+    local slots = frame.slots
+    local ids = frame.ids
+
     for field = 1, layout.def.fieldCount do
         local values = frame.values[field]
         local marks = frame.at[field]
         local held = store.prev[field]
 
-        for index = 1, frame.count do
-            local slot = frame.slots[index]
+        -- The writer this field is put down by, reached once rather than once a slot it names.
+        local put = store.writers[field]
 
-            Store.write (store, slot, frame.ids[index], field, values[index])
+        for index = 1, frame.count do
+            local slot = slots[index]
+
+            put (slot, ids[index], values[index])
             if held ~= nil then owes (of, held, slot, marks[index]) end
         end
     end

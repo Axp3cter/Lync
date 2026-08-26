@@ -279,9 +279,18 @@ function Sections.keyframe (of: Layout, b: buffer, pos: number, columns: Columns
     local def = of.def
     local count = frame.count
 
+    --[[
+        Each id as the step from the id before it. A keyframe names its records in slot order and
+        slots are handed out as records arrive, so the ids climb wherever a caller numbered them
+        in the order it added them, and a step of one is a byte where the id itself was two.
+    ]]
     local at = Slots.wrote (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
+    local last = 0
     for index = 1, count do
-        at = Varint.writeSigned (b, at, frame.ids[index])
+        local id = frame.ids[index]
+
+        at = Varint.writeSigned (b, at, id - last)
+        last = id
     end
 
     if #def.newestFields > 0 then
@@ -407,8 +416,13 @@ function Sections.taken (
     if kind == REMOVAL then return kind, at end
 
     if kind == KEYFRAME then
+        local last = 0
         for index = 1, count do
-            frame.ids[index], at = Varint.readSigned (b, at)
+            local step
+            step, at = Varint.readSigned (b, at)
+
+            last += step
+            frame.ids[index] = last
         end
 
         if #def.newestFields > 0 then

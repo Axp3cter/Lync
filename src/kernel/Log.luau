@@ -105,6 +105,33 @@ function Log.contains (call: (...any) -> (), count: number, values: { any }, ...
 end
 
 --[[
+    The same over three arrays that move together rather than one and some constants, which is what
+    a set tells a caller: an id, the record it names, and what that record was. Caught an item at a
+    time for the reason the walk above is, and a settle of two hundred is one thread and not two.
+]]
+local function besides (
+    call: (...any) -> (),
+    count: number,
+    ones: { any },
+    twos: { any },
+    threes: { any }
+)
+    for index = 1, count do
+        Log.caught (call, ones[index], twos[index], threes[index])
+    end
+end
+
+function Log.beside (
+    call: (...any) -> (),
+    count: number,
+    ones: { any },
+    twos: { any },
+    threes: { any }
+)
+    Threads.spawn (besides :: any, call :: any, count, ones, twos, threes)
+end
+
+--[[
     Something the library dropped and moved past. A caller reads these to learn what their schema or
     somebody else's client is doing, so a warning is never a fault and never a throw to come.
 ]]

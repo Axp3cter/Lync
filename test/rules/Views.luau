@@ -731,4 +731,35 @@ return {
         Expect.equal (of.seen[1].record[POS], HIGH)
         Expect.equal (of.viewers[1].set:get (ID)[POS], HIGH)
     end),
+    --[[
+        A settle whose listener comes apart on one record of several. The records of a settle share
+        the thread a listener is called on, so what has to hold is that sharing the thread is all
+        they share: one that raises on the second is a listener still handed the third.
+    ]]
+    Harness.case ("set.telling-outlives-one-that-comes-apart", function ()
+        const MANY = 4
+        const BREAKS = 2
+
+        local of = opened (defined)
+        local set = Replica.ours (of)
+
+        for id = 1, MANY do
+            set:add (id, record ())
+        end
+        Replica.ships (of)
+
+        local seen: { number } = {}
+        of.client.defs[ROSTER]:onChanged (function (id: number)
+            table.insert (seen, id)
+            if id == BREAKS then error ("this one came apart", 0) end
+        end)
+
+        for id = 1, MANY do
+            set:update (id, { [HP] = HIGH })
+        end
+        Replica.ships (of)
+
+        Expect.equal (#seen, MANY)
+        Expect.equal (seen[MANY], MANY)
+    end),
 }

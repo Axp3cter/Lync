@@ -34,6 +34,9 @@ const CLEAR = Protocol.SECTION_CLEAR
 -- A record that has moved no field yet, which is what a first update is taken over.
 const NOTHING = Wide.NONE
 
+-- What a telling with only two things to say hands over as its third, which is nothing at all.
+const UNSAID = table.freeze ({}) :: { any }
+
 -- The partition an unkeyed set is the whole of.
 const WHOLE = table.freeze ({})
 
@@ -42,6 +45,11 @@ const CLEARED =
     setmetatable ({}, table.freeze ({ __tostring = function (): string return "Lync.none" end }))
 
 -- Types ---------------------------------------------------------------
+
+-- What each of a set's three tellings hands a listener, named so the lists that hold them fit.
+type Arriving = Listeners.Run<number, any>
+type Moving = Listeners.Run<number, any, any>
+type Leaving = Listeners.Run<number, Types.Cause>
 
 -- One partition: what it holds, what it owes the wire, and where its newest streams have reached.
 export type Partition = {
@@ -464,9 +472,9 @@ function Sync.new (def: Compile.Set): Sync
         seen = Audience.new (),
         owed = Catchup.new (),
         heard = Apply.heard (),
-        added = Listeners.list (Log.contained :: Listeners.Run<number, any>),
-        changed = Listeners.list (Log.contained :: Listeners.Run<number, any, any>),
-        removed = Listeners.list (Log.contained :: Listeners.Run<number, Types.Cause>),
+        added = Listeners.list (Log.contained :: Arriving, nil, Log.beside),
+        changed = Listeners.list (Log.contained :: Moving, nil, Log.beside),
+        removed = Listeners.list (Log.contained :: Leaving, nil, Log.beside),
         parts = {},
         order = {},
         partOf = {},
@@ -829,16 +837,54 @@ function Sync.settle (of: Sync)
     if told then
         local gone, added, changed = Apply.parted (heard)
 
-        for _, id in gone do
-            Listeners.fan (of.removed, id, heard.causes[id])
+        --[[
+            Gathered a list at a time and handed over together, since what a listener costs is a
+            thread and a settle of two hundred was two hundred of them. Its own arrays each time,
+            because a listener that parks holds them until it wakes and the next settle would
+            otherwise fill them under it.
+        ]]
+        local count = #gone
+        if count > 0 then
+            local ids = table.create (count)
+            local whys = table.create (count)
+
+            for index = 1, count do
+                local id = gone[index]
+                ids[index] = id
+                whys[index] = heard.causes[id]
+            end
+
+            Listeners.beside (of.removed, count, ids, whys, UNSAID)
         end
 
-        for _, id in added do
-            Listeners.fan (of.added, id, rowed (of, id))
+        count = #added
+        if count > 0 then
+            local ids = table.create (count)
+            local rows = table.create (count)
+
+            for index = 1, count do
+                local id = added[index]
+                ids[index] = id
+                rows[index] = rowed (of, id)
+            end
+
+            Listeners.beside (of.added, count, ids, rows, UNSAID)
         end
 
-        for _, id in changed do
-            Listeners.fan (of.changed, id, rowed (of, id), heard.olds[id])
+        count = #changed
+        if count > 0 then
+            local ids = table.create (count)
+            local rows = table.create (count)
+            local olds = table.create (count)
+
+            for index = 1, count do
+                local id = changed[index]
+                ids[index] = id
+                rows[index] = rowed (of, id)
+                olds[index] = heard.olds[id]
+            end
+
+            Listeners.beside (of.changed, count, ids, rows, olds)
         end
     end
 

@@ -22,12 +22,22 @@ export type Run<A...> = (fn: (A...) -> (), A...) -> ()
 -- The same, over a run of payloads rather than one, which only a list of blocks is given.
 export type Walk = (fn: (...any) -> (), count: number, values: { any }, ...any) -> ()
 
+-- The same again, over three arrays that move together, which only a list of records is given.
+export type Beside = (
+    fn: (...any) -> (),
+    count: number,
+    ones: { any },
+    twos: { any },
+    threes: { any }
+) -> ()
+
 export type List<A...> = {
     links: { Link<A...> },
     live: number,
     fanning: number,
     run: Run<A...>,
     walk: Walk?,
+    beside: Beside?,
 }
 
 -- Private -------------------------------------------------------------
@@ -76,8 +86,8 @@ function Listeners.fanned <A...>(of: List<A...>, count: number, values: { any },
     swept (of)
 end
 
-function Listeners.list <A...>(run: Run<A...>, walk: Walk?): List<A...>
-    return { links = {}, live = 0, fanning = 0, run = run, walk = walk }
+function Listeners.list <A...>(run: Run<A...>, walk: Walk?, beside: Beside?): List<A...>
+    return { links = {}, live = 0, fanning = 0, run = run, walk = walk, beside = beside }
 end
 
 -- At the end of the order, which is the order a fan walks.
@@ -105,6 +115,35 @@ end
     is exactly the one a walk of it would count and a fan of it would skip.
 ]]
 function Listeners.any <A...>(of: List<A...>): boolean return of.live > 0 end
+
+--[[
+    Every listener handed a settle's records, one thread apiece rather than one a record. Three
+    arrays that move together, since what a set says of a record is an id, the record and what it
+    was, and a list without a walker for them takes nothing.
+]]
+function Listeners.beside <A...>(
+    of: List<A...>,
+    count: number,
+    ones: { any },
+    twos: { any },
+    threes: { any }
+)
+    local beside = of.beside
+    if beside == nil then return end
+
+    local links = of.links
+    local held = #links
+    if held == 0 then return end
+
+    of.fanning += 1
+    for index = 1, held do
+        local link = links[index]
+        if link.connected then beside (link.fn :: any, count, ones, twos, threes) end
+    end
+    of.fanning -= 1
+
+    swept (of)
+end
 
 --[[
     Everything still listening, in the order it was registered, each on a thread of its own.

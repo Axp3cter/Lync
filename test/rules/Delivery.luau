@@ -333,4 +333,19 @@ return {
         Expect.equal (whose[1], of.player)
         Expect.equal (whose[9], second.player)
     end),
+
+    --[[
+        The client's fire made on a server. A packet is one direction a call at a time and the two
+        forms differ only in what they leave out, so a server calling the client's form is a caller
+        who read the wrong half of their own schema. Refused by the name of the call rather than by
+        whatever stopped making sense first, which is a player argument nobody passed.
+    ]]
+    Harness.case ("packet.wrong-side-fire", function ()
+        local of = Replica.open ({ space = SPACE, defined = defined }, SENDER)
+
+        Expect.throws (
+            function () of.server.defs[SURE]:fireServer (CARRIED) end,
+            "is a client's call, and this is the server"
+        )
+    end),
 }

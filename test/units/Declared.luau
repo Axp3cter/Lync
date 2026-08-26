@@ -28,9 +28,9 @@ const AT = table.freeze ({ file = "Origin", line = 1 })
 
 -- Private -------------------------------------------------------------
 
--- One set declared over the codec given, which is the whole of what a set is declared as.
-local function replicating (of: any): any
-    return { kind = "set" :: "set", of = of, keyField = nil, at = AT }
+-- One set declared over the codec given, under the key named, which is the whole of a set.
+local function replicating (of: any, key: string?): any
+    return { kind = "set" :: "set", of = of, keyField = key, at = AT }
 end
 
 -- Public --------------------------------------------------------------
@@ -85,5 +85,36 @@ return {
         )
 
         Expect.holds (string.find (said, MARKED, 1, true) ~= nil, `it named no definition: {said}`)
+    end),
+
+    --[[
+        A set declared over something that is not a record. What a set sends is which of a record's
+        fields moved, so a value with no fields to name has no difference a set could ever describe,
+        and the codec under it is one a packet would carry perfectly well.
+    ]]
+    Harness.case ("declared.set-of-what-is-not-a-record", function ()
+        local said = Expect.throws (
+            function () Legality.definition (SET, replicating (Lync.int (0, 1))) end,
+            "and a set replicates records"
+        )
+
+        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
+    end),
+
+    --[[
+        A set keyed by a field its own record does not declare. A key is what a set partitions by
+        and every record has to answer it, so a name the record never carries is one no record
+        could be filed under, which is a schema that could never hold anything at all.
+    ]]
+    Harness.case ("declared.set-keyed-by-nothing-it-has", function ()
+        local of = Lync.struct ({ held = Lync.bool () })
+        Legality.definition (SET, replicating (of, "held"))
+
+        local said = Expect.throws (
+            function () Legality.definition (SET, replicating (of, "elsewhere")) end,
+            "which its record does not declare"
+        )
+
+        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
     end),
 }

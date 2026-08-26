@@ -405,6 +405,13 @@ function Leaf.run (
     local toIndex, fromIndex, reach = elem.toIndex, elem.fromIndex, elem.span
     local width = elem.width
 
+    --[[
+        A grid from zero at a whole step reads back whatever it was given, so asking it costs a call
+        for an answer already in hand. A run is where that call is paid for once an element rather
+        than once a field, which is what makes it worth asking about at all.
+    ]]
+    local plain = elem.plain == true
+
     local scratch: { number } = {}
 
     local function write (b: buffer, pos: number, value: any): number
@@ -430,6 +437,17 @@ function Leaf.run (
         if not clean then reject (Catalog.PAD, at, count) end
 
         local out = table.create (count) :: { any }
+
+        if plain then
+            for place = 1, count do
+                local one = scratch[place]
+                if one > reach then reject (Catalog.TAG, at, one) end
+                out[place] = one
+            end
+
+            return after, out
+        end
+
         for place = 1, count do
             local one = scratch[place]
             if one > reach then reject (Catalog.TAG, at, one) end

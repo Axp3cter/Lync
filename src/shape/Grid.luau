@@ -102,6 +102,28 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
     local under = min - room
     local over = max + room
 
+    --[[
+        A grid from zero at a whole step is its own index, so the shift and the division are a
+        subtraction of nothing and a division by one. Written apart rather than branched inside,
+        since the branch would then be taken once a field on every frame.
+    ]]
+    if min == 0 and step == 1 then
+        local function toIndex (value: any): number?
+            if type (value) ~= "number" then return nil end
+            if not (value >= under and value <= over) then return nil end
+            return math.clamp (math.round (value), 0, span)
+        end
+
+        return {
+            span = span,
+            width = width,
+            plain = true,
+            whole = span == bit32.lshift (1, width) - 1,
+            toIndex = toIndex,
+            fromIndex = fromIndex,
+        }
+    end
+
     local function toIndex (value: any): number?
         if type (value) ~= "number" then return nil end
         if not (value >= under and value <= over) then return nil end
@@ -111,7 +133,7 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
     return {
         span = span,
         width = width,
-        plain = min == 0 and step == 1,
+        plain = false,
         whole = span == bit32.lshift (1, width) - 1,
         toIndex = toIndex,
         fromIndex = fromIndex,

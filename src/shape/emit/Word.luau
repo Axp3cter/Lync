@@ -78,6 +78,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         if spans[index] == 0 then table.insert (empties, index) end
     end
 
+    -- Whether there are any, since a walk over none is one a decode takes for nothing.
+    local barren = #empties > 0
+
     -- Per join, in the order the region reads its fields.
     local reach = #joins
     local starts = table.create (reach, 0)
@@ -193,8 +196,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         left there, and a field that straddles two windows meets its low piece first.
     ]]
     local function unpack (b: buffer, pos: number, into: any, slots: { number }, held: { any }): any
-        for _, leaf in empties do
-            slots[leaf] = 0
+        if barren then
+            for _, leaf in empties do
+                slots[leaf] = 0
+            end
         end
 
         for index = 1, windows do

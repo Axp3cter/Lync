@@ -472,6 +472,10 @@ function Sync.update (of: Sync, id: number, fields: any)
     local dirt = part.dirt
     local mask = dirt.masks[id] or NOTHING
 
+    -- Both are the definition's own answer, so a field of it is the wrong thing to ask.
+    local climbs = def.climbs
+    local streams = of.lane.streams
+
     local moved = false
     for name, value in fields do
         local field = place[name]
@@ -489,7 +493,13 @@ function Sync.update (of: Sync, id: number, fields: any)
         local was = store.columns[field][slot]
 
         -- A field that may only climb, held to it at the call that would have lowered it.
-        if def.climbingFields[field] and was ~= nil and value ~= Sync.NONE and value < was then
+        if
+            climbs
+            and def.climbingFields[field]
+            and was ~= nil
+            and value ~= Sync.NONE
+            and value < was
+        then
             Log.error (
                 `{def.name}.{name} only climbs, and {value} is under {was}`,
                 { definition = def.name }
@@ -512,7 +522,7 @@ function Sync.update (of: Sync, id: number, fields: any)
             question the store already answers, and it would put an absolute value in a reliable
             delta, which is the one place it never goes.
         ]]
-        if of.lane.place[field] == nil then
+        if not streams or of.lane.place[field] == nil then
             mask = Coalesce.touched (mask, field)
             moved = true
         end

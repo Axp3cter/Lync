@@ -81,6 +81,7 @@ export type Set = {
     read newestFields: { number },
     read optionalFields: { boolean },
     read climbingFields: { boolean },
+    read climbs: boolean,
     read template: { [string]: any },
     read site: Shape.Site,
 }
@@ -264,6 +265,7 @@ local function made (name: string, id: number, over: number, of: Legality.Declar
         newestFields = held.newest,
         optionalFields = held.optional,
         climbingFields = held.climbs,
+        climbs = next (held.climbs) ~= nil,
         template = held.template,
     })
 end

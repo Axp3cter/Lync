@@ -763,18 +763,29 @@ function Sync.settle (of: Sync)
     local heard = of.heard
     Apply.settle (heard)
 
-    local gone, added, changed = Apply.parted (heard)
+    --[[
+        What the frame did, taken apart only for somebody who asked. Partitioning it walks every
+        record the frame touched and sorts the three answers, and those answers go nowhere but the
+        three lists below, so a set nobody connected to owes none of it.
+    ]]
+    local told = Listeners.any (of.removed)
+        or Listeners.any (of.added)
+        or Listeners.any (of.changed)
 
-    for _, id in gone do
-        Listeners.fan (of.removed, id, heard.causes[id])
-    end
+    if told then
+        local gone, added, changed = Apply.parted (heard)
 
-    for _, id in added do
-        Listeners.fan (of.added, id, rowed (of, id))
-    end
+        for _, id in gone do
+            Listeners.fan (of.removed, id, heard.causes[id])
+        end
 
-    for _, id in changed do
-        Listeners.fan (of.changed, id, rowed (of, id), heard.olds[id])
+        for _, id in added do
+            Listeners.fan (of.added, id, rowed (of, id))
+        end
+
+        for _, id in changed do
+            Listeners.fan (of.changed, id, rowed (of, id), heard.olds[id])
+        end
     end
 
     Apply.forget (heard)

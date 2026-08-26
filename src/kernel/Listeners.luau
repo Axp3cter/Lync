@@ -73,6 +73,13 @@ function Listeners.connect <A...>(of: List<A...>, fn: (A...) -> ()): Link<A...>
 end
 
 --[[
+    Whether anything is still listening, which is what decides whether the answer is worth working
+    out. Counted rather than measured, since a link disconnected mid-fan is still in the list and
+    is exactly the one a walk of it would count and a fan of it would skip.
+]]
+function Listeners.any <A...>(of: List<A...>): boolean return of.live > 0 end
+
+--[[
     Everything still listening, in the order it was registered, each on a thread of its own.
 
     The count is read once before the walk, so a listener attached by a listener is reached by the

@@ -649,4 +649,68 @@ return {
             Expect.equal (one[POS], 3)
         end
     end),
+
+    --[[
+        Each telling asked for on its own, since a set works out what a frame did only for somebody
+        who asked. Every other check here connects all three at once, which cannot tell a set that
+        asks whether anything listens from one that asks whether this listens: three runs, one
+        callback apiece, is what separates them.
+    ]]
+    Harness.case ("set.one-listener-at-a-time", function ()
+        --[[
+            Nobody watching, so the only listener on the client is the one each turn connects. A
+            run that watched would have all three attached before the check began.
+        ]]
+        local function alone (): Run
+            return Replica.open ({ space = SPACE, defined = defined }, ALICE)
+        end
+
+        do
+            local of = alone ()
+            local ours = of.server.defs[ROSTER]
+            local told = 0
+
+            of.client.defs[ROSTER]:onAdded (function ()
+                told += 1
+            end)
+            ours:add (ID, record ())
+            Replica.ships (of)
+
+            Expect.equal (told, 1)
+        end
+
+        do
+            local of = alone ()
+            local ours = of.server.defs[ROSTER]
+            local told = 0
+
+            of.client.defs[ROSTER]:onChanged (function ()
+                told += 1
+            end)
+            ours:add (ID, record ())
+            Replica.ships (of)
+
+            ours:update (ID, { [HP] = HIGH })
+            Replica.ships (of)
+
+            Expect.equal (told, 1)
+        end
+
+        do
+            local of = alone ()
+            local ours = of.server.defs[ROSTER]
+            local told: Types.Cause? = nil
+
+            of.client.defs[ROSTER]:onRemoved (
+                function (_id: number, why: Types.Cause) told = why end
+            )
+            ours:add (ID, record ())
+            Replica.ships (of)
+
+            ours:remove (ID)
+            Replica.ships (of)
+
+            Expect.equal (told, REMOVED)
+        end
+    end),
 }

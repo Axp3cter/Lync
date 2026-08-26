@@ -58,8 +58,15 @@ function Shape.build (of: Types.Codec<any>, at: string, shared: Site?): Built
         }
 
     local shape = Lower.of (cell, at, site)
+
+    --[[
+        The collector put round the read only where something under it can park a reason. A tree
+        with no check in it has nothing that ever parks one, so the clearing and the asking either
+        side of every read it does would be a question with one answer.
+    ]]
+    local before = Emit.wrapped ()
     local write, read = Emit.emit (shape, site)
-    read = Emit.rooted (read)
+    if Emit.wrapped () > before then read = Emit.rooted (read) end
 
     return table.freeze ({
         cell = cell,

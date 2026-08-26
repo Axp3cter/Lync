@@ -32,6 +32,13 @@ export type Site = {
 local parkedPath: number? = nil
 local parkedReason: string? = nil
 
+--[[
+    How many checks this process has wrapped a read in, which is the one thing that decides whether
+    a read can park a reason at all. Counted rather than asked of the tree, because the wrapping is
+    where the answer is already known and a walk to rediscover it would be the same walk again.
+]]
+local wrapped = 0
+
 -- Private -------------------------------------------------------------
 
 -- Every check a place declared, in the order they were declared, and the first reason one gives.
@@ -52,6 +59,8 @@ end
 
 -- A node's own checks, wrapped round the read once here so a node without any pays for nothing.
 local function checked (read: Ir.Read, tag: Ir.Tag): Ir.Read
+    wrapped += 1
+
     return function (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         local at, value = read (b, pos, ctx)
         turned (tag, value, ctx)
@@ -90,6 +99,8 @@ local function fielded (read: Ir.Read, of: Ir.Group): Ir.Read
 
     local reach = #looks
     if reach == 0 then return read end
+
+    wrapped += 1
 
     return function (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         local at, value = read (b, pos, ctx)
@@ -196,6 +207,9 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
 end
 
 -- Public --------------------------------------------------------------
+
+-- How many reads have been wrapped in a check, which a caller reads either side of a build.
+function Emit.wrapped (): number return wrapped end
 
 -- A shape and everything under it, as the pair the whole tree became.
 function Emit.emit (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)

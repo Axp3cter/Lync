@@ -146,6 +146,14 @@ local function louder (of: Doubles.Carried, at: number): Doubles.Carried
     return { at = of.at, from = of.from, to = of.to, bytes = bytes, refs = of.refs }
 end
 
+-- The same frame cut short, which is a block whose own header runs past the bytes it came in.
+local function shorter (of: Doubles.Carried, held: number): Doubles.Carried
+    local bytes = buffer.create (held)
+    buffer.copy (bytes, 0, of.bytes, 0, held)
+
+    return { at = of.at, from = of.from, to = of.to, bytes = bytes, refs = of.refs }
+end
+
 -- A fire from the client, and the round that carries it to the server.
 local function fromClient (of: Run, name: string, value: any?)
     of.client.defs[name]:fireServer (if value == nil then true else value)
@@ -380,6 +388,78 @@ return {
         end
 
         Expect.holds (seen, "no byte of a narrow word was refused for the grid it ran past")
+    end),
+
+    --[[
+        A payload the boundary turned away, which no listener is handed. A guard refusing a value
+        is this machine deciding the frame said something the schema does not allow, so a listener
+        told about it anyway is handed the one value its own declaration promised cannot arrive.
+        The payload beside it in the same run still arrives, since one turned away ends itself.
+    ]]
+    Harness.case ("codec.turned-away-reaches-nobody", function ()
+        local heard: { string } = {}
+        local of = Replica.paired ({
+            space = SPACE,
+            defined = defined,
+            label = SENDER,
+            wires = function (defs: any, side: string)
+                if side ~= "server" then return end
+
+                for _, name in { GUARDED, HEARD } do
+                    defs[name]:onServer (function () table.insert (heard, name) end)
+                end
+            end,
+        })
+
+        fromClient (of, HEARD)
+        Expect.equal (heard, { HEARD })
+
+        fromClient (of, GUARDED)
+        Expect.equal (heard, { HEARD })
+
+        fromClient (of, HEARD)
+        Expect.equal (heard, { HEARD, HEARD })
+
+        --[[
+            Both in one frame, so the turned-away one is a payload the run walks past rather than
+            a frame of its own. A run that ended on it would lose every payload queued behind it,
+            which is a fire nobody made going missing for a fire somebody else did.
+        ]]
+        of.client.defs[GUARDED]:fireServer (true)
+        of.client.defs[HEARD]:fireServer (true)
+        of.client.session:flush ()
+        of.wire:settle ()
+
+        Expect.equal (heard, { HEARD, HEARD, HEARD })
+    end),
+
+    --[[
+        A frame cut short of the header its next block needs. Every length a walk trusts is a
+        length the frame itself stated, so a walk that reads a header the bytes do not cover is
+        one reading whatever lies past them. What it does instead is stop and say so.
+    ]]
+    Harness.case ("codec.short-block-is-refused", function ()
+        local heard = 0
+        local of = Replica.paired ({
+            space = SPACE,
+            defined = defined,
+            label = SENDER,
+            wires = function (defs: any, side: string)
+                if side ~= "server" then return end
+
+                defs[HEARD]:onServer (function ()
+                    heard += 1
+                end)
+            end,
+        })
+
+        local frame = carried (of, function () fromClient (of, HEARD) end)
+        Expect.equal (heard, 1)
+
+        for held = 1, buffer.len (frame.bytes) - 1 do
+            Records.made (function () of.wire:hands (shorter (frame, held)) end)
+            Expect.equal (heard, 1)
+        end
     end),
 
     -- What a drop record says it is about, held by discrimination rather than by wording.

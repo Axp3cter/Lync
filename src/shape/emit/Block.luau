@@ -104,41 +104,31 @@ function Block.group (
 
     --[[
         The record's own names, as a table to copy rather than one to grow, since a record started
-        empty rehashes as each name lands on it. Only where every name is written on every read: a
-        field behind a presence bit is not, and a copy would leave it seeded.
+        empty rehashes as each name lands on it. A name the frame left out is taken back off once
+        below, which is an assignment where growing the record is a rehash of everything on it.
     ]]
     local blank: any = nil
 
     if keyed then
-        local skipped = false
+        local shape: { [string]: boolean } = {}
+
+        for index = 1, deep do
+            if unders[index] == 0 then shape[names[index]] = false end
+        end
+
+        if of.word ~= nil then
+            for _, join in of.word.joins do
+                local key = join.key
+                if key ~= nil and (join.nest or 0) == 0 then shape[key] = false end
+            end
+        end
+
         for index = 1, reach do
-            if keys[index] ~= nil and inside[index] == 0 and bits[index] ~= 0 then
-                skipped = true
-                break
-            end
+            local key = keys[index]
+            if key ~= nil and inside[index] == 0 then shape[key] = false end
         end
 
-        if not skipped then
-            local shape: { [string]: boolean } = {}
-
-            for index = 1, deep do
-                if unders[index] == 0 then shape[names[index]] = false end
-            end
-
-            if of.word ~= nil then
-                for _, join in of.word.joins do
-                    local key = join.key
-                    if key ~= nil and (join.nest or 0) == 0 then shape[key] = false end
-                end
-            end
-
-            for index = 1, reach do
-                local key = keys[index]
-                if key ~= nil and inside[index] == 0 then shape[key] = false end
-            end
-
-            blank = shape
-        end
+        blank = shape
     end
 
     -- A record carries the names it declares and no others, at every depth it dissolved through.
@@ -199,12 +189,21 @@ function Block.group (
         local at = pos + region
         for index = 1, reach do
             local bit = bits[index]
-            if bit ~= 0 and slots[bit] == 0 then continue end
+            local key = keys[index]
+
+            if bit ~= 0 and slots[bit] == 0 then
+                if key ~= nil and blank ~= nil then
+                    local absent = inside[index]
+                    local off = if absent == 0 then into else held[absent]
+                    off[key] = nil
+                end
+
+                continue
+            end
 
             local one: any
             at, one = reads[index] (b, at, ctx)
 
-            local key = keys[index]
             if key == nil then
                 bare = one
                 continue

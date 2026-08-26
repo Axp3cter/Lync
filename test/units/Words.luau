@@ -98,15 +98,15 @@ return {
             { bits = 0, into = {} },
             { bits = 1, into = { 1 } },
             { bits = 8, into = { 1 } },
-            { bits = 9, into = { 1, 1 } },
+            { bits = 9, into = { 2 } },
             { bits = 16, into = { 2 } },
             { bits = 24, into = { 2, 1 } },
-            { bits = 25, into = { 2, 1, 1 } },
+            { bits = 25, into = { 4 } },
             { bits = 32, into = { 4 } },
             { bits = 40, into = { 4, 1 } },
             { bits = 48, into = { 4, 2 } },
             { bits = 56, into = { 4, 2, 1 } },
-            { bits = 63, into = { 4, 2, 1, 1 } },
+            { bits = 63, into = { 4, 4 } },
             { bits = 64, into = { 4, 4 } },
             { bits = 96, into = { 4, 4, 4 } },
         }
@@ -118,20 +118,19 @@ return {
     --[[
         What the cut costs, at every length up to three whole words. The windows follow with no
         gap and no overlap, take exactly the bytes the bits need, and leave at most seven over as
-        the align. Where any is left the run ends in a single byte, which the protocol does not
-        ask for and this planner gives anyway, taking a wider window only when the bits fill it.
+        the align. Every length rather than a chosen few, since a planner that has miscounted does
+        it at one width and agrees with itself at both of its neighbours.
     ]]
     Harness.case ("words.run", function ()
         for bits = 0, REACH do
             local plan = Words.plan (filling (bits))
 
-            local at, last = 0, 0
+            local at = 0
             for _, word in plan do
                 if word.at ~= at then
                     Expect.holds (false, `{bits} bits put a window at {word.at} and not {at}`)
                 end
                 at += word.bytes
-                last = word.bytes
             end
 
             local wanted = math.ceil (bits / 8)
@@ -141,9 +140,6 @@ return {
 
             local align = at * 8 - bits
             if align > 7 then Expect.holds (false, `{bits} bits left {align} align bits`) end
-            if align > 0 and last ~= 1 then
-                Expect.holds (false, `{bits} bits left {align} align bits in {last} bytes`)
-            end
         end
     end),
 
@@ -176,7 +172,7 @@ return {
     ]]
     Harness.case ("words.parts", function ()
         local plan = Words.plan ({ 3, 12, 20, 9 })
-        Expect.equal (sizes (plan), { 4, 1, 1 })
+        Expect.equal (sizes (plan), { 4, 2 })
 
         Expect.equal (plan[1].at, 0)
         Expect.equal (plan[1].parts, {
@@ -188,11 +184,8 @@ return {
         Expect.equal (plan[2].at, 4)
         Expect.equal (plan[2].parts, {
             { field = 3, offset = 0, width = 3, shift = 17 },
-            { field = 4, offset = 3, width = 5, shift = 0 },
+            { field = 4, offset = 3, width = 9, shift = 0 },
         })
-
-        Expect.equal (plan[3].at, 5)
-        Expect.equal (plan[3].parts, { { field = 4, offset = 0, width = 4, shift = 5 } })
     end),
 
     --[[
@@ -203,10 +196,8 @@ return {
     ]]
     Harness.case ("words.thrice", function ()
         local across = Words.plan ({ 15, 10 })
-        Expect.equal (sizes (across), { 2, 1, 1 })
-        Expect.equal (across[1].parts[2], { field = 2, offset = 15, width = 1, shift = 0 })
-        Expect.equal (across[2].parts[1], { field = 2, offset = 0, width = 8, shift = 1 })
-        Expect.equal (across[3].parts[1], { field = 2, offset = 0, width = 1, shift = 9 })
+        Expect.equal (sizes (across), { 4 })
+        Expect.equal (across[1].parts[2], { field = 2, offset = 15, width = 10, shift = 0 })
 
         local wider = Words.plan ({ 31, 18, 7 })
         Expect.equal (sizes (wider), { 4, 2, 1 })

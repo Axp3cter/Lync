@@ -55,7 +55,13 @@ function Words.plan (widths: { number }): { Word }
     local field, placed, at = 1, 0, 0
 
     while left > 0 do
-        local bytes = if left >= WIDE * BYTE then WIDE elseif left >= PAIR * BYTE then PAIR else ONE
+        --[[
+            The widest window the bytes still to come would fill, counted in whole bytes rather
+            than in bits. Counting bits takes a narrower window than the same bytes would hold, so
+            a field that fits one window is cut across two and neither half is the whole of it.
+        ]]
+        local whole = (left + BYTE - 1) // BYTE
+        local bytes = if whole >= WIDE then WIDE elseif whole >= PAIR then PAIR else ONE
         local room = bytes * BYTE
 
         local parts: { Part } = {}

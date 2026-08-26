@@ -502,4 +502,79 @@ return {
             Expect.holds (padded, `no bit of {form.of} reached the pad it left over`)
         end
     end),
+
+    --[[
+        A wide field's two refusals, told apart. Bits over its width are pad nobody wrote, and a
+        value under its width that names no point on its grid is a tag nobody could have meant.
+        Which of the two a frame is refused under says where the damage is, and a reader told the
+        wrong one goes looking in the wrong place.
+    ]]
+    Harness.case ("total.wide-past-its-grid", function ()
+        local of = Turns.built (Lync.int (0, 2 ^ 40))
+        local text = Turns.text (of, 12345)
+
+        local seen: { [string]: boolean } = {}
+        for at = 1, #text do
+            local byte = string.byte (text, at)
+            for bit = 0, 7 do
+                local moved = string.char (bit32.bxor (byte, bit32.lshift (1, bit)))
+                local hostile = `{string.sub (text, 1, at - 1)}{moved}{string.sub (text, at + 1)}`
+
+                local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
+                if not ok and type (caught) == "table" then seen[caught.code] = true end
+            end
+        end
+
+        Expect.holds (
+            seen[Catalog.TAG],
+            "no bit under a wide field's width was refused for naming no point on its grid"
+        )
+    end),
+
+    --[[
+        A packed run's element past the end of its own grid. The bits carrying one element hold
+        more patterns than the grid has points whenever its span stops short of them, so a frame
+        can name an element no encoder could have written, and the run refuses it where it reads
+        it rather than handing back a value its own writer would turn away.
+    ]]
+    Harness.case ("total.run-past-its-grid", function ()
+        local forms = {
+            {
+                of = "a run",
+                codec = Lync.array (Lync.int (0, 2), 3, 3),
+                value = { 1, 2, 1 } :: any,
+            },
+            { of = "an alphabet", codec = Lync.str.alphabet ("abc", 3, 3), value = "abc" :: any },
+
+            -- A grid off zero reads its elements back through itself, which is its own walk.
+            {
+                of = "a shifted run",
+                codec = Lync.array (Lync.int (1, 3), 3, 3),
+                value = { 1, 2, 3 } :: any,
+            },
+        }
+
+        for _, form in forms do
+            local of = Turns.built (form.codec)
+            local text = Turns.text (of, form.value)
+
+            local seen: { [string]: boolean } = {}
+            for at = 1, #text do
+                local byte = string.byte (text, at)
+                for bit = 0, 7 do
+                    local moved = string.char (bit32.bxor (byte, bit32.lshift (1, bit)))
+                    local hostile =
+                        `{string.sub (text, 1, at - 1)}{moved}{string.sub (text, at + 1)}`
+
+                    local ok, caught = pcall (of.read, Turns.held (hostile), 0, Turns.CTX)
+                    if not ok and type (caught) == "table" then seen[caught.code] = true end
+                end
+            end
+
+            Expect.holds (
+                seen[Catalog.TAG],
+                `no bit of {form.of} named an element off the grid its own width carries`
+            )
+        end
+    end),
 }

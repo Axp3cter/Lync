@@ -264,4 +264,23 @@ return {
             Expect.holds (wrote > 0, `a {form.of} map inside its bounds wrote nothing`)
         end
     end),
+
+    --[[
+        An element of a packed run that sits on no point of its grid, refused where it was written.
+        A run carries one grid across every element and asks it once each, so an element the grid
+        cannot answer is one the run has nowhere to put, and writing it would spell some other
+        element's value in its place.
+    ]]
+    Harness.case ("wire.run-element-off-its-grid", function ()
+        local of = built (Lync.array (Lync.int (0, 3), 1, 4))
+
+        Expect.holds (
+            of.write (SLAB, 0, { 1, 2, 3 }) > 0,
+            "a run of values on its grid wrote nothing"
+        )
+        -- Named, since a run writing a nothing raises where the nothing is read instead.
+        names (refused (of, { 1, 9 }, "a run element over its grid"), ROOT, "an element over")
+        names (refused (of, { -1, 2 }, "a run element under its grid"), ROOT, "an element under")
+        names (refused (of, { 1, 0 / 0 }, "a run element on no grid"), ROOT, "an element off")
+    end),
 }

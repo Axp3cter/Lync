@@ -24,6 +24,9 @@ const SENDER = "alice"
 const PLAIN = "plain"
 const LATEST = "latest"
 const WIDE = "wide"
+
+-- A set, since a section is composed rather than fired and is counted where it is composed.
+const ROSTER = "roster"
 const GUARDED = "guarded"
 
 -- The bound on what a narrow fire carries, and the two on what a wide one does.
@@ -64,6 +67,7 @@ local function defined (): any
         [LATEST] = Lync.packet (Lync.int (0, TOP)):newest (),
         [WIDE] = Lync.packet (Lync.str (SHORTEST, LONGEST)),
         [GUARDED] = Lync.packet (Lync.bool ():validate (function (): string? return REFUSED end)),
+        [ROSTER] = Lync.replicate (Lync.struct ({ score = Lync.int (0, TOP) })),
     }
 end
 
@@ -72,7 +76,12 @@ end
     because that is where a caller writes one.
 ]]
 local function listening (defs: any, side: string)
-    for _, of in defs do
+    for _, held in defs do
+        local of: any = held
+
+        -- A set is listened to by what it holds rather than by a fire, so it is left to itself.
+        if rawget (of, "onServer") == nil and of.onServer == nil then continue end
+
         if side == "server" then
             of:onServer (function () end)
             continue
@@ -214,5 +223,51 @@ return {
 
         Expect.equal (whole (of.server).drops, mine)
         Expect.equal (row (of.server, PLAIN).drops - passed, 0)
+    end),
+
+    --[[
+        What one definition's line says arrived, against what the machine says arrived. A line that
+        counted nothing leaves a reader unable to say which definition the traffic was, and one
+        that counted twice reads a share larger than the whole, which is the reading that convicts
+        it: a definition cannot have carried more of a frame than the frame itself carried.
+    ]]
+    Harness.case ("stats.received-per-definition", function ()
+        local of = opened ()
+
+        local mine = row (of.client, PLAIN).receivedBytes
+        local held = row (of.client, PLAIN).received
+        local all = whole (of.client).receivedBytes
+
+        fromServer (of, PLAIN, CARRIED)
+
+        local got = row (of.client, PLAIN).receivedBytes - mine
+        local frame = whole (of.client).receivedBytes - all
+
+        Expect.equal (row (of.client, PLAIN).received - held, 1)
+        Expect.holds (got > 0, "the line of the definition that arrived counted none of it")
+        Expect.holds (got <= frame, `a line counted {got} bytes of a frame carrying {frame}`)
+    end),
+
+    --[[
+        A set's section, counted where it is composed. A section is not a fire and takes the path
+        no packet does, so a namespace counting every fire correctly can still say nothing about
+        the traffic a replicated set is, which is the traffic a place has most of.
+    ]]
+    Harness.case ("stats.section-counted", function ()
+        local of = opened ()
+        local set = of.server.defs[ROSTER]
+
+        local mine = row (of.server, ROSTER).sentBytes
+        local all = whole (of.server).sentBytes
+
+        set:add (1, { score = CARRIED })
+        of.server.session:flush ()
+        of.wire:settle ()
+
+        local put = row (of.server, ROSTER).sentBytes - mine
+        local frame = whole (of.server).sentBytes - all
+
+        Expect.holds (put > 0, "a set composed a section its own line counted none of")
+        Expect.holds (put <= frame, `a line counted {put} bytes of a frame carrying {frame}`)
     end),
 }

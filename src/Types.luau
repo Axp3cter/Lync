@@ -22,7 +22,7 @@ export type Recipient = All | Except | Group | Player | { Player }
     What `define` takes, keyed by the names the definitions are reached under. Named rather than
     written inline so a caller assembling a namespace has something to annotate.
 ]]
-export type Definition = Packet<any> | Query<any, any> | Set<any>
+export type Definition = Packet<unknown> | Query<unknown, unknown> | Set<unknown>
 export type Definitions = { [string]: Definition }
 
 export type Connection = {

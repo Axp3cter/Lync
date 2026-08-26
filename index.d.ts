@@ -200,7 +200,7 @@ declare namespace Lync {
 
 interface LyncModule {
     /** Opens a namespace. The returned table is pure data, required by both machines. */
-    define<T extends Record<string, Lync.Packet<any> | Lync.Query<any, any> | Lync.Set<any, any>>>(
+    define<T extends Record<string, Lync.Packet<unknown> | Lync.Query<unknown, unknown> | Lync.Set<unknown, unknown>>>(
         this: void,
         name: string,
         defs: T,

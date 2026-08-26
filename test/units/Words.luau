@@ -59,18 +59,6 @@ local function sizes (plan: { Words.Word }): { number }
     return out
 end
 
--- Where each field's bits begin in the run, counted the way the stream counts.
-local function starts (widths: { number }): { number }
-    local out = table.create (#widths) :: { number }
-
-    local at = 0
-    for _, width in widths do
-        table.insert (out, at)
-        at += width
-    end
-    return out
-end
-
 local function drawn (rng: Rng.Rng): { number }
     local count = Rng.int (rng, 0, MOST)
     local out = table.create (count) :: { number }
@@ -225,14 +213,14 @@ return {
     end),
 
     --[[
-        Every run, against where the stream says its bits go. One equation carries it: a part's bit
-        position in the run is where its field begins plus how far up the field the part starts,
-        which is the layout as arithmetic rather than the windowing restated as itself.
-    ]]
+    Every run, against what a plan owes whichever way it laid its fields out. A field sits where the
+    windowing put it rather than where its declaration alone would, since one that fits a window
+    goes ahead of one that would be cut across it. What is left is what either laying owes: every
+    bit placed, every piece knowing how far up its field it starts and staying inside its window.
+]]
     Harness.property ("words.places", "leaves", function (rng: Rng.Rng)
         local widths = drawn (rng)
         local plan = Words.plan (widths)
-        local begins = starts (widths)
 
         local total = 0
         for _, width in widths do
@@ -266,7 +254,6 @@ return {
                 )
 
                 Expect.equal (part.shift, held[field] or 0)
-                Expect.equal (word.at * 8 + part.offset, begins[field] + part.shift)
 
                 held[field] = (held[field] or 0) + part.width
                 pieces[field] = (pieces[field] or 0) + 1

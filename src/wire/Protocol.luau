@@ -5,7 +5,7 @@
 local Protocol = {}
 
 -- What both machines have to agree on before either spends a byte on the other's schema.
-Protocol.VERSION = 11
+Protocol.VERSION = 12
 
 --[[
     The handshake lane's whole grammar: what each of the two messages weighs, where a verdict keeps

@@ -7,6 +7,7 @@
     "bugs": { "url": "https://github.com/Axp3cter/Lync/issues" },
     "repository": { "type": "git", "url": "git+https://github.com/Axp3cter/Lync.git" },
     "license": "MIT",
+    "private": true,
     "author": "Axp3cter",
     "main": "init.luau",
     "types": "index.d.ts",

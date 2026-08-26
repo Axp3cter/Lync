@@ -11,6 +11,14 @@ local Tools = require ("./Tools")
 
 local Build = {}
 
+-- Constants -----------------------------------------------------------
+
+-- What the tree's own manifest says and the assembled one must not, spelled as it is written.
+local PRIVATE = '"private": true,'
+
+-- What a line of it ends on, spelled rather than escaped so nothing on the way to here eats it.
+local LINES = string.char (10)
+
 -- Private -------------------------------------------------------------
 
 -- Empties a directory to a known state, creating it when it is absent.
@@ -143,10 +151,34 @@ function Build.dist (): Ruling.Ruling
     local converted = convert (Repo.SRC, Repo.DIST, Repo.DARKLUA_RELEASE)
     if not converted.ok then return { ok = false, note = `darklua failed on {Repo.SRC}` } end
 
-    for _, file in { Repo.WALLY, Repo.NPM, Repo.DTS, Repo.README, Repo.LICENSE } do
+    for _, file in { Repo.WALLY, Repo.DTS, Repo.README, Repo.LICENSE } do
         if not Repo.exists (file) then return { ok = false, note = `{file} is missing` } end
         fs.copy (file, `{Repo.DIST}/{file}`)
     end
+
+    --[[
+        The npm manifest written rather than copied, because the one in the tree says it is private
+        and this one may not be. What that buys is a publish run from the wrong directory being
+        refused by npm instead of shipping every file the tree holds, which is a mistake that has
+        already been made once and cannot be taken back.
+    ]]
+    local manifest = Repo.read (Repo.NPM)
+    if manifest == nil then return { ok = false, note = `{Repo.NPM} is missing` } end
+
+    local kept = {}
+    local dropped = 0
+
+    for _, line in string.split (manifest, LINES) do
+        if string.find (line, PRIVATE, 1, true) ~= nil then
+            dropped += 1
+            continue
+        end
+        table.insert (kept, line)
+    end
+
+    if dropped ~= 1 then return { ok = false, note = `{Repo.NPM} does not say {PRIVATE} once` } end
+
+    fs.writeFile (`{Repo.DIST}/{Repo.NPM}`, table.concat (kept, LINES))
     return { ok = true }
 end
 

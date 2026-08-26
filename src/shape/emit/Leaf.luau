@@ -451,6 +451,13 @@ function Leaf.slot (
 
         local one = refs[slot :: number]
         if one == nil then return after :: number, nil end
+
+        --[[
+            The sender fills this array, so what arrives in it is a claim rather than a promise.
+            Held to being an instance before the class is asked for, since asking a number for its
+            class raises where a refusal is what a reader is owed.
+        ]]
+        if typeof (one) ~= "Instance" then reject (Catalog.SIDECAR, at, typeof (one)) end
         if class ~= nil and not one:IsA (class) then reject (Catalog.SIDECAR, at, one.ClassName) end
 
         return after :: number, one

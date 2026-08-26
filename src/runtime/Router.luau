@@ -88,10 +88,12 @@ local function paired (side: Ir.Sidecar, refs: Transport.Sidecar?, taken: number
     if not side.bears then return taken end
 
     local at = taken + 1
-    local held = if refs == nil then nil else refs[at]
+    local held = if type (refs) == "table" then refs[at] else nil
 
     table.clear (side.refs)
-    if held ~= nil then table.move (held, 1, #held, 1, side.refs) end
+
+    -- A sender names this array, so anything that is not one leaves the block carrying none.
+    if type (held) == "table" then table.move (held, 1, #held, 1, side.refs) end
 
     return at
 end

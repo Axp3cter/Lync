@@ -185,12 +185,13 @@ end
 -- Whether a block belongs to the run already open, which is one definition aimed at one audience.
 local function joins (
     link: Link.Link,
+    holds: number,
     kind: number,
     def: any,
     to: Types.Recipient?,
     loose: boolean
 ): boolean
-    if link.holds == 0 then return true end
+    if holds == 0 then return true end
 
     return link.kind == kind and link.over == def and link.toward == to and link.lossy == loose
 end
@@ -208,7 +209,9 @@ local function replying (
     Tally.sent (self.counts, def.name, 0)
 
     -- The same climb the questions are held to, since these are written the same way back.
-    if not joins (link, ANSWERS, def, who, false) or asked <= link.last then shipped (self) end
+    if not joins (link, link.holds, ANSWERS, def, who, false) or asked <= link.last then
+        shipped (self)
+    end
 
     if link.holds == 0 then
         link.kind = ANSWERS
@@ -834,9 +837,17 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         return
     end
 
-    if not joins (link, FIRES, def, to, loose) then shipped (self) end
+    --[[
+        How many the run already holds, taken once. A run that will not have this one sealed and
+        stands at nothing again, so what it held is known here without the link being asked over.
+    ]]
+    local holds = link.holds
+    if not joins (link, holds, FIRES, def, to, loose) then
+        shipped (self)
+        holds = 0
+    end
 
-    if link.holds == 0 then
+    if holds == 0 then
         link.kind = FIRES
         link.over = def
         link.toward = to :: Player?
@@ -856,11 +867,11 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     FIRED (link.tallied :: Tally.Row)
 
     local wrote = def.built.write (link.pending, link.wrote, value)
-    local holds = link.holds + 1
-    link.wrote, link.holds = wrote, holds
+    local many = holds + 1
+    link.wrote, link.holds = wrote, many
 
     queued (self, link, def.name)
-    if holds == link.runs or wrote + link.widest > link.room then shipped (self) end
+    if many == link.runs or wrote + link.widest > link.room then shipped (self) end
 end
 
 -- One question asked, and the answer put where whoever asked it will be told.
@@ -878,7 +889,7 @@ function Session.ask (
     Tally.sent (self.counts, def.name, 0)
 
     -- A run's ids climb, so one that does not opens a block of its own rather than stepping back.
-    if not joins (link, ASKS, def, to, false) or id <= link.last then shipped (self) end
+    if not joins (link, link.holds, ASKS, def, to, false) or id <= link.last then shipped (self) end
 
     local opening = link.holds == 0
     if opening then

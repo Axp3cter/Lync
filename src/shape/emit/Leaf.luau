@@ -62,6 +62,9 @@ end
 -- One bit, which is what a flag takes and the width a whole byte of elements lands on exactly.
 const FLAG = 1
 
+-- The width over a byte that one call still carries whole, which spares the loop below it.
+const WIDE = PAIR * BYTE
+
 -- The slot a reference nobody made takes, which is none, since the array it indexes starts at one.
 const NOTHING = 0
 
@@ -214,6 +217,20 @@ local function packed (
     end
 
     --[[
+        The same where a call carries the whole of an element. One of those starts on the byte the
+        one before it ended on, so there is nothing to carry between two of them, and the low byte
+        goes down first either way.
+    ]]
+    if width == WIDE then
+        for index = 1, count do
+            buffer.writeu16 (b, at, indices[index])
+            at += PAIR
+        end
+
+        return at
+    end
+
+    --[[
         Flags, eight to a byte. The loop below carries part of an element into the next byte and
         looks for a boundary after every one, where single bits meet the boundary exactly and
         there is never anything to carry, so a byte is gathered and put down on its own.
@@ -280,6 +297,16 @@ local function unpacked (
         for index = 1, count do
             into[index] = buffer.readu8 (b, at)
             at += 1
+        end
+
+        return at, true
+    end
+
+    -- The same back, which leaves no bits over and so has no pad to hold to nothing.
+    if width == WIDE then
+        for index = 1, count do
+            into[index] = buffer.readu16 (b, at)
+            at += PAIR
         end
 
         return at, true

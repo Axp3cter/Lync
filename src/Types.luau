@@ -127,6 +127,30 @@ export type function Update (record, none)
     return fields
 end
 
+export type function Defined (definitions)
+    local result = types.newtable ()
+    local packet = { "fireServer", "fireClient", "onServer", "onClient" }
+    local query = { "request", "onServer", "onClient" }
+    local replicate = { "add", "update", "remove", "clear", "onAdded", "onChanged", "onRemoved" }
+
+    for key, property in definitions:properties () do
+        local definition = property.read or property.write
+        local names = if definition:readproperty (types.singleton ("fireServer")) ~= nil
+            then packet
+            elseif definition:readproperty (types.singleton ("request")) ~= nil then query
+            else replicate
+        local exposed = types.newtable ()
+
+        for _, name in names do
+            exposed:setproperty (types.singleton (name), definition:readproperty (types.singleton (name)))
+        end
+
+        result:setproperty (key, exposed)
+    end
+
+    return result
+end
+
 export type Packet<T> = {
     read unreliable: (self: Packet<T>) -> Packet<T>,
     read newest: (self: Packet<T>, hz: number?) -> Packet<T>,

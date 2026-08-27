@@ -720,6 +720,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             levels[part] = if leaves[cell].plain == true then spans[cell] else UNDER_ALL
         end
 
+        --[[
+            Whether no piece of the word is already an index. Nothing a caller hands one like that
+            is recognised and nothing off its bytes stands on its own, so both halves of the pair
+            below go straight through the grid and neither asks a question it knows the answer to.
+        ]]
+        local roundly = true
+        for part = 1, #slot do
+            if levels[part] == UNDER_ALL and takes[part] ~= nil then continue end
+
+            roundly = false
+            break
+        end
+
         local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
             for window = 1, windows do
                 local acc = 0
@@ -897,7 +910,60 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 end
             end
 
+            --[[
+                The same pair where no grid runs from nothing. Every piece goes down through its own
+                grid and comes back up through it, so neither half asks whether the one it holds is
+                an index already.
+            ]]
+            local function round (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local acc = 0
+
+                for part, key in puts do
+                    local one = value[key]
+                    local made = makes[part] (one)
+                    if made == nil then
+                        local index = owner[part]
+                        Word.refused (wheres[index], wanted[index], one)
+                    end
+
+                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
+                end
+
+                local at = pos + seat
+                if bytes == ONE then
+                    buffer.writeu8 (b, at, acc)
+                elseif bytes == PAIR then
+                    buffer.writeu16 (b, at, acc)
+                else
+                    buffer.writeu32 (b, at, acc)
+                end
+            end
+
+            local function graded (
+                b: buffer,
+                pos: number,
+                into: any,
+                _s: { number },
+                _h: { any }
+            ): any
+                local at = pos + seat
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part, key in puts do
+                    local raw = bit32.extract (acc, offset[part], span[part])
+                    if raw > tops[part] then past (part, raw) end
+
+                    into[key] = (takes[part] :: (number) -> any) (raw)
+                end
+
+                return nil
+            end
+
             if flatly then return alone, simply end
+            if roundly then return round, graded end
 
             return alone, lone
         end

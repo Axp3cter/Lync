@@ -249,6 +249,13 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
     ]]
     local wanted = of.watching
 
+    --[[
+        Whether this frame spoke for any slot at all. A delta arriving without a keyframe beside it
+        has spoken for none, and the table itself answers that once where every slot of every field
+        would otherwise ask it over.
+    ]]
+    local spoken = next (shadow) ~= nil
+
     for place = 1, chosen.count do
         local field = chosen.fields[place]
         local under = frame.under[place]
@@ -263,7 +270,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
         for index = 1, frame.covered[place] do
             local slot = under[index]
             local id = ids[slot]
-            if id == nil or shadow[slot] then continue end
+            if id == nil or (spoken and shadow[slot]) then continue end
 
             local before = column[slot]
             local value = values[index]

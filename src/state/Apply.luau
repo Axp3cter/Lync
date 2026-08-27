@@ -247,12 +247,20 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
             local before = column[slot]
             local value = values[index]
 
-            if wanted then snapped (of, store, id) end
-            put (slot, id, value)
-            if held ~= nil then held[slot] = marks[index] end
+            --[[
+                A value that arrived as what the field already held is no change to report, and
+                none to write: the column stands at it, and so does the row the writer keeps
+                beside it. What was sent is still recorded, since that is what a delta is read
+                against and it is owed whether the value moved or not.
+            ]]
+            if before ~= value then
+                if wanted then snapped (of, store, id) end
 
-            -- A value that arrived as what the field already held is no change to report.
-            if before ~= value then moved (of, id) end
+                put (slot, id, value)
+                moved (of, id)
+            end
+
+            if held ~= nil then held[slot] = marks[index] end
         end
     end
 end

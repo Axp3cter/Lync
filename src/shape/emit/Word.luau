@@ -733,6 +733,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             break
         end
 
+        --[[
+            Whether every piece fills the bits it is read out of. Nothing a window can spell is
+            then off the grid it belongs to, so the halves below that hold a reading to its top
+            are holding it to a bound the bytes cannot pass.
+        ]]
+        local wholly = true
+        for part = 1, #slot do
+            if whole[slot[part]] then continue end
+
+            wholly = false
+            break
+        end
+
         local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
             for window = 1, windows do
                 local acc = 0
@@ -877,6 +890,27 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
+        --[[
+            The same as the one above where no grid leaves a reading over its top either, so the
+            walk puts each piece down as the bytes spell it and asks after none of them.
+        ]]
+        local function swept (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    into[puts[part]] = bit32.extract (acc, offset[part], span[part])
+                end
+            end
+
+            return nil
+        end
+
         -- The one seat and the one call a word of a single window is read and written at.
         local seat, bytes = where[1], width[1]
 
@@ -896,6 +930,23 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 if raw > tops[part] then past (part, raw) end
 
                 into[key] = raw
+            end
+
+            return nil
+        end
+
+        --[[
+            The same again where no grid leaves a reading over its top, so the one call hands back
+            pieces that are each already the value they stand for.
+        ]]
+        local function sheer (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local acc = if bytes == ONE
+                then buffer.readu8 (b, pos + seat)
+                elseif bytes == PAIR then buffer.readu16 (b, pos + seat)
+                else buffer.readu32 (b, pos + seat)
+
+            for part, key in puts do
+                into[key] = bit32.extract (acc, offset[part], span[part])
             end
 
             return nil
@@ -1014,12 +1065,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 return nil
             end
 
+            if flatly and wholly then return alone, sheer end
             if flatly then return alone, simply end
             if roundly then return round, graded end
 
             return alone, lone
         end
 
+        if flatly and wholly then return flat, swept end
         if flatly then return flat, bared end
         if roundly then return scaled, gauged end
 

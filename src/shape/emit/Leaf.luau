@@ -62,6 +62,10 @@ end
 -- One bit, which is what a flag takes and the width a whole byte of elements lands on exactly.
 const FLAG = 1
 
+-- Two to a byte, which is the one width over a flag that meets the boundary without carrying.
+const NIBBLE = 4
+const NIBBLES = 2 ^ NIBBLE
+
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
 
@@ -256,6 +260,26 @@ local function packed (
         end
 
         buffer.writeu8 (b, at, byte)
+        return at + 1
+    end
+
+    --[[
+        Two elements to a byte, laid as the pair they are. Four bits meet the boundary exactly, so
+        nothing is carried between one byte and the next and the walk below has nothing to hold
+        between two of them either.
+    ]]
+    if width == NIBBLE then
+        local index = 1
+        while index < count do
+            buffer.writeu8 (b, at, indices[index] + indices[index + 1] * NIBBLES)
+
+            at += 1
+            index += PAIR
+        end
+
+        if index > count then return at end
+
+        buffer.writeu8 (b, at, indices[index])
         return at + 1
     end
 

@@ -87,6 +87,14 @@ const FAR_SIDE = 30000
 const TOPS = table.freeze ({ under = 254, whole = 255, over = 256 })
 
 --[[
+    The widest value at every width the run emitter groups elements by, and a length that is no
+    whole number of any of those groups. Each top is one under a power of two, so a run of them is
+    exactly that width, and the length leaves every grouping a remainder for the plain walk.
+]]
+const GROUPED = table.freeze ({ 1, 3, 7, 15, 31, 63, 255, 1023, 4095, 65535, 1048575, 16777215 })
+const GROUPS = 19
+
+--[[
     The two widths the tagged pair in `wire.max-bytes-together` is built from.
 
     Different on purpose, so neither field can stand in for the other: a value taking one wide
@@ -863,6 +871,30 @@ return {
 
             Expect.equal (#back, 32)
             for index = 1, 32 do
+                Expect.equal (back[index], held[index])
+            end
+        end
+    end),
+
+    --[[
+        A run at every width the emitter takes elements in groups at, each one long enough to
+        leave a remainder. A group laid whole and a remainder laid the plain way have to agree on
+        where the run ends as well as on what it holds, so the length is read back beside it.
+    ]]
+    Harness.case ("wire.grouped-widths", function ()
+        for _, top in GROUPED do
+            local of = Turns.built (Lync.array (Lync.int (0, top), 0, GROUPS))
+
+            local held = {}
+            for index = 1, GROUPS do
+                held[index] = (index * TIED.low) % (top + 1)
+            end
+
+            local bytes, size = Turns.wrote (of, held)
+            local back = Turns.read (of, bytes, size)
+
+            Expect.equal (#back, GROUPS)
+            for index = 1, GROUPS do
                 Expect.equal (back[index], held[index])
             end
         end

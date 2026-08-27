@@ -80,6 +80,9 @@ const TRIPLET = TRIO
 const DOZEN = SEXTET * PAIR
 const BROAD = TRIO * BYTE
 
+-- Twenty, which fills no three bytes and fills five of them two at a time.
+const SCORE = DOZEN + BYTE
+
 -- The two steps into a group of eight that no width of its own already names.
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
@@ -417,6 +420,23 @@ local function packed (
         end
     end
 
+    --[[
+        Two elements to five bytes, which is a word and a byte rather than a pair and one. Twenty
+        also sits over the pair the accumulator holds back, so the walk below would take a run of
+        them a byte at a time, and a pair of them is the one grouping that meets a boundary.
+    ]]
+    if width == SCORE then
+        while from + 1 <= count do
+            local high = indices[from + 1]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (high, SCORE)))
+            buffer.writeu8 (b, at + WORD, bit32.rshift (high, DOZEN))
+
+            at += WORD + 1
+            from += PAIR
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -654,6 +674,22 @@ local function unpacked (
 
             at += TRIO
             from += 1
+        end
+    end
+
+    -- The five bytes back as the two elements they carry, the second lying across the word.
+    if width == SCORE then
+        while from + 1 <= count do
+            local low = buffer.readu32 (b, at)
+
+            into[from] = bit32.extract (low, 0, SCORE)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (low, SCORE),
+                bit32.lshift (buffer.readu8 (b, at + WORD), DOZEN)
+            )
+
+            at += WORD + 1
+            from += PAIR
         end
     end
 

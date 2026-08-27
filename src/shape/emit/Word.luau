@@ -528,6 +528,16 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 end
             end
 
+            -- A byte off the end of its grid, said by whichever of the two reads below met it.
+            local function over (index: number, raw: number)
+                local tag = joins[index].tag
+                Log.reject (Catalog.TAG, {
+                    pathId = tag.pathId,
+                    expectId = tag.expectId,
+                    got = raw,
+                })
+            end
+
             local function settled (
                 b: buffer,
                 pos: number,
@@ -540,17 +550,35 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     local raw = buffer.readu8 (b, at)
                     at += 1
 
-                    if raw > bounds[index] then
-                        local tag = joins[index].tag
-                        Log.reject (Catalog.TAG, {
-                            pathId = tag.pathId,
-                            expectId = tag.expectId,
-                            got = raw,
-                        })
-                    end
+                    if raw > bounds[index] then over (index, raw) end
 
                     local reading = readings[index]
                     into[key] = if reading == nil then raw else reading (raw)
+                end
+
+                return nil
+            end
+
+            --[[
+                The same where every grid runs from nothing in whole steps. A grid like that hands
+                back the byte it was given and its reading is held as nothing at all, so a word of
+                them has none to ask after and the bytes go onto the record as they come off.
+            ]]
+            local function stated (
+                b: buffer,
+                pos: number,
+                into: any,
+                _s: { number },
+                _h: { any }
+            ): any
+                local at = pos
+                for index, key in keys do
+                    local raw = buffer.readu8 (b, at)
+                    at += 1
+
+                    if raw > bounds[index] then over (index, raw) end
+
+                    into[key] = raw
                 end
 
                 return nil
@@ -603,7 +631,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
 
             if bluntly then return filled, blunt end
-            if plainly then return ready, settled end
+            if plainly then return ready, stated end
 
             return steady, settled
         end

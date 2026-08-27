@@ -353,17 +353,41 @@ local function packed (
 
     local acc, used = 0, 0
 
+    --[[
+        Whether the accumulator can hold a pair's worth back before laying it. Fifteen bits left
+        under a pair and a width over sixteen would want more than the thirty two it carries, so a
+        run that wide is let go a byte at a time as it always was. Nothing bounds the pair against
+        the run's end, a pair being owed whenever sixteen bits are waiting to go down.
+    ]]
+    local paired = width <= WIDE
+
     for index = from, count do
         acc = bit32.bor (acc, bit32.lshift (indices[index], used))
         used += width
 
-        while used >= BYTE do
-            -- Handed whole, the write itself keeping the low byte and dropping what carries.
-            buffer.writeu8 (b, at, acc)
-            at += 1
-            acc = bit32.rshift (acc, BYTE)
-            used -= BYTE
+        if paired then
+            while used >= WIDE do
+                -- Handed whole, the write keeping the low bytes and dropping what carries.
+                buffer.writeu16 (b, at, acc)
+                at += PAIR
+                acc = bit32.rshift (acc, WIDE)
+                used -= WIDE
+            end
+        else
+            while used >= BYTE do
+                buffer.writeu8 (b, at, acc)
+                at += 1
+                acc = bit32.rshift (acc, BYTE)
+                used -= BYTE
+            end
         end
+    end
+
+    while used >= BYTE do
+        buffer.writeu8 (b, at, acc)
+        at += 1
+        acc = bit32.rshift (acc, BYTE)
+        used -= BYTE
     end
 
     if used == 0 then return at end
@@ -514,7 +538,7 @@ local function unpacked (
         end
     end
 
-    local left = Bytes.whole ((count - from + 1) * width)
+    local left = if from > count then 0 else Bytes.whole ((count - from + 1) * width)
     local paired = width <= WIDE
 
     for index = from, count do

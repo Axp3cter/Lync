@@ -10,6 +10,14 @@ local Coalesce = {}
 -- State ---------------------------------------------------------------
 
 --[[
+    The two word operations a mask asks for, under their own names. `Wide` picks its carrier once
+    when it loads, so both are the same function for the life of the place and naming them here
+    is a lookup every field of every write would otherwise make.
+]]
+const MEETS = Wide.meets
+const UNION = Wide.union
+
+--[[
     Every field's own bit, worked out once for the whole run of the library. A field's bit is a
     constant of its place and nothing else, and the one home for what that constant is answers a
     call and a lookup deep, which is a price a mask pays on every field of every write.
@@ -46,14 +54,14 @@ function Coalesce.merge (was: Kind?, took: Kind): Kind?
 end
 
 function Coalesce.touched (mask: Wide.Word, field: number): Wide.Word
-    return Wide.union (mask, BITS[field])
+    return UNION (mask, BITS[field])
 end
 
 -- Tested bit by bit and never read as a number, because the widest field is the sign.
 function Coalesce.migrates (mask: Wide.Word, key: number?): boolean
     if key == nil then return false end
 
-    return Wide.meets (mask, BITS[key])
+    return MEETS (mask, BITS[key])
 end
 
 return table.freeze (Coalesce)

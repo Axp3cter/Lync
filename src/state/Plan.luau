@@ -12,6 +12,17 @@ local Plan = {}
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    The word operations under their own names. `Wide` picks its carrier once when it loads, so
+    every one of these is the same function for the life of the place, and naming it here is a
+    lookup a walk over the fields of every slot would otherwise make for each of them.
+]]
+const ANY = Wide.any
+const LOWEST = Wide.lowest
+const MEETS = Wide.meets
+const UNION = Wide.union
+const WITHOUT = Wide.without
+
 const KEYFRAME = Protocol.SECTION_KEYFRAME
 const DELTA = Protocol.SECTION_DELTA
 const REMOVAL = Protocol.SECTION_REMOVAL
@@ -103,10 +114,10 @@ local function fitted (of: Plan, whole: Wide.Word): number
     local selected = 0
 
     local mask = whole
-    while Wide.any (mask) do
-        spent += gained[Wide.lowest (mask)]
+    while ANY (mask) do
+        spent += gained[LOWEST (mask)]
         selected += 1
-        mask = Wide.without (mask)
+        mask = WITHOUT (mask)
     end
 
     return of.room // (BYTE * (WIDEST + spent) + selected)
@@ -149,14 +160,14 @@ local function moving (of: Plan, from: number, count: number)
         local place = from + index - 1
 
         frame.slots[index] = of.moved[place]
-        union = Wide.union (union, masks[place])
+        union = UNION (union, masks[place])
     end
 
     local reached = 0
     local mask = union
-    while Wide.any (mask) do
-        local field = Wide.lowest (mask)
-        mask = Wide.without (mask)
+    while ANY (mask) do
+        local field = LOWEST (mask)
+        mask = WITHOUT (mask)
 
         reached += 1
         chosen.fields[reached] = field
@@ -166,7 +177,7 @@ local function moving (of: Plan, from: number, count: number)
         local covered = 0
 
         for index = 1, count do
-            local on = if Wide.meets (masks[from + index - 1], one) then CARRIES else EMPTY
+            local on = if MEETS (masks[from + index - 1], one) then CARRIES else EMPTY
             present[index] = on
             covered += on
         end
@@ -385,7 +396,7 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
         if op == "update" then
             shifts += 1
             of.moved[shifts] = store.slotOf[id]
-            whole = Wide.union (whole, dirt.masks[id])
+            whole = UNION (whole, dirt.masks[id])
             continue
         end
 

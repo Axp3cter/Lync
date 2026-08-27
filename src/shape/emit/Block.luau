@@ -341,6 +341,35 @@ function Block.group (
     end
 
     --[[
+        The same pair for a group holding one part outside its word, which is a record carrying a
+        string, an array or a map beside the names its bytes fit. One part is no run to climb, so
+        what climbs it is a loop set up to go round once.
+    ]]
+    if reach == 1 then
+        local key = keys[1]
+        local put, take = writes[1], reads[1]
+
+        local function singly (b: buffer, pos: number, value: any): number
+            only (allow, of.tag, value)
+            pack (b, pos, value, slots, held)
+
+            return put (b, pos + region, value[key])
+        end
+
+        local function singled (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+            local into: any = table.clone (blank)
+            unpack (b, pos, into, slots, held)
+
+            local at, one = take (b, pos + region, ctx)
+            into[key] = one
+
+            return at, into
+        end
+
+        return singly, singled
+    end
+
+    --[[
         The same pair for a group with nothing outside its word, which is every record whose names
         all fit the bytes the word plans. There is no part left to walk, so what walks them is a
         climb over none, taken once a record for as long as the schema runs.

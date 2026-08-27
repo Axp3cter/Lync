@@ -490,10 +490,34 @@ local function unpacked (
         else there. Two at a time where the width leaves room under the thirty two an accumulator
         carries, which halves what the walk asks of the buffer.
     ]]
-    local left = Bytes.whole (count * width)
+    local from = 1
+
+    --[[
+        Four elements out of the three bytes that carry them, which is where six bits land evenly.
+        A group is a whole number of bytes either way, so what the walk below picks up after one is
+        a run starting on a boundary with nothing carried into it.
+    ]]
+    if width == SEXTET then
+        while from + QUARTERS - 1 <= count do
+            local group = bit32.bor (
+                buffer.readu16 (b, at),
+                bit32.lshift (buffer.readu8 (b, at + PAIR), WIDE)
+            )
+
+            into[from] = bit32.extract (group, 0, SEXTET)
+            into[from + 1] = bit32.extract (group, SEXTET, SEXTET)
+            into[from + PAIR] = bit32.extract (group, SEXTET * PAIR, SEXTET)
+            into[from + TRIO] = bit32.extract (group, SEXTET * TRIO, SEXTET)
+
+            at += TRIO
+            from += QUARTERS
+        end
+    end
+
+    local left = Bytes.whole ((count - from + 1) * width)
     local paired = width <= WIDE
 
-    for index = 1, count do
+    for index = from, count do
         while used < width do
             if paired and left >= PAIR then
                 acc = bit32.bor (acc, bit32.lshift (buffer.readu16 (b, at), used))

@@ -66,6 +66,10 @@ const FLAG = 1
 const NIBBLE = 4
 const NIBBLES = 2 ^ NIBBLE
 
+-- Four to a byte, the narrowest width over a flag that meets the boundary the same way.
+const QUARTER = 2
+const QUARTERS = BYTE // QUARTER
+
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
 
@@ -257,6 +261,43 @@ local function packed (
         local byte = 0
         for spot = count, index, -1 do
             byte = byte * 2 + indices[spot]
+        end
+
+        buffer.writeu8 (b, at, byte)
+        return at + 1
+    end
+
+    --[[
+        Four elements to a byte, laid as the four they are. Two bits meet the boundary as evenly as
+        four do, so the walk below carries nothing between two bytes and the only thing left over
+        is however many of the four the count stopped short of.
+    ]]
+    if width == QUARTER then
+        local index = 1
+        while index + QUARTERS - 1 <= count do
+            buffer.writeu8 (
+                b,
+                at,
+                bit32.bor (
+                    indices[index],
+                    bit32.lshift (indices[index + 1], QUARTER),
+                    bit32.lshift (indices[index + 2], QUARTER * PAIR),
+                    bit32.lshift (indices[index + TRIO], QUARTER * TRIO)
+                )
+            )
+
+            at += 1
+            index += QUARTERS
+        end
+
+        if index > count then return at end
+
+        local byte, spot = 0, 0
+        while index <= count do
+            byte = bit32.bor (byte, bit32.lshift (indices[index], spot))
+
+            spot += QUARTER
+            index += 1
         end
 
         buffer.writeu8 (b, at, byte)

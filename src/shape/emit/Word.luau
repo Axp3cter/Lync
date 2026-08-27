@@ -533,7 +533,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 _h: { any }
             ): any
                 local at = pos
-                for index = 1, reach do
+                for index, key in keys do
                     local raw = buffer.readu8 (b, at)
                     at += 1
 
@@ -547,7 +547,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     end
 
                     local reading = readings[index]
-                    into[keys[index]] = if reading == nil then raw else reading (raw)
+                    into[key] = if reading == nil then raw else reading (raw)
                 end
 
                 return nil
@@ -562,8 +562,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 _h: { any }
             ): any
                 local at = pos
-                for index = 1, reach do
-                    into[keys[index]] = buffer.readu8 (b, at)
+                for _, key in keys do
+                    into[key] = buffer.readu8 (b, at)
                     at += 1
                 end
 

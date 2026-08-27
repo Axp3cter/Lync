@@ -157,6 +157,13 @@ local function budgeted (self: Self, asked: number?, now: number): number
     return math.max (math.floor (RATE * since), FLOOR)
 end
 
+--[[
+    The sealing, named before it is written. Nothing outside this module reaches for either of
+    these, so both are held under their own names rather than on the table: a fire reaches the
+    sealing three times and the queueing once, and a name costs nothing to reach.
+]]
+local shipped: (self: Self) -> ()
+
 -- Whether anything in this namespace is catching up, which is what the shared plan reserves for.
 local function owing (self: Self): boolean
     for _, id in self.order do
@@ -191,9 +198,7 @@ local function replying (
     Tally.sent (self.counts, def.name, 0)
 
     -- The same climb the questions are held to, since these are written the same way back.
-    if not joins (link, ANSWERS, def, who, false) or asked <= link.last then
-        Session.shipped (self)
-    end
+    if not joins (link, ANSWERS, def, who, false) or asked <= link.last then shipped (self) end
 
     if link.holds == 0 then
         link.kind = ANSWERS
@@ -230,9 +235,7 @@ local function replying (
     link.wrote = ends
     link.holds += 1
 
-    if link.holds == link.runs or link.wrote + link.widest > link.room then
-        Session.shipped (self)
-    end
+    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
 end
 
 -- What each client is behind on, cut against what the shared stream already spent on it.
@@ -575,7 +578,7 @@ end
 -- Everything buffered since the last flush, out.
 function Session.flush (self: Self, budget: number?)
     -- Whatever a caller fired and this flush is for, before anything is decided about the rest.
-    Session.shipped (self)
+    shipped (self)
 
     local now = reading ()
     local target = budgeted (self, budget, now)
@@ -642,7 +645,7 @@ function Session.close (self: Self)
 end
 
 -- Something queued, said by whoever queued it.
-function Session.queued (self: Self, said: string)
+local function queued (self: Self, said: string)
     if not self.link.sending then return end
     arming (self, said)
 end
@@ -715,7 +718,7 @@ local function alone (
     table.clear (side.refs)
     table.clear (side.slotOf)
 
-    Session.queued (self, def.name)
+    queued (self, def.name)
     posted (self, def, to, loose, block)
 end
 
@@ -724,7 +727,7 @@ end
     is how many payloads came after it and that is not known until no more are coming. Anything
     else wanting the lane calls this first, so a block never overtakes the fires that opened it.
 ]]
-function Session.shipped (self: Self)
+function shipped (self: Self)
     local link = self.link
     if link.holds == 0 then return end
 
@@ -793,7 +796,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         local one = self.latest[def.id]
         one.held, one.value, one.to = true, value, to
 
-        Session.queued (self, def.name)
+        queued (self, def.name)
         Tally.sent (self.counts, def.name, 0)
         return
     end
@@ -808,7 +811,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     ]]
     if def.timestamped then
         Tally.sent (self.counts, def.name, 0)
-        Session.shipped (self)
+        shipped (self)
 
         local scratch = link.scratch
         local fields = self.fields
@@ -820,7 +823,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         return
     end
 
-    if not joins (link, FIRES, def, to, loose) then Session.shipped (self) end
+    if not joins (link, FIRES, def, to, loose) then shipped (self) end
 
     if link.holds == 0 then
         link.kind = FIRES
@@ -844,10 +847,8 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     link.wrote = def.built.write (link.pending, link.wrote, value)
     link.holds += 1
 
-    Session.queued (self, def.name)
-    if link.holds == link.runs or link.wrote + link.widest > link.room then
-        Session.shipped (self)
-    end
+    queued (self, def.name)
+    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
 end
 
 -- One question asked, and the answer put where whoever asked it will be told.
@@ -865,7 +866,7 @@ function Session.ask (
     Tally.sent (self.counts, def.name, 0)
 
     -- A run's ids climb, so one that does not opens a block of its own rather than stepping back.
-    if not joins (link, ASKS, def, to, false) or id <= link.last then Session.shipped (self) end
+    if not joins (link, ASKS, def, to, false) or id <= link.last then shipped (self) end
 
     local opening = link.holds == 0
     if opening then
@@ -895,11 +896,9 @@ function Session.ask (
     link.wrote = def.request.write (link.pending, link.wrote, value)
     link.holds += 1
 
-    Session.queued (self, def.name)
+    queued (self, def.name)
 
-    if link.holds == link.runs or link.wrote + link.widest > link.room then
-        Session.shipped (self)
-    end
+    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
 end
 
 -- What this namespace has done, as the reading two of which subtract into a rate.

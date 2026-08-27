@@ -19,6 +19,12 @@ const AT_X = Protocol.QUAT_X
 const AT_W = Protocol.QUAT_W
 const BOUND = Protocol.QUAT_BOUND
 
+-- The four components a mapping may name, in the order the search tries them.
+const QUAT_X = Protocol.QUAT_X
+const QUAT_W = Protocol.QUAT_W
+const QUAT_Y = Protocol.QUAT_Y
+const QUAT_Z = Protocol.QUAT_Z
+
 --[[
     Precisions in degrees a case lays a grid at, coarsest first. Ninety is the coarsest a
     declaration can ask for and is where every rounding is widest, which is where a mapping that is
@@ -100,6 +106,39 @@ end
 local function between (left: Turn, right: Turn): number
     local dot = left.x * right.x + left.y * right.y + left.z * right.z + left.w * right.w
     return math.deg (2 * math.acos (math.min (1, math.abs (dot))))
+end
+
+--[[
+    The three a tag sends, taken off a turn the way the mapping takes them: the named component is
+    made positive by turning the whole quaternion around where it is not, since a quaternion and
+    its negative are the same rotation, and the other three ride in the order they are named.
+]]
+local function travelling (tag: number, of: Turn): (number, number, number)
+    local x, y, z, w = of.x, of.y, of.z, of.w
+
+    local named = w
+    if tag == QUAT_X then
+        named = x
+    elseif tag == QUAT_Y then
+        named = y
+    elseif tag == QUAT_Z then
+        named = z
+    end
+
+    if named < 0 then
+        x, y, z, w = -x, -y, -z, -w
+    end
+
+    if tag == QUAT_X then return y, z, w end
+    if tag == QUAT_Y then return x, z, w end
+    if tag == QUAT_Z then return x, y, w end
+    return x, y, z
+end
+
+-- One spelling rebuilt, as the record every comparison here takes.
+local function spelled (mapping: any, tag: number, a: number, b: number, c: number): Turn
+    local x, y, z, w = mapping.whole (tag, a, b, c)
+    return { x = x, y = y, z = z, w = w }
 end
 
 -- How far apart two directions are in degrees.
@@ -324,6 +363,52 @@ return {
 
         local x, y, z, w = mapping.whole (tag, a :: number, b :: number, c :: number)
         Expect.near (between ({ x = x, y = y, z = z, w = w }, still), 0, HAIR)
+    end),
+
+    --[[
+        The answer taken against the plainest spelling each of the four allows: rounded straight
+        onto the grid with no searching at all. Whatever was settled on has to be at least as near
+        as every one of those, since each was in front of the search when it chose.
+    ]]
+    Harness.property ("rotation.smallest-nearest-of-every-tag", "leaves", function (rng: Rng.Rng)
+        local degrees = Rng.pick (rng, DEGREES)
+        local grid = Grid.chord (degrees)
+        local mapping = Rotation.smallest (grid)
+        local of = drawn (rng)
+
+        local tag, a, b, c = mapping.parts (matrix (of))
+        Expect.holds (a ~= nil, "a drawn rotation carried no indices")
+
+        local took = between (spelled (mapping, tag, a :: number, b :: number, c :: number), of)
+
+        --[[
+            Each tag's own plainest spelling: the three that travel rounded straight onto the grid
+            with no search at all. Whatever the search settled on has to be at least as near as
+            every one of these, since each is a spelling it had in front of it.
+        ]]
+        for other = QUAT_X, QUAT_W do
+            local pa, pb, pc = travelling (other, of)
+
+            local ia, ib, ic = grid.toIndex (pa), grid.toIndex (pb), grid.toIndex (pc)
+            if ia == nil or ib == nil or ic == nil then continue end
+
+            --[[
+                Three that together overrun the unit quaternion spell no rotation at all, so the
+                search never had this one in front of it and it is no measure of what it took.
+            ]]
+            local ka = grid.fromIndex (ia :: number) :: number
+            local kb = grid.fromIndex (ib :: number) :: number
+            local kc = grid.fromIndex (ic :: number) :: number
+            if ka * ka + kb * kb + kc * kc > 1 then continue end
+
+            local plain = spelled (mapping, other, ia :: number, ib :: number, ic :: number)
+            local off = between (plain, of)
+
+            Expect.holds (
+                took <= off + HAIR,
+                `the search took a spelling {took} off where tag {other} allows {off}`
+            )
+        end
     end),
 
     --[[

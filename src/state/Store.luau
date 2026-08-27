@@ -33,6 +33,9 @@ export type Writer = (slot: number, id: number, value: any) -> ()
 export type Store = {
     read def: Compile.Set,
     read fields: number,
+
+    -- The record every row starts as, which is one answer the definition gives for the whole run.
+    read template: Record,
     read columns: { { [number]: any } },
     read rows: { [number]: Record },
     read ids: { [number]: number },
@@ -92,6 +95,7 @@ function Store.new (of: Compile.Set): Store
     local store: Store = {
         def = of,
         fields = fields,
+        template = of.template,
         columns = columns,
         rows = {},
         ids = {},
@@ -141,7 +145,7 @@ function Store.bind (of: Store, id: number): number
 
     of.ids[slot] = id
     of.slotOf[id] = slot
-    of.rows[id] = table.clone (of.def.template)
+    of.rows[id] = table.clone (of.template)
     of.count += 1
 
     return slot
@@ -149,13 +153,14 @@ end
 
 -- A record at the slot the other machine chose for it.
 function Store.hold (of: Store, id: number, slot: number)
-    if of.ids[slot] == nil then
+    local ids = of.ids
+    if ids[slot] == nil then
         of.count += 1
     end
 
-    of.ids[slot] = id
+    ids[slot] = id
     of.slotOf[id] = slot
-    of.rows[id] = table.clone (of.def.template)
+    of.rows[id] = table.clone (of.template)
 
     if slot > of.high then of.high = slot end
 end

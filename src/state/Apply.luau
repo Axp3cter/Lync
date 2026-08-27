@@ -348,8 +348,12 @@ end
 
 -- The frame over: what its keyframes owe, paid, and what they spoke for, forgotten.
 function Apply.settle (of: Heard)
+    local holds = of.holds
+    local where = of.where
+    local told = of.marks
+
     for index = 1, of.owed do
-        of.holds[index][of.where[index]] = of.marks[index]
+        holds[index][where[index]] = told[index]
     end
     of.owed = 0
 

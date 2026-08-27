@@ -48,7 +48,14 @@ export type Carrier = {
         dirty records come as a list, and folding a list one call apiece spends a crossing and a
         word on every step of it where the whole list costs one of either.
     ]]
-    read gathered: (of: Word, words: { Word }, count: number) -> Word,
+    read gathered: (of: Word, words: { Word }, from: number, count: number) -> Word,
+
+    --[[
+        The same list the other way, answering what all of them hold rather than any. A caller
+        asking both of a list asks it twice, each pass being the cheaper half of a walk it would
+        otherwise be doing a call at a time.
+    ]]
+    read shared: (of: Word, words: { Word }, from: number, count: number) -> Word,
     read both: (a: Word, b: Word) -> Word,
     read meets: (a: Word, b: Word) -> boolean,
     read any: (of: Word) -> boolean,
@@ -81,10 +88,19 @@ local held: Carrier = {
 
     union = function (a: Word, b: Word): Word return carried.bor (a, b) end,
 
-    gathered = function (of: Word, words: { Word }, count: number): Word
+    gathered = function (of: Word, words: { Word }, from: number, count: number): Word
         local held = of
-        for index = 1, count do
+        for index = from, from + count - 1 do
             held = carried.bor (held, words[index])
+        end
+
+        return held
+    end,
+
+    shared = function (of: Word, words: { Word }, from: number, count: number): Word
+        local held = of
+        for index = from, from + count - 1 do
+            held = carried.band (held, words[index])
         end
 
         return held
@@ -139,12 +155,23 @@ local halved: Carrier = {
         return { bit32.bor (a[1], b[1]), bit32.bor (a[2], b[2]) }
     end,
 
-    gathered = function (of: Word, words: { Word }, count: number): Word
+    gathered = function (of: Word, words: { Word }, from: number, count: number): Word
         local high, low = of[1], of[2]
-        for index = 1, count do
+        for index = from, from + count - 1 do
             local one = words[index]
             high = bit32.bor (high, one[1])
             low = bit32.bor (low, one[2])
+        end
+
+        return { high, low }
+    end,
+
+    shared = function (of: Word, words: { Word }, from: number, count: number): Word
+        local high, low = of[1], of[2]
+        for index = from, from + count - 1 do
+            local one = words[index]
+            high = bit32.band (high, one[1])
+            low = bit32.band (low, one[2])
         end
 
         return { high, low }
@@ -268,6 +295,7 @@ Wide.NONE = chosen.NONE
 -- Everything a word is asked, in the vocabulary the library asks it in rather than the platform's.
 Wide.union = chosen.union
 Wide.gathered = chosen.gathered
+Wide.shared = chosen.shared
 Wide.both = chosen.both
 Wide.meets = chosen.meets
 Wide.any = chosen.any

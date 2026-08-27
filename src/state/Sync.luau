@@ -633,7 +633,7 @@ function Sync.update (of: Sync, id: number, fields: any)
     -- A call that moved nothing but newest fields owes the reliable lane nothing at all.
     if moved == 0 then return end
 
-    mask = GATHERED (mask, listed, moved)
+    mask = GATHERED (mask, listed, 1, moved)
     dirt.masks[id] = mask
     marked (part, id, "update")
 

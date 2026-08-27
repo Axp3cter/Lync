@@ -36,6 +36,24 @@ const NOTABLE = table.freeze ({
     "0123456789ABCDEF",
 })
 
+--[[
+    Four places spread over the whole width, low half and high half alike, no two of them together.
+    A list built from these is one no fold over it can drop a member of without saying so.
+]]
+const APART = table.freeze ({
+    "0000000000000001",
+    "0000000000020000",
+    "0000000100000000",
+    "8000000000000000",
+})
+
+-- What the four come to, what a word without any of them is, and what the last three come to.
+const WHOLE = "FFFFFFFFFFFFFFFF"
+const APIECE = "8000000100020001"
+const OTHERWISE = "7FFFFFFEFFFDFFFE"
+const TRAILING = "8000000100020000"
+const REMAINING = "7FFFFFFEFFFDFFFF"
+
 -- The two constants the hash is folded with, spelled here because this file multiplies them.
 const BASIS = "CBF29CE484222325"
 const PRIME = "00000100000001B3"
@@ -192,9 +210,39 @@ return {
 
                     same (from, of.text (of.union (a, b)), folded (one, two, bit32.bor))
                     same (from, of.text (of.bxor (a, b)), folded (one, two, bit32.bxor))
+                    same (from, of.text (of.both (a, b)), folded (one, two, bit32.band))
                     same (from, of.meets (a, b), folded (one, two, bit32.band) ~= NONE)
                 end
             end
+        end)
+    end),
+
+    --[[
+        The two folds a list is taken by. Each word below holds a place no other does and lacks a
+        place every other has, so dropping any one of them out of either answer shows, which is
+        what a list fold has to be held to and a pair fold cannot say.
+    ]]
+    Harness.case ("wide.folds-a-list", function ()
+        each (function (of: Wide.Carrier, from: string)
+            local singles = table.create (#APART) :: { Wide.Word }
+            local holed = table.create (#APART) :: { Wide.Word }
+
+            for at, one in APART do
+                singles[at] = of.parse (one)
+                holed[at] = of.bxor (of.parse (WHOLE), singles[at])
+            end
+
+            local held = #APART
+
+            same (from, of.text (of.gathered (of.NONE, singles, 1, held)), APIECE)
+            same (from, of.text (of.shared (holed[1], holed, 1, held)), OTHERWISE)
+
+            --[[
+                A fold starting past the front of the list, which is what a section speaking for
+                part of a partition asks for: the words before its own belong to another section.
+            ]]
+            same (from, of.text (of.gathered (of.NONE, singles, 2, held - 1)), TRAILING)
+            same (from, of.text (of.shared (holed[2], holed, 2, held - 1)), REMAINING)
         end)
     end),
 

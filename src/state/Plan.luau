@@ -20,9 +20,8 @@ local Plan = {}
 const ANY = Wide.any
 const LOWEST = Wide.lowest
 const MEETS = Wide.meets
-const UNION = Wide.union
 const GATHERED = Wide.gathered
-const BOTH = Wide.both
+const SHARED = Wide.shared
 const WITHOUT = Wide.without
 
 const KEYFRAME = Protocol.SECTION_KEYFRAME
@@ -162,16 +161,11 @@ local function moving (of: Plan, from: number, count: number)
         question the walk below would otherwise put to each record in turn, and it is the same
         question however many fields the union comes to.
     ]]
-    local union = NONE
-    local every = if count == 0 then NONE else masks[from]
+    local union = GATHERED (NONE, masks, from, count)
+    local every = if count == 0 then NONE else SHARED (masks[from], masks, from, count)
 
     for index = 1, count do
-        local place = from + index - 1
-        local mask = masks[place]
-
-        frame.slots[index] = of.moved[place]
-        union = UNION (union, mask)
-        every = BOTH (every, mask)
+        frame.slots[index] = of.moved[from + index - 1]
     end
 
     local reached = 0
@@ -456,7 +450,7 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
         out. The same words go by twice otherwise, once to be counted into the whole and once to
         be put in order, and only the second of those has to happen a record at a time.
     ]]
-    local whole = GATHERED (NONE, masks, shifts)
+    local whole = GATHERED (NONE, masks, 1, shifts)
 
     counts[MAKING], counts[MOVING] = builds, shifts
     of.cuts[MOVING] = fitted (of, whole)

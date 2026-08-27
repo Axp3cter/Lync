@@ -30,6 +30,12 @@ const REACH = 5
 
 -- A step that is not one, which is what makes a grid's points other than the numbers handed to it.
 const STEPPED = 0.5
+
+--[[
+    A pattern the bits of a stepped grid can spell and the grid has no point for. Ten points want
+    four bits and four bits spell fifteen, so the five over the top are readings nobody wrote.
+]]
+const PAST = 0x0F
 const HELD = table.freeze ({ 1, 3, 5 })
 
 -- What a reader is handed about the moment, which a column reads nothing of.
@@ -103,6 +109,22 @@ return {
     Harness.case ("column.refuses-a-value-off-its-grid", function ()
         local b, read = laid ()
         buffer.writeu8 (b, 0, 0x3F)
+
+        Expect.equal (refused (read, b), Catalog.TAG)
+    end),
+
+    --[[
+        The same for a grid whose points are other than the numbers it hands back. A reading off a
+        grid like that is turned back through it a step at a time, and the walk that does the
+        turning is a different one from the walk above, so it has to be held to the grid itself.
+    ]]
+    Harness.case ("column.refuses-a-reading-off-a-stepped-grid", function ()
+        local tag, paths, expected = tagged ()
+        local write, read = Column.grid (tag, paths, expected, Grid.of (0, REACH, STEPPED))
+
+        local b = buffer.create (ROOM)
+        write (b, 0, { 0, 1, 2 } :: any, {}, #HELD)
+        buffer.writeu8 (b, 0, PAST)
 
         Expect.equal (refused (read, b), Catalog.TAG)
     end),

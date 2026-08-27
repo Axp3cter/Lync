@@ -246,7 +246,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 local one = value[keys[index] :: string]
                 local made = one
 
-                if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > bounds[index] then
+                if type (one) ~= "number" or bit32.bor (one, 0) ~= one or one > bounds[index] then
                     made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
                 end
@@ -511,7 +511,11 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     local one = value[keys[index]]
                     local made = one
 
-                    if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > bounds[index] then
+                    if
+                        type (one) ~= "number"
+                        or bit32.bor (one, 0) ~= one
+                        or one > bounds[index]
+                    then
                         made = writes[index] (one)
                         if made == nil then Word.refused (wheres[index], wanted[index], one) end
                     end
@@ -688,7 +692,11 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     local one = value[puts[part]]
                     local made = one
 
-                    if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > levels[part] then
+                    if
+                        type (one) ~= "number"
+                        or bit32.bor (one, 0) ~= one
+                        or one > levels[part]
+                    then
                         made = makes[part] (one)
                         if made == nil then
                             local index = owner[part]

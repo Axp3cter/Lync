@@ -44,6 +44,15 @@ const WHOLE = table.freeze ({})
 const CLEARED =
     setmetatable ({}, table.freeze ({ __tostring = function (): string return "Lync.none" end }))
 
+--[[
+    What a set reaches for once a record it changes, under their own names. Each is the same
+    function for the life of the place, so a stream marking a thousand records reaches a name a
+    thousand times rather than another module's table.
+]]
+const MERGED = Coalesce.merge
+const TOUCHED = Coalesce.touched
+const MIGRATES = Coalesce.migrates
+
 -- Types ---------------------------------------------------------------
 
 -- What each of a set's three tellings hands a listener, named so the lists that hold them fit.
@@ -129,7 +138,7 @@ end
 -- A record marked as owing whatever it now owes, which is what the net of a flush is taken over.
 local function marked (part: Partition, id: number, took: Coalesce.Kind)
     local dirt = part.dirt
-    dirt.ops[id] = Coalesce.merge (dirt.ops[id], took)
+    dirt.ops[id] = MERGED (dirt.ops[id], took)
 end
 
 -- A record taken out of a partition, and what that leaves the wire owing.
@@ -137,7 +146,7 @@ local function released (part: Partition, id: number, slot: number)
     local dirt = part.dirt
 
     dirt.masks[id] = nil
-    dirt.ops[id] = Coalesce.merge (dirt.ops[id], "remove")
+    dirt.ops[id] = MERGED (dirt.ops[id], "remove")
 
     if dirt.ops[id] == nil then
         Store.spare (part.store, slot)
@@ -587,7 +596,7 @@ function Sync.update (of: Sync, id: number, fields: any)
             delta, which is the one place it never goes.
         ]]
         if not streams or lane.place[field] == nil then
-            mask = Coalesce.touched (mask, field)
+            mask = TOUCHED (mask, field)
             moved = true
         end
     end
@@ -598,7 +607,7 @@ function Sync.update (of: Sync, id: number, fields: any)
     dirt.masks[id] = mask
     marked (part, id, "update")
 
-    if Coalesce.migrates (mask, def.keyIndex) then migrated (of, part, id, slot) end
+    if MIGRATES (mask, def.keyIndex) then migrated (of, part, id, slot) end
 end
 
 -- A record taken away, which is a slot the wire still has to be told about.

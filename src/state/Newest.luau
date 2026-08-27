@@ -344,8 +344,10 @@ function Newest.section (
     ]]
     local slots = of.runs[first]
     local gens = store.gens :: { [number]: number }
+    local standing = of.gens
+
     for index = 1, count do
-        of.gens[index] = gens[slots[index]]
+        standing[index] = gens[slots[index]]
     end
 
     held = WROTE (b, held, slots, of.steps, count)
@@ -452,14 +454,24 @@ function Newest.apply (
     local gens = store.gens :: { [number]: number }
     local ids = store.ids
 
+    --[[
+        The column this section speaks for and the three runs it arrived as, taken once. A section
+        is one field over many slots, so the field was settled before the walk and so was every run
+        the reading gathered into.
+    ]]
+    local column = store.columns[field]
+    local slots = of.slots
+    local standing = of.gens
+    local values = of.values
+
     for index = 1, count do
-        local slot = of.slots[index]
+        local slot = slots[index]
         local id = ids[slot]
-        if id == nil or gens[slot] ~= of.gens[index] then continue end
+        if id == nil or gens[slot] ~= standing[index] then continue end
 
         -- A value the record already holds is not a change and is not written.
-        local value = of.values[index]
-        if store.columns[field][slot] == value then continue end
+        local value = values[index]
+        if column[slot] == value then continue end
 
         Apply.snapped (heard, store, id)
         Store.write (store, slot, id, field, value)

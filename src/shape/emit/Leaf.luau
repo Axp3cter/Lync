@@ -165,8 +165,8 @@ local function packed (
         local index = 1
         while index + BYTE - 1 <= count do
             local byte = 0
-            for step = BYTE - 1, 0, -1 do
-                byte = byte * 2 + indices[index + step]
+            for spot = index + BYTE - 1, index, -1 do
+                byte = byte * 2 + indices[spot]
             end
 
             buffer.writeu8 (b, at, byte)
@@ -177,8 +177,8 @@ local function packed (
         if index > count then return at end
 
         local byte = 0
-        for step = count - index, 0, -1 do
-            byte = byte * 2 + indices[index + step]
+        for spot = count, index, -1 do
+            byte = byte * 2 + indices[spot]
         end
 
         buffer.writeu8 (b, at, byte)
@@ -234,8 +234,8 @@ local function unpacked (
             local byte = buffer.readu8 (b, at)
             at += 1
 
-            for step = 0, BYTE - 1 do
-                into[index + step] = byte % 2
+            for spot = index, index + BYTE - 1 do
+                into[spot] = byte % 2
                 byte //= 2
             end
 
@@ -245,8 +245,8 @@ local function unpacked (
         if index > count then return at, true end
 
         local byte = buffer.readu8 (b, at)
-        for step = 0, count - index do
-            into[index + step] = byte % 2
+        for spot = index, count do
+            into[spot] = byte % 2
             byte //= 2
         end
 

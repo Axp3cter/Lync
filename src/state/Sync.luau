@@ -554,7 +554,7 @@ function Sync.update (of: Sync, id: number, fields: any)
         end
 
         -- The one value that means a field has none, which is a table nothing else can be.
-        if value == Sync.NONE and not optional[field] then
+        if value == CLEARED and not optional[field] then
             Log.error (`{def.name}.{name} is not optional and cannot be cleared`, {
                 definition = def.name,
             })
@@ -563,7 +563,7 @@ function Sync.update (of: Sync, id: number, fields: any)
         local was = columns[field][slot]
 
         -- A field that may only climb, held to it at the call that would have lowered it.
-        if climbs and climbing[field] and was ~= nil and value ~= Sync.NONE and value < was then
+        if climbs and climbing[field] and was ~= nil and value ~= CLEARED and value < was then
             Log.error (
                 `{def.name}.{name} only climbs, and {value} is under {was}`,
                 { definition = def.name }
@@ -575,7 +575,7 @@ function Sync.update (of: Sync, id: number, fields: any)
             nothing is sent, which is what makes a settled stream cost nothing: a place writing
             every record every frame from a source that stopped moving is the ordinary idle set.
         ]]
-        local now = if value == Sync.NONE then nil else value
+        local now = if value == CLEARED then nil else value
         if alike (was, now) then continue end
 
         writers[field] (slot, id, now)

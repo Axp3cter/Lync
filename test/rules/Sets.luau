@@ -68,13 +68,23 @@ const REFUSED = table.freeze ({
 const WALKED = 3
 
 --[[
-    Two sets rather than one. Every check but the walk leaves a record behind, and a walk over a set
-    the others had been adding to would be a walk whose answer grew every time a check was added
-    above it.
+    A record whose climbing field may also be cleared, which `RECORD` has no room for: its climbing
+    field is required, and the two markers only meet where one field carries both.
+]]
+const CLIMBS = Lync.struct ({
+    held = Lync.bool (),
+    mark = Lync.optional (Lync.int (0, 100)):monotonic (),
+})
+
+--[[
+    A walked set apart from the rest. Every check but the walk leaves a record behind, and a walk
+    over a set the others had been adding to would be a walk whose answer grew every time a check
+    was added above it. The third holds the one field pairing climbing with being clearable.
 ]]
 const DEFINITIONS = {
     roster = Lync.replicate (RECORD),
     walked = Lync.replicate (RECORD),
+    climbing = Lync.replicate (CLIMBS),
 }
 
 -- Private -------------------------------------------------------------
@@ -171,6 +181,22 @@ return {
                 function () DEFINITIONS.roster:update (IDS.unknown, { nothere = 1 } :: any) end,
                 "has no field named"
             )
+        end)
+    end),
+
+    --[[
+        The clearing sentinel on a field that only climbs. Clearing says the value is gone rather
+        than that it fell, so the check holding such a field to what it already reached has to let
+        the sentinel past instead of comparing it against the number underneath it.
+    ]]
+    Harness.case ("set.none-on-a-field-that-only-climbs", function ()
+        settled (function ()
+            local climbing = DEFINITIONS.climbing
+            climbing:add (IDS.required, { held = true, mark = CLIMB })
+            climbing:update (IDS.required, { mark = HIGHER } :: any)
+            climbing:update (IDS.required, { mark = Lync.none } :: any)
+
+            Expect.equal ((climbing:get (IDS.required) :: any).mark, nil)
         end)
     end),
 

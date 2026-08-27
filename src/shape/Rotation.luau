@@ -360,10 +360,18 @@ function Rotation.smallest (of: Grid.Grid): Smallest
                 local ka = if stepA == 0 then ka0 else ka1
                 local sumA = ka * ka
 
+                -- The first gap squared, which the four triples under this one all share.
+                local da = ka - pa
+                local gapA = da * da
+
                 for stepB = 0, 1 do
                     local tryB = if stepB == 0 then b0 else b1
                     local kb = if stepB == 0 then kb0 else kb1
                     local sumB = sumA + kb * kb
+
+                    -- The first two gaps, which the two triples under this one both share.
+                    local db = kb - pb
+                    local gapB = gapA + db * db
 
                     for stepC = 0, 1 do
                         local tryC = if stepC == 0 then c0 else c1
@@ -382,8 +390,8 @@ function Rotation.smallest (of: Grid.Grid): Smallest
                             the root adds cannot be less than nothing, so a triple already further
                             than the best is further whatever the root comes to.
                         ]]
-                        local da, db, dc = ka - pa, kb - pb, kc - pc
-                        local part = da * da + db * db + dc * dc
+                        local dc = kc - pc
+                        local part = gapB + dc * dc
                         if part >= best * TIGHTER then continue end
 
                         local kd = math.sqrt (math.max (0, 1 - over))

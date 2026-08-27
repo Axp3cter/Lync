@@ -62,16 +62,6 @@ local function shadowed (of: Heard, store: Store.Store): { [number]: boolean }
     return made
 end
 
--- A baseline a keyframe stated, kept until every section of the frame has been read.
-local function owes (of: Heard, held: { [number]: number }, slot: number, mark: number)
-    local at = of.owed + 1
-
-    of.owed = at
-    of.holds[at] = held
-    of.where[at] = slot
-    of.marks[at] = mark
-end
-
 -- Whether the record as it stood before this frame is worth keeping at all.
 local function kept (of: Heard, id: number): boolean return of.watching and of.olds[id] == nil end
 
@@ -203,6 +193,16 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
         end
     end
 
+    --[[
+        A baseline a keyframe states is put off until every section of the frame has been read,
+        since a later one may speak for the same slot. One list takes them all however many fields
+        the keyframe names, which is what makes the three arrays the same for every record.
+    ]]
+    local owed = of.owed
+    local holds = of.holds
+    local where = of.where
+    local told = of.marks
+
     for field = 1, layout.def.fieldCount do
         local values = frame.values[field]
         local marks = frame.at[field]
@@ -213,11 +213,18 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
 
         for index = 1, frame.count do
             local slot = slots[index]
-
             put (slot, ids[index], values[index])
-            if held ~= nil then owes (of, held, slot, marks[index]) end
+
+            if held == nil then continue end
+
+            owed += 1
+            holds[owed] = held
+            where[owed] = slot
+            told[owed] = marks[index]
         end
     end
+
+    of.owed = owed
 end
 
 --[[

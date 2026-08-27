@@ -89,6 +89,13 @@ function Column.grid (
     ]]
     local plain = of.plain == true
 
+    --[[
+        Whether every pattern the width spells is a point the grid has, so nothing off the bytes is
+        over its top. A grid that is its own index as well leaves a run with no reading to work out
+        and none to turn away, which is a copy and not a walk.
+    ]]
+    local whole = of.whole == true
+
     local function write (
         b: buffer,
         pos: number,
@@ -123,11 +130,24 @@ function Column.grid (
         end
 
         if plain then
+            if whole then
+                table.move (at, 1, count, 1, into)
+                return after
+            end
+
             for place = 1, count do
                 local one = at[place]
                 if one > span then reject (Catalog.TAG, tag, one) end
 
                 into[place] = one
+            end
+
+            return after
+        end
+
+        if whole then
+            for place = 1, count do
+                into[place] = fromIndex (at[place])
             end
 
             return after

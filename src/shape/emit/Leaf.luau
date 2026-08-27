@@ -378,6 +378,39 @@ local function unpacked (
     end
 
     --[[
+        The same four back out of the byte that carries them. However many of the four the count
+        stopped short of, whatever is left above them is the pad, and it has to be nothing.
+    ]]
+    if width == QUARTER then
+        local index = 1
+        while index + QUARTERS - 1 <= count do
+            local byte = buffer.readu8 (b, at)
+
+            into[index] = bit32.extract (byte, 0, QUARTER)
+            into[index + 1] = bit32.extract (byte, QUARTER, QUARTER)
+            into[index + PAIR] = bit32.extract (byte, QUARTER * PAIR, QUARTER)
+            into[index + TRIO] = bit32.extract (byte, QUARTER * TRIO, QUARTER)
+
+            at += 1
+            index += QUARTERS
+        end
+
+        if index > count then return at, true end
+
+        local byte = buffer.readu8 (b, at)
+        local spot = 0
+
+        while index <= count do
+            into[index] = bit32.extract (byte, spot, QUARTER)
+
+            spot += QUARTER
+            index += 1
+        end
+
+        return at + 1, bit32.rshift (byte, spot) == 0
+    end
+
+    --[[
         The same pair back out of the byte that carries them. Two nibbles fill it exactly, so an
         even count leaves no pad and an odd one leaves the high half, which has to be nothing.
     ]]

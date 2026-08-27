@@ -178,13 +178,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
-        Whether every field of this word is its own whole reading and sits on the record itself.
-        Where that holds of one field it holds of all of them, so the two arrays saying so answer
-        the same both times, and a word that asks them once asks them a field fewer than it has.
+        Whether every field of this word is its own whole reading, sits on the record itself, and
+        carries a name of its own. The one without a name is an optional standing alone, which the
+        walk for everything else already reaches the same way, so neither half below asks after a
+        name it is holding.
     ]]
     local simple = true
     for index = 1, reach do
-        if pulls[index] ~= nil or pushes[index] ~= nil or inside[index] ~= 0 then
+        if
+            pulls[index] ~= nil
+            or pushes[index] ~= nil
+            or inside[index] ~= 0
+            or keys[index] == nil
+        then
             simple = false
             break
         end
@@ -216,8 +222,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     local function pack (b: buffer, pos: number, value: any, slots: { number }, held: { any })
         if simple then
             for index = 1, reach do
-                local key = keys[index]
-                local one = if key == nil then value else value[key]
+                local one = value[keys[index] :: string]
                 local at = starts[index]
                 local made = writes[index] (one)
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
@@ -328,14 +333,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             for index = 1, reach do
                 local reading = readings[index]
                 local raw = slots[starts[index]]
-                local one: any = if reading == nil then raw else reading (raw)
-
-                local key = keys[index]
-                if key == nil then
-                    bare = one
-                else
-                    into[key] = one
-                end
+                into[keys[index] :: string] = if reading == nil then raw else reading (raw)
             end
 
             return bare

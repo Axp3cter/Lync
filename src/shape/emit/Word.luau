@@ -781,6 +781,51 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
+        --[[
+            The same write where the word is one window wide, which is every record the bytes of a
+            single call can hold. The pieces are then the whole of the run rather than a stretch of
+            it, so the walk hands each name over as it goes and the seat is settled once.
+        ]]
+        if windows == 1 then
+            local seat, bytes = where[1], width[1]
+
+            local function alone (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local acc = 0
+
+                for part, key in puts do
+                    local one = value[key]
+                    local made = one
+
+                    if
+                        type (one) ~= "number"
+                        or bit32.bor (one, 0) ~= one
+                        or one > levels[part]
+                    then
+                        made = makes[part] (one)
+                        if made == nil then
+                            local index = owner[part]
+                            Word.refused (wheres[index], wanted[index], one)
+                        end
+                    end
+
+                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
+                end
+
+                local at = pos + seat
+                if bytes == ONE then
+                    buffer.writeu8 (b, at, acc)
+                elseif bytes == PAIR then
+                    buffer.writeu16 (b, at, acc)
+                else
+                    buffer.writeu32 (b, at, acc)
+                end
+            end
+
+            if flatly then return alone, bared end
+
+            return alone, level
+        end
+
         if flatly then return flat, bared end
 
         return flat, level

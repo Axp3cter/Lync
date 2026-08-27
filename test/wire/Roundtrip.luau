@@ -55,6 +55,12 @@ const NIBBLE_ONTO = 11
 -- A top wide enough for a byte to carry it and short of filling one, so a reading is held to it.
 const SHORT_TOP = 200
 
+--[[
+    Tops whose widths do not divide a byte between them, and enough of them together to run past
+    the four bytes a window plans at once, so one field is left cut across two of them.
+]]
+const CROWDED = table.freeze ({ 4, 100, 8, 200, 2, 60, 17, 120, 4, 250, 11, 40 })
+
 -- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
@@ -512,6 +518,30 @@ return {
         local bytes, size = Turns.wrote (of, was)
 
         Expect.equal (Turns.read (of, bytes, size), { a = 0, b = 0, c = 0, d = ONTO, e = ONTO })
+    end),
+
+    --[[
+        The same where the fields together run past the four bytes a window plans at once, so one
+        of them is cut and the record goes down through a run of indices held aside.
+    ]]
+    Harness.case ("wire.a-cut-record-rounds-onto-its-grid", function ()
+        local fields = {}
+        local was = {}
+        local want = {}
+
+        for at, top in CROWDED do
+            local name = string.char (string.byte ("a") + at - 1)
+            fields[name] = Lync.int (0, top)
+
+            -- Only a grid reaching `ONTO` can be handed a reading between two of its points.
+            was[name] = if top >= ONTO then BETWEEN else 0
+            want[name] = if top >= ONTO then ONTO else 0
+        end
+
+        local of = Turns.built (Lync.struct (fields))
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (Turns.read (of, bytes, size), want)
     end),
 
     --[[

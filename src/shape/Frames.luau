@@ -51,20 +51,50 @@ local function run (widths: { number }): (Write, Read, number)
         bytes += window.bytes
     end
 
+    --[[
+        The plan as arrays rather than as records. A header is laid down and taken up on every
+        block, and walking the plan itself reaches a field of a window and four of a part every
+        time, where all of them are settled once the run is planned.
+    ]]
+    local width = table.create (windows, 0)
+    local where = table.create (windows, 0)
+    local opens = table.create (windows, 0)
+    local last = table.create (windows, 0)
+
+    local owner: { number } = {}
+    local offset: { number } = {}
+    local span: { number } = {}
+    local shift: { number } = {}
+
+    for index, window in plan do
+        width[index] = window.bytes
+        where[index] = window.at
+        opens[index] = #owner + 1
+
+        for _, part in window.parts do
+            table.insert (owner, part.field)
+            table.insert (offset, part.offset)
+            table.insert (span, part.width)
+            table.insert (shift, part.shift)
+        end
+
+        last[index] = #owner
+    end
+
     local function write (b: buffer, pos: number, of: { number })
         for index = 1, windows do
-            local window = plan[index]
             local acc = 0
 
-            for _, part in window.parts do
-                local piece = bit32.extract (of[part.field], part.shift, part.width)
-                acc = bit32.bor (acc, bit32.lshift (piece, part.offset))
+            for part = opens[index], last[index] do
+                local piece = bit32.extract (of[owner[part]], shift[part], span[part])
+                acc = bit32.bor (acc, bit32.lshift (piece, offset[part]))
             end
 
-            local at = pos + window.at
-            if window.bytes == ONE then
+            local at = pos + where[index]
+            local held = width[index]
+            if held == ONE then
                 buffer.writeu8 (b, at, acc)
-            elseif window.bytes == PAIR then
+            elseif held == PAIR then
                 buffer.writeu16 (b, at, acc)
             else
                 buffer.writeu32 (b, at, acc)
@@ -82,17 +112,17 @@ local function run (widths: { number }): (Write, Read, number)
         end
 
         for index = 1, windows do
-            local window = plan[index]
-            local at = pos + window.at
-            local acc = if window.bytes == ONE
+            local at = pos + where[index]
+            local bytes = width[index]
+            local acc = if bytes == ONE
                 then buffer.readu8 (b, at)
-                elseif window.bytes == PAIR then buffer.readu16 (b, at)
+                elseif bytes == PAIR then buffer.readu16 (b, at)
                 else buffer.readu32 (b, at)
 
-            for _, part in window.parts do
-                local piece = bit32.extract (acc, part.offset, part.width)
-                local field = part.field
-                into[field] = bit32.bor (into[field], bit32.lshift (piece, part.shift))
+            for part = opens[index], last[index] do
+                local piece = bit32.extract (acc, offset[part], span[part])
+                local field = owner[part]
+                into[field] = bit32.bor (into[field], bit32.lshift (piece, shift[part]))
             end
         end
     end

@@ -552,6 +552,24 @@ return {
     end),
 
     --[[
+        A run of a grid filling the bits it is read at without running from nothing. No reading of
+        such a run is off the grid, and every one of them still has to be put back on it, which is
+        neither of the two things a run of a plain grid does.
+    ]]
+    Harness.case ("wire.a-run-of-a-turned-grid-carries-both-ways", function ()
+        local of = Turns.built (Lync.array (Lync.int (SUNK, RISEN), 0, TURNED))
+
+        local was = {}
+        for at = 1, TURNED do
+            was[at] = SUNK + (at - 1) % (RISEN - SUNK + 1)
+        end
+
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (Turns.read (of, bytes, size), was)
+    end),
+
+    --[[
         A record wider than one window where some grids run from nothing and some do not, and every
         one of them fills the bits it is read at. Nothing off such a word is over the top of its own
         grid, so the walk back holds none of them to one and only a round trip says it walked.

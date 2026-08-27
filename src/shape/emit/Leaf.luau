@@ -730,6 +730,13 @@ function Leaf.run (
     ]]
     local plain = elem.plain == true
 
+    --[[
+        Whether the width spells nothing the grid has no point for. A run of those has none to turn
+        away on the way back, and one that is its own index besides has nothing at all to do to the
+        numbers between the bytes and the list they come out as.
+    ]]
+    local whole = elem.whole == true
+
     local scratch: { number } = {}
 
     local function write (b: buffer, pos: number, value: any): number
@@ -772,10 +779,23 @@ function Leaf.run (
         end
 
         if plain then
+            if whole then
+                table.move (scratch, 1, count, 1, out)
+                return after, out
+            end
+
             for place = 1, count do
                 local one = scratch[place]
                 if one > reach then reject (Catalog.TAG, at, one) end
                 out[place] = one
+            end
+
+            return after, out
+        end
+
+        if whole then
+            for place = 1, count do
+                out[place] = fromIndex (scratch[place])
             end
 
             return after, out

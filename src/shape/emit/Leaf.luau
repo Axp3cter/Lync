@@ -470,8 +470,10 @@ local function unpacked (
         while index < count do
             local byte = buffer.readu8 (b, at)
 
-            into[index] = bit32.band (byte, NIBBLES - 1)
-            into[index + 1] = bit32.rshift (byte, NIBBLE)
+            local low = byte % NIBBLES
+
+            into[index] = low
+            into[index + 1] = (byte - low) / NIBBLES
 
             at += 1
             index += PAIR
@@ -480,7 +482,7 @@ local function unpacked (
         if index > count then return at, true end
 
         local byte = buffer.readu8 (b, at)
-        into[index] = bit32.band (byte, NIBBLES - 1)
+        into[index] = byte % NIBBLES
 
         return at + 1, byte < NIBBLES
     end

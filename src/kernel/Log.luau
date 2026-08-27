@@ -96,9 +96,13 @@ local function eaching (
     values: { any },
     ...: any
 )
-    while at[1] < count do
-        at[1] += 1
-        call (values[at[1]], ...)
+    local index = at[1]
+    while index < count do
+        index += 1
+
+        -- Put where the catch reads it before the call, since a call that raises never comes back.
+        at[1] = index
+        call (values[index], ...)
     end
 end
 

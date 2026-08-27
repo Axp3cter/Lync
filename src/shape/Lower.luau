@@ -295,6 +295,7 @@ local function shaped (
     local single = Joins.grid (of)
     if single ~= nil then return Ir.wide (tag, single) end
 
+    if kind == "empty" then return Ir.none (tag) end
     if kind == "f32" then return Ir.float (tag, false) end
     if kind == "f64" then return Ir.float (tag, true) end
     if kind == "vlq" then return Ir.varint (tag, false) end

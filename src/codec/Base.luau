@@ -23,7 +23,8 @@ const NO_CHECKS = table.freeze ({} :: { Validate })
 -- Types ---------------------------------------------------------------
 
 export type Kind =
-    "bool"
+    "empty"
+    | "bool"
     | "int"
     | "quant"
     | "angle"

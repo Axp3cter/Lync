@@ -58,6 +58,7 @@ const SURFACE = table.freeze ({
         kind = "function",
         codecs = true,
         names = table.freeze ({
+            "empty",
             "bool",
             "int",
             "quant",
@@ -134,11 +135,11 @@ const CARRIERS = table.freeze ({
 })
 
 -- What the two counts above have to come to.
-const NAMES = 38
-const FORMS = 37
+const NAMES = 39
+const FORMS = 38
 
 -- Codec constructors among the names, which is what the forms are counted from.
-const CONSTRUCTORS = 24
+const CONSTRUCTORS = 25
 
 const DEPTH = Generate.DEEP
 

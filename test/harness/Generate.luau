@@ -80,9 +80,11 @@ const ALL =
 --[[
     The constructors no case here builds, each for its own reason. `unknown` is the one whose
     reason is the kind itself: a drawn schema is what every value here is drawn from, and that one
-    declares no shape to draw. What it carries is walked by a corpus in the wire suite instead.
+    declares no shape to draw. `empty` is the same the other way: no value to draw at all, and
+    nothing that may hold one so as to be drawn inside it.
 ]]
 const UNGENERATED = table.freeze ({
+    "empty",
     "inst",
     "unknown",
     "str.alphanum",

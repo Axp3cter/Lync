@@ -118,6 +118,17 @@ export type Wide = {
     read grid: Grid.Grid,
 }
 
+--[[
+    A payload of nothing, which is the whole of a call whose happening is what it says. It has no
+    bytes and no bits, so it is fixed at none of them and there is nothing for a reader to hold.
+]]
+export type None = {
+    read op: "none",
+    read fixed: boolean,
+    read maxBytes: number,
+    read tag: Tag,
+}
+
 export type Float = {
     read op: "f32" | "f64",
     read fixed: boolean,
@@ -257,7 +268,8 @@ export type Xform = {
     nil at whatever rate a frame arrives.
 ]]
 export type Shape =
-    Word
+    None
+    | Word
     | Wide
     | Float
     | Varint
@@ -342,6 +354,11 @@ function Ir.varint (tag: Tag, signed: boolean): Varint
         maxBytes = Protocol.VARINT_GROUPS,
         tag = tag,
     })
+end
+
+-- Nothing, as the shape of it, which spends no bytes and answers none.
+function Ir.none (tag: Tag): None
+    return table.freeze ({ op = "none" :: "none", fixed = true, maxBytes = 0, tag = tag })
 end
 
 -- A string or a buffer, as its count and then its bytes.

@@ -44,6 +44,15 @@ end
 ]]
 function Legality.codec (kind: string, at: string, of: Types.Codec<any>)
     if not Base.made (of) then Log.refuse (`{kind} takes a codec for {at}, not a {typeof (of)}`) end
+
+    --[[
+        Nothing is a whole payload and never a part of one. A slot carrying no value is a slot the
+        caller did not have to declare, and what reads it back would be handed nothing to put on a
+        record that has a name waiting for it.
+    ]]
+    if Base.cell (of).kind == "empty" then
+        Log.refuse (`{kind} takes no empty for {at}, which carries nothing to be a part of`)
+    end
 end
 
 --[[

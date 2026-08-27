@@ -617,6 +617,21 @@ function Leaf.wide (
     return write, read
 end
 
+--[[
+    Nothing, both ways. There is no value to hold to a domain and no bytes to walk, so the offset
+    goes back untouched and a reader is handed the nothing that was sent rather than a stand-in
+    for it, which is what makes the fact of the call the whole of what arrived.
+]]
+function Leaf.none (): (Ir.Write, Ir.Read)
+    local function write (_b: buffer, pos: number, _value: any): number return pos end
+
+    local function read (_b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
+        return pos, nil
+    end
+
+    return write, read
+end
+
 -- A varint, through the one module that spells the groups.
 function Leaf.varint (
     of: Ir.Varint,

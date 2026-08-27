@@ -8,6 +8,7 @@ local Scalars = require ("@src/codec/Scalars")
 local Text = require ("@src/codec/Text")
 
 local Codecs = {
+    empty = Scalars.empty,
     bool = Scalars.bool,
     int = Scalars.int,
     quant = Scalars.quant,

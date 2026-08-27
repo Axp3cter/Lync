@@ -222,6 +222,21 @@ return {
                 says = "takes no optional for",
                 make = function () Lync.map (Lync.optional (fine ()), fine (), 0, 1) end,
             },
+            {
+                what = "a struct of a field carrying nothing",
+                says = "takes no empty for",
+                make = function () Lync.struct ({ nudge = Lync.empty () }) end,
+            },
+            {
+                what = "an array of nothings",
+                says = "takes no empty for",
+                make = function () Lync.array (Lync.empty (), 0, 1) end,
+            },
+            {
+                what = "an optional nothing",
+                says = "takes no empty for",
+                make = function () Lync.optional (Lync.empty ()) end,
+            },
         })
     end),
 

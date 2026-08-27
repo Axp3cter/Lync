@@ -27,8 +27,9 @@ const LOSSY = "lossy"
 const LATEST = "latest"
 const STAMPED = "stamped"
 const BOTH = "both"
+const BARE = "bare"
 
-const EVERY = table.freeze ({ SURE, LOSSY, LATEST, STAMPED, BOTH })
+const EVERY = table.freeze ({ SURE, LOSSY, LATEST, STAMPED, BOTH, BARE })
 
 --[[
     The two ends of a draw, bound short because every check here hands the lane one of them. One
@@ -84,6 +85,7 @@ local function defined (): any
         [LATEST] = Lync.packet (Lync.int (0, 100)):newest (),
         [STAMPED] = Lync.packet (Lync.int (0, 100)):timestamped (),
         [BOTH] = Lync.packet (Lync.int (0, 100)):timestamped ():unreliable (),
+        [BARE] = Lync.packet (Lync.empty ()),
     }
 end
 
@@ -347,6 +349,63 @@ return {
             function () of.server.defs[SURE]:fireServer (CARRIED) end,
             "is a client's call, and this is the server"
         )
+    end),
+
+    --[[
+        A packet carrying nothing, fired without a value and heard without one. What a listener is
+        told is that the call happened, so the count is the whole of what it holds and the nothing
+        it was handed is a nothing rather than a table standing where a value would have been.
+    ]]
+    Harness.case ("packet.bare-carries-the-call-alone", function ()
+        local of = opened ()
+        for _ = 1, RUN do
+            of.defs[BARE]:fireClient (of.player)
+        end
+        of.server:flush ()
+        of.wire:settle ()
+
+        local held = of.heard[BARE]
+        Expect.equal (#held, RUN)
+        for _, one in held do
+            Expect.equal (one.value, nil)
+        end
+    end),
+
+    --[[
+        A block of nothings and a block carrying a value, in one frame. What a frame walks by is
+        where each block said it ended, so a payload of nothing that moved the offset anyway would
+        leave the next block starting a byte along and reading somebody else's bytes.
+    ]]
+    Harness.case ("packet.bare-leaves-what-follows-it-alone", function ()
+        local of = opened ()
+        for _ = 1, RUN do
+            of.defs[BARE]:fireClient (of.player)
+        end
+        of.defs[SURE]:fireClient (of.player, CARRIED)
+        of.server:flush ()
+        of.wire:settle ()
+
+        Expect.equal (#of.heard[BARE], RUN)
+
+        local after = of.heard[SURE]
+        Expect.equal (#after, 1)
+        Expect.equal (after[1].value, CARRIED)
+    end),
+
+    --[[
+        The same fired with a value anyway, which a caller may do and which changes nothing. A
+        schema carrying no value has nowhere to put one, so what reaches the other machine is the
+        call and never the argument, and a caller is not refused for handing one over.
+    ]]
+    Harness.case ("packet.bare-drops-what-it-is-handed", function ()
+        local of = opened ()
+        of.defs[BARE]:fireClient (of.player, CARRIED)
+        of.server:flush ()
+        of.wire:settle ()
+
+        local held = of.heard[BARE]
+        Expect.equal (#held, 1)
+        Expect.equal (held[1].value, nil)
     end),
     --[[
         More fires of one definition in one flush than a block may hold. A run states its count in

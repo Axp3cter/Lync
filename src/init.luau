@@ -61,6 +61,7 @@ local Lync = {
     onLog = Log.onLog,
     console = Log.console,
 
+    empty = Codecs.empty,
     bool = Codecs.bool,
     int = Codecs.int,
     quant = Codecs.quant,

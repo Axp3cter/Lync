@@ -129,6 +129,7 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
     ]]
     if of.op == "word" then return made (Ir.group (of.tag, of, {}), at) end
 
+    if of.op == "none" then return Leaf.none () end
     if of.op == "wide" then return Leaf.wide (of, paths, expected) end
     if of.op == "f32" or of.op == "f64" then return Leaf.float (of, paths, expected) end
     if of.op == "vlq" or of.op == "vli" then return Leaf.varint (of, paths, expected) end

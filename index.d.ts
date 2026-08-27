@@ -232,6 +232,8 @@ interface LyncModule {
     /** A frozen snapshot of monotonic counters, so any two of them diff into exact rates. */
     stats(this: void, name: string): Lync.Stats;
 
+    /** No payload at all, for a call whose happening is the whole of what it says. */
+    empty(this: void): Lync.Codec<undefined>;
     bool(this: void): Lync.Codec<boolean>;
     int(this: void, min: number, max: number): Lync.Codec<number>;
     quant(this: void, min: number, max: number, step: number): Lync.Codec<number>;

@@ -23,6 +23,13 @@ function Scalars.precise (kind: string, degrees: number)
     end
 end
 
+--[[
+    No value at all, which is what a caller declares when the fact of the call is the whole of what
+    they are sending. It writes nothing, it reads back nothing, and what a listener is handed in
+    its place is nothing rather than a table standing in for it.
+]]
+function Scalars.empty (): Types.Codec<nil> return Base.make ("empty") end
+
 function Scalars.bool (): Types.Codec<boolean> return Base.make ("bool") end
 
 --[[

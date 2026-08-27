@@ -175,6 +175,27 @@ Scenarios.drift = scenario (
 )
 
 --[[
+    Records that move different fields between them. No one field is on every record of the delta,
+    so which of them carry it has to be spelled, and the section spends what a field on all of them
+    leaves out.
+]]
+Scenarios.parted = scenario (
+    "parted",
+    ENTITY,
+    nil,
+    joined ({
+        fills (ENTITY, FILLED),
+        { flush ("keyframe") },
+        touches (FILLED, function (index: number): { [string]: any }
+            if index % 2 == 0 then return { x = 42 } end
+
+            return { y = 42 }
+        end),
+        { flush ("delta") },
+    })
+)
+
+--[[
     Traffic that must cost nothing. First every record written the value it already holds, then a
     flush with nothing behind it at all. Those are the two ways a stream goes idle, and neither may
     put a byte on the wire.
@@ -336,6 +357,7 @@ Scenarios.acceptance = scenario ("acceptance", EVERYTHING, "team", {
 Scenarios.all = table.freeze ({
     Scenarios.fill,
     Scenarios.drift,
+    Scenarios.parted,
     Scenarios.quiet,
     Scenarios.coalesce,
     Scenarios.fleeting,

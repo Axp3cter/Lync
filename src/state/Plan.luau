@@ -21,6 +21,7 @@ const ANY = Wide.any
 const LOWEST = Wide.lowest
 const MEETS = Wide.meets
 const UNION = Wide.union
+const BOTH = Wide.both
 const WITHOUT = Wide.without
 
 const KEYFRAME = Protocol.SECTION_KEYFRAME
@@ -155,12 +156,21 @@ local function moving (of: Plan, from: number, count: number)
 
     frame.count = count
 
+    --[[
+        What any record moved and what every one of them did. The second answers, for a field, the
+        question the walk below would otherwise put to each record in turn, and it is the same
+        question however many fields the union comes to.
+    ]]
     local union = NONE
+    local every = if count == 0 then NONE else masks[from]
+
     for index = 1, count do
         local place = from + index - 1
+        local mask = masks[place]
 
         frame.slots[index] = of.moved[place]
-        union = UNION (union, masks[place])
+        union = UNION (union, mask)
+        every = BOTH (every, mask)
     end
 
     local reached = 0
@@ -173,16 +183,22 @@ local function moving (of: Plan, from: number, count: number)
         chosen.fields[reached] = field
 
         local one = of.bit[field]
-        local present = frame.present[reached]
-        local covered = 0
 
-        for index = 1, count do
-            local on = if MEETS (masks[from + index - 1], one) then CARRIES else EMPTY
-            present[index] = on
-            covered += on
+        --[[
+            A field every record moved is spoken for by the count alone, so the walk that would
+            say which of them carry it is not run and what it would have written is not read.
+        ]]
+        if MEETS (every, one) then
+            chosen.full[reached] = COVERS
+            continue
         end
 
-        chosen.full[reached] = if covered == count then COVERS else SOME
+        local present = frame.present[reached]
+        for index = 1, count do
+            present[index] = if MEETS (masks[from + index - 1], one) then CARRIES else EMPTY
+        end
+
+        chosen.full[reached] = SOME
     end
 
     chosen.count = reached

@@ -111,6 +111,14 @@ Golden.frames = table.freeze ({
     ["drift.delta"] = table.freeze ({
         "all reliable 01b08101012a2a2a2a2a2a2a2a",
     }),
+    ["parted.keyframe"] = table.freeze ({
+        "all reliable 0081010102027f0028ff0028ff002"
+            .. "80007ff0007ff00070003ff0003ff0003000aff000"
+            .. "aff000a0014ff0014ff0014001eff001eff001e",
+    }),
+    ["parted.delta"] = table.freeze ({
+        "all reliable 013100810101aa2a2a2a2a552a2a2a2a",
+    }),
     ["quiet.keyframe"] = table.freeze ({
         "all reliable 0081010102027f0028ff0028ff002"
             .. "80007ff0007ff00070003ff0003ff0003000aff000"

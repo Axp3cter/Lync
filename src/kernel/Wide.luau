@@ -42,6 +42,7 @@ export type Carrier = {
     read NONE: Word,
     read bit: (place: number) -> Word,
     read union: (a: Word, b: Word) -> Word,
+    read both: (a: Word, b: Word) -> Word,
     read meets: (a: Word, b: Word) -> boolean,
     read any: (of: Word) -> boolean,
     read lowest: (of: Word) -> number,
@@ -72,6 +73,7 @@ local held: Carrier = {
     end,
 
     union = function (a: Word, b: Word): Word return carried.bor (a, b) end,
+    both = function (a: Word, b: Word): Word return carried.band (a, b) end,
     meets = function (a: Word, b: Word): boolean return carried.btest (a, b) end,
     any = function (of: Word): boolean return carried.btest (of) end,
     lowest = function (of: Word): number return carried.tonumber (carried.countrz (of)) + 1 end,
@@ -119,6 +121,10 @@ local halved: Carrier = {
 
     union = function (a: Word, b: Word): Word
         return { bit32.bor (a[1], b[1]), bit32.bor (a[2], b[2]) }
+    end,
+
+    both = function (a: Word, b: Word): Word
+        return { bit32.band (a[1], b[1]), bit32.band (a[2], b[2]) }
     end,
 
     meets = function (a: Word, b: Word): boolean
@@ -234,6 +240,7 @@ Wide.NONE = chosen.NONE
 
 -- Everything a word is asked, in the vocabulary the library asks it in rather than the platform's.
 Wide.union = chosen.union
+Wide.both = chosen.both
 Wide.meets = chosen.meets
 Wide.any = chosen.any
 Wide.lowest = chosen.lowest

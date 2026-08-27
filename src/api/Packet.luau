@@ -72,14 +72,14 @@ end
     here: a client naming who to send to would be naming the machine it is already talking to.
 ]]
 function Packet.fireServer (self: any, value: any)
-    local session = Define.asking (self.live, "fireServer")
-    session:fire (self.live.def, nil, value)
+    local live = self.live
+    Define.asking (live, "fireServer"):fire (live.def, nil, value)
 end
 
 -- One fire at whoever the recipient names, which only a server has anybody to name.
 function Packet.fireClient (self: any, to: Types.Recipient, value: any)
-    local session = Define.serving (self.live, "fireClient")
-    session:fire (self.live.def, to, value)
+    local live = self.live
+    Define.serving (live, "fireClient"):fire (live.def, to, value)
 end
 
 --[[

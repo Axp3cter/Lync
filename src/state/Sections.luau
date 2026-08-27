@@ -162,12 +162,13 @@ local function gathered (
     local under = of.under[place]
     local values = of.values[field]
     local held = columns[field]
+    local slots = of.slots
 
     if of.chosen.full[place] == COVERS then
+        table.move (slots, 1, count, 1, under)
+
         for index = 1, count do
-            local slot = of.slots[index]
-            under[index] = slot
-            values[index] = held[slot]
+            values[index] = held[slots[index]]
         end
 
         of.covered[place] = count
@@ -180,7 +181,7 @@ local function gathered (
     for index = 1, count do
         if present[index] == 0 then continue end
 
-        local slot = of.slots[index]
+        local slot = slots[index]
         reach += 1
         under[reach] = slot
         values[reach] = held[slot]
@@ -201,13 +202,14 @@ local function covering (of: Frame, place: number, count: number): number
     end
 
     local present = of.present[place]
+    local slots = of.slots
     local reach = 0
 
     for index = 1, count do
         if present[index] == 0 then continue end
 
         reach += 1
-        under[reach] = of.slots[index]
+        under[reach] = slots[index]
     end
 
     of.covered[place] = reach

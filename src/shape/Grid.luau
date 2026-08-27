@@ -42,9 +42,9 @@ export type Grid = {
         The pair of points a reading sits between, as indices and as the values at them, which a
         caller can assemble from the two above at the cost of asking five times over. A grid a
         search ever reaches for settles it once instead. A reading that is no place answers with
-        the indices missing and the values at nothing, which nothing then reads.
+        the first index missing, which answers for a pair that has no other half either.
     ]]
-    read window: ((value: any) -> (number?, number?, number, number))?,
+    read window: ((value: any) -> (number?, number, number, number))?,
     --[[
         A whole run of readings at once, where a grid can answer for many faster than for one.
         `toIndices` fills `into` and answers the place of the first reading it has no point for,
@@ -167,9 +167,9 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         reading is past an end both halves of the pair come back as the point nearest it, that
         being the only point on the side it is.
     ]]
-    local function window (value: any): (number?, number?, number, number)
-        if type (value) ~= "number" then return nil, nil, 0, 0 end
-        if not (value >= under and value <= over) then return nil, nil, 0, 0 end
+    local function window (value: any): (number?, number, number, number)
+        if type (value) ~= "number" then return nil, 0, 0, 0 end
+        if not (value >= under and value <= over) then return nil, 0, 0, 0 end
 
         local at = math.round ((value - min) / step)
         local low = if min + at * step > value then at - 1 else at

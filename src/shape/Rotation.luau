@@ -140,14 +140,14 @@ end
     of the grid where it answers for that, since working it out from the two below asks the same
     grid twice for what it settles once, and a search asks three times a spelling it tries.
 ]]
-local function windows (of: Grid.Grid): (value: any) -> (number?, number?, number, number)
+local function windows (of: Grid.Grid): (value: any) -> (number?, number, number, number)
     local ready = of.window
     if ready ~= nil then return ready end
 
     local span, toIndex, fromIndex = of.span, of.toIndex, of.fromIndex
-    return function (value: any): (number?, number?, number, number)
+    return function (value: any): (number?, number, number, number)
         local at = toIndex (value)
-        if at == nil then return nil, nil, 0, 0 end
+        if at == nil then return nil, 0, 0, 0 end
 
         local low = if fromIndex (at) > value then at - 1 else at
         local first = math.clamp (low, 0, span)
@@ -191,7 +191,7 @@ function Rotation.octahedral (of: Grid.Grid): Octahedral
 
         local u0, u1 = window (u)
         local v0, v1 = window (v)
-        if u0 == nil or u1 == nil or v0 == nil or v1 == nil then return nil, nil end
+        if u0 == nil or v0 == nil then return nil, nil end
 
         local best, atU, atV = -math.huge, u0, v0
         for stepU = 0, 1 do
@@ -353,10 +353,13 @@ function Rotation.smallest (of: Grid.Grid): Smallest
                 and answers with the readings already on it.
             ]]
             local a0, a1, ka0, ka1 = window (pa)
+            if a0 == nil then continue end
+
             local b0, b1, kb0, kb1 = window (pb)
+            if b0 == nil then continue end
+
             local c0, c1, kc0, kc1 = window (pc)
-            if a0 == nil or a1 == nil then continue end
-            if b0 == nil or b1 == nil or c0 == nil or c1 == nil then continue end
+            if c0 == nil then continue end
 
             for stepA = 0, 1 do
                 local tryA = if stepA == 0 then a0 else a1

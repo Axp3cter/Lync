@@ -579,9 +579,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local top = bounds[1]
 
             local function filled (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                --[[
+                    Walked over the names rather than over their number, since every field of a
+                    word laid out this way has one and the walk hands it over as it goes, where
+                    counting would have the array asked for it again at every step.
+                ]]
                 local at = pos
-                for index = 1, reach do
-                    local one = value[keys[index]]
+                for index, key in keys do
+                    local one = value[key]
                     local made = one
 
                     if type (one) ~= "number" or bit32.band (one, top) ~= one then

@@ -42,6 +42,13 @@ export type Carrier = {
     read NONE: Word,
     read bit: (place: number) -> Word,
     read union: (a: Word, b: Word) -> Word,
+
+    --[[
+        A list of bits folded into one word at once. A record's fields are named a few at a time
+        and every one of them is a bit, so folding them one call apiece spends a crossing and a
+        word on each where the whole list costs one of either.
+    ]]
+    read gathered: (of: Word, bits: { Word }, listed: { number }, count: number) -> Word,
     read both: (a: Word, b: Word) -> Word,
     read meets: (a: Word, b: Word) -> boolean,
     read any: (of: Word) -> boolean,
@@ -73,6 +80,15 @@ local held: Carrier = {
     end,
 
     union = function (a: Word, b: Word): Word return carried.bor (a, b) end,
+
+    gathered = function (of: Word, bits: { Word }, listed: { number }, count: number): Word
+        local held = of
+        for index = 1, count do
+            held = carried.bor (held, bits[listed[index]])
+        end
+
+        return held
+    end,
     both = function (a: Word, b: Word): Word return carried.band (a, b) end,
     meets = function (a: Word, b: Word): boolean return carried.btest (a, b) end,
     any = function (of: Word): boolean return carried.btest (of) end,
@@ -121,6 +137,17 @@ local halved: Carrier = {
 
     union = function (a: Word, b: Word): Word
         return { bit32.bor (a[1], b[1]), bit32.bor (a[2], b[2]) }
+    end,
+
+    gathered = function (of: Word, bits: { Word }, listed: { number }, count: number): Word
+        local high, low = of[1], of[2]
+        for index = 1, count do
+            local one = bits[listed[index]]
+            high = bit32.bor (high, one[1])
+            low = bit32.bor (low, one[2])
+        end
+
+        return { high, low }
     end,
 
     both = function (a: Word, b: Word): Word
@@ -240,6 +267,7 @@ Wide.NONE = chosen.NONE
 
 -- Everything a word is asked, in the vocabulary the library asks it in rather than the platform's.
 Wide.union = chosen.union
+Wide.gathered = chosen.gathered
 Wide.both = chosen.both
 Wide.meets = chosen.meets
 Wide.any = chosen.any

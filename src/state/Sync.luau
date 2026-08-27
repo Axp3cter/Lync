@@ -51,7 +51,7 @@ const CLEARED =
 ]]
 const MERGED = Coalesce.merge
 const TOUCHED = Coalesce.touched
-const UNION = Wide.union
+const GATHERED = Wide.gathered
 const MIGRATES = Coalesce.migrates
 
 -- Types ---------------------------------------------------------------
@@ -89,6 +89,7 @@ export type Sync = {
     read streams: boolean,
     read bits: { Wide.Word },
     read row: { any },
+    read listed: { number },
     read one: { Player },
     at: number,
 }
@@ -509,6 +510,7 @@ function Sync.new (def: Compile.Set): Sync
         order = {},
         partOf = {},
         row = table.create (def.fieldCount),
+        listed = table.create (def.fieldCount) :: { number },
         one = table.create (1) :: { Player },
         at = 1,
     }
@@ -574,7 +576,14 @@ function Sync.update (of: Sync, id: number, fields: any)
     local climbing = def.climbingFields
     local lane: any = of.lane
 
-    local moved = false
+    --[[
+        The fields this call moved, in the order it moved them. Every one of them is a bit of the
+        same mask, so the bits go on in one fold at the end instead of a fold and a word apiece on
+        the way through, which is what a record named three fields at a time would spend.
+    ]]
+    local listed = of.listed
+    local moved = 0
+
     for name, value in fields do
         local field = place[name]
         if field == nil then
@@ -616,14 +625,15 @@ function Sync.update (of: Sync, id: number, fields: any)
             delta, which is the one place it never goes.
         ]]
         if not streams or lane.place[field] == nil then
-            mask = UNION (mask, bits[field])
-            moved = true
+            moved += 1
+            listed[moved] = field
         end
     end
 
     -- A call that moved nothing but newest fields owes the reliable lane nothing at all.
-    if not moved then return end
+    if moved == 0 then return end
 
+    mask = GATHERED (mask, bits, listed, moved)
     dirt.masks[id] = mask
     marked (part, id, "update")
 

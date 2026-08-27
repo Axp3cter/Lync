@@ -247,6 +247,24 @@ return {
     end),
 
     --[[
+        The same where the record carries as many names as it declares and one of them is a name
+        it does not. How many a record holds is no answer to whether they are the right ones, and
+        the one with no business here is what a caller is owed a word about.
+    ]]
+    Harness.case ("wire.a-record-in-one-word-refuses-a-name-swapped-for-another", function ()
+        local of = built (Lync.struct ({
+            near = Lync.int (0, FULL),
+            after = Lync.int (0, FULL),
+        }))
+
+        local said = refused (of, { near = 1, spare = 1 }, "struct")
+        Expect.holds (
+            string.find (said, "spare", 1, true) ~= nil,
+            `the refusal reads {said}, which never names the one that does not belong`
+        )
+    end),
+
+    --[[
         The same where both grids fill the bytes carrying them. A grid whose top is its byte's own
         is held to by masking the reading down to the byte rather than by comparing against the
         top, so all three of over the top, under the bottom and no number at all have to come back

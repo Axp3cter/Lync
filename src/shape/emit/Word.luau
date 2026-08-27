@@ -21,6 +21,13 @@ const ONE = Words.ONE
 const BYTE = Protocol.BYTE_BITS
 const PAIR = Words.PAIR
 
+--[[
+    A top no reading stands under, which is what a piece carries where recognising one would cost
+    more than asking its grid. Every number is above it, so the recognition settles nothing and
+    the one grid answers, which is what a grid not running from nothing in whole steps needs.
+]]
+const UNDER_ALL = -1
+
 -- Types ---------------------------------------------------------------
 
 -- The two halves of a region, and the array of indices they meet in.
@@ -653,6 +660,13 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         local makes = table.create (#slot) :: { (number) -> number? }
         local takes = table.create (#slot) :: { ((number) -> any)? }
         local tops = table.create (#slot, 0)
+
+        --[[
+            The top a piece is recognised under. A grid running from nothing in whole steps carries
+            a whole number inside it as its own index, so a reading already there asks the grid
+            nothing, and one whose grid does not is left `UNDER_ALL` and always asks.
+        ]]
+        local levels = table.create (#slot, 0)
         local fills = table.create (#slot, false)
 
         for part = 1, #slot do
@@ -664,6 +678,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             makes[part] = toIndex[cell]
             takes[part] = fromIndex[cell]
             tops[part] = spans[cell]
+            levels[part] = if leaves[cell].plain == true then spans[cell] else UNDER_ALL
             fills[part] = whole[cell]
         end
 
@@ -673,10 +688,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
                 for part = first[window], last[window] do
                     local one = value[puts[part]]
-                    local made = makes[part] (one)
-                    if made == nil then
-                        local index = owner[part]
-                        Word.refused (wheres[index], wanted[index], one)
+                    local made = one
+
+                    if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > levels[part] then
+                        made = makes[part] (one)
+                        if made == nil then
+                            local index = owner[part]
+                            Word.refused (wheres[index], wanted[index], one)
+                        end
                     end
 
                     acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))

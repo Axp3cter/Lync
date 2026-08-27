@@ -42,6 +42,19 @@ const OVER_ZERO = 127
 const BETWEEN = 20.8
 const ONTO = 21
 
+-- A top holding `ONTO` in five bits, which two of in a row put the second one across a byte.
+const BAND_TOP = 21
+
+-- A top holding four bits, which two of fill a byte and none of straddles one.
+const NIBBLE_TOP = 15
+
+-- The same pair of readings inside four bits, since `BETWEEN` is above what those can carry.
+const NIBBLE_BETWEEN = 10.8
+const NIBBLE_ONTO = 11
+
+-- A top wide enough for a byte to carry it and short of filling one, so a reading is held to it.
+const SHORT_TOP = 200
+
 -- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
@@ -444,6 +457,61 @@ return {
 
         local bytes, size = Turns.wrote (of, { near = BETWEEN, after = 0 })
         Expect.equal (Turns.read (of, bytes, size), { near = ONTO, after = 0 })
+    end),
+
+    --[[
+        The same where the byte is not filled by what it carries, so the reading is held to the top
+        of its grid on the way back. A record put down as it stands is recognised field by field,
+        and a reading between two points is no field to recognise.
+    ]]
+    Harness.case ("wire.a-held-record-rounds-onto-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            near = Lync.int (0, SHORT_TOP),
+            after = Lync.int (0, SHORT_TOP),
+        }))
+
+        local bytes, size = Turns.wrote (of, { near = BETWEEN, after = 0 })
+        Expect.equal (Turns.read (of, bytes, size), { near = ONTO, after = 0 })
+    end),
+
+    --[[
+        The same where the fields share their bytes two to one and none of them is cut, which is
+        the record gathered a window at a time rather than a byte at a time.
+    ]]
+    Harness.case ("wire.a-shared-record-rounds-onto-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            one = Lync.int (0, NIBBLE_TOP),
+            two = Lync.int (0, NIBBLE_TOP),
+            three = Lync.int (0, NIBBLE_TOP),
+            four = Lync.int (0, NIBBLE_TOP),
+        }))
+
+        local was = { one = NIBBLE_BETWEEN, two = 0, three = 0, four = 0 }
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (
+            Turns.read (of, bytes, size),
+            { one = NIBBLE_ONTO, two = 0, three = 0, four = 0 }
+        )
+    end),
+
+    --[[
+        The same across widths that do not divide a byte between them, so no field sits where the
+        one before it left off and the rounding has to hold wherever a field was put.
+    ]]
+    Harness.case ("wire.a-mixed-record-rounds-onto-its-grid", function ()
+        local of = Turns.built (Lync.struct ({
+            a = Lync.int (0, NIBBLE_TOP),
+            b = Lync.int (0, PAIR_TOP),
+            c = Lync.int (0, BYTE_TOP),
+            d = Lync.int (0, SHORT_TOP),
+            e = Lync.int (0, BAND_TOP),
+        }))
+
+        local was = { a = 0, b = 0, c = 0, d = BETWEEN, e = BETWEEN }
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (Turns.read (of, bytes, size), { a = 0, b = 0, c = 0, d = ONTO, e = ONTO })
     end),
 
     --[[

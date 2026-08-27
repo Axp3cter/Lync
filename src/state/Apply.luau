@@ -106,8 +106,7 @@ end
     because a record that came and then moved is one a receiver is told about once and told it
     arrived, and a change into existence is not a thing a viewer can be handed.
 ]]
-local function moved (of: Heard, id: number)
-    local net = of.net
+local function moved (net: { [number]: number }, id: number)
     local was = net[id]
     if was == CHANGED or was == ARRIVED or was == REPLACED then return end
 
@@ -180,6 +179,9 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
     local stamps = frame.gens
     local wanted = of.watching
 
+    -- What a record's standing is written on, which is one table for every record a frame names.
+    local net = of.net
+
     for index = 1, frame.count do
         local slot = slots[index]
         local id = ids[index]
@@ -191,7 +193,7 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
         if slotOf[id] == nil then
             born (of, store, id)
         else
-            moved (of, id)
+            moved (net, id)
         end
     end
 
@@ -252,6 +254,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
         whether to take a copy, so the answer is worth having before the walk rather than inside it.
     ]]
     local wanted = of.watching
+    local net = of.net
 
     --[[
         Whether this frame spoke for any slot at all. A delta arriving without a keyframe beside it
@@ -289,7 +292,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
                 if wanted then snapped (of, store, id) end
 
                 put (slot, id, value)
-                moved (of, id)
+                moved (net, id)
             end
 
             if held ~= nil then held[slot] = marks[index] end
@@ -300,7 +303,7 @@ end
 -- Public --------------------------------------------------------------
 
 -- One record changed, said once however many times a frame says it.
-function Apply.moved (of: Heard, id: number) moved (of, id) end
+function Apply.moved (of: Heard, id: number) moved (of.net, id) end
 
 -- What the frame came to, as the three lists the fan reads, each in id order.
 function Apply.parted (of: Heard): ({ number }, { number }, { number })

@@ -160,7 +160,15 @@ function Store.hold (of: Store, id: number, slot: number)
 
     ids[slot] = id
     of.slotOf[id] = slot
-    of.rows[id] = table.clone (of.template)
+
+    --[[
+        A row this receiver already has is written over rather than made again. A keyframe states
+        every field of every record it names, so by the time the walk that called this is done
+        there is nothing of the older reading left, and a fresh table would have been filled a
+        field at a time with the very same values.
+    ]]
+    local rows = of.rows
+    if rows[id] == nil then rows[id] = table.clone (of.template) end
 
     if slot > of.high then of.high = slot end
 end

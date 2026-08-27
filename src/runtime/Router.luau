@@ -29,6 +29,9 @@ local Router = {}
 ]]
 const RAN = Boundary.ran
 const LOST = Boundary.lost
+const OPENED = Boundary.opened
+const STAMPED = Boundary.stamped
+const RECEIVED = Tally.received
 const ARRIVED = Tally.arrived
 const PACKETS = Dispatch.packets
 const PACKET = Dispatch.packet
@@ -407,7 +410,7 @@ function Router.frame (
     now: number
 )
     local boundary = of.boundary
-    Boundary.opened (boundary, from, now)
+    OPENED (boundary, from, now)
 
     local len = buffer.len (b)
     local naming = of.naming
@@ -437,7 +440,7 @@ function Router.frame (
             return
         end
 
-        Boundary.stamped (boundary, from, id, now)
+        STAMPED (boundary, from, id, now)
 
         local ends: number?
         if def.kind == "packet" then
@@ -463,7 +466,7 @@ function Router.frame (
             return
         end
 
-        Tally.received (of.tally, def.name, ends - at)
+        RECEIVED (of.tally, def.name, ends - at)
         at = ends
     end
 end

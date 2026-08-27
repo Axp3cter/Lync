@@ -540,6 +540,56 @@ return {
         Expect.equal (seen[2], 2)
     end),
     --[[
+        What a validator is told about the arrival before this one. A rate limit is written against
+        `ctx.last`, so a block has to leave the reading its definition last arrived at behind it: a
+        first arrival has none, and every one after names when the one before it came.
+    ]]
+    Harness.case ("packet.a-block-leaves-behind-when-it-last-arrived", function ()
+        local wire = Doubles.wire ()
+        local roster = Doubles.roster ()
+
+        local seen: { number? } = {}
+        local calls = 0
+
+        local function defines (): any
+            return {
+                beat = Lync.packet (
+                    Lync.int (0, 100)
+                        :validate (function (_value: number, ctx: Lync.ValidateContext): string?
+                            calls += 1
+                            seen[calls] = ctx.last
+                            return nil
+                        end)
+                ),
+            }
+        end
+
+        local ours = defines ()
+        local server = Session.new (SPACE, ours, wire:server (), roster, "server")
+        server:start ()
+
+        local player = roster:join (SENDER)
+        local defs = defines ()
+
+        defs.beat:onClient (function () end)
+
+        local client = Session.new (SPACE, defs, wire:client (player), roster, "client")
+        client:start ()
+        wire:settle ()
+
+        for round = 1, 3 do
+            ours.beat:fireClient (player, round)
+            server:flush ()
+            wire:settle ()
+        end
+
+        Expect.equal (calls, 3)
+        Expect.equal (seen[1], nil)
+        Expect.holds (seen[2] ~= nil, "the second arrival was told of no first one")
+        Expect.holds (seen[3] ~= nil, "the third arrival was told of no second one")
+    end),
+
+    --[[
         A run whose listener parks partway along, and a second run read while it sleeps. What a
         block gathers is handed to a thread that may hold it across any number of frames, so the
         gathering cannot be somewhere the next block writes: a listener waking up owes the payloads

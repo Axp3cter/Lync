@@ -76,6 +76,14 @@ function Tally.sent (of: Tally, name: string, bytes: number)
     Tally.counted (held, bytes)
 end
 
+--[[
+    One more call against a definition, without bytes to go with it, which `carried` is the other
+    half of: a run is counted where it is fired and priced where it is sealed.
+]]
+function Tally.fired (held: Row)
+    held.sent += 1
+end
+
 -- More bytes against a definition, without a call to go with them.
 function Tally.carried (of: Tally, name: string, bytes: number)
     line (of, name).sentBytes += bytes

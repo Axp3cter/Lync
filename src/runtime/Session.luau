@@ -39,7 +39,7 @@ Session.__index = Session
     life of the place, so a fire that counts itself and a block that is sealed, priced and put in
     order reach a name rather than four tables between them.
 ]]
-const COUNTED = Tally.counted
+const FIRED = Tally.fired
 const CARRIED = Tally.carried
 const SEALED = Blocks.sealed
 const NEXT = Link.next
@@ -655,8 +655,8 @@ function Session.close (self: Self)
 end
 
 -- Something queued, said by whoever queued it.
-local function queued (self: Self, said: string)
-    if not self.link.sending then return end
+local function queued (self: Self, link: Link.Link, said: string)
+    if not link.sending then return end
     arming (self, said)
 end
 
@@ -728,7 +728,7 @@ local function alone (
     table.clear (side.refs)
     table.clear (side.slotOf)
 
-    queued (self, def.name)
+    queued (self, link, def.name)
     posted (self, def, to, loose, block)
 end
 
@@ -801,17 +801,18 @@ end
 
 -- One packet fired, as the block that carries it.
 function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, value: any)
+    local link = self.link
+
     -- A newest packet is held rather than written.
     if def.delivery == LATEST then
         local one = self.latest[def.id]
         one.held, one.value, one.to = true, value, to
 
-        queued (self, def.name)
+        queued (self, link, def.name)
         Tally.sent (self.counts, def.name, 0)
         return
     end
 
-    local link = self.link
     local loose = def.delivery ~= ORDERED
 
     --[[
@@ -852,13 +853,14 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         cannot answer and the firing cannot price. The row is the run's, since a run is one
         definition and naming it again once a fire asks the same question over and over.
     ]]
-    COUNTED (link.tallied :: Tally.Row, 0)
+    FIRED (link.tallied :: Tally.Row)
 
-    link.wrote = def.built.write (link.pending, link.wrote, value)
-    link.holds += 1
+    local wrote = def.built.write (link.pending, link.wrote, value)
+    local holds = link.holds + 1
+    link.wrote, link.holds = wrote, holds
 
-    queued (self, def.name)
-    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
+    queued (self, link, def.name)
+    if holds == link.runs or wrote + link.widest > link.room then shipped (self) end
 end
 
 -- One question asked, and the answer put where whoever asked it will be told.
@@ -906,7 +908,7 @@ function Session.ask (
     link.wrote = def.request.write (link.pending, link.wrote, value)
     link.holds += 1
 
-    queued (self, def.name)
+    queued (self, link, def.name)
 
     if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
 end

@@ -259,6 +259,18 @@ local function asked (
     ]]
     local id = 0
 
+    --[[
+        What the walk asks of the definition and of the wiring rather than of the question, reached
+        once. A run is one definition arriving on one wiring, so asking either again at every
+        question is asking something whose answer was settled before the block was opened.
+    ]]
+    local boundary = of.boundary
+    local request = def.request
+    local asks = request.read
+    local heard = of.heard
+    local which = def.id
+    local replying = of.answered
+
     for index = 1, held do
         if index == 1 then
             def.asking.read (b, pos, of.head)
@@ -271,7 +283,7 @@ local function asked (
             pos = after
         end
 
-        local ends, value = RAN (of.boundary, def, def.request, def.request.read, b, pos)
+        local ends, value = RAN (boundary, def, request, asks, b, pos)
         if ends == nil then return nil end
 
         --[[
@@ -279,12 +291,12 @@ local function asked (
             takes: one on a server is told who asked, and one on a client was only ever asked by
             the server. A question turned away is stepped over, since the rest of the run follows.
         ]]
-        if of.boundary.took then
+        if boundary.took then
             local ok, answer
             if from == nil then
-                ok, answer = Dispatch.request (of.heard, def.id, value)
+                ok, answer = Dispatch.request (heard, which, value)
             else
-                ok, answer = Dispatch.request (of.heard, def.id, value, from)
+                ok, answer = Dispatch.request (heard, which, value, from)
             end
 
             --[[
@@ -292,7 +304,7 @@ local function asked (
                 on the line that returned it. A flush is as far from the responder as this machine
                 can put that raise, and on one that never flushes again it lands nowhere at all.
             ]]
-            of.answered (def, id, from, ok, answer)
+            replying (def, id, from, ok, answer)
         end
 
         pos = ends
@@ -326,6 +338,12 @@ local function answered (
     ]]
     local id = 0
 
+    -- The same three, held here for the same reason the run above holds its own.
+    local boundary = of.boundary
+    local response = def.response
+    local says = response.read
+    local pending = of.pending
+
     for index = 1, held do
         local outcome
         if index == 1 then
@@ -342,13 +360,13 @@ local function answered (
         end
 
         if outcome ~= ANSWERED then
-            of.pending:fail (id, THREW, now)
+            pending:fail (id, THREW, now)
             continue
         end
 
-        local ends, value = RAN (of.boundary, def, def.response, def.response.read, b, pos)
+        local ends, value = RAN (boundary, def, response, says, b, pos)
         if ends == nil then return nil end
-        if of.boundary.took then of.pending:answer (id, value) end
+        if boundary.took then pending:answer (id, value) end
 
         pos = ends
     end

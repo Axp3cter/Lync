@@ -50,6 +50,19 @@ const PAIRED = Protocol.BYTE_BITS
 -- What the other kinds carry beside a slot, which is nothing at all.
 const LONE = 0
 
+--[[
+    What a section asks of the two modules that lay its slots and its ids down, under their own
+    names. Both are the same table for the life of the place, and the two varint calls are made
+    once a record a section carries rather than once a section.
+]]
+const WROTE = Slots.wrote
+const LAID = Slots.laid
+const READ = Slots.read
+const TAKEN = Slots.taken
+const WIDTH = Slots.width
+const WRITE_SIGNED = Varint.writeSigned
+const READ_SIGNED = Varint.readSigned
+
 -- What a slot run of this lane refuses under.
 const SAID: Slots.Said = table.freeze ({
     many = "a section naming more records than its own bytes could hold",
@@ -288,7 +301,7 @@ function Sections.keyframe (of: Layout, b: buffer, pos: number, columns: Columns
     local def = of.def
     local count = frame.count
 
-    local at = Slots.wrote (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
+    local at = WROTE (b, opened (of, b, pos, KEYFRAME), frame.slots, frame.steps, count)
     local ids = frame.ids
     local steps = frame.steps
 
@@ -309,16 +322,16 @@ function Sections.keyframe (of: Layout, b: buffer, pos: number, columns: Columns
         end
     end
 
-    local width = if climbs then Slots.width (steps, count - 1) else 0
+    local width = if climbs then WIDTH (steps, count - 1) else 0
     buffer.writeu8 (b, at, width)
     at += 1
 
-    if count ~= 0 then at = Varint.writeSigned (b, at, ids[1]) end
+    if count ~= 0 then at = WRITE_SIGNED (b, at, ids[1]) end
     if width ~= 0 then
-        at = Slots.laid (b, at, steps, count - 1, width)
+        at = LAID (b, at, steps, count - 1, width)
     else
         for index = 2, count do
-            at = Varint.writeSigned (b, at, ids[index] - ids[index - 1])
+            at = WRITE_SIGNED (b, at, ids[index] - ids[index - 1])
         end
     end
 
@@ -347,7 +360,7 @@ function Sections.delta (of: Layout, b: buffer, pos: number, columns: Columns, w
     local count = frame.count
 
     local at = of.set.write (b, opened (of, b, pos, DELTA), chosen)
-    at = Slots.wrote (b, at, frame.slots, frame.steps, count)
+    at = WROTE (b, at, frame.slots, frame.steps, count)
 
     for place = 1, chosen.count do
         if chosen.full[place] ~= COVERS then
@@ -380,7 +393,7 @@ end
 function Sections.removal (of: Layout, b: buffer, pos: number): number
     local frame = of.frame
 
-    return Slots.wrote (b, opened (of, b, pos, REMOVAL), frame.slots, frame.steps, frame.count)
+    return WROTE (b, opened (of, b, pos, REMOVAL), frame.slots, frame.steps, frame.count)
 end
 
 -- A clear: the partition and nothing about it, which is the whole of what emptying one says.
@@ -433,14 +446,8 @@ function Sections.taken (
     if kind == DELTA then at = of.set.read (b, at, chosen) end
 
     local count
-    count, at = Slots.read (
-        b,
-        at,
-        frame.slots,
-        frame.steps,
-        if kind == KEYFRAME then PAIRED else LONE,
-        SAID
-    )
+    count, at =
+        READ (b, at, frame.slots, frame.steps, if kind == KEYFRAME then PAIRED else LONE, SAID)
     frame.count = count
     if kind == REMOVAL then return kind, at end
 
@@ -453,13 +460,13 @@ function Sections.taken (
 
         local last = 0
         if count ~= 0 then
-            last, at = Varint.readSigned (b, at)
+            last, at = READ_SIGNED (b, at)
             ids[1] = last
         end
 
         if width ~= 0 then
             local clean
-            at, clean = Slots.taken (b, at, steps, count - 1, width)
+            at, clean = TAKEN (b, at, steps, count - 1, width)
             if not clean then Fieldset.broken (SAID.pad) end
 
             for index = 2, count do
@@ -469,7 +476,7 @@ function Sections.taken (
         else
             for index = 2, count do
                 local step
-                step, at = Varint.readSigned (b, at)
+                step, at = READ_SIGNED (b, at)
 
                 last += step
                 ids[index] = last

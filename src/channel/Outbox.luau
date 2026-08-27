@@ -36,6 +36,13 @@ const NONE = table.freeze ({} :: { Blocks.Block })
 -- One client's own buckets, or nothing where the frame being assembled is everybody's.
 type Mine = { { Blocks.Block } }?
 
+--[[
+    The two calls a drain makes, under their own names. Both are the same function for the life
+    of the place, and a flush reaches them once a queue it empties.
+]]
+const DRAIN = Blocks.drain
+const MOVED = Tally.moved
+
 -- Private -------------------------------------------------------------
 
 -- What a frame comes to, and whether anything in it carries an instance.
@@ -121,7 +128,7 @@ local function sent (of: Link.Link, mine: Mine, to: Player?)
 
     local frame, side = assembled (of, mine, bytes, carried)
     of.transport:fire (SURE, to, frame, side)
-    Tally.moved (of.tally, bytes)
+    MOVED (of.tally, bytes)
 end
 
 -- The holds a block needs for an audience of that many, and whether there is anyone at all.
@@ -148,11 +155,11 @@ local function reliable (of: Link.Link)
     end
 
     for class = 1, Blocks.CLASSES do
-        Blocks.drain (of.shared[class])
+        DRAIN (of.shared[class])
     end
     for _, buckets in of.divergent do
         for class = 1, Blocks.CLASSES do
-            Blocks.drain (buckets[class])
+            DRAIN (buckets[class])
         end
     end
 end
@@ -188,7 +195,7 @@ local function posted (
     end
 
     of.transport:fire (LOSSY, at, frame, side)
-    Tally.moved (of.tally, bytes)
+    MOVED (of.tally, bytes)
 end
 
 -- One queue of lossy blocks, as the fires it splits into.
@@ -213,11 +220,11 @@ end
 -- Everything queued on the lossy lane, out, and the queues left empty.
 local function lossy (of: Link.Link)
     looses (of, of.sharedLossy, nil)
-    Blocks.drain (of.sharedLossy)
+    DRAIN (of.sharedLossy)
 
     for player, held in of.divergentLossy do
         looses (of, held, player)
-        Blocks.drain (held)
+        DRAIN (held)
     end
 end
 

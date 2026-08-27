@@ -94,6 +94,16 @@ export type Lane = {
     read seqs: { number },
 }
 
+--[[
+    What the newest lane asks of the ring and of the slots, under their own names. Each is the
+    same function for the life of the place, and the lane reaches them once a record it carries.
+]]
+const OPENED = Sequence.opened
+const NEXT = Sequence.next
+const IS_NEWER = Sequence.isNewer
+const WROTE = Slots.wrote
+const READ = Slots.read
+
 -- Private -------------------------------------------------------------
 
 -- What a field with no one index is remembered by, which is the value a caller handed over.
@@ -227,7 +237,7 @@ function Newest.changed (
     now: number,
     spent: number
 ): number
-    if not Sequence.opened (now, streams.last[at], of.hz[at]) then
+    if not OPENED (now, streams.last[at], of.hz[at]) then
         of.counts[at] = 0
         return 0
     end
@@ -273,7 +283,7 @@ end
 
 -- Whether a stream's rate window is open this flush, which is what decides if it says anything.
 function Newest.opened (of: Lane, streams: Streams, at: number, now: number): boolean
-    return Sequence.opened (now, streams.last[at], of.hz[at])
+    return OPENED (now, streams.last[at], of.hz[at])
 end
 
 -- Whether two streams named the same records this flush, which is what lets them share a run.
@@ -303,7 +313,7 @@ function Newest.section (
     local def = layout.def
 
     local first = of.group[1]
-    local seq = Sequence.next (streams.at[first])
+    local seq = NEXT (streams.at[first])
     streams.at[first] = seq
 
     of.head[WHICH] = of.fields[first] - 1
@@ -316,7 +326,7 @@ function Newest.section (
     -- Each field behind the first, named before the run they all share is spelled out.
     for index = 2, many do
         local at = of.group[index]
-        local ours = Sequence.next (streams.at[at])
+        local ours = NEXT (streams.at[at])
         streams.at[at] = ours
 
         of.next[1] = of.fields[at] - 1
@@ -338,7 +348,7 @@ function Newest.section (
         of.gens[index] = gens[slots[index]]
     end
 
-    held = Slots.wrote (b, held, slots, of.steps, count)
+    held = WROTE (b, held, slots, of.steps, count)
     held = layout.generations.whole (b, held, of.gens :: any, layout.spare, count)
 
     for index = 1, many do
@@ -394,7 +404,7 @@ function Newest.taken (
     end
 
     local count
-    count, held = Slots.read (b, held, of.slots, of.steps, LEAST, SAID)
+    count, held = READ (b, held, of.slots, of.steps, LEAST, SAID)
 
     held = layout.generations.back (b, held, of.gens :: any, layout.spare, count, ctx)
     return many, count, held
@@ -433,7 +443,7 @@ function Newest.apply (
     seq: number,
     count: number
 )
-    if streams.took[at] and not Sequence.isNewer (seq, streams.heard[at]) then return end
+    if streams.took[at] and not IS_NEWER (seq, streams.heard[at]) then return end
 
     streams.took[at] = true
     streams.heard[at] = seq

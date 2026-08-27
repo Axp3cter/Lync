@@ -816,6 +816,27 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         local seat, bytes = where[1], width[1]
 
         --[[
+            The same read where every grid runs from nothing in whole steps as well. Neither the
+            window nor the reading is a question then, so the pieces come off the one call and go
+            onto the record as they are.
+        ]]
+        local function simply (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local acc = if bytes == ONE
+                then buffer.readu8 (b, pos + seat)
+                elseif bytes == PAIR then buffer.readu16 (b, pos + seat)
+                else buffer.readu32 (b, pos + seat)
+
+            for part, key in puts do
+                local raw = bit32.extract (acc, offset[part], span[part])
+                if raw > tops[part] then past (part, raw) end
+
+                into[key] = raw
+            end
+
+            return nil
+        end
+
+        --[[
             The same read for that word. One window is one call at one seat, so what the walk
             above carries from window to window is settled before it starts and the pieces are
             the whole of the run rather than a stretch of it.
@@ -876,7 +897,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 end
             end
 
-            if flatly then return alone, bared end
+            if flatly then return alone, simply end
 
             return alone, lone
         end

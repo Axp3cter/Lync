@@ -107,10 +107,11 @@ end
     arrived, and a change into existence is not a thing a viewer can be handed.
 ]]
 local function moved (of: Heard, id: number)
-    local was = of.net[id]
-    if was == ARRIVED or was == REPLACED then return end
+    local net = of.net
+    local was = net[id]
+    if was == CHANGED or was == ARRIVED or was == REPLACED then return end
 
-    of.net[id] = CHANGED
+    net[id] = CHANGED
 end
 
 -- A record taken away, which cancels an arrival rather than following it.

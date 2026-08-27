@@ -174,14 +174,26 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
     local shadow = shadowed (of, store)
     local gens = store.gens
 
-    for index = 1, frame.count do
-        local slot = frame.slots[index]
-        local id = frame.ids[index]
-        local was = store.slotOf[id]
+    --[[
+        What the walk below asks of the frame and the store rather than of the record, reached
+        once. Every one of them is the same table for every record the keyframe carries, and
+        whether anything wants a record as it stood is a question about the frame besides.
+    ]]
+    local slots = frame.slots
+    local ids = frame.ids
+    local slotOf = store.slotOf
+    local stamps = frame.gens
+    local wanted = of.watching
 
-        snapped (of, store, id)
+    for index = 1, frame.count do
+        local slot = slots[index]
+        local id = ids[index]
+        local was = slotOf[id]
+
+        if wanted then snapped (of, store, id) end
+
         Store.hold (store, id, slot)
-        if gens ~= nil then gens[slot] = frame.gens[index] end
+        if gens ~= nil then gens[slot] = stamps[index] end
 
         shadow[slot] = true
         if was == nil then
@@ -190,9 +202,6 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
             moved (of, id)
         end
     end
-
-    local slots = frame.slots
-    local ids = frame.ids
 
     for field = 1, layout.def.fieldCount do
         local values = frame.values[field]

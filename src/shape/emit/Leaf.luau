@@ -336,6 +336,30 @@ local function unpacked (
         return at, true
     end
 
+    --[[
+        The same pair back out of the byte that carries them. Two nibbles fill it exactly, so an
+        even count leaves no pad and an odd one leaves the high half, which has to be nothing.
+    ]]
+    if width == NIBBLE then
+        local index = 1
+        while index < count do
+            local byte = buffer.readu8 (b, at)
+
+            into[index] = bit32.band (byte, NIBBLES - 1)
+            into[index + 1] = bit32.rshift (byte, NIBBLE)
+
+            at += 1
+            index += PAIR
+        end
+
+        if index > count then return at, true end
+
+        local byte = buffer.readu8 (b, at)
+        into[index] = bit32.band (byte, NIBBLES - 1)
+
+        return at + 1, byte < NIBBLES
+    end
+
     -- The same run of flags, taken back a byte at a time. What is left over is the pad.
     if width == FLAG then
         local index = 1

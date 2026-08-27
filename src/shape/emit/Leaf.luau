@@ -76,6 +76,10 @@ const SEXTET = QUARTER + NIBBLE
 -- Three, which fills those same three bytes eight at a time, six being twice it.
 const TRIPLET = TRIO
 
+-- Twelve, which fills them two at a time, and twenty four, which fills them on its own.
+const DOZEN = SEXTET * PAIR
+const BROAD = TRIO * BYTE
+
 -- The two steps into a group of eight that no width of its own already names.
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
@@ -383,6 +387,36 @@ local function packed (
         end
     end
 
+    -- The same three bytes two at a time, twelve being twice six and four times three.
+    if width == DOZEN then
+        while from + 1 <= count do
+            local group = bit32.bor (indices[from], bit32.lshift (indices[from + 1], DOZEN))
+
+            buffer.writeu16 (b, at, group)
+            buffer.writeu8 (b, at + PAIR, bit32.rshift (group, WIDE))
+
+            at += TRIO
+            from += PAIR
+        end
+    end
+
+    --[[
+        An element that is the three bytes on its own, which is the widest a run runs and the one
+        width that never carries. The walk below would take a run this wide a byte at a time, an
+        accumulator having no room to hold a pair back over a width this far past one.
+    ]]
+    if width == BROAD then
+        while from <= count do
+            local one = indices[from]
+
+            buffer.writeu16 (b, at, one)
+            buffer.writeu8 (b, at + PAIR, bit32.rshift (one, WIDE))
+
+            at += TRIO
+            from += 1
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -591,6 +625,35 @@ local function unpacked (
 
             at += TRIO
             from += BYTE
+        end
+    end
+
+    -- The three bytes back as the two elements they carry, twelve being twice six.
+    if width == DOZEN then
+        while from + 1 <= count do
+            local group = bit32.bor (
+                buffer.readu16 (b, at),
+                bit32.lshift (buffer.readu8 (b, at + PAIR), WIDE)
+            )
+
+            into[from] = bit32.extract (group, 0, DOZEN)
+            into[from + 1] = bit32.extract (group, DOZEN, DOZEN)
+
+            at += TRIO
+            from += PAIR
+        end
+    end
+
+    -- The three bytes back as the one element they are, which cuts nothing out of them.
+    if width == BROAD then
+        while from <= count do
+            into[from] = bit32.bor (
+                buffer.readu16 (b, at),
+                bit32.lshift (buffer.readu8 (b, at + PAIR), WIDE)
+            )
+
+            at += TRIO
+            from += 1
         end
     end
 

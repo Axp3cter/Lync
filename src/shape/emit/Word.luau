@@ -197,6 +197,20 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
+        Whether every field's grid runs from nothing in whole steps. Recognising a reading already
+        on such a grid is not a second copy of the rounding, since anything the recognition does
+        not settle is still handed to the one grid to settle.
+    ]]
+    local flatly = simple
+    for index = 1, reach do
+        local grid = leaves[starts[index]]
+        if grid ~= nil and grid.plain == true then continue end
+
+        flatly = false
+        break
+    end
+
+    --[[
         What each field needs, by the field. The arrays above are held by the leaf a field
         starts at, so reaching one costs a step through that number every time a word runs,
         where the number itself never changes after the word is built.
@@ -220,7 +234,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         are nowhere near each other in the record.
     ]]
     local function pack (b: buffer, pos: number, value: any, slots: { number }, held: { any })
-        if simple then
+        if flatly then
+            for index = 1, reach do
+                local one = value[keys[index] :: string]
+                local made = one
+
+                if type (one) ~= "number" or one % 1 ~= 0 or one < 0 or one > bounds[index] then
+                    made = writes[index] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+                end
+
+                slots[starts[index]] = made :: number
+            end
+        elseif simple then
             for index = 1, reach do
                 local one = value[keys[index] :: string]
                 local at = starts[index]

@@ -182,26 +182,42 @@ function Store.bind (of: Store, id: number): number
     return slot
 end
 
--- A record at the slot the other machine chose for it.
-function Store.hold (of: Store, id: number, slot: number)
-    local ids = of.ids
-    if ids[slot] == nil then
-        of.count += 1
+--[[
+    The records a keyframe names, at the slots the other machine chose for them. Taken as a list
+    because a keyframe names them as one, which leaves what the store answers about itself asked
+    once for the whole of it rather than once a record.
+]]
+function Store.holds (of: Store, ids: { number }, slots: { number }, count: number)
+    local held = of.ids
+    local slotOf = of.slotOf
+    local rows = of.rows
+    local template = of.template
+
+    local high = of.high
+    local more = 0
+
+    for index = 1, count do
+        local id = ids[index]
+        local slot = slots[index]
+
+        if held[slot] == nil then
+            more += 1
+        end
+        held[slot] = id
+        slotOf[id] = slot
+
+        --[[
+            A row this receiver already has is written over rather than made again. A keyframe
+            states every field of every record it names, so by the time the walk that called this
+            is done there is nothing of the older reading left, and a fresh table would have been
+            filled a field at a time with the very same values.
+        ]]
+        if rows[id] == nil then rows[id] = table.clone (template) end
+        if slot > high then high = slot end
     end
 
-    ids[slot] = id
-    of.slotOf[id] = slot
-
-    --[[
-        A row this receiver already has is written over rather than made again. A keyframe states
-        every field of every record it names, so by the time the walk that called this is done
-        there is nothing of the older reading left, and a fresh table would have been filled a
-        field at a time with the very same values.
-    ]]
-    local rows = of.rows
-    if rows[id] == nil then rows[id] = table.clone (of.template) end
-
-    if slot > of.high then of.high = slot end
+    of.count += more
+    of.high = high
 end
 
 -- A record gone, and the slot it held.

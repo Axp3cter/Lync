@@ -183,20 +183,24 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
     for index = 1, frame.count do
         local slot = slots[index]
         local id = ids[index]
-        local was = slotOf[id]
 
         if wanted then snapped (of, store, id) end
-
-        Store.hold (store, id, slot)
         if gens ~= nil then gens[slot] = stamps[index] end
 
         shadow[slot] = true
-        if was == nil then
+        if slotOf[id] == nil then
             born (of, store, id)
         else
             moved (of, id)
         end
     end
+
+    --[[
+        The records put where the keyframe says only once every one of them has been read against
+        the store as it stood. What the walk above asks of a record is whether this receiver held
+        it, and holding any of them is what stops that question answering the same way twice.
+    ]]
+    Store.holds (store, ids, slots, frame.count)
 
     --[[
         A baseline a keyframe states is put off until every section of the frame has been read,

@@ -70,6 +70,9 @@ const NIBBLES = 2 ^ NIBBLE
 const QUARTER = 2
 const QUARTERS = BYTE // QUARTER
 
+-- Six, which fills no byte on its own and fills three of them four at a time.
+const SEXTET = QUARTER + NIBBLE
+
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
 
@@ -324,9 +327,33 @@ local function packed (
         return at + 1
     end
 
+    local from = 1
+
+    --[[
+        Four elements to three bytes, which is where six bits land evenly though no one byte holds
+        a whole number of them. Whatever the count stops short of a group of four is left to the
+        walk below, which is the same walk that would have taken all of them.
+    ]]
+    if width == SEXTET then
+        while from + QUARTERS - 1 <= count do
+            local group = bit32.bor (
+                indices[from],
+                bit32.lshift (indices[from + 1], SEXTET),
+                bit32.lshift (indices[from + PAIR], SEXTET * PAIR),
+                bit32.lshift (indices[from + TRIO], SEXTET * TRIO)
+            )
+
+            buffer.writeu16 (b, at, group)
+            buffer.writeu8 (b, at + PAIR, bit32.rshift (group, WIDE))
+
+            at += TRIO
+            from += QUARTERS
+        end
+    end
+
     local acc, used = 0, 0
 
-    for index = 1, count do
+    for index = from, count do
         acc = bit32.bor (acc, bit32.lshift (indices[index], used))
         used += width
 

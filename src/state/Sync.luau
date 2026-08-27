@@ -536,6 +536,16 @@ function Sync.update (of: Sync, id: number, fields: any)
     local streams = of.streams
     local writers = store.writers
 
+    --[[
+        What the loop below asks of the definition rather than of the field, reached once. Every
+        one of them is the same table for every name a caller listed, so working them out again
+        for each is the definition answering a question it already answered.
+    ]]
+    local columns = store.columns
+    local optional = def.optionalFields
+    local climbing = def.climbingFields
+    local lane: any = of.lane
+
     local moved = false
     for name, value in fields do
         local field = place[name]
@@ -544,22 +554,16 @@ function Sync.update (of: Sync, id: number, fields: any)
         end
 
         -- The one value that means a field has none, which is a table nothing else can be.
-        if value == Sync.NONE and not def.optionalFields[field] then
+        if value == Sync.NONE and not optional[field] then
             Log.error (`{def.name}.{name} is not optional and cannot be cleared`, {
                 definition = def.name,
             })
         end
 
-        local was = store.columns[field][slot]
+        local was = columns[field][slot]
 
         -- A field that may only climb, held to it at the call that would have lowered it.
-        if
-            climbs
-            and def.climbingFields[field]
-            and was ~= nil
-            and value ~= Sync.NONE
-            and value < was
-        then
+        if climbs and climbing[field] and was ~= nil and value ~= Sync.NONE and value < was then
             Log.error (
                 `{def.name}.{name} only climbs, and {value} is under {was}`,
                 { definition = def.name }
@@ -582,7 +586,7 @@ function Sync.update (of: Sync, id: number, fields: any)
             question the store already answers, and it would put an absolute value in a reliable
             delta, which is the one place it never goes.
         ]]
-        if not streams or of.lane.place[field] == nil then
+        if not streams or lane.place[field] == nil then
             mask = Coalesce.touched (mask, field)
             moved = true
         end

@@ -865,6 +865,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         link.lossy = loose
         link.wrote = def.head.bytes
         link.runs = def.head.runs :: number
+        link.writing = def.built.write
         link.widest = def.built.maxBytes
         link.tallied = Tally.row (self.counts, def.name)
     end
@@ -877,7 +878,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     ]]
     FIRED (link.tallied :: Tally.Row)
 
-    local wrote = def.built.write (link.pending, link.wrote, value)
+    local wrote = link.writing (link.pending, link.wrote, value)
     local many = holds + 1
     link.wrote, link.holds = wrote, many
 

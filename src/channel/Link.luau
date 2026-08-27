@@ -32,6 +32,9 @@ export type Link = {
     read pending: buffer,
     read room: number,
 
+    -- What the open run writes each payload with, taken from the definition it was opened for.
+    writing: (buffer, number, any) -> number,
+
     -- What the open run is held to: how many it may carry, and the widest one payload may come to.
     runs: number,
     widest: number,
@@ -88,6 +91,7 @@ function Link.new (
         pending = buffer.create (room),
         room = room,
         runs = 0,
+        writing = nil :: any,
         widest = 0,
         holds = 0,
         tallied = nil,

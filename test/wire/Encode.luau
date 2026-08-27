@@ -213,6 +213,21 @@ return {
     end),
 
     --[[
+        A record whose fields all live in the word, handed a name it never declared. A group that
+        holds a word and declares its names is written by a pair asking neither of those again, so
+        the one check left in that pair is the whole of what refuses a name nobody declared.
+    ]]
+    Harness.case ("wire.a-record-in-one-word-refuses-a-name-nobody-declared", function ()
+        local of = built (Lync.struct ({
+            near = Lync.int (0, FULL),
+            after = Lync.int (0, FULL),
+        }))
+
+        Expect.equal (select (2, pcall (of.write, SLAB, 0, { near = 1, after = 1 })), 2)
+        refused (of, { near = 1, after = 1, spare = 1 }, "struct")
+    end),
+
+    --[[
         The same where both grids fill the bytes carrying them. A grid whose top is its byte's own
         is held to by masking the reading down to the byte rather than by comparing against the
         top, so all three of over the top, under the bottom and no number at all have to come back

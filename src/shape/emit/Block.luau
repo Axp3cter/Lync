@@ -271,7 +271,41 @@ function Block.group (
         return at, into
     end
 
-    return laid, plain
+    if allow == nil or pack == nil or unpack == nil then return laid, plain end
+
+    --[[
+        The same pair for a group that declares its names and holds a word, which is most of them.
+        Whether it does is settled when the group is built, so the pair above asks it once a record
+        where the answer was the same every time.
+    ]]
+    local function stated (b: buffer, pos: number, value: any): number
+        only (allow, of.tag, value)
+        pack (b, pos, value, slots, held)
+
+        local at = pos + region
+        for index = 1, reach do
+            at = writes[index] (b, at, value[keys[index]])
+        end
+
+        return at
+    end
+
+    local function sorted (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local into: any = table.clone (blank)
+        unpack (b, pos, into, slots, held)
+
+        local at = pos + region
+        for index = 1, reach do
+            local one: any
+            at, one = reads[index] (b, at, ctx)
+
+            into[keys[index]] = one
+        end
+
+        return at, into
+    end
+
+    return stated, sorted
 end
 
 -- A value laid down as its parts and built back out of them.

@@ -460,6 +460,10 @@ function Newest.apply (
         the reading gathered into.
     ]]
     local column = store.columns[field]
+
+    -- The writer this field is put down by, which a section names once and not once a slot.
+    local put = store.writers[field]
+
     local slots = of.slots
     local standing = of.gens
     local values = of.values
@@ -474,7 +478,7 @@ function Newest.apply (
         if column[slot] == value then continue end
 
         Apply.snapped (heard, store, id)
-        Store.write (store, slot, id, field, value)
+        put (slot, id, value)
         Apply.moved (heard, id)
     end
 end

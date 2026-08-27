@@ -181,15 +181,6 @@ end
 -- A slot back where the allocator finds it, which only the machine that hands them out does.
 function Store.spare (of: Store, slot: number) Heap.push (of.free, slot, slot) end
 
---[[
-    One field of one record, in both of the places it is held: the column and the row are one fact
-    written twice, and they stay one fact only because nothing can write either alone. Naming the
-    field reaches its writer, which a caller putting down many slots of one field holds instead.
-]]
-function Store.write (of: Store, slot: number, id: number, field: number, value: any)
-    of.writers[field] (slot, id, value)
-end
-
 -- A partition emptied, and every slot it handed out back at the beginning.
 function Store.clear (of: Store)
     for index = 1, of.fields do

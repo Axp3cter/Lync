@@ -34,6 +34,16 @@ Session.__index = Session
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    What a fire and a block reach for, under their own names. Each is the same function for the
+    life of the place, so a fire that counts itself and a block that is sealed, priced and put in
+    order reach a name rather than four tables between them.
+]]
+const COUNTED = Tally.counted
+const CARRIED = Tally.carried
+const SEALED = Blocks.sealed
+const NEXT = Link.next
+
 const HANDSHAKE: Transport.Channel = "handshake"
 const RELIABLE: Transport.Channel = "reliable"
 const UNRELIABLE: Transport.Channel = "unreliable"
@@ -327,7 +337,7 @@ local function latest (self: Self, now: number)
         head.write (scratch, 0, fields)
 
         local carried = if side.bears then side.refs else nil
-        local block = Blocks.sealed (scratch, ends, Blocks.LOOSE, Link.next (link), carried)
+        local block = SEALED (scratch, ends, Blocks.LOOSE, NEXT (link), carried)
 
         table.clear (side.refs)
         table.clear (side.slotOf)
@@ -335,7 +345,7 @@ local function latest (self: Self, now: number)
         local to = one.to
         if to == nil then
             Outbox.loose (link, block)
-            Tally.carried (self.counts, def.name, block.len)
+            CARRIED (self.counts, def.name, block.len)
             continue
         end
 
@@ -344,7 +354,7 @@ local function latest (self: Self, now: number)
 
         local reach = #audience
         Outbox.looseTo (link, audience, reach, block)
-        if reach > 0 then Tally.carried (self.counts, def.name, block.len) end
+        if reach > 0 then CARRIED (self.counts, def.name, block.len) end
     end
 end
 
@@ -684,7 +694,7 @@ local function posted (
             Outbox.shared (link, block)
         end
 
-        Tally.carried (self.counts, def.name, block.len)
+        CARRIED (self.counts, def.name, block.len)
         return
     end
 
@@ -698,7 +708,7 @@ local function posted (
         Outbox.targeted (link, audience, reach, block)
     end
 
-    if reach > 0 then Tally.carried (self.counts, def.name, block.len) end
+    if reach > 0 then CARRIED (self.counts, def.name, block.len) end
 end
 
 -- One block written on its own, which is every fire a run cannot take.
@@ -713,7 +723,7 @@ local function alone (
     local side = def.built.sidecar
     local held = if side.bears then side.refs else nil
     local class = if loose then Blocks.LOOSE else Blocks.PACKET
-    local block = Blocks.sealed (link.scratch, ends, class, Link.next (link), held)
+    local block = SEALED (link.scratch, ends, class, NEXT (link), held)
 
     table.clear (side.refs)
     table.clear (side.slotOf)
@@ -754,7 +764,7 @@ function shipped (self: Self)
 
     local side = built.sidecar
     local held = if side.bears then side.refs else nil
-    local block = Blocks.sealed (link.pending, link.wrote, class, Link.next (link), held)
+    local block = SEALED (link.pending, link.wrote, class, NEXT (link), held)
 
     table.clear (side.refs)
     table.clear (side.slotOf)
@@ -778,7 +788,7 @@ function shipped (self: Self)
         return
     end
 
-    Tally.carried (self.counts, def.name, block.len)
+    CARRIED (self.counts, def.name, block.len)
     if to == nil then
         Outbox.shared (link, block)
         return
@@ -842,7 +852,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
         cannot answer and the firing cannot price. The row is the run's, since a run is one
         definition and naming it again once a fire asks the same question over and over.
     ]]
-    Tally.counted (link.tallied :: Tally.Row, 0)
+    COUNTED (link.tallied :: Tally.Row, 0)
 
     link.wrote = def.built.write (link.pending, link.wrote, value)
     link.holds += 1

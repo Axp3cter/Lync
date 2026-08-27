@@ -17,6 +17,9 @@ const SPACE = "counters"
 -- The one client, because every claim here is about a number rather than an audience.
 const SENDER = "alice"
 
+-- How many fires ride one block below, which is more than the single fire a frame carries.
+const RIDING = 3
+
 --[[
     Four packets, and what separates each from the next is the one thing a check reads a counter
     against.
@@ -239,6 +242,24 @@ return {
 
         Expect.equal (whole (of.server).drops, mine)
         Expect.equal (row (of.server, PLAIN).drops - passed, 0)
+    end),
+
+    --[[
+        A run of fires in one block, counted once each. A block carrying many fires of the one
+        definition arrives as a single frame, so the line has to be told how many rode in it
+        rather than that a frame came: counting the frame would read a run of many as one.
+    ]]
+    Harness.case ("stats.received-per-fire-of-a-run", function ()
+        local of = opened ()
+        local held = row (of.client, PLAIN).received
+
+        for _ = 1, RIDING do
+            of.server.defs[PLAIN]:fireClient (of.player, CARRIED)
+        end
+        of.server.session:flush ()
+        of.wire:settle ()
+
+        Expect.equal (row (of.client, PLAIN).received - held, RIDING)
     end),
 
     --[[

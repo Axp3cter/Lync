@@ -22,6 +22,17 @@ local Router = {}
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    What a frame and the packets inside it reach for, under their own names. Each is the same
+    function for the life of the place, so a frame taken apart reaches a name for every listener
+    it wakes and every arrival it counts rather than a table.
+]]
+const RAN = Boundary.ran
+const LOST = Boundary.lost
+const ARRIVED = Tally.arrived
+const PACKETS = Dispatch.packets
+const PACKET = Dispatch.packet
+
 -- Where a header's fields land in the one array every form is read into.
 const WHOSE = 1
 const SECOND = 2
@@ -100,11 +111,7 @@ end
 local function holds (of: Wiring, head: Frames.Head, at: number, len: number, said: string): boolean
     if len - at >= head.bytes then return true end
 
-    Boundary.lost (
-        of.boundary,
-        Catalog.BOUNDS,
-        { said = `{said} wants {head.bytes} and has {len - at}` }
-    )
+    LOST (of.boundary, Catalog.BOUNDS, { said = `{said} wants {head.bytes} and has {len - at}` })
     return false
 end
 
@@ -177,14 +184,14 @@ local function packets (
         a store and a walk over the one value it already had.
     ]]
     if held == 1 then
-        local ends, value = Boundary.ran (of.boundary, def, built, built.read, b, pos)
+        local ends, value = RAN (of.boundary, def, built, built.read, b, pos)
         if ends == nil then return nil end
 
         if not stale and of.boundary.took then
             if from == nil then
-                Dispatch.packet (of.heard, def.id, def.name, value, sent)
+                PACKET (of.heard, def.id, def.name, value, sent)
             else
-                Dispatch.packet (of.heard, def.id, def.name, value, from, sent)
+                PACKET (of.heard, def.id, def.name, value, from, sent)
             end
         end
 
@@ -201,7 +208,7 @@ local function packets (
     local taken = 0
 
     for _ = 1, held do
-        local ends, value = Boundary.ran (of.boundary, def, built, built.read, b, pos)
+        local ends, value = RAN (of.boundary, def, built, built.read, b, pos)
         if ends == nil then return nil end
 
         if not stale and of.boundary.took then
@@ -214,14 +221,14 @@ local function packets (
 
     if taken > 0 then
         if from == nil then
-            Dispatch.packets (of.heard, def.id, def.name, taken, values, sent)
+            PACKETS (of.heard, def.id, def.name, taken, values, sent)
         else
-            Dispatch.packets (of.heard, def.id, def.name, taken, values, from, sent)
+            PACKETS (of.heard, def.id, def.name, taken, values, from, sent)
         end
     end
 
     -- The block itself is counted where the frame is walked, so what is owed here is the rest.
-    Tally.arrived (of.tally, def.name, held - 1)
+    ARRIVED (of.tally, def.name, held - 1)
     return pos
 end
 
@@ -261,7 +268,7 @@ local function asked (
             pos = after
         end
 
-        local ends, value = Boundary.ran (of.boundary, def, def.request, def.request.read, b, pos)
+        local ends, value = RAN (of.boundary, def, def.request, def.request.read, b, pos)
         if ends == nil then return nil end
 
         --[[
@@ -288,7 +295,7 @@ local function asked (
         pos = ends
     end
 
-    Tally.arrived (of.tally, def.name, held - 1)
+    ARRIVED (of.tally, def.name, held - 1)
     return pos
 end
 
@@ -336,14 +343,14 @@ local function answered (
             continue
         end
 
-        local ends, value = Boundary.ran (of.boundary, def, def.response, def.response.read, b, pos)
+        local ends, value = RAN (of.boundary, def, def.response, def.response.read, b, pos)
         if ends == nil then return nil end
         if of.boundary.took then of.pending:answer (id, value) end
 
         pos = ends
     end
 
-    Tally.arrived (of.tally, def.name, held - 1)
+    ARRIVED (of.tally, def.name, held - 1)
     return pos
 end
 
@@ -351,14 +358,14 @@ end
 local function stated (of: Wiring, def: Compile.Set, lossy: boolean, b: buffer, at: number): number?
     local take = if lossy then of.streams[def.id] else of.sections[def.id]
     if take == nil then
-        Boundary.lost (of.boundary, Catalog.DEFID, {
+        LOST (of.boundary, Catalog.DEFID, {
             expected = "a definition this endpoint holds a set for",
             got = def.name,
         })
         return nil
     end
 
-    local ends = Boundary.ran (of.boundary, def, def.site, take, b, at)
+    local ends = RAN (of.boundary, def, def.site, take, b, at)
     return ends
 end
 
@@ -410,7 +417,7 @@ function Router.frame (
 
     while boundary.live and at < len do
         if len - at < naming.bytes then
-            Boundary.lost (boundary, Catalog.DEFID, {
+            LOST (boundary, Catalog.DEFID, {
                 expected = `a block of at least {naming.bytes} bytes`,
                 got = `{len - at} left`,
             })
@@ -423,7 +430,7 @@ function Router.frame (
         local def = of.space.byId[id]
 
         if def == nil then
-            Boundary.lost (boundary, Catalog.DEFID, {
+            LOST (boundary, Catalog.DEFID, {
                 expected = `a definition of {of.space.space}`,
                 got = tostring (id),
             })
@@ -449,7 +456,7 @@ function Router.frame (
 
         if ends == nil then return end
         if ends <= at then
-            Boundary.lost (boundary, Catalog.DEFID, {
+            LOST (boundary, Catalog.DEFID, {
                 expected = "a block that reads forward",
                 got = def.name,
             })

@@ -18,6 +18,16 @@ local Leaf = {}
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    The four varint calls under their own names. Every one of them sits inside a closure this
+    emits, so each is reached once a value rather than once a build, and the module they come
+    from is the same table for the life of the place.
+]]
+const WRITE = Varint.write
+const READ = Varint.read
+const WRITE_SIGNED = Varint.writeSigned
+const READ_SIGNED = Varint.readSigned
+
 const BYTE = Protocol.BYTE_BITS
 const EXACT = Protocol.EXACT
 
@@ -311,9 +321,7 @@ function Leaf.unknown (
                 being written. The frame keeps the slack for exactly this, so the bytes past the
                 bound land in room nothing else was given and the refusal drops the frame anyway.
             ]]
-            local after = if whole
-                then Varint.writeSigned (b, pos + 1, value)
-                else pos + 1 + REAL_BYTES
+            local after = if whole then WRITE_SIGNED (b, pos + 1, value) else pos + 1 + REAL_BYTES
             if not whole then buffer.writef64 (b, pos + 1, value) end
 
             if after > upto then refuse (at, "more bytes than it was given") end
@@ -325,7 +333,7 @@ function Leaf.unknown (
             local count = if text then #value else buffer.len (value)
 
             buffer.writeu8 (b, pos, if text then TEXT_TAG else BYTES_TAG)
-            local after = Varint.write (b, pos + 1, count)
+            local after = WRITE (b, pos + 1, count)
             if after + count > upto then refuse (at, "more bytes than it was given") end
 
             if text then
@@ -342,7 +350,7 @@ function Leaf.unknown (
         if count ~= nil then
             buffer.writeu8 (b, pos, LIST_TAG)
 
-            local after = Varint.write (b, pos + 1, count)
+            local after = WRITE (b, pos + 1, count)
             for index = 1, count do
                 after = put (b, after, value[index], upto, deep + 1)
             end
@@ -355,7 +363,7 @@ function Leaf.unknown (
         end
 
         buffer.writeu8 (b, pos, PAIRS_TAG)
-        local after = Varint.write (b, pos + 1, held)
+        local after = WRITE (b, pos + 1, held)
 
         for key, held2 in value do
             after = put (b, after, key, upto, deep + 1)
@@ -374,7 +382,7 @@ function Leaf.unknown (
         if tag == TRUE_TAG then return pos + 1, true end
 
         if tag == WHOLE_TAG then
-            local whole, after = Varint.readSigned (b, pos + 1)
+            local whole, after = READ_SIGNED (b, pos + 1)
             if after > upto then reject (Catalog.COUNT, at, after) end
 
             return after, whole
@@ -386,7 +394,7 @@ function Leaf.unknown (
         end
 
         if tag == TEXT_TAG or tag == BYTES_TAG then
-            local count, after = Varint.read (b, pos + 1)
+            local count, after = READ (b, pos + 1)
             if after + count > upto then reject (Catalog.COUNT, at, count) end
 
             if tag == TEXT_TAG then return after + count, buffer.readstring (b, after, count) end
@@ -397,7 +405,7 @@ function Leaf.unknown (
         end
 
         if tag == LIST_TAG or tag == PAIRS_TAG then
-            local count, after = Varint.read (b, pos + 1)
+            local count, after = READ (b, pos + 1)
             if after + count > upto then reject (Catalog.COUNT, at, count) end
 
             local out: any = {}
@@ -516,11 +524,11 @@ function Leaf.varint (
     if of.op == "vlq" then
         local function write (b: buffer, pos: number, value: any): number
             if not (value >= 0 and value < EXACT and value % 1 == 0) then refuse (at, value) end
-            return Varint.write (b, pos, value)
+            return WRITE (b, pos, value)
         end
 
         local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-            local ok, value, after = pcall (Varint.read, b, pos)
+            local ok, value, after = pcall (READ, b, pos)
             if not ok then reject (Catalog.VARINT, at, value) end
 
             return after :: number, value
@@ -531,11 +539,11 @@ function Leaf.varint (
 
     local function write (b: buffer, pos: number, value: any): number
         if not (value > -EXACT and value < EXACT and value % 1 == 0) then refuse (at, value) end
-        return Varint.writeSigned (b, pos, value)
+        return WRITE_SIGNED (b, pos, value)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-        local ok, value, after = pcall (Varint.readSigned, b, pos)
+        local ok, value, after = pcall (READ_SIGNED, b, pos)
         if not ok then reject (Catalog.VARINT, at, value) end
 
         return after :: number, value
@@ -720,7 +728,7 @@ function Leaf.slot (
     side.bears = true
 
     local function write (b: buffer, pos: number, value: any): number
-        if value == nil then return Varint.write (b, pos, NOTHING) end
+        if value == nil then return WRITE (b, pos, NOTHING) end
 
         local held = slotOf[value]
         if held == nil then
@@ -729,11 +737,11 @@ function Leaf.slot (
             slotOf[value] = held
         end
 
-        return Varint.write (b, pos, held :: number)
+        return WRITE (b, pos, held :: number)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-        local ok, slot, after = pcall (Varint.read, b, pos)
+        local ok, slot, after = pcall (READ, b, pos)
         if not ok then reject (Catalog.VARINT, at, slot) end
 
         local one = refs[slot :: number]

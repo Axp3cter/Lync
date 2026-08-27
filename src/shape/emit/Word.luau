@@ -781,14 +781,38 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
+        -- The one seat and the one call a word of a single window is read and written at.
+        local seat, bytes = where[1], width[1]
+
+        --[[
+            The same read for that word. One window is one call at one seat, so what the walk
+            above carries from window to window is settled before it starts and the pieces are
+            the whole of the run rather than a stretch of it.
+        ]]
+        local function lone (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local at = pos + seat
+            local acc = if bytes == ONE
+                then buffer.readu8 (b, at)
+                elseif bytes == PAIR then buffer.readu16 (b, at)
+                else buffer.readu32 (b, at)
+
+            for part, key in puts do
+                local raw = bit32.extract (acc, offset[part], span[part])
+                if raw > tops[part] then past (part, raw) end
+
+                local reading = takes[part]
+                into[key] = if reading == nil then raw else reading (raw)
+            end
+
+            return nil
+        end
+
         --[[
             The same write where the word is one window wide, which is every record the bytes of a
             single call can hold. The pieces are then the whole of the run rather than a stretch of
             it, so the walk hands each name over as it goes and the seat is settled once.
         ]]
         if windows == 1 then
-            local seat, bytes = where[1], width[1]
-
             local function alone (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local acc = 0
 
@@ -823,7 +847,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
             if flatly then return alone, bared end
 
-            return alone, level
+            return alone, lone
         end
 
         if flatly then return flat, bared end

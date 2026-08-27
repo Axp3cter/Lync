@@ -378,6 +378,26 @@ return {
     end),
 
     --[[
+        A word of one window carrying a grid that fills nothing beside one that is no number, which
+        is the record read at one seat rather than window by window. A flag's grid runs from no
+        number, so the pieces come off the bytes as they are and one of them can still be past its
+        own end.
+    ]]
+    Harness.case ("total.one-window-word", function ()
+        local of = Turns.built (Lync.struct ({ a = Lync.int (0, CUT_TOP), b = Lync.bool () }))
+
+        local bytes = Turns.text (of, { a = 0, b = false })
+        Expect.holds (decoded (of, bytes), "the word this codec wrote was refused")
+
+        for at = 1, #bytes do
+            local before, after = string.sub (bytes, 1, at - 1), string.sub (bytes, at + 1)
+            for byte = 0, WHOLE_BYTE do
+                survives (of, before .. string.char (byte) .. after, `byte {at} at {byte}`)
+            end
+        end
+    end),
+
+    --[[
         A word whose last field is cut across two bytes, which packs into neither seats nor
         windows a field is the whole of. Every field still stands on the record itself, so the
         reading takes the short way through, and a hostile byte spells indices past every grid.

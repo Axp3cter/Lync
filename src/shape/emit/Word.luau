@@ -351,6 +351,19 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         --[[
+            A grid running from nothing in whole steps hands back the index it was given, and the
+            reading for one is held as nothing at all rather than as a call answering the same,
+            so a word of them has none to ask after and none of them is reached for here.
+        ]]
+        if flatly then
+            for index = 1, reach do
+                into[keys[index] :: string] = slots[starts[index]]
+            end
+
+            return bare
+        end
+
+        --[[
             A word of fields that neither dissolve nor gather puts every reading straight onto the
             record it was handed, so none of what the walk below carries for the rest is asked for.
             Split here the way the writing half splits, rather than asked field by field.

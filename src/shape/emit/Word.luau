@@ -667,7 +667,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             nothing, and one whose grid does not is left `UNDER_ALL` and always asks.
         ]]
         local levels = table.create (#slot, 0)
-        local fills = table.create (#slot, false)
 
         for part = 1, #slot do
             local cell = slot[part]
@@ -679,7 +678,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             takes[part] = fromIndex[cell]
             tops[part] = spans[cell]
             levels[part] = if leaves[cell].plain == true then spans[cell] else UNDER_ALL
-            fills[part] = whole[cell]
         end
 
         local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
@@ -730,7 +728,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 for part = first[window], last[window] do
                     local raw = bit32.extract (acc, offset[part], span[part])
 
-                    if not fills[part] and raw > tops[part] then
+                    if raw > tops[part] then
                         local tag = joins[owner[part]].tag
                         Log.reject (Catalog.TAG, {
                             pathId = tag.pathId,

@@ -338,12 +338,30 @@ function Rotation.smallest (of: Grid.Grid): Smallest
         x, y, z, w = x / length, y / length, z / length, w / length
 
         --[[
+            The one the branch named travels under every tag but its own, and nothing is larger
+            than it, so a grid holding it holds all four and a grid without it holds none of those
+            three. The three would each ask and each be told the same, so one asking answers them.
+        ]]
+        local most = w
+        if largest == AT_X then
+            most = x
+        elseif largest == AT_Y then
+            most = y
+        elseif largest == AT_Z then
+            most = z
+        end
+
+        local reached = window (most) ~= nil
+
+        --[[
             Every tag tried, and the nearest answer taken. The branch above names the largest of the
             exact quaternion, which cannot be the whole choice: the three that travel are rounded,
             so the bytes name one tag while the value they rebuild wants another.
         ]]
         local best, took, atA, atB, atC = math.huge, largest, nil, nil, nil
         for tag = AT_X, AT_W do
+            if not reached and tag ~= largest then continue end
+
             local pa, pb, pc, pd = apart (tag, x, y, z, w)
 
             --[[

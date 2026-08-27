@@ -335,11 +335,28 @@ local function unpacked (
     local acc, used = 0, 0
     local mask = bit32.lshift (1, width) - 1
 
+    --[[
+        How many bytes the run is, so a top up never reaches past it: what is left over when the
+        last element is out is the pad, and a byte taken from beyond the run would put something
+        else there. Two at a time where the width leaves room under the thirty two an accumulator
+        carries, which halves what the walk asks of the buffer.
+    ]]
+    local left = Bytes.whole (count * width)
+    local paired = width <= WIDE
+
     for index = 1, count do
         while used < width do
-            acc = bit32.bor (acc, bit32.lshift (buffer.readu8 (b, at), used))
-            at += 1
-            used += BYTE
+            if paired and left >= PAIR then
+                acc = bit32.bor (acc, bit32.lshift (buffer.readu16 (b, at), used))
+                at += PAIR
+                used += WIDE
+                left -= PAIR
+            else
+                acc = bit32.bor (acc, bit32.lshift (buffer.readu8 (b, at), used))
+                at += 1
+                used += BYTE
+                left -= 1
+            end
         end
 
         into[index] = bit32.band (acc, mask)

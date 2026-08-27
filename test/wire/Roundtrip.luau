@@ -64,6 +64,9 @@ const CROWDED = table.freeze ({ 4, 100, 8, 200, 2, 60, 17, 120, 4, 250, 11, 40 }
 -- How many two-bit fields it takes to run a word past one window, which is more than sixteen bits.
 const TURNED = 12
 
+-- A span wider than the sixteen bits a run can be topped up by in one go, and under the ceiling.
+const BROAD = 3000000
+
 -- The signed nibble, which fills the four bits it is read at the way the unsigned one fills them.
 const SUNK = -(NIBBLE_TOP + 1) // 2
 const RISEN = (NIBBLE_TOP - 1) // 2
@@ -549,6 +552,24 @@ return {
         -- Every bit of the first window set, which spells each piece in it over its own top.
         buffer.writeu8 (bytes, 0, 0xFF)
         Expect.throws (function () Turns.read (of, bytes, size) end)
+    end),
+
+    --[[
+        A run whose elements are wider than a pair of bytes. What the walk carries between the bytes
+        and the values holds thirty two bits, so a run this wide is taken a byte at a time where a
+        narrower one is taken two, and only a round trip says which it took.
+    ]]
+    Harness.case ("wire.a-run-wider-than-a-pair-carries-both-ways", function ()
+        local of = Turns.built (Lync.array (Lync.int (0, BROAD), 0, TURNED))
+
+        local was = {}
+        for at = 1, TURNED do
+            was[at] = (at - 1) * (BROAD // TURNED)
+        end
+
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (Turns.read (of, bytes, size), was)
     end),
 
     --[[

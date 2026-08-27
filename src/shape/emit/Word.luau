@@ -497,8 +497,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             -- The same pair where every field is one byte, so which call to make is not a question.
             local function steady (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local at = pos
-                for index = 1, reach do
-                    local one = value[keys[index]]
+                for index, key in keys do
+                    local one = value[key]
                     local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
@@ -510,8 +510,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             -- The same, where a whole number already on the grid is the index and asks nothing.
             local function ready (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local at = pos
-                for index = 1, reach do
-                    local one = value[keys[index]]
+                for index, key in keys do
+                    local one = value[key]
                     local made = one
 
                     if
@@ -615,8 +615,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 and both of those are settled above, so every field here has one to be put under.
             ]]
             local function square (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
-                for index = 1, reach do
-                    local one = value[keys[index]]
+                for index, key in keys do
+                    local one = value[key]
                     local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
 

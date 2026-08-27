@@ -21,6 +21,7 @@ const ANY = Wide.any
 const LOWEST = Wide.lowest
 const MEETS = Wide.meets
 const UNION = Wide.union
+const GATHERED = Wide.gathered
 const BOTH = Wide.both
 const WITHOUT = Wide.without
 
@@ -423,7 +424,6 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
     local slotOf = store.slotOf
 
     local builds, shifts = 0, 0
-    local whole = NONE
 
     for id, op in dirt.ops do
         if op == "remove" then continue end
@@ -431,7 +431,6 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
         if op == "update" then
             shifts += 1
             moved[shifts] = slotOf[id]
-            whole = UNION (whole, dirty[id])
             continue
         end
 
@@ -451,6 +450,13 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
     for index = 1, shifts do
         masks[index] = dirty[ids[moved[index]]]
     end
+
+    --[[
+        What every moved record between them owes, folded off the list the walk above just laid
+        out. The same words go by twice otherwise, once to be counted into the whole and once to
+        be put in order, and only the second of those has to happen a record at a time.
+    ]]
+    local whole = GATHERED (NONE, masks, shifts)
 
     counts[MAKING], counts[MOVING] = builds, shifts
     of.cuts[MOVING] = fitted (of, whole)

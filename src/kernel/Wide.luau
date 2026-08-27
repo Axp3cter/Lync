@@ -44,11 +44,11 @@ export type Carrier = {
     read union: (a: Word, b: Word) -> Word,
 
     --[[
-        A list of bits folded into one word at once. A record's fields are named a few at a time
-        and every one of them is a bit, so folding them one call apiece spends a crossing and a
-        word on each where the whole list costs one of either.
+        A list of words folded into one at once. Both a record's moved fields and a partition's
+        dirty records come as a list, and folding a list one call apiece spends a crossing and a
+        word on every step of it where the whole list costs one of either.
     ]]
-    read gathered: (of: Word, bits: { Word }, listed: { number }, count: number) -> Word,
+    read gathered: (of: Word, words: { Word }, count: number) -> Word,
     read both: (a: Word, b: Word) -> Word,
     read meets: (a: Word, b: Word) -> boolean,
     read any: (of: Word) -> boolean,
@@ -81,10 +81,10 @@ local held: Carrier = {
 
     union = function (a: Word, b: Word): Word return carried.bor (a, b) end,
 
-    gathered = function (of: Word, bits: { Word }, listed: { number }, count: number): Word
+    gathered = function (of: Word, words: { Word }, count: number): Word
         local held = of
         for index = 1, count do
-            held = carried.bor (held, bits[listed[index]])
+            held = carried.bor (held, words[index])
         end
 
         return held
@@ -139,10 +139,10 @@ local halved: Carrier = {
         return { bit32.bor (a[1], b[1]), bit32.bor (a[2], b[2]) }
     end,
 
-    gathered = function (of: Word, bits: { Word }, listed: { number }, count: number): Word
+    gathered = function (of: Word, words: { Word }, count: number): Word
         local high, low = of[1], of[2]
         for index = 1, count do
-            local one = bits[listed[index]]
+            local one = words[index]
             high = bit32.bor (high, one[1])
             low = bit32.bor (low, one[2])
         end

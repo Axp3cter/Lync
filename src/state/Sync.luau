@@ -89,7 +89,7 @@ export type Sync = {
     read streams: boolean,
     read bits: { Wide.Word },
     read row: { any },
-    read listed: { number },
+    read listed: { Wide.Word },
     read one: { Player },
     at: number,
 }
@@ -510,7 +510,7 @@ function Sync.new (def: Compile.Set): Sync
         order = {},
         partOf = {},
         row = table.create (def.fieldCount),
-        listed = table.create (def.fieldCount) :: { number },
+        listed = table.create (def.fieldCount) :: { Wide.Word },
         one = table.create (1) :: { Player },
         at = 1,
     }
@@ -626,14 +626,14 @@ function Sync.update (of: Sync, id: number, fields: any)
         ]]
         if not streams or lane.place[field] == nil then
             moved += 1
-            listed[moved] = field
+            listed[moved] = bits[field]
         end
     end
 
     -- A call that moved nothing but newest fields owes the reliable lane nothing at all.
     if moved == 0 then return end
 
-    mask = GATHERED (mask, bits, listed, moved)
+    mask = GATHERED (mask, listed, moved)
     dirt.masks[id] = mask
     marked (part, id, "update")
 

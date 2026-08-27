@@ -185,10 +185,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
-        Whether every field of this word is its own whole reading, sits on the record itself, and
-        carries a name of its own. The one without a name is an optional standing alone, which the
-        walk for everything else already reaches the same way, so neither half below asks after a
-        name it is holding.
+        Whether every field is its own whole reading, sits on the record itself, and carries a
+        name of its own. The one without a name is an optional standing alone, which the walk for
+        the rest reaches the same way. Such a field holds one leaf and the leaves lie in the order
+        the fields do, so its seat is its own number and neither half below looks either one up.
     ]]
     local simple = true
     for index = 1, reach do
@@ -251,12 +251,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
                 end
 
-                slots[starts[index]] = made :: number
+                slots[index] = made :: number
             end
         elseif simple then
             for index, key in keys do
                 local one = value[key]
-                local at = starts[index]
+                local at = index
                 local made = writes[index] (one)
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
@@ -364,7 +364,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         ]]
         if flatly then
             for index, key in keys do
-                into[key] = slots[starts[index]]
+                into[key] = slots[index]
             end
 
             return bare
@@ -378,7 +378,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         if simple then
             for index, key in keys do
                 local reading = readings[index]
-                local raw = slots[starts[index]]
+                local raw = slots[index]
                 into[key] = if reading == nil then raw else reading (raw)
             end
 

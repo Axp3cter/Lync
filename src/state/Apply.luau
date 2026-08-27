@@ -116,12 +116,13 @@ end
 
 -- A record taken away, which cancels an arrival rather than following it.
 local function lost (of: Heard, store: Store.Store, id: number, why: Types.Cause)
-    if of.net[id] == ARRIVED then
-        of.net[id] = NOTHING
+    local net = of.net
+    if net[id] == ARRIVED then
+        net[id] = NOTHING
         return
     end
 
-    of.net[id] = GONE
+    net[id] = GONE
     of.left[id] = store
     of.causes[id] = why
 end
@@ -146,8 +147,11 @@ end
     fault, since a removal is broadcast and an audience is what decides who was holding one.
 ]]
 local function dropped (store: Store.Store, frame: Sections.Frame, of: Heard)
+    local ids = store.ids
+    local slots = frame.slots
+
     for index = 1, frame.count do
-        local id = store.ids[frame.slots[index]]
+        local id = ids[slots[index]]
         if id == nil then continue end
 
         shed (of, store, id)

@@ -129,28 +129,32 @@ end
 
 -- Every field of a record into the store, which is the whole of what a bind leaves to say.
 local function written (of: Sync, store: Store.Store, slot: number, id: number, record: any)
-    local names = of.def.fieldNames
+    local def = of.def
+    local names = def.fieldNames
     local writers = store.writers
 
-    for field = 1, of.def.fieldCount do
+    for field = 1, def.fieldCount do
         writers[field] (slot, id, record[names[field]])
     end
 end
 
 -- A record marked as owing whatever it now owes, which is what the net of a flush is taken over.
 local function marked (part: Partition, id: number, took: Coalesce.Kind)
-    local dirt = part.dirt
-    dirt.ops[id] = MERGED (dirt.ops[id], took)
+    local ops = part.dirt.ops
+    ops[id] = MERGED (ops[id], took)
 end
 
 -- A record taken out of a partition, and what that leaves the wire owing.
 local function released (part: Partition, id: number, slot: number)
     local dirt = part.dirt
+    local ops = dirt.ops
+
+    local took = MERGED (ops[id], "remove")
 
     dirt.masks[id] = nil
-    dirt.ops[id] = MERGED (dirt.ops[id], "remove")
+    ops[id] = took
 
-    if dirt.ops[id] == nil then
+    if took == nil then
         Store.spare (part.store, slot)
         return
     end

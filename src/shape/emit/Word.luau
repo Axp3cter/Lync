@@ -331,13 +331,16 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 else buffer.readu32 (b, at)
 
             for part = first[index], last[index] do
+                local cell = slot[part]
                 local piece = bit32.extract (acc, offset[part], span[part])
+
                 local up = shift[part]
                 if up == 0 then
-                    slots[slot[part]] = piece
+                    slots[cell] = piece
                     continue
                 end
-                slots[slot[part]] = bit32.bor (slots[slot[part]], bit32.lshift (piece, up))
+
+                slots[cell] = bit32.bor (slots[cell], bit32.lshift (piece, up))
             end
         end
 

@@ -27,6 +27,9 @@ const SAID = "a run of bits"
 
 -- A grid narrower than the bits carrying it, so two of its patterns are ones it has no point for.
 const REACH = 5
+
+-- A step that is not one, which is what makes a grid's points other than the numbers handed to it.
+const STEPPED = 0.5
 const HELD = table.freeze ({ 1, 3, 5 })
 
 -- What a reader is handed about the moment, which a column reads nothing of.
@@ -118,6 +121,31 @@ return {
         -- Named, since a column putting a nothing down raises where the nothing is read instead.
         local said = tostring (why)
         Expect.holds (string.find (said, WHERE, 1, true) ~= nil, `it said {said}`)
+
+        --[[
+            And the reading itself, which is the half a whole column handed over at once could get
+            wrong: the grid answers where the first bad one sat and the column has to look it up
+            again rather than say whichever one it happens to be holding.
+        ]]
+        local named = `got {REACH + 4}`
+        Expect.holds (string.find (said, named, 1, true) ~= nil, `it said {said}`)
+    end),
+
+    --[[
+        The same for a grid with no run form to offer, its points being other than the numbers it is
+        handed. What takes a column onto a grid like that is a walk asking one reading at a time,
+        and the reading it stopped on has to be named the way a whole run names its own.
+    ]]
+    Harness.case ("column.refuses-writing-off-a-stepped-grid", function ()
+        local tag, paths, expected = tagged ()
+        local write = Column.grid (tag, paths, expected, Grid.of (0, REACH, STEPPED))
+
+        local ok, why = pcall (write, buffer.create (ROOM), 0, { 1, REACH + 4, 2 } :: any, {}, 3)
+        Expect.holds (not ok, "a value off a stepped grid was written rather than refused")
+
+        local said = tostring (why)
+        local named = `got {REACH + 4}`
+        Expect.holds (string.find (said, named, 1, true) ~= nil, `it said {said}`)
     end),
 
     --[[

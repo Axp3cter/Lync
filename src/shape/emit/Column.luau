@@ -79,13 +79,13 @@ function Column.grid (
     of: Grid.Grid
 ): (Write, Read)
     local toIndex, fromIndex = of.toIndex, of.fromIndex
-    local fromIndices = of.fromIndices
+    local toIndices, fromIndices = of.toIndices, of.fromIndices
     local width, span = of.width, of.span
 
     --[[
         A column is one field across every slot holding it, which is a run and not a value. What a
-        grid can hand back for a whole run at once it hands back cheaper that way, and a grid that
-        is its own index has nothing the taking half needs to ask it for at all.
+        grid will take or hand back for a whole run at once it does cheaper that way, both halves
+        alike, and a grid that is its own index has nothing the taking half needs to ask it for.
     ]]
     local plain = of.plain == true
 
@@ -103,11 +103,16 @@ function Column.grid (
         at: { number },
         count: number
     ): number
-        for place = 1, count do
-            local one = toIndex (from[place])
-            if one == nil then Word.refusedAt (tag, paths, expected, from[place]) end
+        if toIndices ~= nil then
+            local off = toIndices (from, at, count)
+            if off ~= nil then Word.refusedAt (tag, paths, expected, from[off]) end
+        else
+            for place = 1, count do
+                local one = toIndex (from[place])
+                if one == nil then Word.refusedAt (tag, paths, expected, from[place]) end
 
-            at[place] = one :: number
+                at[place] = one :: number
+            end
         end
 
         return PACKED (b, pos, width, count, at)

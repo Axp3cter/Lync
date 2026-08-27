@@ -773,10 +773,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     then
         local key = keys[1]
         local cell = starts[1]
-        local edge = ends[1]
         local reading = fromIndex[cell]
         local writing = toIndex[cell]
         local bound = spans[cell]
+        local level = if leaves[cell].plain == true then bound else UNDER_ALL
         local said, want = wheres[1], wanted[1]
         local seat, bytes = where[1], width[1]
         local sign = joins[1].tag
@@ -784,8 +784,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
         local function only (b: buffer, pos: number, value: any, slots: { number }, _held: { any })
             local one = if key == nil then value else value[key]
-            local made = writing (one)
-            if made == nil then Word.refused (said, want, one) end
+            local made = one
+
+            if type (one) ~= "number" or bit32.bor (one, 0) ~= one or one > level then
+                made = writing (one)
+                if made == nil then Word.refused (said, want, one) end
+            end
 
             local at = pos + seat
             if bytes == ONE then
@@ -810,7 +814,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 elseif bytes == PAIR then buffer.readu16 (b, at)
                 else buffer.readu32 (b, at)
 
-            if edge >= cell and raw > bound then
+            if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
 

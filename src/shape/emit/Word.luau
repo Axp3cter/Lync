@@ -242,8 +242,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     ]]
     local function pack (b: buffer, pos: number, value: any, slots: { number }, held: { any })
         if flatly then
-            for index = 1, reach do
-                local one = value[keys[index] :: string]
+            for index, key in keys do
+                local one = value[key]
                 local made = one
 
                 if type (one) ~= "number" or bit32.bor (one, 0) ~= one or one > bounds[index] then
@@ -254,8 +254,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 slots[starts[index]] = made :: number
             end
         elseif simple then
-            for index = 1, reach do
-                local one = value[keys[index] :: string]
+            for index, key in keys do
+                local one = value[key]
                 local at = starts[index]
                 local made = writes[index] (one)
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
@@ -363,8 +363,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             so a word of them has none to ask after and none of them is reached for here.
         ]]
         if flatly then
-            for index = 1, reach do
-                into[keys[index] :: string] = slots[starts[index]]
+            for index, key in keys do
+                into[key] = slots[starts[index]]
             end
 
             return bare
@@ -376,10 +376,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             Split here the way the writing half splits, rather than asked field by field.
         ]]
         if simple then
-            for index = 1, reach do
+            for index, key in keys do
                 local reading = readings[index]
                 local raw = slots[starts[index]]
-                into[keys[index] :: string] = if reading == nil then raw else reading (raw)
+                into[key] = if reading == nil then raw else reading (raw)
             end
 
             return bare

@@ -140,13 +140,20 @@ end
     of the grid where it answers for that, since working it out from the two below asks the same
     grid twice for what it settles once, and a search asks three times a spelling it tries.
 ]]
-local function under (of: Grid.Grid, value: number): number?
-    local below = of.below
-    if below ~= nil then return below (value) end
+local function windows (of: Grid.Grid): (value: any) -> (number?, number?, number, number)
+    local ready = of.window
+    if ready ~= nil then return ready end
 
-    local at = of.toIndex (value)
-    if at == nil then return nil end
-    return if of.fromIndex (at) > value then at - 1 else at
+    local span, toIndex, fromIndex = of.span, of.toIndex, of.fromIndex
+    return function (value: any): (number?, number?, number, number)
+        local at = toIndex (value)
+        if at == nil then return nil, nil, 0, 0 end
+
+        local low = if fromIndex (at) > value then at - 1 else at
+        local first = math.clamp (low, 0, span)
+        local second = math.clamp (low + 1, 0, span)
+        return first, second, fromIndex (first), fromIndex (second)
+    end
 end
 
 -- Public --------------------------------------------------------------
@@ -156,7 +163,7 @@ end
     `vec3.bounded`, and `rotation.direction`.
 ]]
 function Rotation.octahedral (of: Grid.Grid): Octahedral
-    local span, fromIndex = of.span, of.fromIndex
+    local span, fromIndex, window = of.span, of.fromIndex, windows (of)
 
     local function sphere (u: number, v: number): (number, number, number)
         local x, y = fromIndex (u), fromIndex (v)
@@ -182,14 +189,15 @@ function Rotation.octahedral (of: Grid.Grid): Octahedral
             u, v = folded (u, v)
         end
 
-        local lowU, lowV = under (of, u), under (of, v)
-        if lowU == nil or lowV == nil then return nil, nil end
+        local u0, u1 = window (u)
+        local v0, v1 = window (v)
+        if u0 == nil or u1 == nil or v0 == nil or v1 == nil then return nil, nil end
 
-        local best, atU, atV = -math.huge, lowU, lowV
+        local best, atU, atV = -math.huge, u0, v0
         for stepU = 0, 1 do
+            local tryU = if stepU == 0 then u0 else u1
             for stepV = 0, 1 do
-                local tryU = math.clamp (lowU + stepU, 0, span)
-                local tryV = math.clamp (lowV + stepV, 0, span)
+                local tryV = if stepV == 0 then v0 else v1
 
                 local ax, ay, az = sphere (tryU, tryV)
                 local along = ax * x + ay * y + az * z
@@ -206,7 +214,7 @@ end
 
 -- The smallest-three mapping over one grid, which is `rotation.quat` alone.
 function Rotation.smallest (of: Grid.Grid): Smallest
-    local span, fromIndex = of.span, of.fromIndex
+    local fromIndex, window = of.fromIndex, windows (of)
 
     -- The three a tag sends and the one it leaves behind, which is `laid` the other way about.
     local function apart (
@@ -338,22 +346,17 @@ function Rotation.smallest (of: Grid.Grid): Smallest
         for tag = AT_X, AT_W do
             local pa, pb, pc, pd = apart (tag, x, y, z, w)
 
-            local lowA, lowB, lowC = under (of, pa), under (of, pb), under (of, pc)
-            if lowA == nil or lowB == nil or lowC == nil then continue end
-
             --[[
                 Each of the three moves by one step at most, so there are two spellings of each
                 and two readings, and eight triples over them. The loops vary which of the two a
-                triple takes and never what the two are, so reading them once is four fewer
-                readings apiece.
+                triple takes and never what the two are, so the grid is asked for the pair once
+                and answers with the readings already on it.
             ]]
-            local a0, a1 = math.clamp (lowA, 0, span), math.clamp (lowA + 1, 0, span)
-            local b0, b1 = math.clamp (lowB, 0, span), math.clamp (lowB + 1, 0, span)
-            local c0, c1 = math.clamp (lowC, 0, span), math.clamp (lowC + 1, 0, span)
-
-            local ka0, ka1 = fromIndex (a0), fromIndex (a1)
-            local kb0, kb1 = fromIndex (b0), fromIndex (b1)
-            local kc0, kc1 = fromIndex (c0), fromIndex (c1)
+            local a0, a1, ka0, ka1 = window (pa)
+            local b0, b1, kb0, kb1 = window (pb)
+            local c0, c1, kc0, kc1 = window (pc)
+            if a0 == nil or a1 == nil then continue end
+            if b0 == nil or b1 == nil or c0 == nil or c1 == nil then continue end
 
             for stepA = 0, 1 do
                 local tryA = if stepA == 0 then a0 else a1

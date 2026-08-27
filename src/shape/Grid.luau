@@ -39,12 +39,12 @@ export type Grid = {
     read fromIndex: (index: number) -> any,
 
     --[[
-        The point at or below a reading, which is what a search over neighbours starts from. A
-        caller can work it out from the two above, at the cost of asking the grid twice for what
-        the grid settles once, so a grid a search ever reaches for offers this instead. A grid
-        from nothing in whole steps is not one of those, and leaves it for the caller to work out.
+        The pair of points a reading sits between, as indices and as the values at them, which a
+        caller can assemble from the two above at the cost of asking five times over. A grid a
+        search ever reaches for settles it once instead. A reading that is no place answers with
+        the indices missing and the values at nothing, which nothing then reads.
     ]]
-    read below: ((value: any) -> number?)?,
+    read window: ((value: any) -> (number?, number?, number, number))?,
     --[[
         A whole run of readings at once, where a grid can answer for many faster than for one.
         `toIndices` fills `into` and answers the place of the first reading it has no point for,
@@ -161,19 +161,29 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         return math.clamp (math.round ((value - min) / step), 0, span)
     end
 
-    local function below (value: any): number?
-        if type (value) ~= "number" then return nil end
-        if not (value >= under and value <= over) then return nil end
+    --[[
+        The nearest point is worked out unclamped, since it is asked only whether it sits above the
+        reading and a point off the end of the line answers that as truly as one on it. Where the
+        reading is past an end both halves of the pair come back as the point nearest it, that
+        being the only point on the side it is.
+    ]]
+    local function window (value: any): (number?, number?, number, number)
+        if type (value) ~= "number" then return nil, nil, 0, 0 end
+        if not (value >= under and value <= over) then return nil, nil, 0, 0 end
 
-        local at = math.clamp (math.round ((value - min) / step), 0, span)
-        return if min + at * step > value then at - 1 else at
+        local at = math.round ((value - min) / step)
+        local low = if min + at * step > value then at - 1 else at
+
+        local first = math.clamp (low, 0, span)
+        local second = math.clamp (low + 1, 0, span)
+        return first, second, min + first * step, min + second * step
     end
 
     return {
         span = span,
         width = width,
         plain = false,
-        below = below,
+        window = window,
         whole = span == bit32.lshift (1, width) - 1,
         toIndex = toIndex,
         fromIndex = fromIndex,

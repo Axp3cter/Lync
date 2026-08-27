@@ -127,49 +127,6 @@ export type function Update (record, none)
     return fields
 end
 
-export type function Defined (definitions)
-    local result = types.newtable ()
-    local packet = { "fireServer", "fireClient", "onServer", "onClient" }
-    local query = { "request", "onServer", "onClient" }
-    local replicate = { "add", "update", "remove", "clear", "onAdded", "onChanged", "onRemoved" }
-
-    for key, property in definitions:properties () do
-        local definition = property.read or property.write
-        local names = if definition:readproperty (types.singleton ("fireServer")) ~= nil
-            then packet
-            elseif definition:readproperty (types.singleton ("request")) ~= nil then query
-            else replicate
-        local exposed = types.newtable ()
-
-        local function rewrite (method): any
-            if method:is ("intersection") then
-                local methods = {}
-                for _, component in method:components () do
-                    table.insert (methods, rewrite (component))
-                end
-                return types.intersectionof (unpack (methods))
-            end
-
-            local copied = types.copy (method)
-            local parameters = copied:parameters ()
-            if parameters.head ~= nil then
-                parameters.head[1] = exposed
-                copied:setparameters (parameters.head, parameters.tail)
-            end
-            return copied
-        end
-
-        for _, name in pairs(names) do
-            local methodKey = types.singleton (name)
-            exposed:setproperty (methodKey, rewrite (definition:readproperty (methodKey)))
-        end
-
-        result:setproperty (key, exposed)
-    end
-
-    return result
-end
-
 export type Packet<T> = {
     read unreliable: (self: Packet<T>) -> Packet<T>,
     read newest: (self: Packet<T>, hz: number?) -> Packet<T>,

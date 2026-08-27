@@ -111,7 +111,7 @@ function Define.seal () sealed = true end
     table handed over is the one handed back, frozen, so a caller who edited it afterwards cannot
     leave the two machines agreeing at different times. A name already defined refuses.
 ]]
-function Define.define<T> (name: string, defs: T & Types.Definitions): Types.Defined<T>
+function Define.define <T>(name: string, defs: T & Types.Definitions): T
     if sealed then
         refuse (`{name} was defined after start, and start opens what there is`, name)
     end

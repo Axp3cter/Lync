@@ -403,6 +403,16 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
     local dirt = part.dirt
     local counts = of.counts
 
+    --[[
+        The tables the walks below fill and read, taken once. A partition is one store and one dirt
+        list however many records it holds, so reaching either through it at every record asks
+        after something that was settled before the walk began.
+    ]]
+    local made = of.made
+    local moved = of.moved
+    local dirty = dirt.masks
+    local slotOf = store.slotOf
+
     local builds, shifts = 0, 0
     local whole = NONE
 
@@ -411,23 +421,26 @@ function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
 
         if op == "update" then
             shifts += 1
-            of.moved[shifts] = store.slotOf[id]
-            whole = UNION (whole, dirt.masks[id])
+            moved[shifts] = slotOf[id]
+            whole = UNION (whole, dirty[id])
             continue
         end
 
         builds += 1
-        of.made[builds] = store.slotOf[id]
+        made[builds] = slotOf[id]
     end
 
-    trimmed (of.made, builds, counts[MAKING])
-    trimmed (of.moved, shifts, counts[MOVING])
+    trimmed (made, builds, counts[MAKING])
+    trimmed (moved, shifts, counts[MOVING])
 
-    table.sort (of.made)
-    table.sort (of.moved)
+    table.sort (made)
+    table.sort (moved)
+
+    local masks = of.masks
+    local ids = store.ids
 
     for index = 1, shifts do
-        of.masks[index] = dirt.masks[store.ids[of.moved[index]]]
+        masks[index] = dirty[ids[moved[index]]]
     end
 
     counts[MAKING], counts[MOVING] = builds, shifts

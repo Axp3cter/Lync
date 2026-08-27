@@ -125,6 +125,7 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
     ]]
     if min == 0 and step == 1 then
         local toIndex: (value: any) -> number?
+        local toIndices: (values: { any }, into: { number }, count: number) -> number?
 
         --[[
             A value the test let through is at most the slack out of place, so where the slack is
@@ -137,11 +138,35 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
                 if not (value >= under and value <= over) then return nil end
                 return math.round (value)
             end
+
+            toIndices = function (values: { any }, into: { number }, count: number): number?
+                for place = 1, count do
+                    local one = values[place]
+                    if type (one) ~= "number" then return place end
+                    if not (one >= under and one <= over) then return place end
+
+                    into[place] = math.round (one)
+                end
+
+                return nil
+            end
         else
             toIndex = function (value: any): number?
                 if type (value) ~= "number" then return nil end
                 if not (value >= under and value <= over) then return nil end
                 return math.clamp (math.round (value), 0, span)
+            end
+
+            toIndices = function (values: { any }, into: { number }, count: number): number?
+                for place = 1, count do
+                    local one = values[place]
+                    if type (one) ~= "number" then return place end
+                    if not (one >= under and one <= over) then return place end
+
+                    into[place] = math.clamp (math.round (one), 0, span)
+                end
+
+                return nil
             end
         end
 
@@ -152,6 +177,13 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
             whole = span == bit32.lshift (1, width) - 1,
             toIndex = toIndex,
             fromIndex = fromIndex,
+
+            --[[
+                A whole list handed over at once, which a list is the one shape worth offering it
+                for: what a caller of it spares is a crossing back an element, and the walk under it
+                is the walk that would have been done out there anyway.
+            ]]
+            toIndices = toIndices,
         }
     end
 

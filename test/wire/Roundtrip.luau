@@ -67,6 +67,12 @@ const TURNED = 12
 -- A span wider than the sixteen bits a run can be topped up by in one go, and under the ceiling.
 const BROAD = 3000000
 
+--[[
+    A span wide enough that the slack a reading is let through by is a whole half step, which is
+    what makes a grid hold its readings to the top rather than trust them to land there.
+]]
+const SLACK = 600000
+
 -- The signed nibble, which fills the four bits it is read at the way the unsigned one fills them.
 const SUNK = -(NIBBLE_TOP + 1) // 2
 const RISEN = (NIBBLE_TOP - 1) // 2
@@ -570,6 +576,43 @@ return {
         local bytes, size = Turns.wrote (of, was)
 
         Expect.equal (Turns.read (of, bytes, size), was)
+    end),
+
+    --[[
+        A run holding something that is no number at all. A grid takes a whole list at once where
+        it offers that, so the one thing on the list that is no place on it has to come back out of
+        a walk that is no longer asking about them one at a time.
+    ]]
+    Harness.case ("wire.a-run-turns-away-what-is-no-number", function ()
+        local of = Turns.built (Lync.array (Lync.int (0, NIBBLE_TOP), 0, TURNED))
+
+        Expect.throws (function () Turns.wrote (of, { 1, 2, "three" :: any, 4 }) end, "got three")
+    end),
+
+    --[[
+        A run holding readings between the points of its grid, which the grid puts on the nearest
+        one. A midpoint goes up, and that is the half of the rule a list has to keep as much as a
+        single reading does.
+    ]]
+    Harness.case ("wire.a-run-puts-its-readings-on-the-nearest-point", function ()
+        local of = Turns.built (Lync.array (Lync.int (0, NIBBLE_TOP), 0, TURNED))
+
+        local bytes, size = Turns.wrote (of, { 3.4, 3.5, 3.6 })
+
+        Expect.equal (Turns.read (of, bytes, size), { 3, 4, 4 })
+    end),
+
+    --[[
+        A run over a span so wide the slack is a whole half step, holding a reading that the slack
+        let through and the rounding then took past the last point. The grid holds it there, and a
+        list of them is held the same way one of them is.
+    ]]
+    Harness.case ("wire.a-run-holds-a-reading-at-the-top-of-its-grid", function ()
+        local of = Turns.built (Lync.array (Lync.int (0, SLACK), 0, TURNED))
+
+        local bytes, size = Turns.wrote (of, { SLACK + 0.5, 0 })
+
+        Expect.equal (Turns.read (of, bytes, size), { SLACK, 0 })
     end),
 
     --[[

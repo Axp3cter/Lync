@@ -373,8 +373,19 @@ function Rotation.smallest (of: Grid.Grid): Smallest
                         local over = sumB + kc * kc
                         if over > 1 then continue end
 
+                        --[[
+                            Three of the four gaps before the fourth is worked out, since the
+                            fourth is a root and the three already answer for most triples: what
+                            the root adds cannot be less than nothing, so a triple already further
+                            than the best is further whatever the root comes to.
+                        ]]
+                        local da, db, dc = ka - pa, kb - pb, kc - pc
+                        local part = da * da + db * db + dc * dc
+                        if part >= best * TIGHTER then continue end
+
                         local kd = math.sqrt (math.max (0, 1 - over))
-                        local away = (ka - pa) ^ 2 + (kb - pb) ^ 2 + (kc - pc) ^ 2 + (kd - pd) ^ 2
+                        local dd = kd - pd
+                        local away = part + dd * dd
 
                         -- Nearer wins, and where two are level the smaller spelling does.
                         if away < best * TIGHTER then

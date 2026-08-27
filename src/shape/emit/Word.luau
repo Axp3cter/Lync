@@ -174,6 +174,24 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
     end
 
     --[[
+        What each field needs, by the field. The arrays above are held by the leaf a field
+        starts at, so reaching one costs a step through that number every time a word runs,
+        where the number itself never changes after the word is built.
+    ]]
+    local writes = table.create (reach) :: { (number) -> number? }
+    local readings = table.create (reach) :: { ((number) -> any)? }
+    local bounds = table.create (reach, 0)
+    local checks = table.create (reach, false)
+
+    for index = 1, reach do
+        local cell = starts[index]
+        writes[index] = toIndex[cell]
+        readings[index] = fromIndex[cell]
+        bounds[index] = spans[cell]
+        checks[index] = not whole[cell]
+    end
+
+    --[[
         Every field to its index, then every window to its bytes. In that order rather than one
         pass, because a field can straddle two windows and a window can hold pieces of fields that
         are nowhere near each other in the record.
@@ -184,7 +202,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 local key = keys[index]
                 local one = if key == nil then value else value[key]
                 local at = starts[index]
-                local made = toIndex[at] (one)
+                local made = writes[index] (one)
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
                 slots[at] = made :: number
@@ -201,7 +219,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
                 if pull == nil then
                     local at = starts[index]
-                    local made = toIndex[at] (one)
+                    local made = writes[index] (one)
                     if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
                     slots[at] = made :: number
@@ -289,7 +307,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
             local one: any
             if simple then
-                local reading = fromIndex[at]
+                local reading = readings[index]
                 one = if reading == nil then slots[at] else reading (slots[at])
 
                 if key == nil then
@@ -304,7 +322,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             if push ~= nil then
                 one = push (slots, at)
             else
-                local reading = fromIndex[at]
+                local reading = readings[index]
                 one = if reading == nil then slots[at] else reading (slots[at])
             end
 
@@ -363,24 +381,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
 
             if not upright then break end
-        end
-
-        --[[
-            What each field needs, by the field. The arrays above are held by the leaf a field
-            starts at, so reaching one costs a step through that number every time a word runs,
-            where the number itself never changes after the word is built.
-        ]]
-        local writes = table.create (reach) :: { (number) -> number? }
-        local readings = table.create (reach) :: { ((number) -> any)? }
-        local bounds = table.create (reach, 0)
-        local checks = table.create (reach, false)
-
-        for index = 1, reach do
-            local cell = starts[index]
-            writes[index] = toIndex[cell]
-            readings[index] = fromIndex[cell]
-            bounds[index] = spans[cell]
-            checks[index] = not whole[cell]
         end
 
         --[[

@@ -335,30 +335,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         --[[
-            What each piece needs, by the piece. A window walks pieces and every one of these is
-            held by the leaf its field starts at, so a walk that does not gather them first steps
-            through that number for each, where the number is settled once the word is built.
-        ]]
-        local owner = table.create (#slot, 0)
-        local puts = table.create (#slot) :: { string }
-        local makes = table.create (#slot) :: { (number) -> number? }
-        local takes = table.create (#slot) :: { ((number) -> any)? }
-        local tops = table.create (#slot, 0)
-        local fills = table.create (#slot, false)
-
-        for part = 1, #slot do
-            local cell = slot[part]
-            local index = whose[cell]
-
-            owner[part] = index
-            puts[part] = keys[index] :: string
-            makes[part] = toIndex[cell]
-            takes[part] = fromIndex[cell]
-            tops[part] = spans[cell]
-            fills[part] = whole[cell]
-        end
-
-        --[[
             Whether every field starts on a byte and is as wide as one call the engine has. A
             window gathers the fields that share a byte, and fields that share none have nothing
             to gather: a field on a boundary is already one of the bytes a window would write.
@@ -387,67 +363,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
 
             if not upright then break end
-        end
-
-        local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
-            for window = 1, windows do
-                local acc = 0
-
-                for part = first[window], last[window] do
-                    local one = value[puts[part]]
-                    local made = makes[part] (one)
-                    if made == nil then
-                        local index = owner[part]
-                        Word.refused (wheres[index], wanted[index], one)
-                    end
-
-                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
-                end
-
-                local at = pos + where[window]
-                local bytes = width[window]
-                if bytes == ONE then
-                    buffer.writeu8 (b, at, acc)
-                elseif bytes == PAIR then
-                    buffer.writeu16 (b, at, acc)
-                else
-                    buffer.writeu32 (b, at, acc)
-                end
-            end
-        end
-
-        --[[
-            The same, taken back up. A field with no key is an optional standing on its own, which
-            is a single field reached through a pull, and both of those are settled above, so every
-            piece here has a key to be put under and neither half asks whether it does.
-        ]]
-        local function level (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
-            for window = 1, windows do
-                local at = pos + where[window]
-                local bytes = width[window]
-                local acc = if bytes == ONE
-                    then buffer.readu8 (b, at)
-                    elseif bytes == PAIR then buffer.readu16 (b, at)
-                    else buffer.readu32 (b, at)
-
-                for part = first[window], last[window] do
-                    local raw = bit32.extract (acc, offset[part], span[part])
-
-                    if not fills[part] and raw > tops[part] then
-                        local tag = joins[owner[part]].tag
-                        Log.reject (Catalog.TAG, {
-                            pathId = tag.pathId,
-                            expectId = tag.expectId,
-                            got = raw,
-                        })
-                    end
-
-                    local reading = takes[part]
-                    into[puts[part]] = if reading == nil then raw else reading (raw)
-                end
-            end
-
-            return nil
         end
 
         --[[
@@ -661,6 +576,91 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
 
             return square, upward
+        end
+
+        --[[
+            What each piece needs, by the piece. A window walks pieces and every one of these is
+            held by the leaf its field starts at, so a walk that does not gather them first steps
+            through that number for each, where the number is settled once the word is built.
+        ]]
+        local owner = table.create (#slot, 0)
+        local puts = table.create (#slot) :: { string }
+        local makes = table.create (#slot) :: { (number) -> number? }
+        local takes = table.create (#slot) :: { ((number) -> any)? }
+        local tops = table.create (#slot, 0)
+        local fills = table.create (#slot, false)
+
+        for part = 1, #slot do
+            local cell = slot[part]
+            local index = whose[cell]
+
+            owner[part] = index
+            puts[part] = keys[index] :: string
+            makes[part] = toIndex[cell]
+            takes[part] = fromIndex[cell]
+            tops[part] = spans[cell]
+            fills[part] = whole[cell]
+        end
+
+        local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+            for window = 1, windows do
+                local acc = 0
+
+                for part = first[window], last[window] do
+                    local one = value[puts[part]]
+                    local made = makes[part] (one)
+                    if made == nil then
+                        local index = owner[part]
+                        Word.refused (wheres[index], wanted[index], one)
+                    end
+
+                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
+                end
+
+                local at = pos + where[window]
+                local bytes = width[window]
+                if bytes == ONE then
+                    buffer.writeu8 (b, at, acc)
+                elseif bytes == PAIR then
+                    buffer.writeu16 (b, at, acc)
+                else
+                    buffer.writeu32 (b, at, acc)
+                end
+            end
+        end
+
+        --[[
+            The same, taken back up. A field with no key is an optional standing on its own, which
+            is a single field reached through a pull, and both of those are settled above, so every
+            piece here has a key to be put under and neither half asks whether it does.
+        ]]
+        local function level (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    local raw = bit32.extract (acc, offset[part], span[part])
+
+                    if not fills[part] and raw > tops[part] then
+                        local tag = joins[owner[part]].tag
+                        Log.reject (Catalog.TAG, {
+                            pathId = tag.pathId,
+                            expectId = tag.expectId,
+                            got = raw,
+                        })
+                    end
+
+                    local reading = takes[part]
+                    into[puts[part]] = if reading == nil then raw else reading (raw)
+                end
+            end
+
+            return nil
         end
 
         return flat, level

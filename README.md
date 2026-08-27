@@ -94,6 +94,7 @@ local Health = Lync.int(0, 100)   -- 7 bits on the wire, where an f32 is 32
 | `f32()` `f64()` | `number` | Roughly 7 and 15 digits. Reach for `quant` to pick the loss yourself. |
 | `vlq()` `vli()` | `number` | Unbounded integers exact to 2^53, unsigned and signed. |
 | `bool()` | `boolean` | One flag. Reach for `bitfield` past one. |
+| `empty()` | `nil` | No payload. For a call whose happening is the whole of what it says. |
 
 ### Text
 
@@ -147,8 +148,18 @@ A modifier answers a new codec. A set marker inside a packet or query throws at 
 ## Packets
 
 ```lua
-Move = Lync.packet(Lync.vec3()):unreliable(),
-Aim  = Lync.packet(Lync.rotation.quat(0.2)):newest(20):timestamped(),
+Move  = Lync.packet(Lync.vec3()):unreliable(),
+Aim   = Lync.packet(Lync.rotation.quat(0.2)):newest(20):timestamped(),
+Nudge = Lync.packet(Lync.empty()),
+```
+
+A packet of `empty()` carries no payload: fire it with no value and the listener is handed none.
+A block of them costs one byte whether it holds one nudge or thirty, the header being the whole of
+what goes out.
+
+```lua
+Nudge:fireClient(player)
+Nudge:onClient(function () ... end)
 ```
 
 | | | |

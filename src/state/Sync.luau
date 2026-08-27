@@ -51,6 +51,7 @@ const CLEARED =
 ]]
 const MERGED = Coalesce.merge
 const TOUCHED = Coalesce.touched
+const UNION = Wide.union
 const MIGRATES = Coalesce.migrates
 
 -- Types ---------------------------------------------------------------
@@ -86,6 +87,7 @@ export type Sync = {
     read place: { [string]: number },
     read climbs: boolean,
     read streams: boolean,
+    read bits: { Wide.Word },
     read row: { any },
     read one: { Player },
     at: number,
@@ -459,6 +461,16 @@ local function rowed (of: Sync, id: number): any
     return part.store.rows[id]
 end
 
+-- Every field's own bit, asked of the one that answers it once a field and not once a write.
+local function bitted (reach: number): { Wide.Word }
+    local out = table.create (reach) :: { Wide.Word }
+    for field = 1, reach do
+        out[field] = TOUCHED (NOTHING, field)
+    end
+
+    return table.freeze (out)
+end
+
 -- Public --------------------------------------------------------------
 
 Sync.NONE = table.freeze (CLEARED)
@@ -475,12 +487,14 @@ function Sync.new (def: Compile.Set): Sync
         lane = lane,
 
         --[[
-            Three answers that hold for the life of a set, kept where a write reads them rather
-            than reached for through the definition every time one lands.
+            Four answers that hold for the life of a set, kept where a write reads them rather than
+            reached for through the definition every time one lands. The bits are the one home's
+            answer taken once a field rather than once a write of one.
         ]]
         place = def.fieldIndex,
         climbs = def.climbs,
         streams = lane.streams,
+        bits = bitted (def.fieldCount),
         seen = Audience.new (),
         owed = Catchup.new (),
         heard = Apply.heard (),
@@ -543,6 +557,7 @@ function Sync.update (of: Sync, id: number, fields: any)
 
     local climbs = of.climbs
     local streams = of.streams
+    local bits = of.bits
     local writers = store.writers
 
     --[[
@@ -597,7 +612,7 @@ function Sync.update (of: Sync, id: number, fields: any)
             delta, which is the one place it never goes.
         ]]
         if not streams or lane.place[field] == nil then
-            mask = TOUCHED (mask, field)
+            mask = UNION (mask, bits[field])
             moved = true
         end
     end

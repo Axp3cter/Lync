@@ -724,6 +724,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
         end
 
+        -- A piece off the end of its grid, said by whichever of the two readings below met it.
+        local function past (part: number, raw: number)
+            local tag = joins[owner[part]].tag
+            Log.reject (Catalog.TAG, { pathId = tag.pathId, expectId = tag.expectId, got = raw })
+        end
+
         --[[
             The same, taken back up. A field with no key is an optional standing on its own, which
             is a single field reached through a pull, and both of those are settled above, so every
@@ -740,15 +746,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
                 for part = first[window], last[window] do
                     local raw = bit32.extract (acc, offset[part], span[part])
-
-                    if raw > tops[part] then
-                        local tag = joins[owner[part]].tag
-                        Log.reject (Catalog.TAG, {
-                            pathId = tag.pathId,
-                            expectId = tag.expectId,
-                            got = raw,
-                        })
-                    end
+                    if raw > tops[part] then past (part, raw) end
 
                     local reading = takes[part]
                     into[puts[part]] = if reading == nil then raw else reading (raw)
@@ -757,6 +755,33 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
             return nil
         end
+
+        --[[
+            The same where every grid runs from nothing in whole steps. A grid like that hands back
+            the index it was given and its reading is held as nothing at all, so a word of them has
+            none to ask after and the pieces go onto the record as they come off the bytes.
+        ]]
+        local function bared (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    local raw = bit32.extract (acc, offset[part], span[part])
+                    if raw > tops[part] then past (part, raw) end
+
+                    into[puts[part]] = raw
+                end
+            end
+
+            return nil
+        end
+
+        if flatly then return flat, bared end
 
         return flat, level
     end

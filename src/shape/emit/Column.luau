@@ -17,6 +17,14 @@ local Column = {}
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    The two run walkers under their own names. Both sit inside closures this emits, so each is
+    reached once a run rather than once a build, and the module they come from is the same table
+    for the life of the place.
+]]
+const PACKED = Leaf.packed
+const UNPACKED = Leaf.unpacked
+
 -- Types ---------------------------------------------------------------
 
 --[[
@@ -87,7 +95,7 @@ function Column.grid (
             at[place] = one :: number
         end
 
-        return Leaf.packed (b, pos, width, count, at)
+        return PACKED (b, pos, width, count, at)
     end
 
     local function read (
@@ -98,7 +106,7 @@ function Column.grid (
         count: number,
         _ctx: Types.ValidateContext
     ): number
-        local after, clean = Leaf.unpacked (b, pos, width, count, at)
+        local after, clean = UNPACKED (b, pos, width, count, at)
         if not clean then reject (Catalog.PAD, tag, count) end
 
         for place = 1, count do
@@ -128,7 +136,7 @@ function Column.bits (width: number, said: string): (Write, Read)
         _at: { number },
         count: number
     ): number
-        return Leaf.packed (b, pos, width, count, from :: any)
+        return PACKED (b, pos, width, count, from :: any)
     end
 
     local function read (
@@ -139,7 +147,7 @@ function Column.bits (width: number, said: string): (Write, Read)
         count: number,
         _ctx: Types.ValidateContext
     ): number
-        local after, clean = Leaf.unpacked (b, pos, width, count, into :: any)
+        local after, clean = UNPACKED (b, pos, width, count, into :: any)
         if not clean then Log.reject (Catalog.SECTION, { said = said }) end
 
         return after

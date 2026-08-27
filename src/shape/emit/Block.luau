@@ -18,6 +18,14 @@ local Block = {}
 
 -- Constants -----------------------------------------------------------
 
+--[[
+    The two run walkers under their own names. Both sit inside closures these emit, so each is
+    reached once a run rather than once a build, and the module they come from is the same table
+    for the life of the place.
+]]
+const PACKED = Leaf.packed
+const UNPACKED = Leaf.unpacked
+
 -- The whole-byte widths a tag or a count is written at, and where a three-byte one splits.
 const PAIR = 2
 const TRIO = PAIR + 1
@@ -527,7 +535,7 @@ function Block.pairs (
         end
 
         laid (b, pos, held, count - low)
-        local out = Leaf.packed (b, pos + held, grid.width, count, order)
+        local out = PACKED (b, pos + held, grid.width, count, order)
 
         if runs == nil then
             for index = 1, count do
@@ -546,7 +554,7 @@ function Block.pairs (
             marks[index] = made :: number
         end
 
-        return Leaf.packed (b, out, held2.width, count, marks)
+        return PACKED (b, out, held2.width, count, marks)
     end
 
     local function write (b: buffer, pos: number, value: any): number
@@ -640,7 +648,7 @@ function Block.pairs (
 
         if runs == nil then return out end
 
-        return Leaf.packed (b, out, (runs :: Grid.Grid).width, count, marks)
+        return PACKED (b, out, (runs :: Grid.Grid).width, count, marks)
     end
 
     local function taking (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
@@ -654,7 +662,7 @@ function Block.pairs (
         end
 
         local count = counted + low
-        local after, clean = Leaf.unpacked (b, pos + held, grid.width, count, order)
+        local after, clean = UNPACKED (b, pos + held, grid.width, count, order)
         if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
 
         --[[
@@ -687,7 +695,7 @@ function Block.pairs (
         end
 
         local spare = runs :: Grid.Grid
-        local ends, tidy = Leaf.unpacked (b, after, spare.width, count, marks)
+        local ends, tidy = UNPACKED (b, after, spare.width, count, marks)
         if not tidy then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
 
         for index = 1, count do
@@ -763,7 +771,7 @@ function Block.pairs (
             back onto the last point the grid has.
         ]]
         local grid = runs :: Grid.Grid
-        local after, clean = Leaf.unpacked (b, at, grid.width, count, marks)
+        local after, clean = UNPACKED (b, at, grid.width, count, marks)
         if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
 
         for index = 1, count do

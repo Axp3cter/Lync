@@ -136,7 +136,7 @@ end
 -- Public --------------------------------------------------------------
 
 -- Elements of one width with nothing between them, which is the 24-bit law's whole point.
-function Leaf.packed (
+local function packed (
     b: buffer,
     at: number,
     width: number,
@@ -210,7 +210,7 @@ end
     stream aligns on, and they are held to being zero: padding that could differ would make two
     encodings of one value, which is what the ordering of map keys rests on not being possible.
 ]]
-function Leaf.unpacked (
+local function unpacked (
     b: buffer,
     at: number,
     width: number,
@@ -270,6 +270,14 @@ function Leaf.unpacked (
 
     return at, acc == 0
 end
+
+--[[
+    The two run walkers, held under their own names above and put here for the modules that walk
+    a run of their own. Both sit inside closures this file emits, so a name spares the table a
+    reach once a run rather than once a build.
+]]
+Leaf.packed = packed
+Leaf.unpacked = unpacked
 
 --[[
     A value the schema says nothing about, spelled out as it stands. Each part opens with the tag
@@ -620,7 +628,7 @@ function Leaf.bytes (
         end
 
         laid (b, pos, held, count - low)
-        return Leaf.packed (b, pos + held, width, count, scratch)
+        return packed (b, pos + held, width, count, scratch)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
@@ -628,7 +636,7 @@ function Leaf.bytes (
         if counted > span then reject (Catalog.COUNT, at, counted) end
 
         local count = counted + low
-        local after, clean = Leaf.unpacked (b, pos + held, width, count, scratch)
+        local after, clean = unpacked (b, pos + held, width, count, scratch)
         if not clean then reject (Catalog.PAD, at, count) end
 
         local out = table.create (count) :: { string }
@@ -679,7 +687,7 @@ function Leaf.run (
         end
 
         laid (b, pos, held, count - low)
-        return Leaf.packed (b, pos + held, width, count, scratch)
+        return packed (b, pos + held, width, count, scratch)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
@@ -687,7 +695,7 @@ function Leaf.run (
         if counted > span then reject (Catalog.COUNT, at, counted) end
 
         local count = counted + low
-        local after, clean = Leaf.unpacked (b, pos + held, width, count, scratch)
+        local after, clean = unpacked (b, pos + held, width, count, scratch)
         if not clean then reject (Catalog.PAD, at, count) end
 
         local out = table.create (count) :: { any }

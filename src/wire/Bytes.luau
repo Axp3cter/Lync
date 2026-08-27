@@ -25,6 +25,25 @@ function Bytes.put (b: buffer, at: number, width: number, value: number): number
     local left = width
     local of = value
 
+    --[[
+        A value that lands inside the byte it starts in, which most of them are: a flag is one bit
+        and a small field a few, and a region lays them where the last one left off. The walk below
+        carries what a value spilling over the end needs and none of it answers for one that does
+        not spill.
+    ]]
+    local into = at % BYTE
+    if width ~= 0 and into + width <= BYTE then
+        local byte = at // BYTE
+        local was = if into == 0 then 0 else buffer.readu8 (b, byte)
+
+        buffer.writeu8 (
+            b,
+            byte,
+            bit32.bor (was, bit32.lshift (bit32.extract (value, 0, width), into))
+        )
+        return at + width
+    end
+
     while left > 0 do
         local byte = held // BYTE
         local shift = held % BYTE
@@ -52,6 +71,12 @@ function Bytes.take (b: buffer, at: number, width: number): (number, number)
     local held = at
     local left = width
     local got = 0
+
+    -- Read in one go where it lies inside one byte, for the reason the laying half takes it so.
+    local from = at % BYTE
+    if width ~= 0 and from + width <= BYTE then
+        return bit32.extract (buffer.readu8 (b, at // BYTE), from, width), at + width
+    end
 
     while left > 0 do
         local byte = held // BYTE

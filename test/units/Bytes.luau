@@ -193,6 +193,29 @@ return {
     end),
 
     --[[
+        A value wider than the field laid for it, held to that field rather than let past its end.
+        Bits are laid where the last one left off, so anything over the width would land on
+        whatever comes next, and what comes next is somebody else's field.
+    ]]
+    Harness.case ("bytes.holds-a-value-to-its-width", function ()
+        for width = 1, BYTE + 1 do
+            for at = 0, BYTE do
+                local b = buffer.create (STRIDE)
+                local over = bit32.lshift (1, width + 2) - 1
+
+                Expect.equal (Bytes.put (b, at, width, over), at + width)
+
+                local got, after = Bytes.take (b, at, width)
+                Expect.equal (got, bit32.extract (over, 0, width))
+                Expect.equal (after, at + width)
+
+                -- What lies past the field, which nothing has laid anything into yet.
+                Expect.equal ((Bytes.take (b, at + width, BYTE)), 0)
+            end
+        end
+    end),
+
+    --[[
         Inside one word. One difference cannot show a reversed order, the other seven bytes
         agreeing so either reading decides on the same byte. Two can, and this pair is the
         smallest that does. The sweep is the other half: a difference at each of the eight.

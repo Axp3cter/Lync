@@ -249,7 +249,8 @@ local function packed (
         used += width
 
         while used >= BYTE do
-            buffer.writeu8 (b, at, bit32.band (acc, 0xFF))
+            -- Handed whole, the write itself keeping the low byte and dropping what carries.
+            buffer.writeu8 (b, at, acc)
             at += 1
             acc = bit32.rshift (acc, BYTE)
             used -= BYTE

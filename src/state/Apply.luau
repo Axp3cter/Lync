@@ -221,6 +221,13 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
     local shadow = shadowed (of, store)
     local ids = store.ids
 
+    --[[
+        Whether anything wants the record as it stood, which is a question about the frame and not
+        about the slot. Every slot below would be told the same, and what one is told settles only
+        whether to take a copy, so the answer is worth having before the walk rather than inside it.
+    ]]
+    local wanted = of.watching
+
     for place = 1, chosen.count do
         local field = chosen.fields[place]
         local under = frame.under[place]
@@ -240,7 +247,7 @@ local function advanced (store: Store.Store, layout: Sections.Layout, of: Heard)
             local before = column[slot]
             local value = values[index]
 
-            snapped (of, store, id)
+            if wanted then snapped (of, store, id) end
             put (slot, id, value)
             if held ~= nil then held[slot] = marks[index] end
 

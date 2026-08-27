@@ -665,6 +665,7 @@ function Leaf.run (
 
     local elem = of.elem
     local toIndex, fromIndex, reach = elem.toIndex, elem.fromIndex, elem.span
+    local toIndices, fromIndices = elem.toIndices, elem.fromIndices
     local width = elem.width
 
     --[[
@@ -680,10 +681,19 @@ function Leaf.run (
         local count = #value
         if count < low or count > high then refuse (at, count) end
 
-        for place = 1, count do
-            local one = toIndex (value[place])
-            if one == nil then refuse (at, value[place]) end
-            scratch[place] = one :: number
+        --[[
+            The whole run put onto the grid at once where the grid offers that, which is asked
+            once a run rather than once an element and is the only thing between the two.
+        ]]
+        if toIndices ~= nil then
+            local off = toIndices (value, scratch, count)
+            if off ~= nil then refuse (at, value[off]) end
+        else
+            for place = 1, count do
+                local one = toIndex (value[place])
+                if one == nil then refuse (at, value[place]) end
+                scratch[place] = one :: number
+            end
         end
 
         laid (b, pos, held, count - low)
@@ -699,6 +709,12 @@ function Leaf.run (
         if not clean then reject (Catalog.PAD, at, count) end
 
         local out = table.create (count) :: { any }
+
+        -- The same the other way, where a grid no reading can fall off says so by offering this.
+        if fromIndices ~= nil then
+            fromIndices (scratch, out, count)
+            return after, out
+        end
 
         if plain then
             for place = 1, count do

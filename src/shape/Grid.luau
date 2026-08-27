@@ -37,6 +37,15 @@ export type Grid = {
     read whole: boolean?,
     read toIndex: (value: any) -> number?,
     read fromIndex: (index: number) -> any,
+
+    --[[
+        A whole run of readings at once, where a grid can answer for many faster than for one.
+        `toIndices` fills `into` and answers the place of the first reading it has no point for,
+        or nothing where every one landed. `fromIndices` is offered only by a grid no reading of
+        its own width can fall off, so it has nothing to refuse and answers nothing.
+    ]]
+    read toIndices: ((values: { any }, into: { number }, count: number) -> number?)?,
+    read fromIndices: ((indices: { number }, into: { any }, count: number) -> ())?,
 }
 
 -- Private -------------------------------------------------------------
@@ -165,7 +174,40 @@ function Grid.flag (): Grid
 
     local function fromIndex (index: number): any return index == 1 end
 
-    return { span = 1, width = 1, whole = true, toIndex = toIndex, fromIndex = fromIndex }
+    --[[
+        The same two, for a run. A flag fills the one bit that carries it, so every reading a run
+        of them can produce is a point this grid has and the taking half refuses nothing.
+    ]]
+    local function toIndices (values: { any }, into: { number }, count: number): number?
+        for place = 1, count do
+            local one = values[place]
+            if one == true then
+                into[place] = 1
+            elseif one == false then
+                into[place] = 0
+            else
+                return place
+            end
+        end
+
+        return nil
+    end
+
+    local function fromIndices (indices: { number }, into: { any }, count: number)
+        for place = 1, count do
+            into[place] = indices[place] == 1
+        end
+    end
+
+    return {
+        span = 1,
+        width = 1,
+        whole = true,
+        toIndex = toIndex,
+        fromIndex = fromIndex,
+        toIndices = toIndices,
+        fromIndices = fromIndices,
+    }
 end
 
 -- A ranged int over a count of things, which is where every tag and every chosen name lands.

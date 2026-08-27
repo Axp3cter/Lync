@@ -78,6 +78,9 @@ const UNREAL = table.freeze ({ 0 / 0, math.huge, -math.huge })
     repeat from a pair.
 ]]
 const COARSE = Lync.quant (0, 1, 0.5)
+-- How many flags the run below is allowed, which is more than the three every case hands it.
+const FLAGS = 8
+
 --[[
     A grid stopping short of the whole byte that carries it, so a byte holds readings it has no
     point for. A record of two sits on byte boundaries whichever way round it lays them down.
@@ -210,6 +213,22 @@ return {
         ]]
         local line = refused (of, { near = "no", after = 0 }, "int")
         Expect.holds (string.find (line, NAMED, 1, true) ~= nil, `it said {line}`)
+    end),
+
+    --[[
+        A run of flags handed something that is no flag. A grid answering for a whole run at once
+        answers with the place of the first reading it has no point for, and that place is what
+        names the value the caller is refused over rather than the run it sat in.
+    ]]
+    Harness.case ("wire.a-run-of-flags-refuses-what-is-no-flag", function ()
+        local of = built (Lync.array (Lync.bool (), 0, FLAGS))
+
+        local ok = pcall (of.write, SLAB, 0, { true, false, true })
+        Expect.holds (ok, "a run of flags was refused")
+
+        refused (of, { true, "no", false }, "bool")
+        refused (of, { true, false, 1 }, "bool")
+        refused (of, { true, false, {} }, "bool")
     end),
 
     --[[

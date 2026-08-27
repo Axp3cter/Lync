@@ -228,20 +228,25 @@ end
 
 -- The records a removal carried, taken off what the flush still owes.
 local function released (of: Plan, dirt: Dirt, from: number, count: number)
-    for index = from, from + count - 1 do
-        local slot = of.dropped[index]
-        local id = dirt.freed[slot]
-        local op = dirt.ops[id]
+    local dropped = of.dropped
+    local freed = dirt.freed
+    local ops = dirt.ops
+    local masks = dirt.masks
 
-        dirt.freed[slot] = nil
+    for index = from, from + count - 1 do
+        local slot = dropped[index]
+        local id = freed[slot]
+        local op = ops[id]
+
+        freed[slot] = nil
         if op == "replace" then
-            dirt.ops[id] = "add"
+            ops[id] = "add"
             continue
         end
         if op == "add" then continue end
 
-        dirt.ops[id] = nil
-        dirt.masks[id] = nil
+        ops[id] = nil
+        masks[id] = nil
     end
 end
 
@@ -253,11 +258,15 @@ local function forgotten (
     from: number,
     count: number
 )
-    for index = from, from + count - 1 do
-        local id = store.ids[slots[index]]
+    local ids = store.ids
+    local ops = dirt.ops
+    local masks = dirt.masks
 
-        dirt.ops[id] = nil
-        dirt.masks[id] = nil
+    for index = from, from + count - 1 do
+        local id = ids[slots[index]]
+
+        ops[id] = nil
+        masks[id] = nil
     end
 end
 

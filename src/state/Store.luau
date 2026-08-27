@@ -167,10 +167,12 @@ end
 
 -- A record gone, and the slot it held.
 function Store.unbind (of: Store, id: number): number?
-    local slot = of.slotOf[id]
+    local slotOf = of.slotOf
+
+    local slot = slotOf[id]
     if slot == nil then return nil end
 
-    of.slotOf[id] = nil
+    slotOf[id] = nil
     of.ids[slot] = nil
     of.rows[id] = nil
     of.count -= 1

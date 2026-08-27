@@ -16,6 +16,10 @@ local Rng = require ("@test/harness/Rng")
 -- Room for the widest varint and an offset in front of it.
 const ROOM = 32
 
+-- Two values a group boundary falls inside, so a run has to walk more than one group.
+const WIDE = 127
+const MANY = 300
+
 -- Values a packing case writes back to back.
 const RUN = 12
 
@@ -230,6 +234,59 @@ return {
         local past = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20 }
         local says = "a signed varint read"
         Expect.throws (function () Varint.readSigned (holding (past), 0) end, says)
+    end),
+
+    --[[
+        A run of them taken in one call, both signs. A column of steps is many varints back to back
+        and the run form is what reads them, so what it has to keep is the walk itself: every value
+        in the order it was laid down, and the offset past the last of them.
+    ]]
+    Harness.case ("varint.run", function ()
+        local held = { 0, 1, WIDE, MANY, 0 }
+
+        local out = buffer.create (ROOM)
+        local at = 0
+        for _, one in held do
+            at = Varint.write (out, at, one)
+        end
+
+        local into = {}
+        Expect.equal (Varint.readRun (out, 0, into, #held), at)
+        Expect.equal (into, held)
+    end),
+
+    --[[
+        The same where the values carry a sign, which a step between two readings of a field does
+        unless the field only climbs. The negatives are what tells the pair of run forms apart.
+    ]]
+    Harness.case ("varint.signed-run", function ()
+        local held = { 0, -1, 1, -MANY, MANY }
+
+        local out = buffer.create (ROOM)
+        local at = 0
+        for _, one in held do
+            at = Varint.writeSigned (out, at, one)
+        end
+
+        local into = {}
+        Expect.equal (Varint.readSignedRun (out, 0, into, #held), at)
+        Expect.equal (into, held)
+    end),
+
+    --[[
+        A run stopping on a value the exact domain has no place for. The run form carries its own
+        ceiling because it reads its own values, and a frame naming a step past the domain is one
+        the two machines would disagree about the moment either did arithmetic on it.
+    ]]
+    Harness.case ("varint.run-ceiling", function ()
+        local past = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x10 }
+        Expect.throws (function () Varint.readRun (holding (past), 0, {}, 1) end, "a varint read")
+
+        local signed = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20 }
+        Expect.throws (
+            function () Varint.readSignedRun (holding (signed), 0, {}, 1) end,
+            "a signed varint read"
+        )
     end),
 
     --[[

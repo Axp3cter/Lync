@@ -319,7 +319,10 @@ function Column.gain (
     local half = if signed then points // 2 else 0
 
     local put = if signed then Varint.writeSigned else Varint.write
-    local take = if signed then Varint.readSigned else Varint.read
+    local takeRun = if signed then Varint.readSignedRun else Varint.readRun
+
+    -- Made once and filled over, no reading of a section outliving the walk that took it.
+    local steps: { number } = {}
 
     local function write (
         b: buffer,
@@ -356,17 +359,19 @@ function Column.gain (
         at: { number },
         count: number
     ): number
-        local held = pos
+        --[[
+            Every step of the section off the bytes before any of them is put back on the grid. A
+            step stands on its own, needing neither the slot it belongs to nor the one before it,
+            so the crossing into the varints is paid once for the section and not once a step.
+        ]]
+        local held = takeRun (b, pos, steps, count)
 
         if plain then
             for place = 1, count do
-                local step, after = take (b, held)
-                held = after
-
                 local base = was[slots[place]]
                 if base == nil then continue end
 
-                local one = base + step
+                local one = base + steps[place]
                 if points > 0 then
                     one %= points
                 end
@@ -380,13 +385,10 @@ function Column.gain (
         end
 
         for place = 1, count do
-            local step, after = take (b, held)
-            held = after
-
             local base = was[slots[place]]
             if base == nil then continue end
 
-            local now = base + step
+            local now = base + steps[place]
             if points > 0 then
                 now %= points
             end

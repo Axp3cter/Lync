@@ -122,6 +122,46 @@ function Varint.readSigned (b: buffer, at: number): (number, number)
 end
 
 --[[
+    A run of them taken at once, both signs, which a column of steps is: many of them back to back
+    and nothing between. What the caller of one is spared is a crossing back once a step, the walk
+    under it being the walk that would have stood outside instead.
+]]
+@native
+function Varint.readRun (b: buffer, at: number, into: { number }, count: number): number
+    local held = at
+    for index = 1, count do
+        local head, tail, after = taken (b, held)
+
+        local value = head + tail * MORE
+        if value >= EXACT then Log.refuse (`a varint read {value}, past the exact ceiling`) end
+
+        into[index] = value
+        held = after
+    end
+
+    return held
+end
+
+@native
+function Varint.readSignedRun (b: buffer, at: number, into: { number }, count: number): number
+    local held = at
+    for index = 1, count do
+        local head, tail, after = taken (b, held)
+
+        local rest = tail * HALF
+        local value = if head % 2 == 0 then head / 2 + rest else -((head + 1) / 2 + rest)
+        if value <= -EXACT or value >= EXACT then
+            Log.refuse (`a signed varint read {value}, past the exact ceiling`)
+        end
+
+        into[index] = value
+        held = after
+    end
+
+    return held
+end
+
+--[[
     A step of one or more and a flag, written as one, for the reason the pair above folds a sign
     into the low bit: a number that always carries a second small thing beside it would spend a
     whole group on it. One or more because a step of nothing is the same number twice.

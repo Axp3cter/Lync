@@ -288,12 +288,23 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         for index = 1, windows do
-            local acc = 0
-            for part = first[index], last[index] do
-                local cell = slot[part]
+            local head = first[index]
+            local cell = slot[head]
+
+            --[[
+                A window is filled from its low bit up, so its first piece sits at no offset and is
+                what the rest are merged into. Merging it as well would shift it by nothing and or
+                it onto nothing, which is two calls a window that answer with what went in.
+            ]]
+            local acc = if direct[head]
+                then slots[cell]
+                else bit32.extract (slots[cell], shift[head], span[head])
+
+            for part = head + 1, last[index] do
+                local pick = slot[part]
                 local piece = if direct[part]
-                    then slots[cell]
-                    else bit32.extract (slots[cell], shift[part], span[part])
+                    then slots[pick]
+                    else bit32.extract (slots[pick], shift[part], span[part])
 
                 acc = bit32.bor (acc, bit32.lshift (piece, offset[part]))
             end

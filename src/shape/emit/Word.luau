@@ -288,13 +288,46 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
         local bare: any = nil
 
+        --[[
+            A word of fields that neither dissolve nor gather sits one field to one leaf, so the
+            climb over a field's leaves is a climb over the one it has and the reading is already
+            in hand. Split here the way the writing half splits, rather than asked field by field.
+        ]]
+        if simple then
+            for index = 1, reach do
+                local at = starts[index]
+                local raw = slots[at]
+
+                if raw > spans[at] then
+                    -- Held back to here, since a decode that holds never has a tag to report.
+                    local tag = joins[index].tag
+                    Log.reject (Catalog.TAG, {
+                        pathId = tag.pathId,
+                        expectId = tag.expectId,
+                        got = raw,
+                    })
+                end
+
+                local reading = readings[index]
+                local one: any = if reading == nil then raw else reading (raw)
+
+                local key = keys[index]
+                if key == nil then
+                    bare = one
+                else
+                    into[key] = one
+                end
+            end
+
+            return bare
+        end
+
         for index = 1, reach do
             local at = starts[index]
 
             for leaf = at, ends[index] do
                 if slots[leaf] <= spans[leaf] then continue end
 
-                -- Held back to here, since a decode that holds never has a tag to report.
                 local tag = joins[index].tag
                 Log.reject (Catalog.TAG, {
                     pathId = tag.pathId,
@@ -306,18 +339,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local key = keys[index]
 
             local one: any
-            if simple then
-                local reading = readings[index]
-                one = if reading == nil then slots[at] else reading (slots[at])
-
-                if key == nil then
-                    bare = one
-                else
-                    into[key] = one
-                end
-                continue
-            end
-
             local push = pushes[index]
             if push ~= nil then
                 one = push (slots, at)

@@ -46,6 +46,9 @@ const SHORT = 200
 const SHORT_PAIR = 60000
 const WHOLE_BYTE = 255
 
+-- The top of a grid three bits wide, whose third field in a row of them straddles a byte.
+const CUT_TOP = 4
+
 -- How many values a byte takes, which is where a run of climbing bytes turns over.
 const BYTES = 256
 
@@ -348,6 +351,26 @@ return {
 
         Expect.equal (#reversed, #bytes)
         Expect.equal (decoded (of, reversed), false)
+    end),
+
+    --[[
+        A word whose last field is cut across two bytes, which packs into neither seats nor
+        windows a field is the whole of. Every field still stands on the record itself, so the
+        reading takes the short way through, and a hostile byte spells indices past every grid.
+    ]]
+    Harness.case ("total.cut-word", function ()
+        local narrow = Lync.int (0, CUT_TOP)
+        local of = Turns.built (Lync.struct ({ a = narrow, b = narrow, c = narrow }))
+
+        local bytes = Turns.text (of, { a = 0, b = 0, c = 0 })
+        Expect.holds (decoded (of, bytes), "the word this codec wrote was refused")
+
+        for at = 1, #bytes do
+            local before, after = string.sub (bytes, 1, at - 1), string.sub (bytes, at + 1)
+            for _, byte in HOSTILE do
+                survives (of, before .. string.char (byte) .. after, `byte {at} at {byte}`)
+            end
+        end
     end),
 
     --[[

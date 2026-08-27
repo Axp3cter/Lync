@@ -20,6 +20,9 @@ const ROOM = 32
 const WIDE = 127
 const MANY = 300
 
+-- A magnitude of whole half groups, which is the one negative the encoder spells its own way.
+const SUNK = -Protocol.VARINT_HALF * 2
+
 -- Values a packing case writes back to back.
 const RUN = 12
 
@@ -237,6 +240,60 @@ return {
     end),
 
     --[[
+        A run of them laid down in one call, read back one at a time. Writing the section whole and
+        reading it a value at a time is what says the run form lays the same bytes the single form
+        would have, and the offset it answers is where the next section starts.
+    ]]
+    Harness.case ("varint.write-run", function ()
+        local held = { 0, 1, WIDE, MANY, 0 }
+
+        local out = buffer.create (ROOM)
+        local after = Varint.writeRun (out, 0, held, #held)
+
+        local at = 0
+        for _, one in held do
+            local got: number
+            got, at = Varint.read (out, at)
+            Expect.equal (got, one)
+        end
+
+        Expect.equal (at, after)
+    end),
+
+    -- The same where the values carry a sign, the negatives being what the two forms differ over.
+    Harness.case ("varint.signed-write-run", function ()
+        local held = { 0, -1, 1, -MANY, MANY, SUNK }
+
+        local out = buffer.create (ROOM)
+        local after = Varint.writeSignedRun (out, 0, held, #held)
+
+        local at = 0
+        for _, one in held do
+            local got: number
+            got, at = Varint.readSigned (out, at)
+            Expect.equal (got, one)
+        end
+
+        Expect.equal (at, after)
+    end),
+
+    --[[
+        A run holding a value the exact domain has no place for. What is turned away is a caller's
+        own number rather than anything a frame could carry, so a run of them refuses on the one it
+        reaches rather than laying down what it cannot say.
+    ]]
+    Harness.case ("varint.write-run-domain", function ()
+        local out = buffer.create (ROOM)
+
+        Expect.throws (function () Varint.writeRun (out, 0, { 0, -1 }, 2) end, "a varint carries")
+
+        Expect.throws (
+            function () Varint.writeSignedRun (out, 0, { 0, WIDEST + 1 }, 2) end,
+            "a signed varint carries"
+        )
+    end),
+
+    --[[
         A run of them taken in one call, both signs. A column of steps is many varints back to back
         and the run form is what reads them, so what it has to keep is the walk itself: every value
         in the order it was laid down, and the offset past the last of them.
@@ -260,7 +317,7 @@ return {
         unless the field only climbs. The negatives are what tells the pair of run forms apart.
     ]]
     Harness.case ("varint.signed-run", function ()
-        local held = { 0, -1, 1, -MANY, MANY }
+        local held = { 0, -1, 1, -MANY, MANY, SUNK }
 
         local out = buffer.create (ROOM)
         local at = 0

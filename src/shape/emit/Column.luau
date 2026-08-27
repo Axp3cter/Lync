@@ -318,7 +318,7 @@ function Column.gain (
     local points = if of.wrap then span + 1 else 0
     local half = if signed then points // 2 else 0
 
-    local put = if signed then Varint.writeSigned else Varint.write
+    local putRun = if signed then Varint.writeSignedRun else Varint.writeRun
     local takeRun = if signed then Varint.readSignedRun else Varint.readRun
 
     -- Made once and filled over, no reading of a section outliving the walk that took it.
@@ -333,8 +333,6 @@ function Column.gain (
         at: { number },
         count: number
     ): number
-        local held = pos
-
         for place = 1, count do
             local one = toIndex (from[place])
             if one == nil then Word.refusedAt (tag, paths, expected, from[place]) end
@@ -344,10 +342,15 @@ function Column.gain (
             if points > 0 then step = (step + half) % points - half end
 
             at[place] = now
-            held = put (b, held, step)
+            steps[place] = step
         end
 
-        return held
+        --[[
+            Every step of the section down in one crossing, once all of them are worked out. A step
+            is a number and nothing about where it lands, so the section is laid whole and the walk
+            above is left with the grid alone to answer to.
+        ]]
+        return putRun (b, pos, steps, count)
     end
 
     local function walk (

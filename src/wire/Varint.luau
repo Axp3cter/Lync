@@ -122,6 +122,50 @@ function Varint.readSigned (b: buffer, at: number): (number, number)
 end
 
 --[[
+    A run of them laid down at once, both signs, for the reason the pair below is taken at once: a
+    column of steps is many of them back to back and nothing between, so the caller crosses in once
+    for the section instead of once a step.
+]]
+@native
+function Varint.writeRun (out: buffer, at: number, values: { number }, count: number): number
+    local held = at
+    for index = 1, count do
+        local value = values[index]
+        if value < 0 or value >= EXACT then
+            Log.refuse (`a varint carries none to {EXACT - 1}, not {value}`)
+        end
+
+        held = laid (out, held, value % MORE, value // MORE)
+    end
+
+    return held
+end
+
+@native
+function Varint.writeSignedRun (out: buffer, at: number, values: { number }, count: number): number
+    local held = at
+    for index = 1, count do
+        local value = values[index]
+        if value <= -EXACT or value >= EXACT then
+            Log.refuse (`a signed varint carries {1 - EXACT} to {EXACT - 1}, not {value}`)
+        end
+
+        if value >= 0 then
+            held = laid (out, held, (value % HALF) * 2, value // HALF)
+            continue
+        end
+
+        local magnitude = -value
+        local head = magnitude % HALF
+        held = if head == 0
+            then laid (out, held, GROUP, magnitude // HALF - 1)
+            else laid (out, held, head * 2 - 1, magnitude // HALF)
+    end
+
+    return held
+end
+
+--[[
     A run of them taken at once, both signs, which a column of steps is: many of them back to back
     and nothing between. What the caller of one is spared is a crossing back once a step, the walk
     under it being the walk that would have stood outside instead.

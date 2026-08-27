@@ -533,7 +533,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     local raw = buffer.readu8 (b, at)
                     at += 1
 
-                    if checks[index] and raw > bounds[index] then
+                    if raw > bounds[index] then
                         local tag = joins[index].tag
                         Log.reject (Catalog.TAG, {
                             pathId = tag.pathId,
@@ -631,7 +631,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                         then buffer.readu8 (b, at)
                         else buffer.readu16 (b, at)
 
-                    if checks[index] and raw > bounds[index] then
+                    if raw > bounds[index] then
                         local tag = joins[index].tag
                         Log.reject (Catalog.TAG, {
                             pathId = tag.pathId,

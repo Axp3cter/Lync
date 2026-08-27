@@ -12,8 +12,12 @@ Pending.__index = Pending
 
 -- Constants -----------------------------------------------------------
 
+-- How many may be in flight at once, and how long one waits where a caller named no time itself.
+const CAP = Protocol.QUERY_CAP
+const PATIENCE = Protocol.QUERY_TIMEOUT
+
 -- Twice the live ceiling, so the walk for a free id always has somewhere to go and cannot fail.
-const SPACE = Protocol.QUERY_CAP * 2
+const SPACE = CAP * 2
 
 -- Types ---------------------------------------------------------------
 
@@ -88,20 +92,20 @@ function Pending.open (
     timeout: number?,
     complete: Types.Outcome<any>
 ): number
-    if self.count == Protocol.QUERY_CAP then
-        Log.refuse (
-            `{self.namespace} has {Protocol.QUERY_CAP} requests in flight, which is the ceiling`
-        )
+    if self.count == CAP then
+        Log.refuse (`{self.namespace} has {CAP} requests in flight, which is the ceiling`)
     end
 
+    local live = self.live
+
     local id = self.next
-    while self.live[id] ~= nil do
+    while live[id] ~= nil do
         id = (id + 1) % SPACE
     end
     self.next = (id + 1) % SPACE
 
-    local at = now + (timeout or Protocol.QUERY_TIMEOUT)
-    self.live[id] = {
+    local at = now + (timeout or PATIENCE)
+    live[id] = {
         definition = definition,
         player = player,
         opened = now,

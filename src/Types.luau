@@ -141,8 +141,27 @@ export type function Defined (definitions)
             else replicate
         local exposed = types.newtable ()
 
-        for _, name in names do
-            exposed:setproperty (types.singleton (name), definition:readproperty (types.singleton (name)))
+        local function rewrite (method): any
+            if method:is ("intersection") then
+                local methods = {}
+                for _, component in method:components () do
+                    table.insert (methods, rewrite (component))
+                end
+                return types.intersectionof (unpack (methods))
+            end
+
+            local copied = types.copy (method)
+            local parameters = copied:parameters ()
+            if parameters.head ~= nil then
+                parameters.head[1] = exposed
+                copied:setparameters (parameters.head, parameters.tail)
+            end
+            return copied
+        end
+
+        for _, name in pairs(names) do
+            local methodKey = types.singleton (name)
+            exposed:setproperty (methodKey, rewrite (definition:readproperty (methodKey)))
         end
 
         result:setproperty (key, exposed)

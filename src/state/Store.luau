@@ -25,6 +25,13 @@ export type Record = { [string]: any }
 export type Writer = (slot: number, id: number, value: any) -> ()
 
 --[[
+    The same write for a whole section at once. A keyframe states every slot it names for every
+    field it carries, so the crossing into the store is paid once a field there rather than once a
+    slot, which is the only thing between this and the one above.
+]]
+export type Spread = (slots: { number }, ids: { number }, values: { any }, count: number) -> ()
+
+--[[
     One partition, held twice. `columns` is the wire's truth, one field across every slot, which a
     section writes as one lookup and then array reads. `rows` is the caller's, one record under its
     id at one lookup. One write fills both, which is why they cannot come apart. A slot is the
@@ -50,6 +57,7 @@ export type Store = {
         them once rather than working them out again for every slot it puts down.
     ]]
     read writers: { Writer },
+    read spreads: { Spread },
     read free: Heap.Heap,
     high: number,
     count: number,
@@ -107,6 +115,7 @@ function Store.new (of: Compile.Set): Store
         high = 0,
         count = 0,
         writers = table.create (fields) :: { Writer },
+        spreads = table.create (fields) :: { Spread },
     }
 
     local rows = store.rows
@@ -133,6 +142,28 @@ function Store.new (of: Compile.Set): Store
             end
 
             row[name] = value
+        end
+
+        store.spreads[index] = function (
+            slots: { number },
+            ids: { number },
+            values: { any },
+            count: number
+        )
+            for at = 1, count do
+                local id = ids[at]
+                local value = values[at]
+
+                column[slots[at]] = value
+
+                local row = rows[id]
+                if __DEV__ and table.isfrozen (row) then
+                    row = table.clone (row)
+                    rows[id] = row
+                end
+
+                row[name] = value
+            end
         end
     end
 

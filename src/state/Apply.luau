@@ -209,22 +209,22 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
     local told = of.marks
 
     for field = 1, layout.def.fieldCount do
-        local values = frame.values[field]
-        local marks = frame.at[field]
         local held = store.prev[field]
 
-        -- The writer this field is put down by, reached once rather than once a slot it names.
-        local put = store.writers[field]
+        --[[
+            Every slot this field names put down in one crossing. A keyframe speaks for all of them
+            and skips none, so what the store is handed is the section and not a slot out of it,
+            and what a field owes its baseline is a walk of its own or no walk at all.
+        ]]
+        store.spreads[field] (slots, ids, frame.values[field], frame.count)
+        if held == nil then continue end
+
+        local marks = frame.at[field]
 
         for index = 1, frame.count do
-            local slot = slots[index]
-            put (slot, ids[index], values[index])
-
-            if held == nil then continue end
-
             owed += 1
             holds[owed] = held
-            where[owed] = slot
+            where[owed] = slots[index]
             told[owed] = marks[index]
         end
     end

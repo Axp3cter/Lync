@@ -65,15 +65,21 @@ return {
     end),
 
     --[[
-        A run naming one slot twice. A step of nothing is the only way a climb can be broken, since
-        a step is unsigned and a slot the wrong way round cannot be spelled at all, so this is the
-        whole of what the order refuses.
+        A run whose every step is forged to nothing. A step goes down one under itself, so nothing
+        at all is a step of one and no bytes name a slot twice, which is why the order below is
+        asked about the first slot alone and never about the run behind it.
     ]]
-    Harness.case ("slots.refuses-a-repeat", function ()
-        local code, said = refused (wrote ({ 4, 4 }))
+    Harness.case ("slots.a-repeat-cannot-be-spelled", function ()
+        local b = wrote ({ 1, 2, 4 })
+        buffer.writeu8 (b, 2, 0)
 
-        Expect.equal (code, BROKEN)
-        Expect.equal (said, SAID.order)
+        local back: { number } = {}
+        local count = Slots.read (b, 0, back, {}, LONE, SAID)
+
+        Expect.equal (count, 3)
+        for index = 1, count do
+            Expect.equal (back[index], index)
+        end
     end),
 
     -- A run opening on no slot at all, which is the same refusal read at the first entry.
@@ -107,7 +113,7 @@ return {
         make two frames of one flush.
     ]]
     Harness.case ("slots.refuses-a-pad", function ()
-        local b = wrote ({ 1, 2, 3 })
+        local b = wrote ({ 1, 2, 4 })
 
         -- The count, then the first slot, then the two steps packed a bit each with six left over.
         buffer.writeu8 (b, 2, bit32.bor (buffer.readu8 (b, 2), 0x80))

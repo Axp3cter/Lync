@@ -16,9 +16,9 @@ local Slots = {}
 -- Bits in a byte, which a bound counted in one is measured against.
 const BYTE = Protocol.BYTE_BITS
 
--- How many widths the count shares its number with, and the widest of them worth packing at.
-const SPANS = 8
-const NARROW = SPANS - 1
+-- How many codes the count shares its number with, and the widest run worth packing at.
+const SPANS = 16
+const NARROW = SPANS // 2 - 1
 
 -- Types ---------------------------------------------------------------
 
@@ -32,10 +32,10 @@ export type Said = {
 -- Public --------------------------------------------------------------
 
 --[[
-    The width a run of numbers packs at, or nothing where packing would not pay for itself. A
-    varint cannot spend under the byte it is, so anything narrower wins and anything wider is
-    left to varints. Both sides are told the width rather than work it out, since only a writer
-    ever sees every value of a run at once.
+    The width a run of numbers packs at, held one over itself so that no width at all is still a
+    width, or nothing where packing would not pay for itself. A varint cannot spend under the byte
+    it is, so anything narrower wins and anything wider is left to varints. Both sides are told the
+    width rather than work it out, since only a writer ever sees every value of a run at once.
 ]]
 function Slots.width (run: { number }, count: number): number
     local widest = 0
@@ -47,12 +47,13 @@ function Slots.width (run: { number }, count: number): number
     local width = Bits.width (widest)
     if width > NARROW or Bytes.whole (count * width) >= count then return 0 end
 
-    return width
+    return width + 1
 end
 
 -- A run of numbers at the width its writer chose, or the varints it fell back to.
-function Slots.laid (b: buffer, at: number, run: { number }, count: number, width: number): number
-    if width ~= 0 then return Leaf.packed (b, at, width, count, run) end
+function Slots.laid (b: buffer, at: number, run: { number }, count: number, code: number): number
+    if code > 1 then return Leaf.packed (b, at, code - 1, count, run) end
+    if code == 1 then return at end
 
     local held = at
     for index = 1, count do
@@ -67,9 +68,15 @@ function Slots.taken (
     at: number,
     run: { number },
     count: number,
-    width: number
+    code: number
 ): (number, boolean)
-    if width ~= 0 then return Leaf.unpacked (b, at, width, count, run) end
+    if code > 1 then return Leaf.unpacked (b, at, code - 1, count, run) end
+    if code == 1 then
+        for index = 1, count do
+            run[index] = 0
+        end
+        return at, true
+    end
 
     local held = at
     for index = 1, count do
@@ -79,10 +86,10 @@ function Slots.taken (
 end
 
 --[[
-    A count and the slots under it. The first slot as it stands and the rest as the step from the
-    one before, packed at the width the widest of them needs, since a partition moving together
-    steps by one and that is a bit a record where a varint could not have spent under a byte. A
-    list too spread out to gain by it falls back to varints, under a width of nothing.
+    A count and the slots under it. The first slot as it stands and the rest as one under the step
+    from the one before, since the run climbs and a step of nothing is not one it can take, so the
+    ordinary partition moving together spells every step as a nothing that costs no bits at all. A
+    list too spread out to gain by packing falls back to varints, under a code of nothing.
 ]]
 function Slots.wrote (
     b: buffer,
@@ -92,7 +99,7 @@ function Slots.wrote (
     count: number
 ): number
     for index = 2, count do
-        steps[index - 1] = slots[index] - slots[index - 1]
+        steps[index - 1] = slots[index] - slots[index - 1] - 1
     end
 
     local width = Slots.width (steps, count - 1)
@@ -119,10 +126,10 @@ function Slots.read (
 ): (number, number)
     local carried, after = Varint.read (b, at)
 
-    local width = carried % SPANS
-    local count = (carried - width) // SPANS
+    local code = carried % SPANS
+    local count = (carried - code) // SPANS
 
-    local spent = if width == 0 then count * BYTE else BYTE + (count - 1) * width
+    local spent = if code == 0 then count * BYTE else BYTE + (count - 1) * (code - 1)
     local bits = count * least + (if count == 0 then 0 else spent)
     if bits > (buffer.len (b) - after) * BYTE then Fieldset.broken (said.many) end
 
@@ -131,7 +138,7 @@ function Slots.read (
     local first, held = Varint.read (b, after)
 
     local clean
-    held, clean = Slots.taken (b, held, steps, count - 1, width)
+    held, clean = Slots.taken (b, held, steps, count - 1, code)
     if not clean then Fieldset.broken (said.pad) end
 
     if first == 0 then Fieldset.broken (said.order) end
@@ -139,10 +146,7 @@ function Slots.read (
 
     local last = first
     for index = 2, count do
-        local step = steps[index - 1]
-        if step == 0 then Fieldset.broken (said.order) end
-
-        last += step
+        last += steps[index - 1] + 1
         slots[index] = last
     end
 

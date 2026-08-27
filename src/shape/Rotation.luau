@@ -136,11 +136,14 @@ local function only (span: number, atU: number, atV: number): (number, number)
 end
 
 --[[
-    The lower index of the two the value lies between, which is where a search of a grid cell
-    starts. Read off the nearest rather than by dividing, so the grid keeps its own arithmetic and a
-    reading that is on no grid at all arrives here as the nil that grid already answers.
+    The lower index of the two the value lies between, where a search of a grid cell starts. Asked
+    of the grid where it answers for that, since working it out from the two below asks the same
+    grid twice for what it settles once, and a search asks three times a spelling it tries.
 ]]
 local function under (of: Grid.Grid, value: number): number?
+    local below = of.below
+    if below ~= nil then return below (value) end
+
     local at = of.toIndex (value)
     if at == nil then return nil end
     return if of.fromIndex (at) > value then at - 1 else at

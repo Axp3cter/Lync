@@ -51,7 +51,6 @@ const CLEARED =
 ]]
 const MERGED = Coalesce.merge
 const TOUCHED = Coalesce.touched
-const UNION = Wide.union
 const GATHERED = Wide.gathered
 const MIGRATES = Coalesce.migrates
 
@@ -643,12 +642,10 @@ function Sync.update (of: Sync, id: number, fields: any)
 
     --[[
         A call that named every field of the record owes what all of them come to, which the
-        definition holds already. Folding the list would walk to that same word a step at a time,
-        and the ordinary write is a caller handing over the whole record.
+        definition holds already and the ordinary write is. Nothing it was already owing changes
+        that: what a record owes is field bits, and the whole of them is every field bit there is.
     ]]
-    mask = if moved == def.fieldCount
-        then UNION (mask, of.whole)
-        else GATHERED (mask, listed, 1, moved)
+    mask = if moved == def.fieldCount then of.whole else GATHERED (mask, listed, 1, moved)
     dirt.masks[id] = mask
     marked (part, id, "update")
 

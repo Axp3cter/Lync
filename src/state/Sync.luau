@@ -51,6 +51,7 @@ const CLEARED =
 ]]
 const MERGED = Coalesce.merge
 const TOUCHED = Coalesce.touched
+const UNION = Wide.union
 const GATHERED = Wide.gathered
 const MIGRATES = Coalesce.migrates
 
@@ -88,6 +89,7 @@ export type Sync = {
     read climbs: boolean,
     read streams: boolean,
     read bits: { Wide.Word },
+    read whole: Wide.Word,
     read row: { any },
     read listed: { Wide.Word },
     read one: { Player },
@@ -466,14 +468,18 @@ local function rowed (of: Sync, id: number): any
     return part.store.rows[id]
 end
 
--- Every field's own bit, asked of the one that answers it once a field and not once a write.
-local function bitted (reach: number): { Wide.Word }
+--[[
+    Every field's own bit, asked of the one that answers it once a field and not once a write, and
+    what all of them come to beside it. Naming every field of a record is the ordinary write, and
+    the answer to it is the same word every time rather than a fold that arrives at that word.
+]]
+local function bitted (reach: number): ({ Wide.Word }, Wide.Word)
     local out = table.create (reach) :: { Wide.Word }
     for field = 1, reach do
         out[field] = TOUCHED (NOTHING, field)
     end
 
-    return table.freeze (out)
+    return table.freeze (out), GATHERED (NOTHING, out, 1, reach)
 end
 
 -- Public --------------------------------------------------------------
@@ -482,6 +488,7 @@ Sync.NONE = table.freeze (CLEARED)
 
 -- One set, holding nothing.
 function Sync.new (def: Compile.Set): Sync
+    local bits, whole = bitted (def.fieldCount)
     local layout = Sections.of (def)
     local lane = Newest.of (layout)
 
@@ -499,7 +506,8 @@ function Sync.new (def: Compile.Set): Sync
         place = def.fieldIndex,
         climbs = def.climbs,
         streams = lane.streams,
-        bits = bitted (def.fieldCount),
+        bits = bits,
+        whole = whole,
         seen = Audience.new (),
         owed = Catchup.new (),
         heard = Apply.heard (),
@@ -633,7 +641,14 @@ function Sync.update (of: Sync, id: number, fields: any)
     -- A call that moved nothing but newest fields owes the reliable lane nothing at all.
     if moved == 0 then return end
 
-    mask = GATHERED (mask, listed, 1, moved)
+    --[[
+        A call that named every field of the record owes what all of them come to, which the
+        definition holds already. Folding the list would walk to that same word a step at a time,
+        and the ordinary write is a caller handing over the whole record.
+    ]]
+    mask = if moved == def.fieldCount
+        then UNION (mask, of.whole)
+        else GATHERED (mask, listed, 1, moved)
     dirt.masks[id] = mask
     marked (part, id, "update")
 

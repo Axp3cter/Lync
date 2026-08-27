@@ -112,46 +112,82 @@ local function reject (code: Catalog.Code, of: Named, got: any)
     Log.reject (code, { pathId = of.pathId, expectId = of.expectId, got = got })
 end
 
--- A whole number of bytes, little end first, for every field that is one.
-local function laid (b: buffer, at: number, bytes: number, value: number)
-    if bytes <= WORD then
-        if bytes == 0 then return end
-        if bytes == 1 then return buffer.writeu8 (b, at, value) end
-        if bytes == PAIR then return buffer.writeu16 (b, at, value) end
-        if bytes == TRIO then
+--[[
+    A whole number of bytes, little end first, for every field that is one. How many bytes a field
+    takes is settled when it is built, so the answer is picked over once here and the pair handed
+    back asks nothing of it again.
+]]
+local function laying (bytes: number): (buffer, number, number) -> ()
+    if bytes == 0 then
+        return function () end
+    end
+    if bytes == 1 then return buffer.writeu8 end
+    if bytes == PAIR then return buffer.writeu16 end
+
+    if bytes == TRIO then
+        return function (b: buffer, at: number, value: number)
             buffer.writeu16 (b, at, value % HALF)
-            return buffer.writeu8 (b, at + PAIR, value // HALF)
+            buffer.writeu8 (b, at + PAIR, value // HALF)
         end
-        return buffer.writeu32 (b, at, value)
     end
 
-    buffer.writeu32 (b, at, value % HIGH)
+    if bytes == WORD then return buffer.writeu32 end
 
-    local high = value // HIGH
-    if bytes == WORD + 1 then return buffer.writeu8 (b, at + WORD, high) end
-    if bytes == WORD + PAIR then return buffer.writeu16 (b, at + WORD, high) end
+    if bytes == WORD + 1 then
+        return function (b: buffer, at: number, value: number)
+            buffer.writeu32 (b, at, value % HIGH)
+            buffer.writeu8 (b, at + WORD, value // HIGH)
+        end
+    end
 
-    buffer.writeu16 (b, at + WORD, high % HALF)
-    buffer.writeu8 (b, at + WORD + PAIR, high // HALF)
+    if bytes == WORD + PAIR then
+        return function (b: buffer, at: number, value: number)
+            buffer.writeu32 (b, at, value % HIGH)
+            buffer.writeu16 (b, at + WORD, value // HIGH)
+        end
+    end
+
+    return function (b: buffer, at: number, value: number)
+        buffer.writeu32 (b, at, value % HIGH)
+
+        local high = value // HIGH
+        buffer.writeu16 (b, at + WORD, high % HALF)
+        buffer.writeu8 (b, at + WORD + PAIR, high // HALF)
+    end
 end
 
-local function taken (b: buffer, at: number, bytes: number): number
-    if bytes <= WORD then
-        if bytes == 0 then return 0 end
-        if bytes == 1 then return buffer.readu8 (b, at) end
-        if bytes == PAIR then return buffer.readu16 (b, at) end
-        if bytes == TRIO then
+-- The same number taken back up, picked over the same once.
+local function taking (bytes: number): (buffer, number) -> number
+    if bytes == 0 then
+        return function () return 0 end
+    end
+    if bytes == 1 then return buffer.readu8 end
+    if bytes == PAIR then return buffer.readu16 end
+
+    if bytes == TRIO then
+        return function (b: buffer, at: number): number
             return buffer.readu16 (b, at) + buffer.readu8 (b, at + PAIR) * HALF
         end
-        return buffer.readu32 (b, at)
     end
 
-    local low = buffer.readu32 (b, at)
-    if bytes == WORD + 1 then return low + buffer.readu8 (b, at + WORD) * HIGH end
-    if bytes == WORD + PAIR then return low + buffer.readu16 (b, at + WORD) * HIGH end
+    if bytes == WORD then return buffer.readu32 end
 
-    local high = buffer.readu16 (b, at + WORD) + buffer.readu8 (b, at + WORD + PAIR) * HALF
-    return low + high * HIGH
+    if bytes == WORD + 1 then
+        return function (b: buffer, at: number): number
+            return buffer.readu32 (b, at) + buffer.readu8 (b, at + WORD) * HIGH
+        end
+    end
+
+    if bytes == WORD + PAIR then
+        return function (b: buffer, at: number): number
+            return buffer.readu32 (b, at) + buffer.readu16 (b, at + WORD) * HIGH
+        end
+    end
+
+    return function (b: buffer, at: number): number
+        local high = buffer.readu16 (b, at + WORD) + buffer.readu8 (b, at + WORD + PAIR) * HALF
+        return buffer.readu32 (b, at) + high * HIGH
+    end
 end
 
 -- Public --------------------------------------------------------------
@@ -514,18 +550,19 @@ function Leaf.wide (
     local grid = of.grid
     local toIndex, fromIndex, span = grid.toIndex, grid.fromIndex, grid.span
     local bytes = of.maxBytes
+    local put, take = laying (bytes), taking (bytes)
     local ceiling = 2 ^ grid.width - 1
 
     local function write (b: buffer, pos: number, value: any): number
         local index = toIndex (value)
         if index == nil then refuse (at, value) end
 
-        laid (b, pos, bytes, index :: number)
+        put (b, pos, index :: number)
         return pos + bytes
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-        local index = taken (b, pos, bytes)
+        local index = take (b, pos)
         if index > ceiling then reject (Catalog.PAD, at, index) end
         if index > span then reject (Catalog.TAG, at, index) end
 
@@ -585,6 +622,7 @@ function Leaf.bytes (
     local low, high = of.count.min, of.count.max
     local span = high - low
     local held = Bytes.whole (Bits.width (span))
+    local put, take = laying (held), taking (held)
     local text = of.form == "string"
 
     local alphabet = of.alphabet
@@ -593,7 +631,7 @@ function Leaf.bytes (
             local count = if text then #value else buffer.len (value)
             if count < low or count > high then refuse (at, count) end
 
-            laid (b, pos, held, count - low)
+            put (b, pos, count - low)
             local after = pos + held
 
             if text then
@@ -605,7 +643,7 @@ function Leaf.bytes (
         end
 
         local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-            local index = taken (b, pos, held)
+            local index = take (b, pos)
             if index > span then reject (Catalog.COUNT, at, index) end
 
             local count = index + low
@@ -642,12 +680,12 @@ function Leaf.bytes (
             scratch[place] = one :: number
         end
 
-        laid (b, pos, held, count - low)
+        put (b, pos, count - low)
         return packed (b, pos + held, width, count, scratch)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-        local counted = taken (b, pos, held)
+        local counted = take (b, pos)
         if counted > span then reject (Catalog.COUNT, at, counted) end
 
         local count = counted + low
@@ -677,6 +715,7 @@ function Leaf.run (
     local low, high = of.count.min, of.count.max
     local span = high - low
     local held = Bytes.whole (Bits.width (span))
+    local put, take = laying (held), taking (held)
 
     local elem = of.elem
     local toIndex, fromIndex, reach = elem.toIndex, elem.fromIndex, elem.span
@@ -711,12 +750,12 @@ function Leaf.run (
             end
         end
 
-        laid (b, pos, held, count - low)
+        put (b, pos, count - low)
         return packed (b, pos + held, width, count, scratch)
     end
 
     local function read (b: buffer, pos: number, _ctx: Types.ValidateContext): (number, any)
-        local counted = taken (b, pos, held)
+        local counted = take (b, pos)
         if counted > span then reject (Catalog.COUNT, at, counted) end
 
         local count = counted + low

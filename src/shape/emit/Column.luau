@@ -304,6 +304,12 @@ function Column.gain (
     local toIndex, fromIndex = of.toIndex, of.fromIndex
     local span = of.span
 
+    --[[
+        Whether a grid hands back the index it was given, which the walk below asks once a run
+        rather than paying a call an element for an answer it already holds.
+    ]]
+    local plain = of.plain == true
+
     local points = if of.wrap then span + 1 else 0
     local half = if signed then points // 2 else 0
 
@@ -346,6 +352,27 @@ function Column.gain (
         count: number
     ): number
         local held = pos
+
+        if plain then
+            for place = 1, count do
+                local step, after = take (b, held)
+                held = after
+
+                local base = was[slots[place]]
+                if base == nil then continue end
+
+                local one = base + step
+                if points > 0 then
+                    one %= points
+                end
+                if not (one >= 0 and one <= span) then reject (Catalog.TAG, tag, one) end
+
+                at[place] = one
+                into[place] = one
+            end
+
+            return held
+        end
 
         for place = 1, count do
             local step, after = take (b, held)

@@ -73,6 +73,13 @@ const QUARTERS = BYTE // QUARTER
 -- Six, which fills no byte on its own and fills three of them four at a time.
 const SEXTET = QUARTER + NIBBLE
 
+-- Three, which fills those same three bytes eight at a time, six being twice it.
+const TRIPLET = TRIO
+
+-- The two steps into a group of eight that no width of its own already names.
+const FIVE = FLAG + NIBBLE
+const SEVEN = TRIO + NIBBLE
+
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
 
@@ -351,6 +358,31 @@ local function packed (
         end
     end
 
+    --[[
+        Eight elements to three bytes, three bits being half of six and taking twice as many to
+        the same place.
+    ]]
+    if width == TRIPLET then
+        while from + BYTE - 1 <= count do
+            local group = bit32.bor (
+                indices[from],
+                bit32.lshift (indices[from + 1], TRIPLET),
+                bit32.lshift (indices[from + PAIR], TRIPLET * PAIR),
+                bit32.lshift (indices[from + TRIO], TRIPLET * TRIO),
+                bit32.lshift (indices[from + NIBBLE], TRIPLET * NIBBLE),
+                bit32.lshift (indices[from + FIVE], TRIPLET * FIVE),
+                bit32.lshift (indices[from + SEXTET], TRIPLET * SEXTET),
+                bit32.lshift (indices[from + SEVEN], TRIPLET * SEVEN)
+            )
+
+            buffer.writeu16 (b, at, group)
+            buffer.writeu8 (b, at + PAIR, bit32.rshift (group, WIDE))
+
+            at += TRIO
+            from += BYTE
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -537,6 +569,28 @@ local function unpacked (
 
             at += TRIO
             from += QUARTERS
+        end
+    end
+
+    -- The three bytes back as the eight elements they carry, three bits being half of six.
+    if width == TRIPLET then
+        while from + BYTE - 1 <= count do
+            local group = bit32.bor (
+                buffer.readu16 (b, at),
+                bit32.lshift (buffer.readu8 (b, at + PAIR), WIDE)
+            )
+
+            into[from] = bit32.extract (group, 0, TRIPLET)
+            into[from + 1] = bit32.extract (group, TRIPLET, TRIPLET)
+            into[from + PAIR] = bit32.extract (group, TRIPLET * PAIR, TRIPLET)
+            into[from + TRIO] = bit32.extract (group, TRIPLET * TRIO, TRIPLET)
+            into[from + NIBBLE] = bit32.extract (group, TRIPLET * NIBBLE, TRIPLET)
+            into[from + FIVE] = bit32.extract (group, TRIPLET * FIVE, TRIPLET)
+            into[from + SEXTET] = bit32.extract (group, TRIPLET * SEXTET, TRIPLET)
+            into[from + SEVEN] = bit32.extract (group, TRIPLET * SEVEN, TRIPLET)
+
+            at += TRIO
+            from += BYTE
         end
     end
 

@@ -340,6 +340,29 @@ function Block.group (
         return at, into
     end
 
+    --[[
+        The same pair for a group with nothing outside its word, which is every record whose names
+        all fit the bytes the word plans. There is no part left to walk, so what walks them is a
+        climb over none, taken once a record for as long as the schema runs.
+    ]]
+    if reach == 0 then
+        local function worded (b: buffer, pos: number, value: any): number
+            only (allow, of.tag, value)
+            pack (b, pos, value, slots, held)
+
+            return pos + region
+        end
+
+        local function spelt (b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
+            local into: any = table.clone (blank)
+            unpack (b, pos, into, slots, held)
+
+            return pos + region, into
+        end
+
+        return worded, spelt
+    end
+
     return stated, sorted
 end
 

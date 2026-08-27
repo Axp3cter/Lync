@@ -121,6 +121,23 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         ends[index] = upto
     end
 
+    --[[
+        Every leaf a bound is read against, and the field owning it, as one run. A field whose
+        leaves all fill their bits puts nothing here, so a word of those is a run of nothing at
+        all rather than a walk declining to look once a field it holds.
+    ]]
+    local watched: { number } = {}
+    local watcher: { number } = {}
+
+    for index = 1, reach do
+        for leaf = starts[index], ends[index] do
+            table.insert (watched, leaf)
+            table.insert (watcher, index)
+        end
+    end
+
+    local watching = #watched
+
     -- Per window, and then the parts of every window end to end.
     local plan = of.plan
     local windows = #plan
@@ -288,27 +305,29 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
         local bare: any = nil
 
+        -- Every reading held to its grid before any of them is handed on, whatever the word is.
+        for spot = 1, watching do
+            local leaf = watched[spot]
+            if slots[leaf] <= spans[leaf] then continue end
+
+            -- Held back to here, since a decode that holds never has a tag to report.
+            local tag = joins[watcher[spot]].tag
+            Log.reject (Catalog.TAG, {
+                pathId = tag.pathId,
+                expectId = tag.expectId,
+                got = slots[leaf],
+            })
+        end
+
         --[[
-            A word of fields that neither dissolve nor gather sits one field to one leaf, so the
-            climb over a field's leaves is a climb over the one it has and the reading is already
-            in hand. Split here the way the writing half splits, rather than asked field by field.
+            A word of fields that neither dissolve nor gather puts every reading straight onto the
+            record it was handed, so none of what the walk below carries for the rest is asked for.
+            Split here the way the writing half splits, rather than asked field by field.
         ]]
         if simple then
             for index = 1, reach do
-                local at = starts[index]
-                local raw = slots[at]
-
-                if raw > spans[at] then
-                    -- Held back to here, since a decode that holds never has a tag to report.
-                    local tag = joins[index].tag
-                    Log.reject (Catalog.TAG, {
-                        pathId = tag.pathId,
-                        expectId = tag.expectId,
-                        got = raw,
-                    })
-                end
-
                 local reading = readings[index]
+                local raw = slots[starts[index]]
                 local one: any = if reading == nil then raw else reading (raw)
 
                 local key = keys[index]
@@ -324,18 +343,6 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
         for index = 1, reach do
             local at = starts[index]
-
-            for leaf = at, ends[index] do
-                if slots[leaf] <= spans[leaf] then continue end
-
-                local tag = joins[index].tag
-                Log.reject (Catalog.TAG, {
-                    pathId = tag.pathId,
-                    expectId = tag.expectId,
-                    got = slots[leaf],
-                })
-            end
-
             local key = keys[index]
 
             local one: any

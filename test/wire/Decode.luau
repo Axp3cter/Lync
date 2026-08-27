@@ -49,6 +49,12 @@ const WHOLE_BYTE = 255
 -- The top of a grid three bits wide, whose third field in a row of them straddles a byte.
 const CUT_TOP = 4
 
+-- The top of a grid nine bits wide, which no whole number of bytes holds and none of them fills.
+const CUT_WIDE = 300
+
+-- Every reading the ninth bit can take, which is the whole of the second byte a lone field uses.
+const ONE_BIT = 1
+
 -- How many values a byte takes, which is where a run of climbing bytes turns over.
 const BYTES = 256
 
@@ -351,6 +357,24 @@ return {
 
         Expect.equal (#reversed, #bytes)
         Expect.equal (decoded (of, reversed), false)
+    end),
+
+    --[[
+        One field alone, wide enough to be cut across two bytes and short of filling them. Nothing
+        else in the frame can answer for it, so the reading either stands inside the grid or the
+        word is the only thing there to say otherwise.
+    ]]
+    Harness.case ("total.lone-cut-field", function ()
+        local of = Turns.built (Lync.int (0, CUT_WIDE))
+
+        local bytes = Turns.text (of, CUT_WIDE)
+        Expect.holds (decoded (of, bytes), "the reading this codec wrote was refused")
+
+        for first = 0, WHOLE_BYTE do
+            for second = 0, ONE_BIT do
+                survives (of, string.char (first, second), `a lone field at {first} {second}`)
+            end
+        end
     end),
 
     --[[

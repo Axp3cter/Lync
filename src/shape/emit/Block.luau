@@ -243,6 +243,33 @@ function Block.group (
         end
     end
 
+    --[[
+        A group that dissolved nothing, names nothing and keeps nothing outside its word, which is
+        a packet declared as one value rather than as a record. Neither half has a part to walk or
+        a name to put one under, so each is the word alone with the region stepped over.
+    ]]
+    if
+        deep == 0
+        and reach == 0
+        and not keyed
+        and allow == nil
+        and pack ~= nil
+        and unpack ~= nil
+    then
+        local packing, unpacking = pack, unpack
+
+        local function worded (b: buffer, pos: number, value: any): number
+            packing (b, pos, value, slots, held)
+            return pos + region
+        end
+
+        local function spelled (b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
+            return pos + region, unpacking (b, pos, nil, slots, held)
+        end
+
+        return worded, spelled
+    end
+
     if not plainly then return write, read end
 
     --[[

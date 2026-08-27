@@ -174,8 +174,13 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         local at = math.round ((value - min) / step)
         local low = if min + at * step > value then at - 1 else at
 
-        local first = math.clamp (low, 0, span)
-        local second = math.clamp (low + 1, 0, span)
+        --[[
+            Held to one end apiece. The slack a reading is let through by is never a whole step, so
+            the point at or below one is never further than a step off either end of the line, and
+            neither half of the pair can be off the end the other one is off.
+        ]]
+        local first = if low < 0 then 0 else low
+        local second = if low < span then low + 1 else span
         return first, second, min + first * step, min + second * step
     end
 

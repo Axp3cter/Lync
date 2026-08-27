@@ -342,6 +342,32 @@ return {
     end),
 
     --[[
+        The pair for a reading that sits a hair past an end, which the grid takes rather than
+        refuses. A search over neighbours spends the pair as it comes, so neither half may name a
+        point the wire carries no index for.
+    ]]
+    Harness.case ("grid.a-window-off-an-end-holds-onto-it", function ()
+        local of = Grid.of (-1, 1, 0.25)
+        local window = of.window
+        Expect.holds (window ~= nil, "a stepped grid offered no window")
+
+        local reach = window :: (any) -> (number?, number?, number, number)
+        for _, value in { -1 - TINY, -1, 0, 1, 1 + TINY } do
+            local first, second = reach (value)
+
+            Expect.holds (first ~= nil, `a reading at {value} was left with no pair`)
+            Expect.holds (
+                first :: number >= 0 and first :: number <= of.span,
+                `the low half of {value} is {first}, which is off the grid`
+            )
+            Expect.holds (
+                second :: number >= 0 and second :: number <= of.span,
+                `the high half of {value} is {second}, which is off the grid`
+            )
+        end
+    end),
+
+    --[[
         The slack a reading is allowed is the range against a hair, or half a step, whichever is
         less. A range wide enough to make it the whole half lets a value reach a half past either
         end, which rounds off the grid and has to be held back onto it.

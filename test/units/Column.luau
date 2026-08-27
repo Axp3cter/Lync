@@ -225,4 +225,33 @@ return {
         Expect.holds (not took, "a gain landing past its grid was taken rather than refused")
         Expect.equal ((caught :: any).code, Catalog.TAG)
     end),
+
+    --[[
+        A delta naming a slot this receiver does not hold. There is nothing to step from, so that
+        place has no reading and the walk must leave it alone: a step is written for every slot the
+        sender named, and only the ones this side has a baseline for come back as values.
+    ]]
+    Harness.case ("column.gain-leaves-a-slot-it-does-not-hold", function ()
+        local tag, paths, expected = tagged ()
+        local gain, regain = Column.gain (tag, paths, expected, Grid.of (0, REACH, STEPPED), true)
+
+        local slots = { 1, 2, 3 }
+        local b = buffer.create (ROOM)
+
+        -- Written against a baseline holding all three, so every step goes down as the sender's.
+        local whole = { [1] = 1, [2] = 1, [3] = 1 }
+        gain (b, 0, { 0.5, 1, 1.5 } :: any, slots, whole, {}, #slots)
+
+        --[[
+            Read back against one holding only the ends. The middle slot is the sender's and not
+            this receiver's, so what stands at that place afterwards is nothing at all.
+        ]]
+        local part = { [1] = 1, [3] = 1 }
+        local into: { any } = {}
+        regain (b, 0, into, slots, part, {}, #slots)
+
+        Expect.equal (into[2], nil)
+        Expect.equal (into[1], 0.5)
+        Expect.equal (into[3], 1.5)
+    end),
 }

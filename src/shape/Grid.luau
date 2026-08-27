@@ -48,8 +48,8 @@ export type Grid = {
     --[[
         A whole run of readings at once, where a grid can answer for many faster than for one.
         `toIndices` fills `into` and answers the place of the first reading it has no point for,
-        or nothing where every one landed. `fromIndices` is offered only by a grid no reading of
-        its own width can fall off, so it has nothing to refuse and answers nothing.
+        or nothing where every one landed. `fromIndices` turns indices back and says nothing about
+        them, so a caller that has not already held every one of them to the grid may not use it.
     ]]
     read toIndices: ((values: { any }, into: { number }, count: number) -> number?)?,
     read fromIndices: ((indices: { number }, into: { any }, count: number) -> ())?,
@@ -216,6 +216,13 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         return first, second, min + first * step, min + second * step
     end
 
+    -- The same the other way, over readings a caller has already held to the grid itself.
+    local function fromIndices (indices: { number }, into: { any }, count: number)
+        for place = 1, count do
+            into[place] = min + indices[place] * step
+        end
+    end
+
     return {
         span = span,
         width = width,
@@ -224,6 +231,7 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
         whole = span == bit32.lshift (1, width) - 1,
         toIndex = toIndex,
         fromIndex = fromIndex,
+        fromIndices = fromIndices,
     }
 end
 

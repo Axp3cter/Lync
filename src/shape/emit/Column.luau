@@ -129,7 +129,12 @@ function Column.grid (
         local after, clean = UNPACKED (b, pos, width, count, at)
         if not clean then reject (Catalog.PAD, tag, count) end
 
-        if fromIndices ~= nil then
+        --[[
+            Held to the grid by its own width, so nothing off the bytes is off the grid and the
+            run goes back whole. A grid that cannot say that is walked below a reading at a time,
+            since what turns a run back says nothing about whether it should have.
+        ]]
+        if whole and fromIndices ~= nil then
             fromIndices (at, into, count)
             return after
         end
@@ -307,6 +312,7 @@ function Column.gain (
     signed: boolean
 ): (Gain, Regain)
     local toIndex, fromIndex = of.toIndex, of.fromIndex
+    local fromIndices = of.fromIndices
     local span = of.span
 
     --[[
@@ -387,9 +393,19 @@ function Column.gain (
             return held
         end
 
+        --[[
+            A slot this receiver does not hold, met anywhere along the section. Every reading is
+            held to the grid on the way past either way, and this only settles whether the run can
+            go back to the caller in one piece afterwards or has to be picked over.
+        ]]
+        local missed = false
+
         for place = 1, count do
             local base = was[slots[place]]
-            if base == nil then continue end
+            if base == nil then
+                missed = true
+                continue
+            end
 
             local now = base + steps[place]
             if points > 0 then
@@ -398,7 +414,23 @@ function Column.gain (
             if not (now >= 0 and now <= span) then reject (Catalog.TAG, tag, now) end
 
             at[place] = now
-            into[place] = fromIndex (now)
+            if fromIndices == nil then into[place] = fromIndex (now) end
+        end
+
+        if fromIndices == nil then return held end
+
+        --[[
+            The whole section turned back at once, every reading in it having been held to the grid
+            above. A section that skipped a slot has an older reading of its own standing where that
+            slot fell, so that one is picked over instead of handed across as it stands.
+        ]]
+        if not missed then
+            fromIndices (at, into, count)
+            return held
+        end
+
+        for place = 1, count do
+            if was[slots[place]] ~= nil then into[place] = fromIndex (at[place]) end
         end
 
         return held

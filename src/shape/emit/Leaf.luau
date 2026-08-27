@@ -831,8 +831,8 @@ function Leaf.run (
 
         local out = table.create (count) :: { any }
 
-        -- The same the other way, where a grid no reading can fall off says so by offering this.
-        if fromIndices ~= nil then
+        -- The same the other way, where the width itself says no reading of it is off the grid.
+        if whole and fromIndices ~= nil then
             fromIndices (scratch, out, count)
             return after, out
         end

@@ -79,7 +79,15 @@ function Column.grid (
     of: Grid.Grid
 ): (Write, Read)
     local toIndex, fromIndex = of.toIndex, of.fromIndex
+    local fromIndices = of.fromIndices
     local width, span = of.width, of.span
+
+    --[[
+        A column is one field across every slot holding it, which is a run and not a value. What a
+        grid can hand back for a whole run at once it hands back cheaper that way, and a grid that
+        is its own index has nothing the taking half needs to ask it for at all.
+    ]]
+    local plain = of.plain == true
 
     local function write (
         b: buffer,
@@ -108,6 +116,22 @@ function Column.grid (
     ): number
         local after, clean = UNPACKED (b, pos, width, count, at)
         if not clean then reject (Catalog.PAD, tag, count) end
+
+        if fromIndices ~= nil then
+            fromIndices (at, into, count)
+            return after
+        end
+
+        if plain then
+            for place = 1, count do
+                local one = at[place]
+                if one > span then reject (Catalog.TAG, tag, one) end
+
+                into[place] = one
+            end
+
+            return after
+        end
 
         for place = 1, count do
             local one = at[place]

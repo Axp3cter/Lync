@@ -208,19 +208,23 @@ local function replying (
     local link = self.link
     Tally.sent (self.counts, def.name, 0)
 
+    local holds = link.holds
+    local response = def.response
+
     -- The same climb the questions are held to, since these are written the same way back.
-    if not joins (link, link.holds, ANSWERS, def, who, false) or asked <= link.last then
+    if not joins (link, holds, ANSWERS, def, who, false) or asked <= link.last then
         shipped (self)
+        holds = 0
     end
 
-    if link.holds == 0 then
+    if holds == 0 then
         link.kind = ANSWERS
         link.over = def
         link.toward = who
         link.lossy = false
         link.wrote = def.answers.bytes
         link.runs = def.answers.runs :: number
-        link.widest = def.response.maxBytes
+        link.widest = response.maxBytes
     end
 
     --[[
@@ -231,7 +235,7 @@ local function replying (
     local outcome = if ok then 0 else 1
     local ends
 
-    if link.holds == 0 then
+    if holds == 0 then
         local told = self.asked
         told[1] = asked
         told[2] = outcome
@@ -243,12 +247,12 @@ local function replying (
     end
 
     link.last = asked
-    if ok then ends = def.response.write (link.pending, ends, value) end
+    if ok then ends = response.write (link.pending, ends, value) end
 
-    link.wrote = ends
-    link.holds += 1
+    local many = holds + 1
+    link.wrote, link.holds = ends, many
 
-    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
+    if many == link.runs or ends + link.widest > link.room then shipped (self) end
 end
 
 -- What each client is behind on, cut against what the shared stream already spent on it.
@@ -900,18 +904,23 @@ function Session.ask (
     local link = self.link
     Tally.sent (self.counts, def.name, 0)
 
-    -- A run's ids climb, so one that does not opens a block of its own rather than stepping back.
-    if not joins (link, link.holds, ASKS, def, to, false) or id <= link.last then shipped (self) end
+    local holds = link.holds
+    local request = def.request
 
-    local opening = link.holds == 0
-    if opening then
+    -- A run's ids climb, so one that does not opens a block of its own rather than stepping back.
+    if not joins (link, holds, ASKS, def, to, false) or id <= link.last then
+        shipped (self)
+        holds = 0
+    end
+
+    if holds == 0 then
         link.kind = ASKS
         link.over = def
         link.toward = to
         link.lossy = false
         link.wrote = def.asks.bytes
         link.runs = def.asks.runs :: number
-        link.widest = def.request.maxBytes
+        link.widest = request.maxBytes
     end
 
     --[[
@@ -919,7 +928,7 @@ function Session.ask (
         payload. Whole for the first of a run and the step from the last for every one after, since
         ids are handed out by climbing and a burst of them climbs by one.
     ]]
-    if link.holds == 0 then
+    if holds == 0 then
         self.asked[1] = id
         def.asking.write (link.pending, link.wrote, self.asked)
         link.wrote += def.asking.bytes
@@ -928,12 +937,14 @@ function Session.ask (
     end
 
     link.last = id
-    link.wrote = def.request.write (link.pending, link.wrote, value)
-    link.holds += 1
+
+    local wrote = request.write (link.pending, link.wrote, value)
+    local many = holds + 1
+    link.wrote, link.holds = wrote, many
 
     queued (self, link, def)
 
-    if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
+    if many == link.runs or wrote + link.widest > link.room then shipped (self) end
 end
 
 -- What this namespace has done, as the reading two of which subtract into a rate.

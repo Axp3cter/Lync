@@ -814,6 +814,30 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         --[[
+            The same as the one above where no piece can come off the bytes over the top of the
+            grid it belongs to, so what the walk asks after is the reading and never the piece.
+        ]]
+        local function plane (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    local raw = bit32.extract (acc, offset[part], span[part])
+                    local reading = takes[part]
+
+                    into[puts[part]] = if reading == nil then raw else reading (raw)
+                end
+            end
+
+            return nil
+        end
+
+        --[[
             The same where every grid runs from nothing in whole steps. A grid like that hands back
             the index it was given and its reading is held as nothing at all, so a word of them has
             none to ask after and the pieces go onto the record as they come off the bytes.
@@ -975,6 +999,24 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
+        -- The same for one window, held to its top by nothing for the same reason.
+        local function sound (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local at = pos + seat
+            local acc = if bytes == ONE
+                then buffer.readu8 (b, at)
+                elseif bytes == PAIR then buffer.readu16 (b, at)
+                else buffer.readu32 (b, at)
+
+            for part, key in puts do
+                local raw = bit32.extract (acc, offset[part], span[part])
+                local reading = takes[part]
+
+                into[key] = if reading == nil then raw else reading (raw)
+            end
+
+            return nil
+        end
+
         --[[
             The same write where the word is one window wide, which is every record the bytes of a
             single call can hold. The pieces are then the whole of the run rather than a stretch of
@@ -1068,6 +1110,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             if flatly and wholly then return alone, sheer end
             if flatly then return alone, simply end
             if roundly then return round, graded end
+            if wholly then return alone, sound end
 
             return alone, lone
         end
@@ -1075,6 +1118,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         if flatly and wholly then return flat, swept end
         if flatly then return flat, bared end
         if roundly then return scaled, gauged end
+        if wholly then return flat, plane end
 
         return flat, level
     end

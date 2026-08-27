@@ -64,6 +64,10 @@ const CROWDED = table.freeze ({ 4, 100, 8, 200, 2, 60, 17, 120, 4, 250, 11, 40 }
 -- How many two-bit fields it takes to run a word past one window, which is more than sixteen bits.
 const TURNED = 12
 
+-- The signed nibble, which fills the four bits it is read at the way the unsigned one fills them.
+const SUNK = -(NIBBLE_TOP + 1) // 2
+const RISEN = (NIBBLE_TOP - 1) // 2
+
 -- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
@@ -545,6 +549,27 @@ return {
         -- Every bit of the first window set, which spells each piece in it over its own top.
         buffer.writeu8 (bytes, 0, 0xFF)
         Expect.throws (function () Turns.read (of, bytes, size) end)
+    end),
+
+    --[[
+        A record wider than one window where some grids run from nothing and some do not, and every
+        one of them fills the bits it is read at. Nothing off such a word is over the top of its own
+        grid, so the walk back holds none of them to one and only a round trip says it walked.
+    ]]
+    Harness.case ("wire.a-wide-mixed-record-carries-both-ways", function ()
+        local of = Turns.built (Lync.struct ({
+            a = Lync.int (0, NIBBLE_TOP),
+            b = Lync.int (SUNK, RISEN),
+            c = Lync.int (0, NIBBLE_TOP),
+            d = Lync.int (SUNK, RISEN),
+            e = Lync.int (0, NIBBLE_TOP),
+            f = Lync.int (SUNK, RISEN),
+        }))
+
+        local was = { a = 0, b = SUNK, c = NIBBLE_TOP, d = RISEN, e = 4, f = -1 }
+        local bytes, size = Turns.wrote (of, was)
+
+        Expect.equal (Turns.read (of, bytes, size), was)
     end),
 
     --[[

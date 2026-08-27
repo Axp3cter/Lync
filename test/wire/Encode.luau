@@ -94,6 +94,9 @@ const SHORT = 200
 ]]
 const NAMED = "near"
 
+-- Fields of two bits apiece it takes to run a word past the one window a narrow record fits in.
+const WIDENED = 12
+
 -- A grid whose top is the whole of the byte carrying it, which is the one a mask can stand for.
 const FULL = 255
 
@@ -306,6 +309,28 @@ return {
         for level = 1, levels do
             names (line, `f{level}`, shape.at)
         end
+    end),
+
+    --[[
+        A value off its grid in a record wider than one window where no grid runs from nothing.
+        Such a record is written by the pair that recognises nothing it is handed, so what says the
+        piece was reached at all is the line naming it, a raise on its own being what a walk that
+        never looked would give too.
+    ]]
+    Harness.case ("wire.a-wide-turned-record-names-its-piece", function ()
+        local fields = {}
+        local value = {}
+
+        for at = 1, WIDENED do
+            local name = `turn{at}`
+            fields[name] = Lync.int (-1, 1)
+            value[name] = 0
+        end
+
+        value.turn1 = 2
+
+        local line = refused (built (Lync.struct (fields)), value, "int at turn1")
+        names (line, "turn1", "int at turn1")
     end),
 
     --[[

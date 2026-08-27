@@ -61,6 +61,9 @@ const SHORT_TOP = 200
 ]]
 const CROWDED = table.freeze ({ 4, 100, 8, 200, 2, 60, 17, 120, 4, 250, 11, 40 })
 
+-- How many two-bit fields it takes to run a word past one window, which is more than sixteen bits.
+const TURNED = 12
+
 -- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
@@ -518,6 +521,30 @@ return {
         local bytes, size = Turns.wrote (of, was)
 
         Expect.equal (Turns.read (of, bytes, size), { a = 0, b = 0, c = 0, d = ONTO, e = ONTO })
+    end),
+
+    --[[
+        A record wider than one window where no field's grid runs from nothing, which is the pair
+        neither of the two above reaches. What is held here is the way back: a reading over the top
+        of a piece, which no encode of this word produces and only forged bytes can say.
+    ]]
+    Harness.case ("wire.a-wide-turned-record-refuses-a-forged-piece", function ()
+        local fields = {}
+        local was = {}
+
+        for at = 1, TURNED do
+            local name = string.char (string.byte ("a") + at - 1)
+            fields[name] = Lync.int (-1, 1)
+            was[name] = at % 3 - 1
+        end
+
+        local of = Turns.built (Lync.struct (fields))
+        local bytes, size = Turns.wrote (of, was)
+        Expect.equal (Turns.read (of, bytes, size), was)
+
+        -- Every bit of the first window set, which spells each piece in it over its own top.
+        buffer.writeu8 (bytes, 0, 0xFF)
+        Expect.throws (function () Turns.read (of, bytes, size) end)
     end),
 
     --[[

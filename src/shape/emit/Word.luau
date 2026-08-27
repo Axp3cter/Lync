@@ -825,6 +825,58 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
+        --[[
+            The pair beside those two for a word wider than one window. Which window a piece sits
+            in is the only thing left to work out, none of them being an index already, so the walk
+            carries that and asks nothing else.
+        ]]
+        local function scaled (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+            for window = 1, windows do
+                local acc = 0
+
+                for part = first[window], last[window] do
+                    local one = value[puts[part]]
+                    local made = makes[part] (one)
+                    if made == nil then
+                        local index = owner[part]
+                        Word.refused (wheres[index], wanted[index], one)
+                    end
+
+                    acc = bit32.bor (acc, bit32.lshift (made :: number, offset[part]))
+                end
+
+                local at = pos + where[window]
+                local bytes = width[window]
+                if bytes == ONE then
+                    buffer.writeu8 (b, at, acc)
+                elseif bytes == PAIR then
+                    buffer.writeu16 (b, at, acc)
+                else
+                    buffer.writeu32 (b, at, acc)
+                end
+            end
+        end
+
+        local function gauged (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            for window = 1, windows do
+                local at = pos + where[window]
+                local bytes = width[window]
+                local acc = if bytes == ONE
+                    then buffer.readu8 (b, at)
+                    elseif bytes == PAIR then buffer.readu16 (b, at)
+                    else buffer.readu32 (b, at)
+
+                for part = first[window], last[window] do
+                    local raw = bit32.extract (acc, offset[part], span[part])
+                    if raw > tops[part] then past (part, raw) end
+
+                    into[puts[part]] = (takes[part] :: (number) -> any) (raw)
+                end
+            end
+
+            return nil
+        end
+
         -- The one seat and the one call a word of a single window is read and written at.
         local seat, bytes = where[1], width[1]
 
@@ -969,6 +1021,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         if flatly then return flat, bared end
+        if roundly then return scaled, gauged end
 
         return flat, level
     end

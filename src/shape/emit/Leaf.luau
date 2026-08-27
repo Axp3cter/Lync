@@ -38,6 +38,27 @@ const WORD = 4
 const HALF = 2 ^ 16
 const HIGH = 2 ^ (WORD * BYTE)
 
+-- How many readings a byte has, which is how many spellings of eight flags there are to hold.
+const BYTES = bit32.lshift (1, BYTE)
+
+--[[
+    Every byte as the eight flags it stands for, lowest first, which is the order `packed` lays
+    them down in. A run of flags is taken apart the same way every time and there are only so many
+    bytes it can meet, so the taking apart is done once here and read at one step a byte after.
+]]
+const SPELT = table.create (BYTES) :: { { number } }
+for byte = 0, BYTES - 1 do
+    local flags = table.create (BYTE) :: { number }
+
+    local left = byte
+    for spot = 1, BYTE do
+        flags[spot] = left % 2
+        left //= 2
+    end
+
+    SPELT[byte + 1] = table.freeze (flags)
+end
+
 -- One bit, which is what a flag takes and the width a whole byte of elements lands on exactly.
 const FLAG = 1
 
@@ -231,26 +252,20 @@ local function unpacked (
     if width == FLAG then
         local index = 1
         while index + BYTE - 1 <= count do
-            local byte = buffer.readu8 (b, at)
+            table.move (SPELT[buffer.readu8 (b, at) + 1], 1, BYTE, index, into)
+
             at += 1
-
-            for spot = index, index + BYTE - 1 do
-                into[spot] = byte % 2
-                byte //= 2
-            end
-
             index += BYTE
         end
 
         if index > count then return at, true end
 
         local byte = buffer.readu8 (b, at)
-        for spot = index, count do
-            into[spot] = byte % 2
-            byte //= 2
-        end
+        local left = count - index + 1
+        table.move (SPELT[byte + 1], 1, left, index, into)
 
-        return at + 1, byte == 0
+        -- Whatever the run did not ask for has to be nothing, which is the byte inside those bits.
+        return at + 1, byte < bit32.lshift (1, left)
     end
 
     local acc, used = 0, 0

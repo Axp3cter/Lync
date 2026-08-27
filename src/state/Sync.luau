@@ -866,10 +866,13 @@ function Sync.settle (of: Sync)
             local ids = table.create (count)
             local whys = table.create (count)
 
+            -- Reached once, since what a record was taken away for is one table for all of them.
+            local causes = heard.causes
+
             for index = 1, count do
                 local id = gone[index]
                 ids[index] = id
-                whys[index] = heard.causes[id]
+                whys[index] = causes[id]
             end
 
             Listeners.beside (of.removed, count, ids, whys, UNSAID)
@@ -895,11 +898,14 @@ function Sync.settle (of: Sync)
             local rows = table.create (count)
             local olds = table.create (count)
 
+            -- The same, for what each record stood at before the frame reached it.
+            local was = heard.olds
+
             for index = 1, count do
                 local id = changed[index]
                 ids[index] = id
                 rows[index] = rowed (of, id)
-                olds[index] = heard.olds[id]
+                olds[index] = was[id]
             end
 
             Listeners.beside (of.changed, count, ids, rows, olds)

@@ -657,10 +657,14 @@ function Session.close (self: Self)
     Link.close (self.link)
 end
 
--- Something queued, said by whoever queued it.
-local function queued (self: Self, link: Link.Link, said: string)
+--[[
+    Something queued, said by whoever queued it. Handed the definition rather than its name, since
+    a link that does not send and one already watched both want nothing said, and naming it for
+    them is a question asked of every fire for the sake of the first.
+]]
+local function queued (self: Self, link: Link.Link, def: any)
     if not link.sending then return end
-    arming (self, said)
+    arming (self, def.name)
 end
 
 -- A listener on a definition, and the connection that ends it.
@@ -731,7 +735,7 @@ local function alone (
     table.clear (side.refs)
     table.clear (side.slotOf)
 
-    queued (self, link, def.name)
+    queued (self, link, def)
     posted (self, def, to, loose, block)
 end
 
@@ -806,17 +810,24 @@ end
 function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, value: any)
     local link = self.link
 
+    --[[
+        How a definition asked to be carried, taken once. What it is decides both whether a fire is
+        held rather than written and whether the run it joins may be dropped, and it never changes
+        after the definition is built.
+    ]]
+    local delivery = def.delivery
+
     -- A newest packet is held rather than written.
-    if def.delivery == LATEST then
+    if delivery == LATEST then
         local one = self.latest[def.id]
         one.held, one.value, one.to = true, value, to
 
-        queued (self, link, def.name)
+        queued (self, link, def)
         Tally.sent (self.counts, def.name, 0)
         return
     end
 
-    local loose = def.delivery ~= ORDERED
+    local loose = delivery ~= ORDERED
 
     --[[
         A definition that declared an instant is written one block a fire, because the instant is a
@@ -870,7 +881,7 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     local many = holds + 1
     link.wrote, link.holds = wrote, many
 
-    queued (self, link, def.name)
+    queued (self, link, def)
     if many == link.runs or wrote + link.widest > link.room then shipped (self) end
 end
 
@@ -919,7 +930,7 @@ function Session.ask (
     link.wrote = def.request.write (link.pending, link.wrote, value)
     link.holds += 1
 
-    queued (self, link, def.name)
+    queued (self, link, def)
 
     if link.holds == link.runs or link.wrote + link.widest > link.room then shipped (self) end
 end

@@ -174,7 +174,7 @@ local function measured (of: Row): Cell
         break
     end
 
-    -- What one turn moves, measured off a setup of its own, the same one a batch is given.
+    -- What one turn moves, measured off a setup of its own, built the way a batch's is.
     local wire = nil
     if of.bytes ~= nil then wire = of.bytes (if of.setup ~= nil then of.setup () else nil) end
 

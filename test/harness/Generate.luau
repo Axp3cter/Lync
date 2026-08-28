@@ -1045,7 +1045,7 @@ const SIZES: { [string]: (Shape, string, Rng.Rng) -> any } = {
 
 -- Public --------------------------------------------------------------
 
--- Every constructor a shape can name, and the one it never will.
+-- Every constructor a shape can name, the ones it never will, and the one with no outside.
 Generate.KINDS = ALL
 Generate.UNGENERATED = UNGENERATED
 Generate.TOTAL = TOTAL
@@ -1057,7 +1057,7 @@ Generate.TOTAL = TOTAL
 ]]
 Generate.KEYED = PARTS
 
--- The four sizes `sized` answers, floor first, so an empty tape asks for the emptiest.
+-- Those sizes as a suite names them, so a draw of zero asks for the emptiest.
 Generate.SIZED = SIZED
 
 --[[

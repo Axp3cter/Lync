@@ -77,7 +77,7 @@ const SLACK = 600000
 const SUNK = -(NIBBLE_TOP + 1) // 2
 const RISEN = (NIBBLE_TOP - 1) // 2
 
--- The same either side of nothing at two bytes wide, which is a grid no single byte reaches.
+-- Either side of nothing at two bytes wide, which is a grid no single byte reaches.
 const FAR_SIDE = 30000
 
 --[[
@@ -531,9 +531,9 @@ return {
     end),
 
     --[[
-        The same where the byte is not filled by what it carries, so the reading is held to the top
-        of its grid on the way back. A record put down as it stands is recognised field by field,
-        and a reading between two points is no field to recognise.
+        A byte not filled by what it carries, so the reading is held to the top of its grid on the
+        way back. A record put down as it stands is recognised field by field, and a reading between
+        two points is no field to recognise.
     ]]
     Harness.case ("wire.a-held-record-rounds-onto-its-grid", function ()
         local of = Turns.built (Lync.struct ({
@@ -546,8 +546,8 @@ return {
     end),
 
     --[[
-        The same where the fields share their bytes two to one and none of them is cut, which is
-        the record gathered a window at a time rather than a byte at a time.
+        Fields sharing their bytes two to one with none of them cut, which is the record gathered a
+        window at a time rather than a byte at a time.
     ]]
     Harness.case ("wire.a-shared-record-rounds-onto-its-grid", function ()
         local of = Turns.built (Lync.struct ({
@@ -567,8 +567,8 @@ return {
     end),
 
     --[[
-        The same across widths that do not divide a byte between them, so no field sits where the
-        one before it left off and the rounding has to hold wherever a field was put.
+        Widths that do not divide a byte between them, so no field sits where the one before it left
+        off and the rounding has to hold wherever a field was put.
     ]]
     Harness.case ("wire.a-mixed-record-rounds-onto-its-grid", function ()
         local of = Turns.built (Lync.struct ({
@@ -704,8 +704,8 @@ return {
     end),
 
     --[[
-        The same where the fields together run past the four bytes a window plans at once, so one
-        of them is cut and the record goes down through a run of indices held aside.
+        Fields that together run past the four bytes a window plans at once, so one of them is cut
+        and the record goes down through a run of indices held aside.
     ]]
     Harness.case ("wire.a-cut-record-rounds-onto-its-grid", function ()
         local fields = {}
@@ -728,9 +728,9 @@ return {
     end),
 
     --[[
-        The same off its own zero where one field is wider than a byte, so the reading back happens
-        in a record laid down by two different calls rather than one repeated. The third field
-        fills the four bytes a word plans at once, which is what keeps the wide one from being cut.
+        Off its own zero where one field is wider than a byte, so the reading back happens in a
+        record laid down by two different calls rather than one repeated. The third field fills the
+        four bytes a word plans at once, which is what keeps the wide one from being cut.
     ]]
     Harness.case ("wire.a-wider-record-on-boundaries-off-its-own-zero", function ()
         local of = Turns.built (Lync.struct ({
@@ -748,9 +748,9 @@ return {
     end),
 
     --[[
-        The same widths where a bit ahead of them puts every field off its boundary, which has to
-        keep going through the windows: a field written to the byte it nearly starts on would
-        stand on the one before it.
+        Widths where a bit ahead of them puts every field off its boundary, which has to keep going
+        through the windows: a field written to the byte it nearly starts on would stand on the one
+        before it.
     ]]
     Harness.case ("wire.a-record-a-bit-off-its-boundaries", function ()
         local of = Turns.built (Lync.struct ({

@@ -902,6 +902,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             carries that and asks nothing else.
         ]]
         local function scaled (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+            local first, last, puts, makes, offset = first, last, puts, makes, offset
+            local where, width = where, width
+
             for window = 1, windows do
                 local acc = 0
 
@@ -929,6 +932,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         local function gauged (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local first, last, offset, span, tops, takes, puts =
+                first, last, offset, span, tops, takes, puts
+            local where, width = where, width
+
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]

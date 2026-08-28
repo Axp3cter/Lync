@@ -71,10 +71,7 @@ type Run = Replica.Paired
 
 -- Private -------------------------------------------------------------
 
---[[
-    Three queries, and what each is for is its ending: one that answers, one whose response codec
-    is narrow enough for a responder to step outside, and one whose responder comes apart.
-]]
+-- Every query this file asks through, each for a situation none of the others produces.
 local function defined (): any
     return {
         [PLAIN] = Lync.query (Lync.bool (), Lync.bool ()),

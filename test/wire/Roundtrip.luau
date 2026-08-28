@@ -87,11 +87,26 @@ const FAR_SIDE = 30000
 const TOPS = table.freeze ({ under = 254, whole = 255, over = 256 })
 
 --[[
-    The widest value at every width the run emitter groups elements by, and a length that is no
-    whole number of any of those groups. Each top is one under a power of two, so a run of them is
-    exactly that width, and the length leaves every grouping a remainder for the plain walk.
+    The widest value at every width the run emitter groups elements by, and at two it does not,
+    which the plain walk takes whole. Each top is one under a power of two, so a run of them is
+    exactly that width, and the length below leaves every grouping a remainder for that walk too.
 ]]
-const GROUPED = table.freeze ({ 1, 3, 7, 15, 31, 63, 255, 1023, 4095, 65535, 1048575, 16777215 })
+const GROUPED = table.freeze ({
+    1,
+    3,
+    7,
+    15,
+    31,
+    63,
+    255,
+    1023,
+    4095,
+    65535,
+    262143,
+    1048575,
+    4194303,
+    16777215,
+})
 const GROUPS = 19
 
 --[[

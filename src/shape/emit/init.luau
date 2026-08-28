@@ -19,7 +19,7 @@ local Emit = {}
 
 -- Types ---------------------------------------------------------------
 
--- Everything a walk needs that is not the node it is on.
+-- Everything a walk needs besides the node, which here includes the sidecar a slot writes into.
 export type Site = {
     read paths: Serial.Interner,
     read expected: Serial.Interner,
@@ -212,7 +212,7 @@ end
 -- How many reads have been wrapped in a check, which a caller reads either side of a build.
 function Emit.wrapped (): number return wrapped end
 
--- A shape and everything under it, as the pair the whole tree became.
+-- One node and everything under it, with the node's own checks wrapped round the read.
 function Emit.emit (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
     local write, read = made (of, at)
     return write, if of.tag.checks == nil then read else checked (read, of.tag)

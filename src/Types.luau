@@ -72,8 +72,8 @@ export type Stats = {
 --[[
     The phantom `_T` is the whole inference story: it never exists at run time and Infer reads it
     back out below. `monotonic` takes any codec because a generic type may not name itself with a
-    different argument. No trend marker sits beside it, an order being derived rather than
-    declared.
+    different argument, and nothing beside it names a direction, since climbing is the only trend
+    a field may declare.
 ]]
 export type Codec<T> = {
     read _T: T,

@@ -649,11 +649,13 @@ function Block.pairs (
         table.clear (order)
         local count = 0
 
+        local toIndex = grid.toIndex
+
         for key in value do
             count += 1
             if count > high then Word.refusedAt (tag, paths, said, count) end
 
-            local made = grid.toIndex (key)
+            local made = toIndex (key)
             if made == nil then Word.refusedAt (tag, paths, said, key) end
 
             order[count] = made :: number
@@ -807,17 +809,28 @@ function Block.pairs (
             Climbing rather than merely sorted, which answers two things at once: a pair out of
             order and a key the map already holds are both a reading no higher than the last.
         ]]
-        for index = 1, count do
-            local mark = order[index]
-            if mark > grid.span then
-                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
-            end
+        local span, fromIndex = grid.span, grid.fromIndex
 
-            if index > 1 and mark <= order[index - 1] then
+        --[[
+            The first reading held to the grid on its own, since what the rest are held to besides
+            is the one before them and the first has none. Asked inside the walk the question would
+            be put to every reading for the sake of the one it is about.
+        ]]
+        local first = order[1]
+        if count > 0 and first > span then
+            Log.reject (Catalog.TAG, { pathId = tag.pathId, got = first })
+        end
+
+        for index = 2, count do
+            local mark = order[index]
+            if mark > span then Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark }) end
+
+            local under = order[index - 1]
+            if mark <= under then
                 Log.reject (Catalog.MAP_ORDER, {
                     pathId = tag.pathId,
-                    expected = tostring (grid.fromIndex (order[index - 1])),
-                    got = tostring (grid.fromIndex (mark)),
+                    expected = tostring (fromIndex (under)),
+                    got = tostring (fromIndex (mark)),
                 })
             end
         end
@@ -826,7 +839,7 @@ function Block.pairs (
         if runs == nil then
             local at = after
             for index = 1, count do
-                at, out[grid.fromIndex (order[index])] = readValue (b, at, ctx)
+                at, out[fromIndex (order[index])] = readValue (b, at, ctx)
             end
 
             return at, out

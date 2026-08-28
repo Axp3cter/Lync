@@ -498,8 +498,7 @@ function Sync.new (def: Compile.Set): Sync
 
         --[[
             Answers that hold for the life of a set, kept where a write reads them rather than
-            reached for through the definition every time one lands. The bits are the one home's
-            answer taken once a field rather than once a write of one.
+            reached for through the definition every time one lands.
         ]]
         place = def.fieldIndex,
         climbs = def.climbs,
@@ -863,7 +862,6 @@ function Sync.stream (of: Sync, b: buffer, pos: number, ctx: Types.ValidateConte
     return ends
 end
 
--- The three tellings a caller connects to: a record arriving, moving, or going.
 function Sync.onAdded (of: Sync, fn: (number, any) -> ()): Types.Connection
     return Listeners.connect (of.added, fn) :: any
 end
@@ -938,7 +936,7 @@ function Sync.settle (of: Sync)
             local rows = table.create (count)
             local olds = table.create (count)
 
-            -- The same, for what each record stood at before the frame reached it.
+            -- Reached once as well, for what each record stood at before the frame changed it.
             local was = heard.olds
 
             for index = 1, count do

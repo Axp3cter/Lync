@@ -28,7 +28,7 @@ const GENS = Bits.width (Protocol.NEWEST_GENS - 1)
 const PRESENT = 1
 const COVERS = 1
 
--- What a field's history has to be worth before a difference is taken against it.
+-- How wide a field has to be before a difference against its history is worth taking.
 const CHEAPER = 8
 
 -- How wide an element a run packs, past which a column is a stride rather than a run.
@@ -63,7 +63,7 @@ const WIDTH = Slots.width
 const WRITE_SIGNED = Varint.writeSigned
 const READ_SIGNED = Varint.readSigned
 
--- What a slot run of this lane refuses under.
+-- What a slot run of a reliable section refuses under.
 const SAID: Slots.Said = table.freeze ({
     many = "a section naming more records than its own bytes could hold",
     order = "a section naming its slots out of order",
@@ -231,7 +231,7 @@ end
 
 -- Public --------------------------------------------------------------
 
--- A set's sections, as the closures and the scratch one partition's flush is written through.
+-- A set's sections, compiled once: every field's column pair and the scratch a flush fills.
 function Sections.of (def: Compile.Set): Layout
     local reach = def.fieldCount
     local fields = table.create (reach) :: { Field }

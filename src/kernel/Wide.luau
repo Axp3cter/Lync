@@ -310,7 +310,7 @@ local bits: { Word } = {}
 ]]
 Wide.native = NATIVE
 
--- Both carriers, under names, where this build has both.
+-- The carriers under names, which is both of them where this build has the platform's own.
 local both: { [string]: Carrier } = { halves = halved }
 if NATIVE then both.own = held end
 

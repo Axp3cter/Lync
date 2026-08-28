@@ -27,12 +27,12 @@ const PRIME = Wide.parse ("00000100000001B3")
 ]]
 export type Described = { read cell: Base.Cell }
 
--- The three ways a frame of a definition travels, and the one a caller gets free.
+-- The three ways a frame of a definition travels. A caller who declares neither other is reliable.
 export type Delivery = "reliable" | "unreliable" | "newest"
 
 --[[
-    A definition as the descriptor writes it, which is its codecs and every declaration that decides
-    how a frame of it travels.
+    A definition as the descriptor writes it: its codecs, and every declaration that decides how a
+    frame of it travels.
 ]]
 export type Packet = {
     read kind: "packet",
@@ -163,7 +163,7 @@ local function spelled (cell: Base.Cell): string
     return table.concat (out)
 end
 
--- A whole codec as text, which is a node's own words and then its children under theirs.
+-- A whole codec as text: a node's own words, and then its children under theirs.
 local function written (cell: Base.Cell): string
     local children = cell.children
     if children == nil then return spelled (cell) end
@@ -182,7 +182,7 @@ end
 
 function Serial.describe (of: Described): string return written (of.cell) end
 
--- A definition as its own text, which is what a handle prints and what a namespace carries it as.
+-- A definition as its own text, printed by a handle and carried by a namespace.
 function Serial.frame (of: Frame): string
     if of.kind == "packet" then
         local rate = decimal (if of.hz == nil then 0 else of.hz)

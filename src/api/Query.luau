@@ -32,10 +32,10 @@ local function answers (self: any, said: string, fn: (...any) -> any)
 end
 
 --[[
-    A client's request, which yields until it is answered or told why it will not be. A third
-    argument is the server form's completion and the client form has no third, so a call carrying
-    one is the server's made on the wrong machine. The lookup below cannot refuse, the caller
-    having branched on the side it tests, and what it is called for is the session.
+    A client's request. It yields until it is answered or told why it will not be. A third argument
+    is the server form's completion and the client form has no third, so a call carrying one is the
+    server's made on the wrong machine. The lookup below cannot refuse, since the caller has already
+    branched on the side it tests, and what it is called for is the session.
 ]]
 local function asked (
     self: any,
@@ -111,16 +111,16 @@ function Query.onClient (self: any, fn: (any) -> any) answers (self, "onClient",
 --[[
     One request, in whichever of its two forms this machine has. Which form comes off the machine
     and never off the arguments, so a call before start names the namespace that has not opened
-    rather than an argument. What the arguments say afterwards is whether the caller made the other
-    side's call, which is the one mistake here that used to answer with somebody else's error.
+    rather than an argument. What the arguments say is whether the caller made the other side's
+    call, the mistake that would otherwise answer with somebody else's error.
 ]]
 function Query.request (self: any, first: any, second: any, third: any, fourth: any): ...any
     if self.live.isServer then
         --[[
             The server form carries a completion and the client form has no third argument, so a
-            call reaching here without one is the client's. The lookup below cannot refuse, the
-            branch above having settled the side before it is asked, and what it is called for is
-            the session and the namespace it names when there is none.
+            call reaching here without one is the client's. The lookup below cannot refuse, since
+            the branch above settled the side before it is asked, and what it is called for is the
+            session and the namespace it names when there is none.
         ]]
         local session = Define.reach (self.live, "request", true)
         if typeof (third) ~= "function" then
@@ -137,7 +137,7 @@ function Query.request (self: any, first: any, second: any, third: any, fourth: 
     return asked (self, first, second, third)
 end
 
--- The schema as text, which is the wording a refused request is answered with.
+-- The schema as text, and the wording a refused request comes back with.
 function Query.describe (self: any): string
     return Serial.frame ({
         kind = "query",

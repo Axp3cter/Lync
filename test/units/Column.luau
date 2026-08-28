@@ -32,8 +32,8 @@ const REACH = 5
 const STEPPED = 0.5
 
 --[[
-    A pattern the bits of a stepped grid can spell and the grid has no point for. Ten points want
-    four bits and four bits spell fifteen, so the five over the top are readings nobody wrote.
+    A pattern the bits of a stepped grid can spell and the grid has no point for. Eleven points
+    want four bits and four bits spell sixteen, so the five over the top are readings nobody wrote.
 ]]
 const PAST = 0x0F
 const HELD = table.freeze ({ 1, 3, 5 })

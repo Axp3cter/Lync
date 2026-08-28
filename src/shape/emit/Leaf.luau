@@ -90,6 +90,9 @@ const TEN = SEXTET + NIBBLE
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
 
+-- Nine, eight of which fill nine bytes, which is two words and a byte rather than one and three.
+const NINE = BYTE + FLAG
+
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
 
@@ -531,6 +534,44 @@ local function packed (
         end
     end
 
+    --[[
+        Eight elements to nine bytes. Two of them straddle rather than one: the fourth is cut where
+        the first word ends and the eighth where the second does, and what is left of the eighth is
+        the whole of the last byte.
+    ]]
+    if width == NINE then
+        while from + SEVEN <= count do
+            local fourth = indices[from + TRIO]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (indices[from + 1], NINE),
+                    bit32.lshift (indices[from + PAIR], NINE * PAIR),
+                    bit32.lshift (fourth, NINE * TRIO)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (fourth, FIVE),
+                    bit32.lshift (indices[from + NIBBLE], NIBBLE),
+                    bit32.lshift (indices[from + FIVE], NIBBLE + NINE),
+                    bit32.lshift (indices[from + SEXTET], NIBBLE + NINE * PAIR),
+                    bit32.lshift (eighth, NIBBLE + NINE * TRIO)
+                )
+            )
+            buffer.writeu8 (b, at + WORD * PAIR, bit32.rshift (eighth, FLAG))
+
+            at += WORD * PAIR + 1
+            from += BYTE
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -848,6 +889,32 @@ local function unpacked (
             into[from + SEVEN] = bit32.extract (rest, TRIO + SEVEN * PAIR, SEVEN)
 
             at += WORD + TRIO
+            from += BYTE
+        end
+    end
+
+    -- The nine bytes back as the eight they carry, the fourth and the eighth cut across the words.
+    if width == NINE then
+        while from + SEVEN <= count do
+            local low = buffer.readu32 (b, at)
+            local mid = buffer.readu32 (b, at + WORD)
+
+            into[from] = bit32.extract (low, 0, NINE)
+            into[from + 1] = bit32.extract (low, NINE, NINE)
+            into[from + PAIR] = bit32.extract (low, NINE * PAIR, NINE)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (low, NINE * TRIO),
+                bit32.lshift (bit32.extract (mid, 0, NIBBLE), FIVE)
+            )
+            into[from + NIBBLE] = bit32.extract (mid, NIBBLE, NINE)
+            into[from + FIVE] = bit32.extract (mid, NIBBLE + NINE, NINE)
+            into[from + SEXTET] = bit32.extract (mid, NIBBLE + NINE * PAIR, NINE)
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (mid, NIBBLE + NINE * TRIO),
+                bit32.lshift (buffer.readu8 (b, at + WORD * PAIR), FLAG)
+            )
+
+            at += WORD * PAIR + 1
             from += BYTE
         end
     end

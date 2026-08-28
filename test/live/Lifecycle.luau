@@ -29,8 +29,19 @@ const CARRIED = 3
 ]]
 const FORGOTTEN = "forgotten"
 
+--[[
+    The same the other way, fired and flushed every frame for longer than the window. A place doing
+    this is the ordinary one and it is owed silence, so what this definition is for is the detector
+    saying nothing rather than the detector saying anything.
+]]
+const REMEMBERED = "remembered"
+
+-- How many frames the flushed half runs for, which has to outlast the window it is watched over.
+const FRAMES = 120
+
 const DEFINITIONS = table.freeze ({
     [FORGOTTEN] = Lync.packet (Lync.int (0, 100)),
+    [REMEMBERED] = Lync.packet (Lync.int (0, 100)),
 })
 
 -- Public --------------------------------------------------------------
@@ -62,6 +73,33 @@ return {
         )
     end, function ()
         -- The client half waits it out and sends nothing, since a forgotten flush is one machine's.
+        task.wait (WINDOW + SLACK)
+    end),
+
+    --[[
+        A place that flushes every frame, told nothing. The window a queue opens is closed by that
+        queue's own flush, and a window left to ask only whether anything is queued would close on
+        whatever the next frame had already put there, which every frame after the first has.
+    ]]
+    Harness.pair ("life.detector-flushed", function ()
+        local held = Records.made (function ()
+            for _ = 1, FRAMES do
+                DEFINITIONS[REMEMBERED]:fireClient (Lync.all, CARRIED)
+                Lync.flush ()
+                task.wait ()
+            end
+
+            task.wait (WINDOW + SLACK)
+        end)
+
+        for _, one in held do
+            Expect.holds (
+                one.kind ~= "error" or one.data.definition ~= REMEMBERED,
+                `a place flushing every frame was told "{one.message}"`
+            )
+        end
+    end, function ()
+        -- The client half waits the server's frames out, the mistake being one machine's again.
         task.wait (WINDOW + SLACK)
     end),
 }

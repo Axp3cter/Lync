@@ -133,6 +133,7 @@ type Self = {
     at: number,
     armed: number?,
     owed: string?,
+    arms: number,
     counts: Tally.Tally,
     plan: Plan.Budget,
 }
@@ -373,12 +374,22 @@ local function arming (self: Self, said: string)
     self.owed = said
 
     --[[
+        Which arming this window is for. A flush disarms and whatever is queued next arms again, so
+        a window that only asked whether anything is armed would close on somebody else's queue: a
+        place flushing every frame is between a queue and its flush for part of every one of them,
+        and one window in ten landing there is a place told it never flushed when it always does.
+    ]]
+    local mine = self.arms + 1
+    self.arms = mine
+
+    --[[
         Delayed rather than pooled. The pool is coroutines run now and put back after, and a thread
         parked for a window is the one thing it is not for: it would hold one out of the pile for as
         long as the window lasts and put it back having done nothing most times.
     ]]
     task.delay (WINDOW, function ()
-        if self.armed == nil or self.closed then return end
+        local arms = self.arms
+        if self.armed == nil or self.closed or arms ~= mine then return end
 
         Log.error (
             `{self.space.space} queued {self.owed} and never flushed`,
@@ -538,6 +549,7 @@ function Session.new (
         at = 0,
         armed = nil,
         owed = nil,
+        arms = 0,
         counts = counts,
         plan = Plan.budget (0),
     }

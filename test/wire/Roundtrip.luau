@@ -100,6 +100,7 @@ const GROUPED = table.freeze ({
     63,
     127,
     255,
+    511,
     1023,
     4095,
     65535,

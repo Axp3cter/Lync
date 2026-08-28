@@ -35,7 +35,7 @@ export type Link = {
     -- What the open run writes each payload with, taken from the definition it was opened for.
     writing: (buffer, number, any) -> number,
 
-    -- What the open run is held to: how many it may carry, and the widest one payload may come to.
+    -- What the open run is held to, and how many it holds now.
     runs: number,
     widest: number,
     holds: number,

@@ -32,7 +32,7 @@ export type Names = {
     read expected: Serial.Interner,
 }
 
--- One link's boundary: the two contexts, the arrival stamps, and whether this frame has a cursor.
+-- One link's boundary: a context for each side of the split, and where the frame in hand stands.
 export type Boundary = {
     read name: string,
     read tally: Tally.Tally,
@@ -60,7 +60,7 @@ local function marks (of: Boundary, from: Player): { [number]: number }
     return held
 end
 
--- Where the reader got to, for a failure that can be asked.
+-- Where the reader got to, which only a check's own rejection says and so only it can resume.
 local function resumed (thrown: unknown): number?
     if typeof (thrown) ~= "table" then return nil end
 

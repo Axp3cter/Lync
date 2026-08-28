@@ -412,11 +412,33 @@ function Block.apart (
     local held = table.create (reach) :: { any }
 
     --[[
-        Three parts, which is what a vector and a colour both come apart into and is the count this
-        emitter meets most. How many there are is settled when the word is built, so a walk over
-        them is a walk to a number already known, and each part's writer and name are settled with
-        it rather than looked up at every value that goes past.
+        Two parts and three, which between them are every value this emitter is given. How many
+        there are is settled when the word is built, so a walk over them is a walk to a number
+        already known, and each part's writer and name are settled with it rather than looked up
+        at every value that goes past.
     ]]
+    if reach == PAIR then
+        local first, second = writes[1], writes[2]
+        local one, two = keys[1], keys[2]
+
+        local function write (b: buffer, pos: number, value: any): number
+            if typeof (value) ~= engine then Word.refusedAt (tag, paths, expected, value) end
+
+            return second (b, first (b, pos, value[one]), value[two])
+        end
+
+        local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+            local at, held = pos, held
+
+            at, held[1] = reads[1] (b, at, ctx)
+            at, held[2] = reads[2] (b, at, ctx)
+
+            return at, push (held)
+        end
+
+        return write, read
+    end
+
     if reach == TRIO then
         local first, second, third = writes[1], writes[2], writes[TRIO]
         local one, two, three = keys[1], keys[2], keys[TRIO]

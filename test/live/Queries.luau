@@ -17,7 +17,8 @@ const NAMESPACE = "queries"
 --[[
     How long a check holds the floor. Long enough for a round trip, a deadline short enough to sit
     inside one, and a few frames either side, and no longer: a span is spent whether the check fills
-    it or not, and there are ten of them here.
+    it or not, and there are ten of them here. The second is longer because a deadline nobody named
+    has to run out inside it.
 ]]
 const SPAN = 3
 const WAITED = 15

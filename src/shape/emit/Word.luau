@@ -17,7 +17,7 @@ export type Solo = { read read: Ir.Read?, read write: Ir.Write }
 
 -- Constants -----------------------------------------------------------
 
--- The same two widths a frame header reads, since a region and a header are one kind of bit run.
+-- The one-byte and two-byte widths a region is laid at, which a frame header is laid at too.
 const ONE = Words.ONE
 const PAIR = Words.PAIR
 
@@ -578,7 +578,7 @@ function Word.emit (
         end
 
         if singly then
-            -- The same pair where every field is one byte, so which call to make is not a question.
+            -- Every field one byte, so which call to make is not a question.
             local function steady (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local at = pos
                 for index, key in keys do
@@ -591,7 +591,7 @@ function Word.emit (
                 end
             end
 
-            -- The same, where a whole number already on the grid is the index and asks nothing.
+            -- A whole number already on the grid is the index, and asks nothing of the writer.
             local function ready (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local at = pos
                 for index, key in keys do
@@ -644,9 +644,9 @@ function Word.emit (
             end
 
             --[[
-                The same where every grid runs from nothing in whole steps. A grid like that hands
-                back the byte it was given and its reading is held as nothing at all, so a word of
-                them has none to ask after and the bytes go onto the record as they come off.
+                Every grid runs from nothing in whole steps. A grid like that hands back the byte
+                it was given and its reading is held as nothing at all, so a word of them has none
+                to ask after and the bytes go onto the record as they come off.
             ]]
             local function stated (
                 b: buffer,
@@ -668,7 +668,7 @@ function Word.emit (
                 return nil
             end
 
-            -- The same read where every grid fills its bits, so a byte is the value it stands for.
+            -- Every grid fills its bits, so a byte is the value it stands for.
             local function blunt (
                 b: buffer,
                 pos: number,
@@ -686,10 +686,10 @@ function Word.emit (
             end
 
             --[[
-                The same write where every grid fills its byte, so its top is the byte's own and
-                every field shares it. A whole number inside the grid is one the byte carries
-                unchanged, and masking a reading to the byte answers all three of not a whole
-                number, under the bottom and over the top in the one question.
+                Every grid fills its byte, so its top is the byte's own and every field shares it.
+                A whole number inside the grid is one the byte carries unchanged, and masking a
+                reading to the byte answers all three of not a whole number, under the bottom and
+                over the top in the one question.
             ]]
             local top = bounds[1]
 

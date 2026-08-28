@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- The block headers: the bits before a payload, as the pair that lays each form down.
+-- The block headers: the bits standing before a payload, one shape for each form of block.
 
 local Bits = require ("@src/kernel/Bits")
 local Protocol = require ("@src/wire/Protocol")
@@ -239,9 +239,10 @@ end
 function Frames.section (over: number): Head return headed ({ named (over), KIND }) end
 
 --[[
-    A newest block: `{ defId, which, more, seq }`, where `more` counts the fields riding behind
-    the first. Several fields that moved over the same slots in one flush spell those slots once,
-    so the run follows the header, and behind it one column of values for each field sharing them.
+    A set's stream block: `{ defId, which, more, seq }`, where `more` counts the fields riding
+    behind the first. Several fields that moved over the same slots in one flush spell those slots
+    once, so the run follows the header, and behind it one column of values for each field sharing
+    them.
 ]]
 function Frames.stream (over: number, fields: number): Head
     return headed ({ named (over), named (fields), named (fields), SEQ })

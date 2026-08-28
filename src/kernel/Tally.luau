@@ -31,7 +31,7 @@ local function zeroed (): Row
     return { sent = 0, sentBytes = 0, received = 0, receivedBytes = 0, drops = 0 }
 end
 
--- The fallback line, for a count about a definition the namespace never compiled.
+-- A definition's line, made on the spot for a name the namespace never compiled.
 local function line (of: Tally, name: string): Row
     local held = of.definitions[name]
     if held ~= nil then return held end
@@ -89,7 +89,7 @@ function Tally.carried (of: Tally, name: string, bytes: number)
     line (of, name).sentBytes += bytes
 end
 
--- More arrivals against a definition, without bytes to go with them: a run is one block of many.
+-- More arrivals against a definition, without bytes to go with them: a run is many in one block.
 function Tally.arrived (of: Tally, name: string, times: number)
     line (of, name).received += times
 end

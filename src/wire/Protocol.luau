@@ -46,7 +46,10 @@ Protocol.UNKNOWN_BYTES = 6
 Protocol.UNKNOWN_LIST = 7
 Protocol.UNKNOWN_PAIRS = 8
 
--- Where a signed varint's spelling changes, and the most groups one ever runs to.
+--[[
+    Where a signed varint's spelling changes, and the most groups one ever runs to. The slack below
+    counts from the second, and a constant naming one declared later folds to nothing.
+]]
 Protocol.VLI_EDGE = 2 ^ 52 - 1
 Protocol.VARINT_GROUPS = 8
 

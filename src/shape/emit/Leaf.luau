@@ -114,6 +114,9 @@ const WIDE = PAIR * BYTE
 -- Eighteen, which is that width and a pair over, and fills nine bytes four at a time.
 const WIDER = WIDE + PAIR
 
+-- Seventeen, a pair of bytes and a bit, which takes eight elements and seventeen bytes.
+const SNUG = WIDE + FLAG
+
 -- Fourteen, which fills seven bytes four at a time, and where the fourth of them starts.
 const SEVENS = SEVEN * PAIR
 const AMPLE = BROAD + NIBBLE
@@ -548,6 +551,148 @@ local function packed (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    --[[
+        Eight elements to fifteen bytes, three words a pair and one. The first two lie inside the
+        first word and every one after it but the fourth and the sixth reaches across a boundary.
+    ]]
+    if width == WIDE - FLAG then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (second, WIDE - FLAG),
+                    bit32.lshift (third, SCORE + TEN)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (third, PAIR),
+                    bit32.lshift (fourth, DOZEN + FLAG),
+                    bit32.lshift (fifth, AMPLE)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (fifth, NIBBLE),
+                    bit32.lshift (sixth, ELEVEN),
+                    bit32.lshift (seventh, BROAD + PAIR)
+                )
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD * TRIO,
+                bit32.bor (bit32.rshift (seventh, SEXTET), bit32.lshift (eighth, NINE))
+            )
+            buffer.writeu8 (b, at + WORD * TRIO + PAIR, bit32.rshift (eighth, SEVEN))
+
+            at += WORD * TRIO + TRIO
+            from += BYTE
+        end
+    end
+
+    --[[
+        Eight elements to thirteen bytes, three words and a byte. The last word carries four of
+        them, the first of those being a single bit the word before it had no room for.
+    ]]
+    if width == DOZEN + FLAG then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (second, DOZEN + FLAG),
+                    bit32.lshift (third, BROAD + PAIR)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (third, SEXTET),
+                    bit32.lshift (fourth, SEVEN),
+                    bit32.lshift (fifth, SCORE)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (fifth, DOZEN),
+                    bit32.lshift (sixth, FLAG),
+                    bit32.lshift (seventh, SEVENS),
+                    bit32.lshift (eighth, BROAD + TRIO)
+                )
+            )
+            buffer.writeu8 (b, at + WORD * TRIO, bit32.rshift (eighth, FIVE))
+
+            at += WORD * TRIO + 1
+            from += BYTE
+        end
+    end
+
+    --[[
+        Eight elements to seventeen bytes, four words and a byte. Every second one is gathered out
+        of two words, each reaching a pair further into the next than the one before it did.
+    ]]
+    if width == SNUG then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, SNUG)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (second, WIDE - FLAG),
+                    bit32.lshift (third, PAIR),
+                    bit32.lshift (fourth, SCANT)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (fourth, DOZEN + FLAG),
+                    bit32.lshift (fifth, NIBBLE),
+                    bit32.lshift (sixth, SCORED)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * TRIO,
+                bit32.bor (
+                    bit32.rshift (sixth, ELEVEN),
+                    bit32.lshift (seventh, SEXTET),
+                    bit32.lshift (eighth, STOUTER)
+                )
+            )
+            buffer.writeu8 (b, at + WORD * NIBBLE, bit32.rshift (eighth, NINE))
+
+            at += WORD * NIBBLE + 1
+            from += BYTE
         end
     end
 
@@ -1191,6 +1336,104 @@ local function unpacked (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    -- The fifteen bytes back as the eight they carry, the fourth and the sixth out of one word.
+    if width == WIDE - FLAG then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+            local four = buffer.readu16 (b, at + WORD * TRIO)
+
+            into[from] = bit32.extract (one, 0, WIDE - FLAG)
+            into[from + 1] = bit32.extract (one, WIDE - FLAG, WIDE - FLAG)
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (one, SCORE + TEN),
+                bit32.lshift (bit32.extract (two, 0, DOZEN + FLAG), PAIR)
+            )
+            into[from + TRIO] = bit32.extract (two, DOZEN + FLAG, WIDE - FLAG)
+            into[from + NIBBLE] = bit32.bor (
+                bit32.rshift (two, AMPLE),
+                bit32.lshift (bit32.extract (three, 0, ELEVEN), NIBBLE)
+            )
+            into[from + FIVE] = bit32.extract (three, ELEVEN, WIDE - FLAG)
+            into[from + SEXTET] = bit32.bor (
+                bit32.rshift (three, BROAD + PAIR),
+                bit32.lshift (bit32.extract (four, 0, NINE), SEXTET)
+            )
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (four, NINE),
+                bit32.lshift (buffer.readu8 (b, at + WORD * TRIO + PAIR), SEVEN)
+            )
+
+            at += WORD * TRIO + TRIO
+            from += BYTE
+        end
+    end
+
+    -- The thirteen bytes back as the eight they carry, four of them out of the last word.
+    if width == DOZEN + FLAG then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+
+            into[from] = bit32.extract (one, 0, DOZEN + FLAG)
+            into[from + 1] = bit32.extract (one, DOZEN + FLAG, DOZEN + FLAG)
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (one, BROAD + PAIR),
+                bit32.lshift (bit32.extract (two, 0, SEVEN), SEXTET)
+            )
+            into[from + TRIO] = bit32.extract (two, SEVEN, DOZEN + FLAG)
+            into[from + NIBBLE] = bit32.bor (
+                bit32.rshift (two, SCORE),
+                bit32.lshift (bit32.extract (three, 0, FLAG), DOZEN)
+            )
+            into[from + FIVE] = bit32.extract (three, FLAG, DOZEN + FLAG)
+            into[from + SEXTET] = bit32.extract (three, SEVENS, DOZEN + FLAG)
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (three, BROAD + TRIO),
+                bit32.lshift (buffer.readu8 (b, at + WORD * TRIO), FIVE)
+            )
+
+            at += WORD * TRIO + 1
+            from += BYTE
+        end
+    end
+
+    -- The seventeen bytes back as the eight they carry, every second one out of two words.
+    if width == SNUG then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+            local four = buffer.readu32 (b, at + WORD * TRIO)
+
+            into[from] = bit32.extract (one, 0, SNUG)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (one, SNUG),
+                bit32.lshift (bit32.extract (two, 0, PAIR), WIDE - FLAG)
+            )
+            into[from + PAIR] = bit32.extract (two, PAIR, SNUG)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (two, SCANT),
+                bit32.lshift (bit32.extract (three, 0, NIBBLE), DOZEN + FLAG)
+            )
+            into[from + NIBBLE] = bit32.extract (three, NIBBLE, SNUG)
+            into[from + FIVE] = bit32.bor (
+                bit32.rshift (three, SCORED),
+                bit32.lshift (bit32.extract (four, 0, SEXTET), ELEVEN)
+            )
+            into[from + SEXTET] = bit32.extract (four, SEXTET, SNUG)
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (four, STOUTER),
+                bit32.lshift (buffer.readu8 (b, at + WORD * NIBBLE), NINE)
+            )
+
+            at += WORD * NIBBLE + 1
+            from += BYTE
         end
     end
 

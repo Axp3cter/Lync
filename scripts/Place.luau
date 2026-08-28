@@ -36,9 +36,9 @@ local PATIENCE = 60
 
 --[[
     The builder, printed for whoever is holding Studio. A node carrying no class is one the project
-    implied rather than declared, so it is found and never made. Everything else is ours and an
-    instance already standing under that name is torn down first, which makes a second run a
-    replacement rather than a tree growing beside the old one.
+    implied rather than declared, so it is made as a folder where it is missing and never torn down.
+    Everything else is ours and one already standing under that name is torn down first, so a
+    second run is a replacement rather than a tree growing beside the old one.
 ]]
 local BUILDER = [[
 local http = game:GetService ("HttpService")

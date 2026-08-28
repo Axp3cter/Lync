@@ -33,9 +33,9 @@ local parkedPath: number? = nil
 local parkedReason: string? = nil
 
 --[[
-    How many checks this process has wrapped a read in, which is the one thing that decides whether
-    a read can park a reason at all. Counted rather than asked of the tree, because the wrapping is
-    where the answer is already known and a walk to rediscover it would be the same walk again.
+    How many checks this process has wrapped a read in. Counted rather than asked of the tree,
+    because the wrapping is where the answer is already known and a walk to rediscover it would be
+    the same walk again.
 ]]
 local wrapped = 0
 

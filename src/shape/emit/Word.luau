@@ -1318,6 +1318,40 @@ function Word.emit (
 
         local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
         --[[
+            The same three for a grid that answers with something other than the index it was given,
+            which is every truth, every step and every name. The turn is one call where declining
+            the arm outright costs the group its own hop and a question at every reading besides.
+        ]]
+        local turning = reading :: (number) -> any
+
+        local function turnedByte (b: buffer, pos: number, _c: any): (number, any)
+            local raw = buffer.readu8 (b, pos)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return pos + after, turning (raw)
+        end
+
+        local function turnedPair (b: buffer, pos: number, _c: any): (number, any)
+            local raw = buffer.readu16 (b, pos)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return pos + after, turning (raw)
+        end
+
+        local function turnedWide (b: buffer, pos: number, _c: any): (number, any)
+            local raw = buffer.readu32 (b, pos)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return pos + after, turning (raw)
+        end
+
+        --[[
             The same on the way out. A lone field at the word's first byte is the whole block, so
             these answer the byte past it as the group's own writer does, and neither asks which
             width it is nor whether there is a name to reach the value under.
@@ -1362,12 +1396,17 @@ function Word.emit (
         ]]
         local solo: Solo? = nil
         if key == nil and seat == 0 then
-            local answering: Ir.Read? = if reading ~= nil
-                then nil
-                else (if bytes == ONE
-                    then soloByte
-                    elseif bytes == PAIR then soloPair
-                    else soloWide)
+            local asRead = if bytes == ONE
+                then soloByte
+                elseif bytes == PAIR then soloPair
+                else soloWide
+
+            local asTurned = if bytes == ONE
+                then turnedByte
+                elseif bytes == PAIR then turnedPair
+                else turnedWide
+
+            local answering: Ir.Read? = if reading == nil then asRead else asTurned
 
             local laying: Ir.Write = if bytes == ONE
                 then keptByte

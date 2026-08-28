@@ -135,7 +135,7 @@ const NARROW = table.freeze ({
     }),
 })
 
--- The kinds a byte does not hold, and why each is absent rather than narrowed.
+-- The kinds no single byte holds, which is why a sweep over one byte cannot reach them.
 const WIDE = table.freeze ({ "f32", "f64", "color3", "color3.rgb565", "vlq", "vli" })
 
 -- Private -------------------------------------------------------------

@@ -351,7 +351,7 @@ function Plan.dirt (): Dirt return { ops = {}, masks = {}, freed = {}, cleared =
 
 function Plan.budget (bytes: number): Budget return { target = bytes, spent = 0, took = false } end
 
--- The same one again, ready for another flush, for a caller that keeps one rather than making one.
+-- A budget ready for another flush, for a caller that keeps one rather than making one.
 function Plan.reset (of: Budget, bytes: number): Budget
     local held = of :: { target: number, spent: number, took: boolean }
     held.target, held.spent, held.took = bytes, 0, false

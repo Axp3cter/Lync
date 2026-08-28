@@ -63,7 +63,7 @@ local function copied (of: Record): Record
     return out
 end
 
--- The ids a viewer should hold, which is every record whose key names them.
+-- The ids a viewer should hold: every record whose key names them, or all where there is no key.
 local function visible (of: Oracle, who: string): { [number]: boolean }
     local out = {}
     for id, record in of._records do

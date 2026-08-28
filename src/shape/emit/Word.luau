@@ -1231,19 +1231,12 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             end
         end
 
-        local function sole (
-            b: buffer,
-            pos: number,
-            into: any,
-            slots: { number },
-            _held: { any }
-        ): any
-            local at = pos + seat
-            local raw = if bytes == ONE
-                then buffer.readu8 (b, at)
-                elseif bytes == PAIR then buffer.readu16 (b, at)
-                else buffer.readu32 (b, at)
-
+        --[[
+            Which buffer read a field takes follows from a width settled when this closure was
+            built, so the three are three closures and no payload is asked which of them it wants.
+        ]]
+        local function narrow (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu8 (b, pos + seat)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
@@ -1254,6 +1247,34 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             into[key] = one
             return nil
         end
+
+        local function middle (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu16 (b, pos + seat)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            local one = if reading == nil then raw else reading (raw)
+            if key == nil then return one end
+
+            into[key] = one
+            return nil
+        end
+
+        local function widest (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu32 (b, pos + seat)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            local one = if reading == nil then raw else reading (raw)
+            if key == nil then return one end
+
+            into[key] = one
+            return nil
+        end
+
+        local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
 
         return only, sole
     end

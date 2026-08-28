@@ -215,9 +215,9 @@ return {
     end),
 
     --[[
-        Where the crossing is for a set of sixty four fields, which is the count the two forms are
-        nearest at. An index costs six bits there, so the list wins through nine changed fields and
-        the mask wins from ten, and that number is the whole reason the mode bit is worth its bit.
+        Where the crossing is for a set of sixty four fields, which is the widest a record may be.
+        An index costs six bits there, so the list wins through nine changed fields and the mask
+        wins from ten, and that number is the whole reason the mode bit is worth its bit.
     ]]
     Harness.case ("fieldset.mode-crosses-at-ten", function ()
         local of = Fieldset.of (64)

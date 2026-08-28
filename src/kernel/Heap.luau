@@ -20,7 +20,7 @@ export type Heap = {
 
 function Heap.new (): Heap return { keys = {}, values = {}, count = 0 } end
 
--- The parent moves down into the vacated place, so a climb of n levels costs n moves, not three.
+-- The parent moves down into the vacated place, so a climb of n levels costs n moves and not 3n.
 function Heap.push (heap: Heap, key: number, value: number)
     local keys, values = heap.keys, heap.values
 

@@ -70,9 +70,9 @@ export type Interner = {
 -- Private -------------------------------------------------------------
 
 --[[
-    A number as text it reads back from. Fourteen digits is what a double usually needs and what
-    looks like the number a caller wrote, seventeen is what one always needs, and the round trip
-    decides which. Two parameters that differ have to differ here or two schemas share one hash.
+    A number as text it reads back from. Fourteen digits is what a caller's own number usually
+    looks like, seventeen is what a double always needs, and the round trip decides which. Two
+    parameters that differ have to differ here or two schemas share one hash.
 ]]
 local function decimal (value: number): string
     if value == 0 then return "0" end

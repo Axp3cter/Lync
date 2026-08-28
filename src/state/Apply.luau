@@ -30,9 +30,8 @@ const REPLACED = GONE + 1
 
 --[[
     What a frame did to one set, held per set rather than per partition because an id is unique
-    across the set and a slot is not. `net` is what the frame came to for each record and the whole
-    of what a caller is told, `added`, `changed` and `gone` are that taken apart for the fan, `olds`
-    is the record as it stood, and `shadow` is the slots a keyframe spoke for.
+    across the set and a slot is not. `net` is the whole of what a caller is told, and `added`,
+    `changed` and `gone` are that same answer taken apart for the fan.
 ]]
 export type Heard = {
     watching: boolean,
@@ -179,7 +178,6 @@ local function established (store: Store.Store, layout: Sections.Layout, of: Hea
     local stamps = frame.gens
     local wanted = of.watching
 
-    -- What a record's standing is written on, which is one table for every record a frame names.
     local net = of.net
 
     for index = 1, frame.count do
@@ -326,7 +324,7 @@ function Apply.parted (of: Heard): ({ number }, { number }, { number })
     return gone, added, changed
 end
 
--- What a frame did to one set, empty, which a set holds one of for as long as it exists.
+-- One of these, empty, which a set holds for as long as it exists.
 function Apply.heard (): Heard
     return {
         watching = false,

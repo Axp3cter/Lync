@@ -40,7 +40,7 @@ const PACKET = Dispatch.packet
 const WHOSE = 1
 const SECOND = 2
 
--- What a response says about itself, which is a bit and is the only thing a failed one carries.
+-- The outcome bit where a response carries a value. A refusal carries the bit and nothing else.
 const ANSWERED = 0
 
 -- The delivery a definition declares that puts it on the lane which may reorder and may lose.
@@ -59,10 +59,10 @@ const THREW: Types.OutcomeCode = "unanswered"
 
 -- Types ---------------------------------------------------------------
 
--- One payload's reader, as everything this module refuses to know about it.
+-- One payload's reader, and all of a payload this module knows.
 export type Take = (b: buffer, pos: number, ctx: Types.ValidateContext) -> (number, any)
 
--- The one definition this file names three times, and the two blocks it is.
+-- A definition that is two blocks, a question and the answer owed it.
 type Query = Compile.Query
 
 -- A responder's answer, handed over the moment the responder returned.
@@ -235,7 +235,7 @@ local function packets (
     return pos
 end
 
--- A request block: one payload, and the answer it is owed put by for the next flush.
+-- A request block: the questions in it, each answer put by for the next flush.
 local function asked (
     of: Wiring,
     def: Query,
@@ -338,7 +338,7 @@ local function answered (
     ]]
     local id = 0
 
-    -- The same three, held here for the same reason the run above holds its own.
+    -- Held here for the same reason the run above holds its own.
     local boundary = of.boundary
     local response = def.response
     local says = response.read
@@ -392,7 +392,6 @@ end
 
 -- Public --------------------------------------------------------------
 
--- Everything one namespace's frames are walked with.
 function Router.wiring (
     space: Compile.Compiled,
     boundary: Boundary.Boundary,
@@ -418,7 +417,7 @@ function Router.wiring (
     }
 end
 
--- One frame, taken apart into the blocks it is and each of them handed where it goes.
+-- One frame, block by block, stopping at the first block that does not read.
 function Router.frame (
     of: Wiring,
     from: Player?,

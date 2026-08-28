@@ -4,7 +4,7 @@ declare namespace Lync {
     /** Opaque codec brand. `_nominal_codec` never exists at runtime. */
     interface Codec<T> {
         /** @hidden */ readonly _nominal_codec: T;
-        /** Runs on decode. Return a reason to reject or nil to accept. The first reason wins. */
+        /** Runs on decode. Return a reason to reject or undefined to accept. The first reason wins. */
         validate(this: Codec<T>, check: (value: T, context: ValidateContext) => string | undefined): Codec<T>;
         /** Set fields only. The field never decreases, and an update that would lower it throws. */
         monotonic(this: Codec<number>): Codec<number>;
@@ -138,7 +138,7 @@ declare namespace Lync {
         clear(this: Set<T, K>): void;
         /** Server only, keyed sets only. A later assignment replaces the earlier one. */
         audience(this: Set<T, K>, key: K, recipient: Recipient): void;
-        /** The live record or nil. This is the library's own storage, so read it and never write. */
+        /** The live record, or undefined. This is the library's own storage, so read and never write. */
         get(this: Set<T, K>, id: number): T | undefined;
         size(this: Set<T, K>): number;
         describe(this: Set<T, K>): string;
@@ -281,7 +281,7 @@ interface LyncModule {
     cframe(this: void, position: Lync.Codec<Vector3>, rotation: Lync.Codec<CFrame>): Lync.Codec<CFrame>;
     readonly rotation: Lync.Rotation;
     readonly color3: Lync.Color3Codec;
-    /** Decodes to the instance or nil when the receiver cannot see it. */
+    /** Decodes to the instance, or undefined where the receiver cannot see it. */
     inst<T extends Instance = Instance>(this: void, className?: string): Lync.Codec<T | undefined>;
 }
 

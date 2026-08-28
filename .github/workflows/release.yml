@@ -31,7 +31,7 @@ jobs:
       - run: lune run scripts/run.luau verify
       - run: lune run scripts/run.luau check
 
-      # wally.toml is the one home of the version; every other file is a copy
+      # wally.toml is the one home of the version, and every other file is a copy
       # the versions check already holds to it.
       - id: version
         run: echo "value=$(grep -m1 '^version' wally.toml | sed -E 's/.*\"(.*)\".*/\1/')" >> "$GITHUB_OUTPUT"

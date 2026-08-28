@@ -13,7 +13,7 @@ local Boundary = {}
 
 -- Constants -----------------------------------------------------------
 
--- What a drop is on each lane, which is the whole of what the trust split comes to afterwards.
+-- What a drop is on each side, which is the whole of what the trust split comes to afterwards.
 const HOSTILE: Types.LogKind = "warn"
 const TRUSTED: Types.LogKind = "error"
 

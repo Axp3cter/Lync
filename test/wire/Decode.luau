@@ -42,7 +42,7 @@ const SPARE = 512
 ]]
 const SHORT = 200
 
--- The same, a byte wider, and the byte that is every reading either of them could be handed.
+-- A grid a byte wider, and the byte that is every reading either of them could be handed.
 const SHORT_PAIR = 60000
 const WHOLE_BYTE = 255
 
@@ -90,7 +90,7 @@ const STAND_IN = "Part"
 -- Three colours, which is a span of three and one index the wire can say it has not.
 const PALETTE = table.freeze ({ Color3.new (1, 0, 0), Color3.new (0, 1, 0), Color3.new (0, 0, 1) })
 
--- Three variants, for the same reason, each a record of one bit.
+-- Three variants, so the wire can say a tag the schema has not, each a record of one bit.
 const TAGS = table.freeze ({
     a = Lync.struct ({ x = Lync.bool () }),
     b = Lync.struct ({ y = Lync.bool () }),
@@ -887,9 +887,9 @@ return {
     end),
 
     --[[
-        The same, where one field is wider than a byte, so the record is laid down in two different
-        calls rather than one repeated. The third field is there to fill the four bytes a word
-        plans in one go, since a wide field with less than its width left is cut in two instead.
+        One field wider than a byte, so the record is laid down in two different calls rather than
+        one repeated. The third field is there to fill the four bytes a word plans in one go, since
+        a wide field with less than its width left is cut in two instead.
     ]]
     Harness.case ("total.a-wider-record-on-boundaries-refuses-a-reading-off-its-grid", function ()
         local of = Turns.built (Lync.struct ({

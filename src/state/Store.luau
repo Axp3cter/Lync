@@ -13,7 +13,7 @@ local Store = {}
 -- How far a slot's generation counts before it comes round, which is what two wire bits hold.
 const GENS = Protocol.NEWEST_GENS
 
--- What a field's marker has to be for the field to keep a last-sent index rather than a baseline.
+-- What a field's marker has to be for the field to keep its last sent value rather than a baseline.
 const LATEST: Compile.Marker = "newest"
 
 -- Types ---------------------------------------------------------------

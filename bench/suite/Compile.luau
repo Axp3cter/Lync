@@ -39,7 +39,7 @@ local function shaped (of: Schemas.Fixture): any return Shape.build (of.codec, o
 -- Public --------------------------------------------------------------
 
 return {
-    -- What a build spends before it has looked at anything. Every row below is this plus a schema.
+    -- The narrowest schema, so what every row below costs is this plus what its own holds.
     Harness.row ({
         name = "compile.schema-flag",
         run = function (): any return shaped (Schemas.flag) end,

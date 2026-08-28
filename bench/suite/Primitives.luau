@@ -1,7 +1,7 @@
 --!strict
 --!optimize 2
 --[[
-    The wire leaves, timed with nothing around them: the varint quartet, the byte-order stride, and
+    The wire leaves, timed with nothing around them: the varint rows, the byte-order stride, and
     the accumulator an alphabet string packs through.
 ]]
 

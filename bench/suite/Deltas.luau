@@ -1,7 +1,7 @@
 --!strict
 --!optimize 2
 --[[
-    What a set costs between two flushes: the fold, the walk, the send, and the two ways of costing
+    What a set costs between two flushes: the fold, the walk, the send, and every way of costing
     nothing.
 ]]
 

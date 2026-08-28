@@ -32,7 +32,7 @@ function Reading.lines (text: string): { string }
     return found
 end
 
--- A span between backticks is code quoted into a sentence, so it is not read.
+-- A span between backticks is quoted code, so it goes, unless what it holds is a path.
 function Reading.quoted (line: string): string
     local out = string.gsub (line, "`([^`]*)`", function (held: string): string
         if string.match (held, "^[%w%.]+/[%w%./]+$") ~= nil then return `\`{held}\`` end
@@ -186,7 +186,10 @@ function Reading.sentenced (spoken: { string }): { { at: number, said: string } 
     return out
 end
 
--- A sentence as the one string two sayings of it both come to, or nothing where it is neither.
+--[[
+    A sentence as the one string two sayings of it both come to, and nothing where it names a path
+    or is too short to say a fact twice.
+]]
 function Reading.normal (said: string): string?
     if string.match (said, "`[%w/]+/[%w/]+`") ~= nil then return nil end
 

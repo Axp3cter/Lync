@@ -59,8 +59,8 @@ const CLEARS = 0.25
 
 --[[
     The context a standalone read is handed. Nothing here validates, so nothing reads it, and it is
-    passed anyway because a read taking one argument in a suite and three in the library would be a
-    signature this file agrees with and nothing else does.
+    passed anyway because a read taking two arguments in a suite and three in the library would be
+    a signature this file agrees with and nothing else does.
 ]]
 const CTX: Types.ValidateContext = table.freeze ({ player = nil, now = 0, last = nil })
 

@@ -53,7 +53,10 @@ local function taken (b: buffer, at: number): (number, number, number)
         shift *= MORE
     end
 
-    -- Raised bare: this answers three numbers, where a call answering `never` reads as a fall thro
+    --[[
+        Raised bare rather than through the log, since this answers three numbers and a call that
+        answers `never` reads here as a function falling off its end.
+    ]]
     error (`a varint ran past {GROUPS} groups`, 0)
 end
 
@@ -105,9 +108,9 @@ function Varint.writeSigned (out: buffer, at: number, value: number): number
 end
 
 --[[
-    The same pair for the signed form, refused at both ends of the domain rather than at one. A
-    reader that checked only the top would take a magnitude one past the bottom and answer a number
-    no encoder could have written.
+    The same the other way, refused at both ends of the domain rather than at one. A reader that
+    checked only the top would take a magnitude one past the bottom and answer a number no encoder
+    could have written.
 ]]
 @native
 function Varint.readSigned (b: buffer, at: number): (number, number)

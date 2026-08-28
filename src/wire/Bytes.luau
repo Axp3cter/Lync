@@ -111,7 +111,7 @@ end
 ]]
 const RANKED = 4
 
--- Two more than that, which is the widest a double still spells every byte of.
+-- Two, which is what a leading number reaches past the four a caller may ride under.
 const PAIR = 2
 
 -- How many bytes of a range one number holds, which is what a double spells without losing any.

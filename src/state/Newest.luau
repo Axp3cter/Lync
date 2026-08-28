@@ -22,10 +22,7 @@ const CAP = Protocol.UNRELIABLE_CAP
 -- The bits one group of a varint carries, which is what a slot's width comes to bytes through.
 const GROUP = Protocol.VARINT_BITS
 
---[[
-    The generation a slot stands at, which is a byte a record at its widest and one bit less at its
-    narrowest, so an entry is bounded by the byte.
-]]
+-- The byte a budget charges a record for its generation, where the run spends a fraction of one.
 const STAMPED = 1
 
 -- What this lane carries beside each slot, which is nothing: a slot run and then the columns.

@@ -84,11 +84,7 @@ function Log.contained <A...>(call: (A...) -> (), ...: A...)
     Threads.spawn (Log.caught :: any, call :: any, ...)
 end
 
---[[
-    One listener handed every payload a block carried, in the order it carried them, and caught a
-    payload at a time rather than around the walk: a listener that comes apart on one is a listener
-    still handed the next, which is what it would have been on a thread apiece.
-]]
+-- One listener handed every payload a block carried, in the order it carried them.
 local function eaching (
     at: { number },
     call: (...any) -> (),

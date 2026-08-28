@@ -89,6 +89,9 @@ const STOUT = BROAD - PAIR
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
+-- Eleven, the narrowest width that meets no boundary before the eighth element and eleven bytes.
+const ELEVEN = TEN + FLAG
+
 -- Five and seven, each a width of its own and each a step into a group of eight as well.
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
@@ -536,6 +539,51 @@ local function packed (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    --[[
+        Eight elements to eleven bytes, which is what an odd width takes to meet a boundary at all.
+        Two words, a pair and a byte carry them, and the third, the sixth and the eighth are the
+        ones that lie across a join between those.
+    ]]
+    if width == ELEVEN then
+        while from + SEVEN <= count do
+            local third, sixth = indices[from + PAIR], indices[from + FIVE]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (indices[from + 1], ELEVEN),
+                    bit32.lshift (third, STOUT)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (third, TEN),
+                    bit32.lshift (indices[from + TRIO], FLAG),
+                    bit32.lshift (indices[from + NIBBLE], DOZEN),
+                    bit32.lshift (sixth, STOUT + FLAG)
+                )
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (sixth, NINE),
+                    bit32.lshift (indices[from + SEXTET], PAIR),
+                    bit32.lshift (eighth, DOZEN + FLAG)
+                )
+            )
+            buffer.writeu8 (b, at + WORD * PAIR + PAIR, bit32.rshift (eighth, TRIO))
+
+            at += WORD * PAIR + TRIO
+            from += BYTE
         end
     end
 
@@ -989,6 +1037,36 @@ local function unpacked (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    -- The eleven bytes back as the eight they carry, three of them gathered from two places.
+    if width == ELEVEN then
+        while from + SEVEN <= count do
+            local low = buffer.readu32 (b, at)
+            local mid = buffer.readu32 (b, at + WORD)
+            local high = buffer.readu16 (b, at + WORD * PAIR)
+
+            into[from] = bit32.extract (low, 0, ELEVEN)
+            into[from + 1] = bit32.extract (low, ELEVEN, ELEVEN)
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (low, STOUT),
+                bit32.lshift (bit32.extract (mid, 0, FLAG), TEN)
+            )
+            into[from + TRIO] = bit32.extract (mid, FLAG, ELEVEN)
+            into[from + NIBBLE] = bit32.extract (mid, DOZEN, ELEVEN)
+            into[from + FIVE] = bit32.bor (
+                bit32.rshift (mid, STOUT + FLAG),
+                bit32.lshift (bit32.extract (high, 0, PAIR), NINE)
+            )
+            into[from + SEXTET] = bit32.extract (high, PAIR, ELEVEN)
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (high, DOZEN + FLAG),
+                bit32.lshift (buffer.readu8 (b, at + WORD * PAIR + PAIR), TRIO)
+            )
+
+            at += WORD * PAIR + TRIO
+            from += BYTE
         end
     end
 

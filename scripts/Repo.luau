@@ -15,13 +15,13 @@ Repo.BENCH = "bench"
 Repo.FIXTURES = "fixtures"
 Repo.SCRIPTS = "scripts"
 
--- Where a build puts what it makes, none of which is committed.
+-- Where a build puts what it makes and what it builds by default, none of it committed.
 Repo.BUILD = "build"
 Repo.STAGE = `{Repo.BUILD}/stage`
 Repo.DIST = "dist"
 Repo.DEFAULT = "default"
 
--- What a consumer is handed, and the four manifests that say what they are being handed.
+-- What a consumer is handed, and the manifests that say what they are being handed.
 Repo.ROKIT = "rokit.toml"
 Repo.WALLY = "wally.toml"
 Repo.NPM = "package.json"
@@ -30,7 +30,7 @@ Repo.LICENSE = "LICENSE"
 Repo.DTS = "index.d.ts"
 Repo.SOURCEMAP = "sourcemap.json"
 
--- What the tools are told, three files that have to say the same thing about the same paths.
+-- What the tools are told, more than one of which restates a path this module already names.
 Repo.STYLUA = "stylua.toml"
 Repo.LUAURC = ".luaurc"
 Repo.SCRIPTS_LUAURC = `{Repo.SCRIPTS}/{Repo.LUAURC}`

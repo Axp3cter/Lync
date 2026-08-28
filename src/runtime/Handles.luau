@@ -48,8 +48,8 @@ end
 --[[
     A fresh binding, empty of everything a handle later learns.
 
-    Every field is filled by the calls below and none by a caller, so a handle holding one of these
-    before its namespace opens knows only that it has one.
+    Nothing here is filled by a caller. The names are written where a namespace is declared and the
+    rest where one starts, so a handle held before either knows only that it has one.
 ]]
 function Handles.live (): Live
     return {

@@ -52,9 +52,9 @@ local function spent (plan: { Word }): number
 end
 
 --[[
-    The same run laid out without cutting a field in two where a later one would have fitted in its
-    place. A field in one piece is a field the emitter reads and writes whole, so this is the plan
-    worth having wherever it costs nothing, and the bits it leaves behind are what can make it cost.
+    A run laid out without cutting a field in two where a later one would have fitted in its place.
+    A field in one piece is a field the emitter reads and writes whole, so this is the plan worth
+    having wherever it costs nothing, and the bits it leaves behind are what can make it cost.
 ]]
 local function fitted (widths: { number }): { Word }
     local count = #widths

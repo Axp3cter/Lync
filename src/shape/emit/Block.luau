@@ -626,7 +626,19 @@ function Block.pairs (
         local rankA, rankB = ranks[a], ranks[b]
         if rankA ~= rankB then return rankA < rankB end
 
-        return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
+        --[[
+            The bytes a tie has already answered for, stepped over. A leading number holds the
+            width itself, so two that tie belong to keys of one width whose leading bytes are the
+            same ones, and what is left to ask about is everything past them.
+        ]]
+        local past = Bytes.LEADING
+        return Bytes.rangeLess (
+            room,
+            starts[a] + past,
+            widths[a] - past,
+            starts[b] + past,
+            widths[b] - past
+        )
     end
 
     --[[

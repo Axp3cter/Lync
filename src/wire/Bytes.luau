@@ -119,6 +119,9 @@ const LEADING = RANKED + PAIR
 
 function Bytes.ranks (len: number): boolean return len <= RANKED end
 
+-- How wide a leading number reaches, for a caller holding two it has already found equal.
+Bytes.LEADING = LEADING
+
 --[[
     What a range shorter than the whole width is scaled by, so the bytes it does not have count as
     nothing under the ones it does. A width has only as many answers as it has bytes, so all of

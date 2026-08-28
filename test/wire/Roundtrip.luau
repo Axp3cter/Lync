@@ -970,13 +970,15 @@ return {
 
     --[[
         Keys where one is the whole beginning of another, which is the pair that says a shorter key
-        comes first. Anything sorting them by a fixed number of leading bytes has to count the
-        bytes a short key does not have as under every byte a long one could hold there.
+        comes first, and two of one length wide enough to fill a leading number, which part at
+        their fourth byte and cross back at their fifth, so every byte of one is read from where it
+        belongs and read once.
     ]]
     Harness.case ("wire.map-key-prefixes", function ()
         local of = Turns.built (Lync.map (Lync.str (0, 8), Lync.int (0, 9), 0, 8))
 
-        local held: { [string]: number } = { a = 1, ab = 2, abc = 3, b = 4, ba = 5 }
+        local held: { [string]: number } =
+            { a = 1, ab = 2, abc = 3, b = 4, ba = 5, abcza = 6, abdaz = 7 }
         local bytes, size = Turns.wrote (of, held)
         local back = Turns.read (of, bytes, size)
 
@@ -989,6 +991,6 @@ return {
             names += 1
         end
 
-        Expect.equal (names, 5)
+        Expect.equal (names, 7)
     end),
 }

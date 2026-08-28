@@ -120,18 +120,45 @@ const LEADING = RANKED + PAIR
 function Bytes.ranks (len: number): boolean return len <= RANKED end
 
 --[[
+    What a range shorter than the whole width is scaled by, so the bytes it does not have count as
+    nothing under the ones it does. A width has only as many answers as it has bytes, so all of
+    them are made once and a key asks for one.
+]]
+const SCALE = table.create (LEADING + 1) :: { number }
+for step = 0, LEADING do
+    SCALE[step + 1] = 2 ^ (step * BYTE)
+end
+
+table.freeze (SCALE)
+
+--[[
     The first bytes of a range as one number, padded with nothing where the range holds fewer. Two
     of these order the ranges the way the ranges themselves order, as far as they reach, so a sort
     may ask them first and reach for the whole comparison only where a pair of them ties.
 ]]
 @native
 function Bytes.leading (b: buffer, at: number, len: number): number
-    local sum = 0
-    for step = 0, LEADING - 1 do
-        sum = sum * 256 + (if step < len then buffer.readu8 (b, at + step) else 0)
+    --[[
+        A range wide enough to fill the width, spelled out. How many bytes go in is settled by the
+        width and not by the range, so the walk that gathered them was counting to a number this
+        already knows, and every step of it asked whether the range had reached its end.
+    ]]
+    if len >= LEADING then
+        local sum = buffer.readu8 (b, at)
+        sum = sum * 256 + buffer.readu8 (b, at + 1)
+        sum = sum * 256 + buffer.readu8 (b, at + PAIR)
+        sum = sum * 256 + buffer.readu8 (b, at + PAIR + 1)
+        sum = sum * 256 + buffer.readu8 (b, at + RANKED)
+        return sum * 256 + buffer.readu8 (b, at + RANKED + 1)
     end
 
-    return sum
+    -- A shorter one, taken as it stands and put where its own bytes sit under a wider one's.
+    local sum = 0
+    for step = 0, len - 1 do
+        sum = sum * 256 + buffer.readu8 (b, at + step)
+    end
+
+    return sum * SCALE[LEADING - len + 1]
 end
 
 @native

@@ -158,8 +158,8 @@ local ASIDE = 2
 --[[
     A vocabulary declared as a union of string literals, and a constant carrying a member of one.
 
-    Three patterns because a union is three shapes on the page: the line that opens it, the whole
-    of a short one, and the lines a long one runs on. The long ones are the ones worth holding.
+    Two patterns for the union, since a short one is whole on the line that opens it and a long
+    one runs on below, and a third for the constant. The long ones are the ones worth holding.
 ]]
 local DECLARES = "^export type (%w+) ="
 local CARRIED = '^%s*|?%s*"'
@@ -188,8 +188,8 @@ local WEARS = table.freeze ({ Repo.DOUBLES, Repo.EXPECT })
 
 --[[
     A place inside a document, which is the same refusal reached the other way: a comment naming
-    no register can still send a reader into one by number. `section` alone stays free, being this
-    protocol's own word for part of a frame. What is refused is the word with a number behind it.
+    no register can still send a reader into one by number. `section` alone stays free, since it
+    is this protocol's own word for part of a frame. What is refused is the word and a number.
 ]]
 local PLACES = table.freeze ({
     "([sS]ection %d[%d%.]*)",
@@ -569,7 +569,7 @@ end
     Comment blocks held to what they run to and what they stand over. A rationale is a why and a
     contract is what a public function costs, and neither is an essay. Length is counted rather
     than refused, since a hard limit would cut what is worth saying. Standing over nothing is
-    absolute, a block over nothing being one whose line moved out from under it.
+    absolute, since a block over nothing is one whose line moved out from under it.
 ]]
 function Checks.saying (): Ruling.Ruling
     local over = {}
@@ -659,8 +659,8 @@ end
 --[[
     Every comment standing on its own, naming a module or a constant and never a document, a
     section or a page. A module it names has to be one the repository has, since a reference a tool
-    can follow is only one where following it arrives. A unit's banner is the one exception, being
-    the coverage gate's claim rather than a reader sent anywhere.
+    can follow is only one where following it arrives. A unit's banner is the one exception, since
+    it is the coverage gate's claim rather than a reader sent anywhere.
 ]]
 function Checks.citing (): Ruling.Ruling
     local wrong = {}

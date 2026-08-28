@@ -2136,10 +2136,29 @@ function Leaf.bytes (
         local count = #value
         if count < low or count > high then refuse (at, count) end
 
-        for place = 1, count do
+        --[[
+            Four characters off the name at a time. `string.byte` answers a range as readily as one
+            byte, so asking it once for four is one crossing where four asks are four, and what is
+            left over at the end is taken the plain way below.
+        ]]
+        local place = 1
+        while place + TRIO <= count do
+            local one, two, three, four = string.byte (value, place, place + TRIO)
+            local a, b2 = index[one + 1], index[two + 1]
+            local c, d = index[three + 1], index[four + 1]
+            if a == nil or b2 == nil or c == nil or d == nil then refuse (at, value) end
+
+            scratch[place], scratch[place + 1] = a :: number, b2 :: number
+            scratch[place + PAIR], scratch[place + TRIO] = c :: number, d :: number
+            place += NIBBLE
+        end
+
+        while place <= count do
             local one = index[string.byte (value, place) + 1]
             if one == nil then refuse (at, value) end
+
             scratch[place] = one :: number
+            place += 1
         end
 
         put (b, pos, count - low)

@@ -17,7 +17,7 @@ const ROUNDS = Doubles.ROUNDS
 
 -- Types ---------------------------------------------------------------
 
--- One telling: which of the three it was, the record it was about, and why where there is a why.
+-- One telling: which of the three, the id and record it names, what it was before, and any cause.
 export type Seen = {
     read kind: string,
     read id: number,

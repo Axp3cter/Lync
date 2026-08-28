@@ -29,7 +29,7 @@ const STAMPED = 1
 const LEAST = 0
 
 --[[
-    Where a stream header keeps the two fields a sender states outright, the third being the
+    Where a stream header keeps the three fields a sender states outright, the fourth being the
     sequence. Which slot that one is comes off the form rather than being written down here, since
     the order is the wire's and its home is the frame that lays the header out.
 ]]

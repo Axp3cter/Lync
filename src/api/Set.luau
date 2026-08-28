@@ -177,7 +177,7 @@ function Set.onRemoved (self: any, fn: (number, Types.Cause) -> ()): Types.Conne
     return watches (self, Sync.onRemoved, fn)
 end
 
--- The same for a set, which is the field it keys by and then the record under it.
+-- The field this set keys by, and the record standing under it.
 function Set.describe (self: any): string
     return Serial.frame ({
         kind = "set",

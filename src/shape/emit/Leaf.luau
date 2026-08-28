@@ -86,7 +86,7 @@ const SCORE = DOZEN + BYTE
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
--- The two steps into a group of eight that no width of its own already names.
+-- Five and seven, each a width of its own and each a step into a group of eight as well.
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
 
@@ -495,6 +495,42 @@ local function packed (
         end
     end
 
+    --[[
+        Eight elements to seven bytes, which is where seven bits land evenly. The fifth straddles
+        the word, so what is over it goes down as a pair and a byte beside, and every hundred point
+        range a caller declares is this width.
+    ]]
+    if width == SEVEN then
+        while from + SEVEN <= count do
+            local fifth = indices[from + NIBBLE]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (indices[from + 1], SEVEN),
+                    bit32.lshift (indices[from + PAIR], SEVEN * PAIR),
+                    bit32.lshift (indices[from + TRIO], SEVEN * TRIO),
+                    bit32.lshift (fifth, SEVEN * NIBBLE)
+                )
+            )
+
+            local rest = bit32.bor (
+                bit32.rshift (fifth, NIBBLE),
+                bit32.lshift (indices[from + FIVE], TRIO),
+                bit32.lshift (indices[from + SEXTET], TRIO + SEVEN),
+                bit32.lshift (indices[from + SEVEN], TRIO + SEVEN * PAIR)
+            )
+
+            buffer.writeu16 (b, at + WORD, rest)
+            buffer.writeu8 (b, at + WORD + PAIR, bit32.rshift (rest, WIDE))
+
+            at += WORD + TRIO
+            from += BYTE
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -786,6 +822,32 @@ local function unpacked (
             into[from + SEVEN] = bit32.rshift (high, TRIO)
 
             at += WORD + 1
+            from += BYTE
+        end
+    end
+
+    -- The seven bytes back as the eight elements they carry, the fifth lying across the word.
+    if width == SEVEN then
+        while from + SEVEN <= count do
+            local low = buffer.readu32 (b, at)
+            local rest = bit32.bor (
+                buffer.readu16 (b, at + WORD),
+                bit32.lshift (buffer.readu8 (b, at + WORD + PAIR), WIDE)
+            )
+
+            into[from] = bit32.extract (low, 0, SEVEN)
+            into[from + 1] = bit32.extract (low, SEVEN, SEVEN)
+            into[from + PAIR] = bit32.extract (low, SEVEN * PAIR, SEVEN)
+            into[from + TRIO] = bit32.extract (low, SEVEN * TRIO, SEVEN)
+            into[from + NIBBLE] = bit32.bor (
+                bit32.rshift (low, SEVEN * NIBBLE),
+                bit32.lshift (bit32.extract (rest, 0, TRIO), NIBBLE)
+            )
+            into[from + FIVE] = bit32.extract (rest, TRIO, SEVEN)
+            into[from + SEXTET] = bit32.extract (rest, TRIO + SEVEN, SEVEN)
+            into[from + SEVEN] = bit32.extract (rest, TRIO + SEVEN * PAIR, SEVEN)
+
+            at += WORD + TRIO
             from += BYTE
         end
     end

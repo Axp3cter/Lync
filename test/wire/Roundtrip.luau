@@ -98,6 +98,7 @@ const GROUPED = table.freeze ({
     15,
     31,
     63,
+    127,
     255,
     1023,
     4095,
@@ -909,7 +910,7 @@ return {
 
             local held = {}
             for index = 1, GROUPS do
-                held[index] = (index * TIED.low) % (top + 1)
+                held[index] = (index * top) % (top + 1)
             end
 
             local bytes, size = Turns.wrote (of, held)

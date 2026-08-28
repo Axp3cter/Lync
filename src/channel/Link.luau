@@ -162,7 +162,8 @@ function Link.close (of: Link)
 
     --[[
         Over the readiness set, because a client is admitted and given its buckets in one call, so
-        that set is the list of everyone holding any. Clearing a key mid-walk is what `next` allows.
+        that set is the list of everyone holding any. Clearing a key mid-walk is what the language
+        allows, and dropping does exactly that.
     ]]
     for player in of.ready do
         Link.drop (of, player)

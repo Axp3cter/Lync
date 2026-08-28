@@ -24,7 +24,7 @@ const SENDER = "alice"
 ]]
 const ORDERED: Doubles.Channel = "reliable"
 
--- The shape every row carries.
+-- The shape a row that sends anything carries.
 const CARRIED = "typical"
 
 -- Types ---------------------------------------------------------------

@@ -59,7 +59,7 @@ local function spread (of: Grid.Grid, wide: boolean): Fold
 
     local leaves = if wide then { of, of, of } else { of, of }
 
-    -- Both widths come through here, so what it is handed is whichever the leaves say it took.
+    -- Both widths come through here, so which datatype is wanted follows the one it was built for.
     local wanted = if wide then VECTOR else PLANE
 
     local function pull (value: any, into: { number }, at: number): boolean
@@ -169,7 +169,7 @@ local function still (): Fold
     return { leaves = {}, pull = pull, push = push }
 end
 
--- A frame as the one number every rotation form here comes back through, which is a quaternion.
+-- A frame, whichever rotation form declared it, since all of them come back through a quaternion.
 local function turned (leaves: { Grid.Grid }, parts: any, whole: any, reach: number): Fold
     local function pull (value: any, into: { number }, at: number): boolean
         if typeof (value) ~= FRAME then return false end
@@ -197,7 +197,7 @@ local function turned (leaves: { Grid.Grid }, parts: any, whole: any, reach: num
     return { leaves = leaves, pull = pull, push = push }
 end
 
--- The three a packed colour spends its sixteen bits on, red first and least.
+-- The three a packed colour spends its sixteen bits on, green taking the odd one.
 local function packed (): Fold
     local red, green, blue = Grid.channel (RED), Grid.channel (GREEN), Grid.channel (BLUE)
 

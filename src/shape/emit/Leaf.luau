@@ -86,6 +86,9 @@ const SCORE = DOZEN + BYTE
 -- Twenty two, which fills eleven bytes four at a time and no fewer of them at all.
 const STOUT = BROAD - PAIR
 
+-- Twenty one, which takes eight elements and twenty one bytes to come out even.
+const SCORED = SCORE + FLAG
+
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
@@ -539,6 +542,54 @@ local function packed (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    --[[
+        Eight elements to twenty one bytes, five words and one over. Every element but the first,
+        the third and the sixth is gathered from two of those words, the fourth taking a single
+        bit off the end of the second.
+    ]]
+    if width == SCORED then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, SCORED)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (second, ELEVEN),
+                    bit32.lshift (third, TEN),
+                    bit32.lshift (fourth, SCORED + TEN)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (bit32.rshift (fourth, FLAG), bit32.lshift (fifth, SCORE))
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * TRIO,
+                bit32.bor (
+                    bit32.rshift (fifth, DOZEN),
+                    bit32.lshift (sixth, NINE),
+                    bit32.lshift (seventh, SCORE + TEN)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * NIBBLE,
+                bit32.bor (bit32.rshift (seventh, PAIR), bit32.lshift (eighth, WIDER + FLAG))
+            )
+            buffer.writeu8 (b, at + WORD * FIVE, bit32.rshift (eighth, DOZEN + FLAG))
+
+            at += WORD * FIVE + 1
+            from += BYTE
         end
     end
 
@@ -1037,6 +1088,44 @@ local function unpacked (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    -- The twenty one bytes back as the eight they carry, five of them gathered from two words.
+    if width == SCORED then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+            local four = buffer.readu32 (b, at + WORD * TRIO)
+            local five = buffer.readu32 (b, at + WORD * NIBBLE)
+
+            into[from] = bit32.extract (one, 0, SCORED)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (one, SCORED),
+                bit32.lshift (bit32.extract (two, 0, TEN), ELEVEN)
+            )
+            into[from + PAIR] = bit32.extract (two, TEN, SCORED)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (two, SCORED + TEN),
+                bit32.lshift (bit32.extract (three, 0, SCORE), FLAG)
+            )
+            into[from + NIBBLE] = bit32.bor (
+                bit32.rshift (three, SCORE),
+                bit32.lshift (bit32.extract (four, 0, NINE), DOZEN)
+            )
+            into[from + FIVE] = bit32.extract (four, NINE, SCORED)
+            into[from + SEXTET] = bit32.bor (
+                bit32.rshift (four, SCORE + TEN),
+                bit32.lshift (bit32.extract (five, 0, WIDER + FLAG), PAIR)
+            )
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (five, WIDER + FLAG),
+                bit32.lshift (buffer.readu8 (b, at + WORD * FIVE), DOZEN + FLAG)
+            )
+
+            at += WORD * FIVE + 1
+            from += BYTE
         end
     end
 

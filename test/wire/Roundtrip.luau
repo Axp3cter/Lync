@@ -108,10 +108,20 @@ const GROUPED = table.freeze ({
     65535,
     262143,
     1048575,
+    2097151,
     4194303,
     16777215,
 })
 const GROUPS = 19
+
+--[[
+    The three shifts of the second filling. Counting down from the top sets every high bit of every
+    element, so a bit laid where a one already sits cannot be seen. A stride alone does not fix it
+    either: any value linear in the index holds the same low bits at every eighth place, and a group
+    is eight elements, so these fold the high bits down and let that place vary.
+]]
+const SPILL = 2 + 1
+const DRAIN = 4 + 2 + 1
 
 --[[
     A word that no one rule covers. Its first field is its own index and leaves patterns its bits
@@ -911,17 +921,26 @@ return {
         for _, top in GROUPED do
             local of = Turns.built (Lync.array (Lync.int (0, top), 0, GROUPS))
 
-            local held = {}
-            for index = 1, GROUPS do
-                held[index] = (index * top) % (top + 1)
-            end
+            for _, counted in { true, false } do
+                local held = {}
+                for index = 1, GROUPS do
+                    if counted then
+                        held[index] = (index * top) % (top + 1)
+                    else
+                        local one = (index * top) % (top + 1)
+                        one = bit32.bxor (one, bit32.rshift (one, SPILL))
+                        one = bit32.bxor (one, bit32.rshift (one, DRAIN))
+                        held[index] = one % (top + 1)
+                    end
+                end
 
-            local bytes, size = Turns.wrote (of, held)
-            local back = Turns.read (of, bytes, size)
+                local bytes, size = Turns.wrote (of, held)
+                local back = Turns.read (of, bytes, size)
 
-            Expect.equal (#back, GROUPS)
-            for index = 1, GROUPS do
-                Expect.equal (back[index], held[index])
+                Expect.equal (#back, GROUPS)
+                for index = 1, GROUPS do
+                    Expect.equal (back[index], held[index])
+                end
             end
         end
     end),

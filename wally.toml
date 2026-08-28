@@ -8,4 +8,26 @@ homepage = "https://github.com/Axp3cter/Lync"
 repository = "https://github.com/Axp3cter/Lync.git"
 realm = "shared"
 registry = "https://github.com/UpliftGames/wally-index"
-exclude = ["index.d.ts", "package.json"]
+# A consumer takes `src` through `default.project.json` and nothing else. The rest is what builds
+# and checks the library rather than what runs it, and a registry holds a two megabyte ceiling.
+exclude = [
+    "index.d.ts",
+    "package.json",
+    "bench.project.json",
+    "sourcemap.json",
+    "package-lock.json",
+    "test.project.json",
+    "tsconfig.json",
+    "rokit.toml",
+    "stylua.toml",
+    "test",
+    "typedefs",
+    "scripts",
+    "bench",
+    "fixtures",
+    "node_modules",
+    "build",
+    "dist",
+    ".github",
+    ".vscode",
+]

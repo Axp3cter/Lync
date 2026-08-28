@@ -102,6 +102,10 @@ const WIDE = PAIR * BYTE
 -- Eighteen, which is that width and a pair over, and fills nine bytes four at a time.
 const WIDER = WIDE + PAIR
 
+-- Fourteen, which fills seven bytes four at a time, and where the fourth of them starts.
+const SEVENS = SEVEN * PAIR
+const AMPLE = BROAD + NIBBLE
+
 -- The slot a reference nobody made takes, which is none, since the array it indexes starts at one.
 const NOTHING = 0
 
@@ -508,6 +512,29 @@ local function packed (
             buffer.writeu8 (b, at + WORD * PAIR, bit32.rshift (fourth, TEN))
 
             at += WORD * PAIR + 1
+            from += NIBBLE
+        end
+    end
+
+    -- The same seven bytes four at a time, fourteen being half of twenty eight.
+    if width == SEVENS then
+        while from + TRIO <= count do
+            local first, second = indices[from], indices[from + 1]
+            local third, fourth = indices[from + PAIR], indices[from + TRIO]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (first, bit32.lshift (second, SEVENS), bit32.lshift (third, AMPLE))
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD,
+                bit32.bor (bit32.rshift (third, NIBBLE), bit32.lshift (fourth, TEN))
+            )
+            buffer.writeu8 (b, at + WORD + PAIR, bit32.rshift (fourth, SEXTET))
+
+            at += WORD + TRIO
             from += NIBBLE
         end
     end
@@ -939,6 +966,28 @@ local function unpacked (
             )
 
             at += WORD * PAIR + 1
+            from += NIBBLE
+        end
+    end
+
+    -- The same seven bytes back four at a time, the third and the fourth lying across a boundary.
+    if width == SEVENS then
+        while from + TRIO <= count do
+            local low = buffer.readu32 (b, at)
+            local mid = buffer.readu16 (b, at + WORD)
+
+            into[from] = bit32.extract (low, 0, SEVENS)
+            into[from + 1] = bit32.extract (low, SEVENS, SEVENS)
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (low, AMPLE),
+                bit32.lshift (bit32.extract (mid, 0, TEN), NIBBLE)
+            )
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (mid, TEN),
+                bit32.lshift (buffer.readu8 (b, at + WORD + PAIR), SEXTET)
+            )
+
+            at += WORD + TRIO
             from += NIBBLE
         end
     end

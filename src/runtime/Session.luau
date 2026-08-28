@@ -125,7 +125,7 @@ type Self = {
     one: { Player },
     fields: { number },
 
-    -- The numbers a question and an answer carry, which their block's header no longer does.
+    -- The fields a question's and an answer's own header carries, filled once a call and reused.
     asked: { number },
     unhook: { () -> () },
     started: boolean,
@@ -211,7 +211,7 @@ local function replying (
     local holds = link.holds
     local response = def.response
 
-    -- The same climb the questions are held to, since these are written the same way back.
+    -- Answers come in whatever order responders finish, so a run breaks where the id steps back.
     if not joins (link, holds, ANSWERS, def, who, false) or asked <= link.last then
         shipped (self)
         holds = 0

@@ -60,9 +60,8 @@ type Run = Replica.Paired
 -- Private -------------------------------------------------------------
 
 --[[
-    Four packets, and what separates each from the last is the one thing a counter is read
-    against: a plain fire, one that coalesces, one wide enough for its bytes to be worth reading,
-    and one the far side turns away.
+    A plain fire, one that coalesces, one wide enough for its bytes to be worth reading, and one the
+    far side turns away, with the set beside them.
 ]]
 local function defined (): any
     return {

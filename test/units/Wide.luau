@@ -47,7 +47,10 @@ const APART = table.freeze ({
     "8000000000000000",
 })
 
--- What the four come to, what a word without any of them is, and what the last three come to.
+--[[
+    A whole word of ones, what the four come to, and a word without any of them. Then the last three
+    of the four, and a word without those.
+]]
 const WHOLE = "FFFFFFFFFFFFFFFF"
 const APIECE = "8000000100020001"
 const OTHERWISE = "7FFFFFFEFFFDFFFE"

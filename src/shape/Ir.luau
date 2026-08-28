@@ -484,7 +484,7 @@ function Ir.group (
 end
 
 --[[
-    The computation that puts one of those values back together out of its parts.
+    The computation that puts a value back together out of the parts it came apart into.
 
     Going out is a lookup and coming back is a call, which is the engine's asymmetry rather than a
     choice here: its datatypes carry their parts as properties and are built whole or not at all.

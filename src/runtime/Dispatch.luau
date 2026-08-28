@@ -29,7 +29,6 @@ export type Wiring = {
 
 -- Private -------------------------------------------------------------
 
--- A definition nothing on this machine listens for.
 local function unheard (name: string)
     local said = `nothing on this machine listens for {name}`
     local facts: Log.Facts = { definition = name }
@@ -82,8 +81,7 @@ end
 
 --[[
     Every payload one block carried, handed over together. A listener takes them one at a time as
-    it always did, and what a block shares is the thread they arrive on, which was one apiece and
-    is now one between them.
+    it always did, and what the block shares is the thread they arrive on.
 ]]
 function Dispatch.packets (
     of: Wiring,

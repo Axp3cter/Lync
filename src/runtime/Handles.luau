@@ -8,7 +8,7 @@ local Handles = {}
 
 -- Types ---------------------------------------------------------------
 
--- What a handle knows about where it ended up, which is nothing until it is told.
+-- What a handle knows about where it ended up, and it knows none of it until it is told.
 export type Live = {
     space: string?,
     name: string?,
@@ -46,10 +46,10 @@ end
 -- Public --------------------------------------------------------------
 
 --[[
-    A fresh binding, which every handle is made holding one of.
+    A fresh binding, empty of everything a handle later learns.
 
-    Made by the handle rather than here, and typed here, because what fills it is the calls below
-    and nothing a caller can reach.
+    Every field is filled by the calls below and none by a caller, so a handle holding one of these
+    before its namespace opens knows only that it has one.
 ]]
 function Handles.live (): Live
     return {

@@ -16,7 +16,7 @@ local Slots = {}
 -- Bits in a byte, which a bound counted in one is measured against.
 const BYTE = Protocol.BYTE_BITS
 
--- How many codes the count shares its number with, and the widest run worth packing at.
+-- How many codes the count shares its number with, and the widest width worth packing at.
 const SPANS = 16
 const NARROW = SPANS // 2 - 1
 

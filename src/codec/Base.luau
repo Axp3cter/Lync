@@ -16,7 +16,7 @@ Modifiers.__index = Modifiers
 
 -- Constants -----------------------------------------------------------
 
--- Shared by every codec declaring neither, since two frozen empty tables cannot be told apart.
+-- Shared by every codec that declares none, since two frozen empty tables cannot be told apart.
 const NO_PARAMS: Params = table.freeze ({})
 const NO_CHECKS = table.freeze ({} :: { Validate })
 

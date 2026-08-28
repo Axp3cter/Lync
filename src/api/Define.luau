@@ -68,10 +68,10 @@ function Define.declaring (of: Live, said: string)
 end
 
 --[[
-    The session a handle talks through, refused where it has none yet and held to the machine whose
-    call it is. A side is a question about the place rather than about the session, so it is asked
-    here beside the rest: a wrapper apiece would pay a second call to reach what this already
-    holds, on every fire and every update a place makes.
+    The session a handle talks through, refused where there is none yet, where one has closed, and
+    where the call is the other machine's. A side is a question about the place rather than about
+    the session, so it is asked here beside the rest: a wrapper apiece would pay a second call to
+    reach what this already holds, on every fire and every update a place makes.
 ]]
 function Define.reach (of: Live, said: string, server: boolean): Session.Session
     local session = of.session

@@ -137,7 +137,7 @@ function Catchup.lost (of: Catchup, key: any, players: { Player })
     end
 end
 
--- A link that has closed, and the reserve count taken down by every key that client owed.
+-- A link that has closed, and the backlog count taken down by every key that client owed.
 function Catchup.dropped (of: Catchup, who: Player)
     local owed = of.owed[who]
     if owed == nil then return end

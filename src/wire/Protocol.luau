@@ -8,8 +8,8 @@ local Protocol = {}
 Protocol.VERSION = 13
 
 --[[
-    Every byte the handshake spends. Until these agree, neither machine has learned anything about
-    the other that it is entitled to act on.
+    The handshake's own numbers. Until these agree, neither machine has learned anything about the
+    other that it is entitled to act on.
 ]]
 Protocol.HELLO_BYTES = 8
 Protocol.VERDICT_BYTES = 9
@@ -21,8 +21,8 @@ Protocol.VERDICT_ACCEPT = 1
 Protocol.BYTE_BITS = 8
 
 --[[
-    How far a double counts without losing a step. A signed varint folds its sign into the value it
-    carries, so it reaches half this far in each direction.
+    How far a double counts without losing a step. A varint carries to one short of it, signed or
+    not, since the sign is folded into the group a value opens with rather than into the value.
 ]]
 Protocol.EXACT = 2 ^ 53
 
@@ -45,6 +45,8 @@ Protocol.UNKNOWN_TEXT = 5
 Protocol.UNKNOWN_BYTES = 6
 Protocol.UNKNOWN_LIST = 7
 Protocol.UNKNOWN_PAIRS = 8
+
+-- Where a signed varint's spelling changes, and the most groups one ever runs to.
 Protocol.VLI_EDGE = 2 ^ 52 - 1
 Protocol.VARINT_GROUPS = 8
 
@@ -53,6 +55,8 @@ Protocol.VARINT_GROUPS = 8
     is by writing it, so one that runs over lands here and is refused afterwards.
 ]]
 Protocol.UNKNOWN_SLACK = Protocol.VARINT_GROUPS + 1
+
+-- A field wider than this takes whole bytes rather than packing with what sits around it.
 Protocol.BIT_CEILING = 24
 
 --[[
@@ -75,6 +79,8 @@ Protocol.MAX_FIELDS = 64
 Protocol.UNRELIABLE_CEILING = 1000
 Protocol.UNRELIABLE_MARGIN = 0
 Protocol.UNRELIABLE_CAP = Protocol.UNRELIABLE_CEILING - Protocol.UNRELIABLE_MARGIN
+
+-- The widest one frame may be.
 Protocol.MAX_FIRE = 1000000
 
 -- Budgets, in bytes, and the detector window in seconds.
@@ -83,11 +89,11 @@ Protocol.BUDGET_FLOOR = 1024
 Protocol.SECTION_BYTES = Protocol.BUDGET_FLOOR
 Protocol.DETECTOR_WINDOW = 1
 
--- Queries, the timeout in seconds.
+-- Queries: the timeout in seconds, and how many may be in flight at once.
 Protocol.QUERY_TIMEOUT = 10
 Protocol.QUERY_CAP = 32768
 
--- Sequences and stamps.
+-- The window a sequence is newer inside, and how far a slot's generation counts.
 Protocol.NEWEST_WINDOW = 32768
 Protocol.NEWEST_GENS = 4
 

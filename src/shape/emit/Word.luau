@@ -632,6 +632,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local top = bounds[1]
 
             local function filled (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+                local top, writes = top, writes
+
                 --[[
                     Walked over the names rather than over their number, since every field of a
                     word laid out this way has one and the walk hands it over as it goes, where
@@ -769,6 +771,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         end
 
         local function flat (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
+            local first, last, puts, levels, makes = first, last, puts, levels, makes
+            local offset, where, width = offset, where, width
+
             for window = 1, windows do
                 local acc = 0
 
@@ -869,6 +874,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             none to ask after and the pieces go onto the record as they come off the bytes.
         ]]
         local function bared (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local first, last, offset, span, tops, puts = first, last, offset, span, tops, puts
+            local where, width = where, width
+
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]
@@ -945,6 +953,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             walk puts each piece down as the bytes spell it and asks after none of them.
         ]]
         local function swept (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local first, last, offset, span, puts = first, last, offset, span, puts
+            local where, width = where, width
+
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]

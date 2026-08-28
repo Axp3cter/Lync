@@ -441,9 +441,10 @@ function Harness.pair (name: string, server: () -> (), client: () -> ()): Declar
 end
 
 --[[
-    Runs every tree this side owns, in three passes over one gathered list: every namespace opens,
-    every sealed case runs against a library defined and not started, then the library starts and
-    everything else runs. The order is this list's, and no filename decides it.
+    Runs every tree this side owns, in passes over one gathered list: every namespace opens, every
+    sealed case runs against a library defined and not started, then the library starts and
+    everything but the live tree runs, and the two machines meet before the live tree does. The
+    order is this list's, and no filename decides it.
 ]]
 function Harness.run (side: Side, seed: number?)
     local root = assert (script.Parent, "the harness expects to sit under the test tree")

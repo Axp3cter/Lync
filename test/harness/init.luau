@@ -292,8 +292,7 @@ end
 
 --[[
     The meeting, as the two halves of it. Answers what to call when this side reaches the live tree,
-    so the remote and its handler are in place from the first check runs and a hello sent early is
-    still heard.
+    so the remote and its handler are in place before the first check runs.
 ]]
 local function rendezvous (root: Instance, side: Side): () -> ()
     if side == "server" then

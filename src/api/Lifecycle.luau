@@ -23,7 +23,7 @@ local started = false
 
 -- Private -------------------------------------------------------------
 
--- Who is here, as the three things a namespace asks and no more.
+-- That roster over the engine's Players service.
 local function rostered (): Session.Roster
     local players = game:GetService ("Players")
 
@@ -110,7 +110,7 @@ function Lifecycle.close ()
     end
 end
 
--- One namespace's counters, as the frozen reading two of which subtract into a rate.
+-- One namespace's counters by name, refused before start like everything else here.
 function Lifecycle.stats (name: string): Types.Stats
     running ("stats")
     return opened (name, "stats"):stats ()

@@ -17,7 +17,7 @@ const SWATCHES = table.freeze ({
     Color3.new (0, 0, 1),
 })
 
--- A quarter turn, which is the angle every rotation case is built out of.
+-- A quarter turn in radians, which is what every rotation case is built out of.
 const QUARTER = math.pi / 2
 
 -- The largest whole number the wire carries, which is what a vlq case tops out at.

@@ -10,7 +10,7 @@ local Grid = {}
 -- Constants -----------------------------------------------------------
 
 --[[
-    A quarter turn, which is what an octahedral precision is read against: a component of the fold
+    A quarter turn, and what an octahedral precision is read against: a component of the fold
     runs a quarter of the way round the sphere per unit, so a precision in degrees is that many
     ninetieths of one. A whole turn is not here, because an angle is the codec that declares one and
     a cyclic grid takes the range it is handed rather than a turn it assumes.
@@ -23,7 +23,7 @@ const BOUND = Protocol.QUAT_BOUND
 -- What a division is allowed to be out by before its answer is read as the whole number it is.
 const HAIR = 2 ^ -48
 
--- What a reading is allowed to be out by before it is read as the point it obviously is.
+-- How far a value may sit from a point and still be taken as that point.
 const READING = 2 ^ -20
 
 -- Types ---------------------------------------------------------------
@@ -39,10 +39,10 @@ export type Grid = {
     read fromIndex: (index: number) -> any,
 
     --[[
-        The pair of points a reading sits between, as indices and as the values at them, which a
-        caller can assemble from the two above at the cost of asking five times over. A grid a
-        search ever reaches for settles it once instead. A reading that is no place answers with
-        the first index missing, which answers for a pair that has no other half either.
+        The pair of points a reading sits between, as indices and as the values at them. A caller
+        could assemble that from the two above at the cost of asking five times over, so a grid a
+        search reaches for settles it once instead. A reading that is no place answers with the
+        first index missing, and a pair with no other half either.
     ]]
     read window: ((value: any) -> (number?, number, number, number))?,
     --[[
@@ -57,12 +57,12 @@ export type Grid = {
 
 -- Private -------------------------------------------------------------
 
--- What a number may be out by and still be the point it obviously is, at a stated width.
+-- The slack a comparison gets. Never past half a step, since beyond that the nearer point moves.
 local function allowed (min: number, max: number, step: number, width: number): number
     return math.min ((max - min) * width, step / 2)
 end
 
--- How many whole steps a range holds, which is a division and so not always the number it is.
+-- How many whole steps a range holds. A division, so not always the number it looks like.
 local function spanned (min: number, max: number, step: number): number
     local whole = math.floor ((max - min) / step)
     if min + (whole + 1) * step <= max + allowed (min, max, step, HAIR) then return whole + 1 end
@@ -242,7 +242,7 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
     }
 end
 
--- One bit, and the two values it is, which is the one grid holding nothing a number could be.
+-- One bit and the two values it is, the only grid here holding nothing a number could be.
 function Grid.flag (): Grid
     local function toIndex (value: any): number?
         if value == true then return 1 end
@@ -288,7 +288,7 @@ function Grid.flag (): Grid
     }
 end
 
--- A ranged int over a count of things, which is where every tag and every chosen name lands.
+-- A ranged int over a count of things, and where every tag and every chosen name lands.
 function Grid.index (count: number): Grid return Grid.of (0, count - 1, 1) end
 
 -- The names a declaration lists, indexed by where each one sits in it.
@@ -320,8 +320,8 @@ function Grid.named (names: { string }): Grid
 end
 
 --[[
-    One component of an octahedral mapping, which is the unit sphere folded onto a square and the
-    square read at a precision in degrees. Both components are this, and nothing else is.
+    One component of an octahedral mapping: the unit sphere folded onto a square, and that square
+    read at a precision in degrees. Both components are this, and nothing else is.
 ]]
 function Grid.plane (precision: number): Grid return Grid.of (-1, 1, precision / QUARTER) end
 
@@ -334,10 +334,10 @@ function Grid.chord (precision: number): Grid
     return Grid.of (-BOUND, BOUND, BOUND * precision / QUARTER)
 end
 
--- One channel of a packed colour, which is the whole of none to all of it in the bits it has.
+-- One channel of a packed colour, none of it to all of it across the bits it has.
 function Grid.channel (bits: number): Grid return Grid.of (0, 1, 1 / (2 ^ bits - 1)) end
 
--- Whether a step divides a range, which is a division and so not always the answer it is.
+-- Whether a step divides a range, asked of a division that rarely lands exactly.
 function Grid.divides (reach: number, step: number): boolean
     local points = reach / step
     local near = math.round (points)

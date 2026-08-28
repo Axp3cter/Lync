@@ -219,7 +219,7 @@ end
 function Rotation.smallest (of: Grid.Grid): Smallest
     local fromIndex, window = of.fromIndex, windows (of)
 
-    -- The three a tag sends and the one it leaves behind, which is `laid` the other way about.
+    -- The three a tag sends and the one it leaves behind.
     local function apart (
         tag: number,
         x: number,

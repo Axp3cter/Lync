@@ -1278,18 +1278,43 @@ function Leaf.bytes (
 
     local alphabet = of.alphabet
     if alphabet == nil then
+        --[[
+            Text and bytes apart, which the declaration settles and no value can change. Asked at
+            every value the pair below would be asking what the shape said, and it says it once.
+        ]]
+        if text then
+            local function write (b: buffer, pos: number, value: any): number
+                local count = #value
+                if count < low or count > high then refuse (at, count) end
+
+                put (b, pos, count - low)
+                local after = pos + held
+
+                buffer.writestring (b, after, value)
+                return after + count
+            end
+
+            local function read (b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
+                local index = take (b, pos)
+                if index > span then reject (Catalog.COUNT, at, index) end
+
+                local count = index + low
+                local after = pos + held
+
+                return after + count, buffer.readstring (b, after, count)
+            end
+
+            return write, read
+        end
+
         local function write (b: buffer, pos: number, value: any): number
-            local count = if text then #value else buffer.len (value)
+            local count = buffer.len (value)
             if count < low or count > high then refuse (at, count) end
 
             put (b, pos, count - low)
             local after = pos + held
 
-            if text then
-                buffer.writestring (b, after, value)
-            else
-                buffer.copy (b, after, value)
-            end
+            buffer.copy (b, after, value)
             return after + count
         end
 
@@ -1299,7 +1324,6 @@ function Leaf.bytes (
 
             local count = index + low
             local after = pos + held
-            if text then return after + count, buffer.readstring (b, after, count) end
 
             local out = buffer.create (count)
             buffer.copy (out, 0, b, after, count)

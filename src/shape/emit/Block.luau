@@ -414,6 +414,9 @@ function Block.apart (
     local function write (b: buffer, pos: number, value: any): number
         if typeof (value) ~= engine then Word.refusedAt (tag, paths, expected, value) end
 
+        -- The part writers and the names they take, reached once rather than once a part.
+        local writes, keys = writes, keys
+
         local at = pos
         for index = 1, reach do
             at = writes[index] (b, at, value[keys[index]])
@@ -422,6 +425,9 @@ function Block.apart (
     end
 
     local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        -- The same the other way, the readers and the array their answers go into.
+        local reads, held = reads, held
+
         local at = pos
         for index = 1, reach do
             at, held[index] = reads[index] (b, at, ctx)

@@ -285,7 +285,8 @@ A group thins out as players leave, and audiences store the group itself.
 
 ## Validation
 
-Inbound checking has two stages, and a rejection at the first is a drop.
+Inbound checking has two stages, the schema and then your own checks, and a rejection at either
+is a drop.
 
 ```lua
 Damage = Lync.int(0, 500):validate(function(amount, ctx)
@@ -331,7 +332,8 @@ connection, so disconnect it to format records yourself. Match on `data`, never 
 Handlers, records and replies come out typed from the schema alone.
 
 ```lua
-type Fighter = Types.Infer<typeof(Codec)>   -- { name: string, score: number, tag: string? }
+type Fighter = Types.Infer<typeof(Codec)>
+-- { name: string, team: string, score: number, pos: Vector3 }
 ```
 
 `Infer` reads a codec, `Schema` reads a table of codecs as the record it describes, and `Update`

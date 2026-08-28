@@ -31,7 +31,7 @@ local KINDS = {
 
 local OPENS = "init.luau"
 
--- How long the serving command sleeps between the checks that keep the process alive.
+-- How long the serving command sleeps at a time, which is all it does once it is serving.
 local PATIENCE = 60
 
 --[[

@@ -66,8 +66,9 @@ function Build.sourcemap (name: string?): Ruling.Ruling
 end
 
 --[[
-    Every path a project names, so one written against the tree as authored can be read against the
-    tree as staged. Walked rather than matched on a key, a path standing wherever a node does.
+    Every path a project names, so one written against the tree as authored can be read against
+    the tree as staged. Walked rather than matched on a key, since a path can stand wherever a
+    node does.
 ]]
 local function paths (node: any, out: { { [string]: any } })
     if typeof (node) ~= "table" then return end

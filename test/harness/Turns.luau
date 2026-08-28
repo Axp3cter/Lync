@@ -16,7 +16,7 @@ const AT = "at"
 
 -- Public --------------------------------------------------------------
 
--- The context every read is handed, and the one nothing that turns a value reads.
+-- The context every read is handed, and nothing that turns a value reads it.
 Turns.CTX = table.freeze ({ player = nil, now = 0, last = nil }) :: Types.ValidateContext
 
 -- A codec compiled, under a path a refusal can name.

@@ -83,6 +83,9 @@ const BROAD = TRIO * BYTE
 -- Twenty, which fills no three bytes and fills five of them two at a time.
 const SCORE = DOZEN + BYTE
 
+-- Ten, which fills those same five bytes four at a time, twenty being twice it.
+const TEN = SEXTET + NIBBLE
+
 -- The two steps into a group of eight that no width of its own already names.
 const FIVE = FLAG + NIBBLE
 const SEVEN = TRIO + NIBBLE
@@ -437,6 +440,61 @@ local function packed (
         end
     end
 
+    -- The same five bytes four at a time, ten being half of twenty and the fourth still astride.
+    if width == TEN then
+        while from + TRIO <= count do
+            local last = indices[from + TRIO]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (indices[from + 1], TEN),
+                    bit32.lshift (indices[from + PAIR], TEN * PAIR),
+                    bit32.lshift (last, TEN * TRIO)
+                )
+            )
+            buffer.writeu8 (b, at + WORD, bit32.rshift (last, PAIR))
+
+            at += WORD + 1
+            from += NIBBLE
+        end
+    end
+
+    --[[
+        The same five bytes eight at a time, five being half of ten. The seventh straddles the word
+        the way the second of a pair of twenties does, and the eighth lies wholly in the last byte
+        above it, which is the only element of any group here that no word holds a bit of.
+    ]]
+    if width == FIVE then
+        while from + SEVEN <= count do
+            local sixth = indices[from + SEXTET]
+
+            buffer.writeu32 (
+                b,
+                at,
+                bit32.bor (
+                    indices[from],
+                    bit32.lshift (indices[from + 1], FIVE),
+                    bit32.lshift (indices[from + PAIR], FIVE * PAIR),
+                    bit32.lshift (indices[from + TRIO], FIVE * TRIO),
+                    bit32.lshift (indices[from + NIBBLE], FIVE * NIBBLE),
+                    bit32.lshift (indices[from + FIVE], FIVE * FIVE),
+                    bit32.lshift (sixth, FIVE * SEXTET)
+                )
+            )
+            buffer.writeu8 (
+                b,
+                at + WORD,
+                bit32.bor (bit32.rshift (sixth, PAIR), bit32.lshift (indices[from + SEVEN], TRIO))
+            )
+
+            at += WORD + 1
+            from += BYTE
+        end
+    end
+
     local acc, used = 0, 0
 
     --[[
@@ -690,6 +748,47 @@ local function unpacked (
 
             at += WORD + 1
             from += PAIR
+        end
+    end
+
+    -- The five bytes back as the four elements they carry, the fourth lying across the word.
+    if width == TEN then
+        while from + TRIO <= count do
+            local low = buffer.readu32 (b, at)
+
+            into[from] = bit32.extract (low, 0, TEN)
+            into[from + 1] = bit32.extract (low, TEN, TEN)
+            into[from + PAIR] = bit32.extract (low, TEN * PAIR, TEN)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (low, TEN * TRIO),
+                bit32.lshift (buffer.readu8 (b, at + WORD), PAIR)
+            )
+
+            at += WORD + 1
+            from += NIBBLE
+        end
+    end
+
+    -- The same five bytes back as eight, the seventh across the word and the eighth over it.
+    if width == FIVE then
+        while from + SEVEN <= count do
+            local low = buffer.readu32 (b, at)
+            local high = buffer.readu8 (b, at + WORD)
+
+            into[from] = bit32.extract (low, 0, FIVE)
+            into[from + 1] = bit32.extract (low, FIVE, FIVE)
+            into[from + PAIR] = bit32.extract (low, FIVE * PAIR, FIVE)
+            into[from + TRIO] = bit32.extract (low, FIVE * TRIO, FIVE)
+            into[from + NIBBLE] = bit32.extract (low, FIVE * NIBBLE, FIVE)
+            into[from + FIVE] = bit32.extract (low, FIVE * FIVE, FIVE)
+            into[from + SEXTET] = bit32.bor (
+                bit32.rshift (low, FIVE * SEXTET),
+                bit32.lshift (bit32.extract (high, 0, TRIO), PAIR)
+            )
+            into[from + SEVEN] = bit32.rshift (high, TRIO)
+
+            at += WORD + 1
+            from += BYTE
         end
     end
 

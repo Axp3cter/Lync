@@ -269,10 +269,19 @@ local function packed (
     if width == FLAG then
         local index = 1
         while index + BYTE - 1 <= count do
-            local byte = 0
-            for spot = index + BYTE - 1, index, -1 do
-                byte = byte * 2 + indices[spot]
-            end
+            --[[
+                The eight a byte holds, spelled out. A whole byte is always eight of them, so the
+                walk that gathered them counted to a number it was told, and the counting is all
+                it did that the bytes do not.
+            ]]
+            local byte = indices[index + SEVEN]
+            byte = byte * PAIR + indices[index + SEXTET]
+            byte = byte * PAIR + indices[index + FIVE]
+            byte = byte * PAIR + indices[index + NIBBLE]
+            byte = byte * PAIR + indices[index + TRIO]
+            byte = byte * PAIR + indices[index + PAIR]
+            byte = byte * PAIR + indices[index + 1]
+            byte = byte * PAIR + indices[index]
 
             buffer.writeu8 (b, at, byte)
             at += 1

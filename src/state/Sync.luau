@@ -61,7 +61,6 @@ type Arriving = Listeners.Run<number, any>
 type Moving = Listeners.Run<number, any, any>
 type Leaving = Listeners.Run<number, Types.Cause>
 
--- One partition: what it holds, what it owes the wire, and where its newest streams have reached.
 export type Partition = {
     read key: any,
     read store: Store.Store,
@@ -140,7 +139,7 @@ local function written (of: Sync, store: Store.Store, slot: number, id: number, 
     end
 end
 
--- A record marked as owing whatever it now owes, which is what the net of a flush is taken over.
+-- What a record owes, folded into what it already owed rather than replacing it.
 local function marked (part: Partition, id: number, took: Coalesce.Kind)
     local ops = part.dirt.ops
     ops[id] = MERGED (ops[id], took)
@@ -498,7 +497,7 @@ function Sync.new (def: Compile.Set): Sync
         lane = lane,
 
         --[[
-            Four answers that hold for the life of a set, kept where a write reads them rather than
+            Answers that hold for the life of a set, kept where a write reads them rather than
             reached for through the definition every time one lands. The bits are the one home's
             answer taken once a field rather than once a write of one.
         ]]
@@ -597,7 +596,6 @@ function Sync.update (of: Sync, id: number, fields: any)
             Log.error (`{def.name} has no field named {name}`, { definition = def.name })
         end
 
-        -- The one value that means a field has none, which is a table nothing else can be.
         local cleared = value == CLEARED
         if cleared and not optional[field] then
             Log.error (`{def.name}.{name} is not optional and cannot be cleared`, {
@@ -791,7 +789,7 @@ function Sync.shared (
     of.at = of.at % reach + 1
 end
 
--- One chunk of what a client is owed of one partition, queued for that client alone.
+-- What a client is owed, in chunks, queued for that client alone until the room runs out.
 function Sync.behind (of: Sync, link: Link.Link, who: Player, room: number): number
     if of.owed.any == 0 then return 0 end
 
@@ -865,11 +863,12 @@ function Sync.stream (of: Sync, b: buffer, pos: number, ctx: Types.ValidateConte
     return ends
 end
 
--- A caller told when a record arrives, moves or goes.
+-- The three tellings a caller connects to: a record arriving, moving, or going.
 function Sync.onAdded (of: Sync, fn: (number, any) -> ()): Types.Connection
     return Listeners.connect (of.added, fn) :: any
 end
 
+-- Connecting here is what makes a frame keep a copy of every record it changes.
 function Sync.onChanged (of: Sync, fn: (number, any, any?) -> ()): Types.Connection
     of.heard.watching = true
     return Listeners.connect (of.changed, fn) :: any

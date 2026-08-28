@@ -17,7 +17,7 @@ Set.__index = Set
 -- The set this handle mutates, which only the server has records in.
 local function owning (self: any, said: string): Sync.Sync
     local live = self.live
-    return Define.serving (live, said):set (live.id :: number)
+    return Define.reach (live, said, true):set (live.id :: number)
 end
 
 --[[

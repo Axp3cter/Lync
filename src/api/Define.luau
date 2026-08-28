@@ -65,8 +65,13 @@ function Define.declaring (of: Live, said: string)
     )
 end
 
--- The session a handle talks through, or nothing where it has none yet.
-function Define.reach (of: Live, said: string): Session.Session
+--[[
+    The session a handle talks through, or nothing where it has none yet, held to the machine whose
+    call it is. A side is a question about the place rather than about the session, so it is asked
+    here beside the rest: a wrapper apiece would pay a second call to reach what this already
+    holds, on every fire and every update a place makes.
+]]
+function Define.reach (of: Live, said: string, server: boolean): Session.Session
     local session = of.session
     if session == nil then
         if of.space == nil then
@@ -80,27 +85,14 @@ function Define.reach (of: Live, said: string): Session.Session
         refuse (`{said} after {of.space} was closed, and close lets its remotes go`, called (of))
     end
 
+    if of.isServer ~= server then
+        local whose = if server then "the server's" else "a client's"
+        local here = if server then "a client" else "the server"
+
+        refuse (`{said} is {whose} call, and this is {here}`, called (of))
+    end
+
     return held
-end
-
--- A call only the server makes, since the records and the audiences are the server's.
-function Define.serving (of: Live, said: string): Session.Session
-    local session = Define.reach (of, said)
-    if not of.isServer then
-        refuse (`{said} is the server's call, and this is a client`, called (of))
-    end
-
-    return session
-end
-
--- A call only a client makes, since what it leaves out is the one machine a client can reach.
-function Define.asking (of: Live, said: string): Session.Session
-    local session = Define.reach (of, said)
-    if of.isServer then
-        refuse (`{said} is a client's call, and this is the server`, called (of))
-    end
-
-    return session
 end
 
 -- No more namespaces, which is what start says about the ones it did not find.

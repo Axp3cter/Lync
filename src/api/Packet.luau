@@ -73,13 +73,13 @@ end
 ]]
 function Packet.fireServer (self: any, value: any)
     local live = self.live
-    Define.asking (live, "fireServer"):fire (live.def, nil, value)
+    Define.reach (live, "fireServer", false):fire (live.def, nil, value)
 end
 
 -- One fire at whoever the recipient names, which only a server has anybody to name.
 function Packet.fireClient (self: any, to: Types.Recipient, value: any)
     local live = self.live
-    Define.serving (live, "fireClient"):fire (live.def, to, value)
+    Define.reach (live, "fireClient", true):fire (live.def, to, value)
 end
 
 --[[

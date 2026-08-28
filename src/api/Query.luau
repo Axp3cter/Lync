@@ -43,7 +43,7 @@ local function asked (
     timeout: number?,
     complete: any
 ): (boolean, any, Types.OutcomeData?)
-    local session = Define.asking (self.live, "request")
+    local session = Define.reach (self.live, "request", false)
     if complete ~= nil then
         Define.refuse (
             "request with a completion is the server's call, and this is a client",
@@ -122,7 +122,7 @@ function Query.request (self: any, first: any, second: any, third: any, fourth: 
             branch above having settled the side before it is asked, and what it is called for is
             the session and the namespace it names when there is none.
         ]]
-        local session = Define.serving (self.live, "request")
+        local session = Define.reach (self.live, "request", true)
         if typeof (third) ~= "function" then
             Define.refuse (
                 "request without a completion is a client's call, and this is the server",

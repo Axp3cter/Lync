@@ -52,7 +52,7 @@ end
 
 -- Public --------------------------------------------------------------
 
--- Every backlog a namespace is carrying, empty, which a session holds one of while it is open.
+-- Nothing owed yet, which is where a session starts and where an emptied one returns to.
 function Catchup.new (): Catchup return { owed = {}, any = 0 } end
 
 -- The bytes a flush holds back from the shared plan while anything is catching up.
@@ -137,7 +137,7 @@ function Catchup.lost (of: Catchup, key: any, players: { Player })
     end
 end
 
--- A link that has closed, which is every backlog its client was carrying and no other client's.
+-- A link that has closed, and the reserve count taken down by every key that client owed.
 function Catchup.dropped (of: Catchup, who: Player)
     local owed = of.owed[who]
     if owed == nil then return end

@@ -61,7 +61,7 @@ function Joins.leaves (of: Base.Cell): { Grid.Grid }?
     return out
 end
 
--- A declaration, at the leaf it starts on, as the field it becomes.
+-- A declaration as the field it becomes: one grid at one leaf, or a bitfield across many.
 function Joins.of (of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: number?): Field?
     local leaves = Joins.leaves (of)
     if leaves == nil then return nil end

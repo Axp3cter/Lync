@@ -36,7 +36,7 @@ Folds.ENGINE = table.freeze ({
 -- The four a smallest three chooses between, which is what its tag is a ranged int over.
 const CORNERS = Protocol.QUAT_W + 1
 
--- How far past its first leaf the last of those four sits.
+-- How far past the tag the last of a smallest three's leaves sits, which keeps three beside it.
 const LAST = CORNERS - 1
 
 -- What a packed colour spends on each of its three, which is named one at a time.

@@ -91,6 +91,11 @@ function Audience.diff (of: Audience, key: any, ready: Recipients.Ready)
         of.held[key] = held
     end
 
+    --[[
+        Everybody ready counted as holding it, wherever the last diff left the key open. An open
+        key keeps no list, so without this the first diff after one narrows reports nobody lost,
+        and the clients that just stopped seeing the partition are never told to drop it.
+    ]]
     if of.wide[key] ~= false then
         for player in ready do
             held[player] = BEFORE

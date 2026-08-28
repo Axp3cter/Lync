@@ -66,9 +66,9 @@ function Handshake.verdict (ours: Wide.Word, epoch: number, bytes: buffer): (buf
 end
 
 --[[
-    The namespace epoch, or nothing where the lane carried no verdict yet. A refusal is the third
-    way out and never comes back: two builds that disagree cannot be made to agree at run time, so
-    it raises where a message nobody can read only warns.
+    The namespace epoch, or nothing where what arrived was no verdict this build can read. A
+    refusal is the third way out and never comes back: two builds that disagree cannot be made to
+    agree at run time, so it raises where a message nobody can read only warns.
 ]]
 function Handshake.judged (ours: Wide.Word, bytes: buffer): number?
     if buffer.len (bytes) ~= VERDICT then

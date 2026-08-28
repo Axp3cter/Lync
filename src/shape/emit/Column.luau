@@ -339,6 +339,9 @@ function Column.gain (
         at: { number },
         count: number
     ): number
+        -- What the walk asks of the grid and of the turn, reached once rather than once a step.
+        local toIndex, points, half, steps = toIndex, points, half, steps
+
         for place = 1, count do
             local one = toIndex (from[place])
             if one == nil then Word.refusedAt (tag, paths, expected, from[place]) end
@@ -368,6 +371,10 @@ function Column.gain (
         at: { number },
         count: number
     ): number
+        -- The two the grid answers with, and the steps, which the walk reaches at every element.
+        local steps, span, points = steps, span, points
+        local fromIndices, fromIndex = fromIndices, fromIndex
+
         --[[
             Every step of the section off the bytes before any of them is put back on the grid. A
             step stands on its own, needing neither the slot it belongs to nor the one before it,

@@ -222,8 +222,11 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
 
     -- The same the other way, over readings a caller has already held to the grid itself.
     local function fromIndices (indices: { number }, into: { any }, count: number)
+        -- The bottom and the step, reached once for the run rather than once a reading of it.
+        local from, by = min, step
+
         for place = 1, count do
-            into[place] = min + indices[place] * step
+            into[place] = from + indices[place] * by
         end
     end
 

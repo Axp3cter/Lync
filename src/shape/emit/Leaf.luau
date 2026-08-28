@@ -117,7 +117,7 @@ const WIDER = WIDE + PAIR
 -- Seventeen, a pair of bytes and a bit, which takes eight elements and seventeen bytes.
 const SNUG = WIDE + FLAG
 
--- Fourteen, which fills seven bytes four at a time, and where the fourth of them starts.
+-- Fourteen, which fills seven bytes four at a time, and where the third of them starts.
 const SEVENS = SEVEN * PAIR
 const AMPLE = BROAD + NIBBLE
 
@@ -1956,7 +1956,7 @@ function Leaf.float (
     return write, read
 end
 
--- One fixed field the run accumulator cannot pack, written as whole bytes of its own.
+-- One fixed field over whole bytes, the call for its width picked once when it is built.
 function Leaf.wide (
     of: Ir.Wide,
     paths: Serial.Interner,
@@ -2043,7 +2043,7 @@ function Leaf.varint (
     return write, read
 end
 
--- A string or a buffer, as its count and then its bytes.
+-- A string or a buffer, with the form and the alphabet settled once rather than at every value.
 function Leaf.bytes (
     of: Ir.Bytes,
     paths: Serial.Interner,
@@ -2203,7 +2203,7 @@ function Leaf.bytes (
     return write, read
 end
 
--- Elements of one width, counted and then packed with nothing between them.
+-- A count, and then that many elements packed against each other at one width.
 function Leaf.run (
     of: Ir.Run,
     paths: Serial.Interner,

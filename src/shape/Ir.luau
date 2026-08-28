@@ -51,7 +51,7 @@ export type Tag = {
     read checks: { Base.Validate }?,
 }
 
--- The pair every op exists to become, which is the whole of what an op is for.
+-- The pair every op exists to become.
 export type Write = (b: buffer, pos: number, value: any) -> number
 export type Read = (b: buffer, pos: number, ctx: Types.ValidateContext) -> (number, any)
 
@@ -62,10 +62,7 @@ export type Sidecar = {
     bears: boolean,
 }
 
---[[
-    A record that dissolved into the one holding it, as the table its fields are read out of and
-    written back into.
-]]
+-- A record that dissolved into the one holding it, and the key its fields are read out of.
 export type Nest = {
     read key: string,
     read under: number?,
@@ -118,10 +115,7 @@ export type Wide = {
     read grid: Grid.Grid,
 }
 
---[[
-    A payload of nothing, which is the whole of a call whose happening is what it says. It has no
-    bytes and no bits, so it is fixed at none of them and there is nothing for a reader to hold.
-]]
+-- A payload of nothing, which is the whole of a call whose happening is what it says.
 export type None = {
     read op: "none",
     read fixed: boolean,
@@ -295,7 +289,6 @@ local function counted (of: Span): number return Bits.width (of.max - of.min) en
 
 -- Public --------------------------------------------------------------
 
--- A bit region, its windows, and who fills them.
 function Ir.word (tag: Tag, plan: { Words.Word }, leaves: { Grid.Grid }, joins: { Join }): Word
     local bits = 0
     for _, grid in leaves do
@@ -356,7 +349,6 @@ function Ir.varint (tag: Tag, signed: boolean): Varint
     })
 end
 
--- Nothing, as the shape of it, which spends no bytes and answers none.
 function Ir.none (tag: Tag): None
     return table.freeze ({ op = "none" :: "none", fixed = true, maxBytes = 0, tag = tag })
 end
@@ -376,7 +368,7 @@ function Ir.bytes (tag: Tag, count: Span, form: "string" | "buffer", alphabet: s
     })
 end
 
--- A value that says what it is as it goes, bounded by the room its declaration gave it.
+-- A value that says what it is as it goes.
 function Ir.unknown (tag: Tag, count: Span): Unknown
     return table.freeze ({
         op = "unknown" :: "unknown",
@@ -387,7 +379,7 @@ function Ir.unknown (tag: Tag, count: Span): Unknown
     })
 end
 
--- Elements of one width with no padding between them, which is the whole point of the 24-bit law.
+-- Elements of one width, lying end to end with no padding between them.
 function Ir.run (tag: Tag, count: Span, elem: Grid.Grid): Run
     return table.freeze ({
         op = "run" :: "run",

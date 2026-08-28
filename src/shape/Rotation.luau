@@ -66,7 +66,7 @@ export type Smallest = {
 --[[
     A turn about one declared axis, either way. `parts` answers the grid index of the angle and
     nothing for a matrix that is no rotation at all, and `whole` answers the quaternion at that
-    index. Both speak the twelve components a frame is read with, for the reason the smallest three
+    index. It speaks the twelve components a frame is read with, for the reason the smallest three
     does: that is one call at the boundary and nothing here then names a datatype.
 ]]
 export type Axial = {
@@ -224,7 +224,7 @@ function Rotation.smallest (of: Grid.Grid): Smallest
         z: number,
         w: number
     ): (number, number, number, number)
-        -- The one of the pair whose named component is already positive.
+        -- The one of q and -q whose named component is positive, since both spell one rotation.
         local named = w
         if tag == AT_X then
             named = x
@@ -401,10 +401,7 @@ function Rotation.smallest (of: Grid.Grid): Smallest
                         local tryC = if stepC == 0 then c0 else c1
                         local kc = if stepC == 0 then kc0 else kc1
 
-                        --[[
-                            A triple that overruns the unit quaternion, which is not a spelling of
-                            anything.
-                        ]]
+                        -- A triple that overruns the unit quaternion, which spells nothing.
                         local over = sumB + kc * kc
                         if over > 1 then continue end
 

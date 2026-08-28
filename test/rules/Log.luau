@@ -63,8 +63,7 @@ type Fault = { read what: string, read run: (Run) -> () }
 -- Private -------------------------------------------------------------
 
 --[[
-    Two packets that turn a value away with different words, two that take one, and one carrying a
-    name rather than a truth. The pair of refusals is what says a record carries the reason its own
+    Two packets refuse with different words, which is what says a record carries the reason its own
     site gave rather than a reason the channel composed.
 ]]
 local function defined (): any
@@ -137,7 +136,7 @@ local function carried (of: Run, run: () -> ()): Doubles.Carried
     return held[#held]
 end
 
--- The same frame with one byte turned up to every bit it has.
+-- A carried frame with one byte turned up to every bit it has.
 local function louder (of: Doubles.Carried, at: number): Doubles.Carried
     local bytes = buffer.create (buffer.len (of.bytes))
     buffer.copy (bytes, 0, of.bytes)
@@ -146,7 +145,7 @@ local function louder (of: Doubles.Carried, at: number): Doubles.Carried
     return { at = of.at, from = of.from, to = of.to, bytes = bytes, refs = of.refs }
 end
 
--- The same frame cut short, which is a block whose own header runs past the bytes it came in.
+-- A carried frame cut short, which is a block whose own header runs past the bytes it came in.
 local function shorter (of: Doubles.Carried, held: number): Doubles.Carried
     local bytes = buffer.create (held)
     buffer.copy (bytes, 0, of.bytes, 0, held)

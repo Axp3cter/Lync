@@ -82,7 +82,7 @@ local function fanned (of: Run): number
     return of.wire:settle ()
 end
 
--- What one turn put on the lane, which for a broadcast is one frame per recipient.
+-- What one turn put on the lane, which for a broadcast is one frame however many hear it.
 local function weighs (of: Run): number
     local before = of.wire:moved ().bytes
 

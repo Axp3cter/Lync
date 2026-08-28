@@ -139,9 +139,9 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
 
     if of.op == "group" then
         local word = of.word
-        local pack: Word.Pack?, unpack: Word.Unpack?
+        local pack: Word.Pack?, unpack: Word.Unpack?, solo: Ir.Read?
         if word ~= nil then
-            pack, unpack = Word.emit (word, paths, expected)
+            pack, unpack, solo = Word.emit (word, paths, expected)
         end
 
         local reach = #of.parts
@@ -152,7 +152,7 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
             writes[index], reads[index] = Emit.emit (part.of, at)
         end
 
-        local write, read = Block.group (of, pack, unpack, writes, reads, paths, expected)
+        local write, read = Block.group (of, pack, unpack, solo, writes, reads, paths, expected)
         return write, fielded (read, of)
     end
 

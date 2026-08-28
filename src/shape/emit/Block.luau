@@ -69,6 +69,7 @@ function Block.group (
     of: Ir.Group,
     pack: Word.Pack?,
     unpack: Word.Unpack?,
+    solo: Ir.Read?,
     writes: { Ir.Write },
     reads: { Ir.Read },
     paths: Serial.Interner,
@@ -267,7 +268,8 @@ function Block.group (
             return pos + region, unpacking (b, pos, nil, slots, held)
         end
 
-        return worded, spelled
+        -- The word's own answer where it offers one, which is this block's answer without the hop.
+        return worded, solo or spelled
     end
 
     if not plainly then return write, read end

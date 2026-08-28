@@ -59,7 +59,11 @@ function Word.refusedAt (
 end
 
 -- The pair, with every constant the region is laid out by read once and held.
-function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Interner): (Pack, Unpack)
+function Word.emit (
+    of: Ir.Word,
+    paths: Serial.Interner,
+    expected: Serial.Interner
+): (Pack, Unpack, Ir.Read?)
     local leaves = of.leaves
     local joins = of.joins
     local held = #leaves
@@ -659,10 +663,10 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 end
             end
 
-            if bluntly then return filled, blunt end
-            if plainly then return ready, stated end
+            if bluntly then return filled, blunt, nil end
+            if plainly then return ready, stated, nil end
 
-            return steady, settled
+            return steady, settled, nil
         end
 
         if upright then
@@ -716,7 +720,7 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 return nil
             end
 
-            return square, upward
+            return square, upward, nil
         end
 
         --[[
@@ -1170,20 +1174,20 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 return nil
             end
 
-            if flatly and wholly then return alone, sheer end
-            if flatly then return alone, simply end
-            if roundly then return round, graded end
-            if wholly then return alone, sound end
+            if flatly and wholly then return alone, sheer, nil end
+            if flatly then return alone, simply, nil end
+            if roundly then return round, graded, nil end
+            if wholly then return alone, sound, nil end
 
-            return alone, lone
+            return alone, lone, nil
         end
 
-        if flatly and wholly then return flat, swept end
-        if flatly then return flat, bared end
-        if roundly then return scaled, gauged end
-        if wholly then return flat, plane end
+        if flatly and wholly then return flat, swept, nil end
+        if flatly then return flat, bared, nil end
+        if roundly then return scaled, gauged, nil end
+        if wholly then return flat, plane, nil end
 
-        return flat, level
+        return flat, level, nil
     end
 
     --[[
@@ -1276,45 +1280,48 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
         --[[
             A word that is a field of its own, over a grid every reading of which is its own index,
-            has nothing to do to a reading but hand it back. The three above ask that twice on every
-            payload where the build settled it once, and these are the same three without it.
+            has nothing to do to a reading but hand it back, and where the block is that word alone
+            there is no part after it to place. So these answer the block's own two, the byte past
+            the word and the reading, and the group emitter takes one of them in place of its own.
         ]]
-        local function rawByte (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+        local after = of.maxBytes
+
+        local function soloByte (b: buffer, pos: number, _c: any): (number, any)
             local raw = buffer.readu8 (b, pos + seat)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
 
-            return raw
+            return pos + after, raw
         end
 
-        local function rawPair (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+        local function soloPair (b: buffer, pos: number, _c: any): (number, any)
             local raw = buffer.readu16 (b, pos + seat)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
 
-            return raw
+            return pos + after, raw
         end
 
-        local function rawWide (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+        local function soloWide (b: buffer, pos: number, _c: any): (number, any)
             local raw = buffer.readu32 (b, pos + seat)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
 
-            return raw
+            return pos + after, raw
         end
 
-        local bare = key == nil and reading == nil
-        local sole = if bare
-            then (if bytes == ONE then rawByte elseif bytes == PAIR then rawPair else rawWide)
-            else (if bytes == ONE then narrow elseif bytes == PAIR then middle else widest)
+        local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
+        local solo = if key ~= nil or reading ~= nil
+            then nil
+            else (if bytes == ONE then soloByte elseif bytes == PAIR then soloPair else soloWide)
 
-        return only, sole
+        return only, sole, solo
     end
 
-    return pack, unpack
+    return pack, unpack, nil
 end
 
 return table.freeze (Word)

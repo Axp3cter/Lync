@@ -153,7 +153,7 @@ Datatypes.color3 = table.freeze (setmetatable ({ rgb565 = packed, palette = pale
 function Datatypes.inst (class: string?): Types.Codec<Instance?>
     if class == nil then return Base.make ("inst") end
     if type (class) ~= "string" or class == "" then
-        Log.refuse (`inst takes a class name, not {tostring (class)}`)
+        Log.refuse (`inst takes a class name, not "{tostring (class)}"`)
     end
 
     return Base.make ("inst", { class = class })

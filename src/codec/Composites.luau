@@ -89,7 +89,7 @@ end
 ]]
 function Composites.tagged <V>(field: string, variants: V): Types.Codec<any>
     if type (field) ~= "string" or field == "" then
-        Log.refuse (`tagged takes a field name, not {tostring (field)}`)
+        Log.refuse (`tagged takes a field name, not "{tostring (field)}"`)
     end
     if type (variants) ~= "table" then
         Log.refuse (`tagged takes a table of variants, not a {typeof (variants)}`)

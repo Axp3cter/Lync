@@ -91,7 +91,7 @@ local function marked (of: Base.Cell, at: string): (string?, Base.Marker)
     return nil, "none"
 end
 
--- How many points a declaration's grid holds, where a division decides that rather than a count.
+-- How many steps a declaration's grid runs to, where a division decides that and not a count.
 local function points (of: Base.Cell): number?
     local kind, params = of.kind, of.params
 
@@ -123,7 +123,7 @@ end
 local function imprecise (of: Base.Cell, at: string): string?
     local span = points (of)
     if span ~= nil and span >= REACH then
-        return `declares {at} over {span} points, which is past what a double counts exactly`
+        return `declares {at} over {span} steps, which is past what a double counts exactly`
     end
 
     if of.kind == "angle" then

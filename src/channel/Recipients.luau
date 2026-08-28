@@ -10,9 +10,9 @@ local Recipients = {}
 -- Types ---------------------------------------------------------------
 
 --[[
-    The clients a namespace may send to, which is the ones that have been told they may receive. A
-    player who has joined and not finished the handshake discards a data frame on arrival, so naming
-    one costs the bytes and buys nothing, and a player who has left is not in here at all.
+    The clients a namespace may send to. A player who has joined and not finished the handshake
+    discards a data frame on arrival, so naming one costs the bytes and buys nothing, and a player
+    who has left is not in here at all.
 ]]
 export type Ready = { [Player]: boolean }
 
@@ -66,15 +66,15 @@ local function filled (into: { Player }, of: Types.Recipient, ready: Ready): num
     end
 
     --[[
-        A caller's own list, which is the one form that can name somebody twice. Two of a player is
-        two frames to them, so the ones already written are read back before each is taken. Nothing
+        A caller's own list, the one form that can name somebody twice. Two of a player is two
+        frames to them, so the ones already written are read back before each is taken. Nothing
         else pays for that: the other four forms are sets already, and the scan here is over what a
         caller wrote rather than over everybody connected.
     ]]
     for _, player in of :: { Player } do
         if not ready[player] then continue end
 
-        -- Past the count is whatever the last resolve left, which is nobody this one named.
+        -- Past the count is whatever the last resolve left, and nobody this one named.
         local seen = table.find (into, player)
         if seen ~= nil and seen <= count then continue end
 
@@ -102,9 +102,9 @@ function Recipients.except (from: Types.Recipient): Types.Except
 end
 
 --[[
-    Whether a recipient names this player, which is the question an exclusion asks of everyone. A
-    test, so nothing has to be built to answer it: an exclusion is asked once per ready client, and
-    what it excludes is usually one player.
+    An exclusion answers by asking this of whatever it holds, so the recursion here is how the
+    five forms nest. What one excludes is usually a single player, and a flush reaches this once
+    for every client it considers.
 ]]
 function Recipients.holds (of: Types.Recipient, player: Player): boolean
     if typeof (of) == "Instance" then return of == player end

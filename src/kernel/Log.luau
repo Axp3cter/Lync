@@ -14,7 +14,7 @@ local Log = {}
 -- Shared by every record whose site handed over nothing else, since one empty table is enough.
 const NO_FACTS = table.freeze ({} :: Facts)
 
--- A name in braces, which is the whole of what a template can hold.
+-- A name in braces. That is the whole of what a template may hold.
 const HELD = "{(%w+)}"
 
 -- Types ---------------------------------------------------------------
@@ -42,8 +42,8 @@ local records: Listeners.List<Types.LogKind, string, Types.LogData> = Listeners.
 -- Private -------------------------------------------------------------
 
 --[[
-    The position comes from whoever calls in, the useful line being a caller's declaration site and
-    never this one. Nothing is frozen, so a listener that keeps a record has to copy it.
+    The position comes from whoever calls in. The useful line is a caller's declaration site and
+    never this one, and nothing here is frozen, so a listener that keeps a record has to copy it.
 ]]
 local function said (kind: Types.LogKind, message: string, facts: Facts, file: string, line: number)
     local data = table.clone (facts) :: any
@@ -54,8 +54,8 @@ local function said (kind: Types.LogKind, message: string, facts: Facts, file: s
 end
 
 --[[
-    Taken where the call raised, since a handler runs on the raising thread with the stack still
-    standing under it, which is the only moment a line inside a caller's listener can be read.
+    Taken where the call raised. A handler runs on the raising thread with the stack still standing
+    under it, and that is the only moment a line inside a caller's listener can be read.
 ]]
 local function traced (thrown: any): string return debug.traceback (tostring (thrown), 2) end
 
@@ -63,8 +63,8 @@ local function traced (thrown: any): string return debug.traceback (tostring (th
 
 --[[
     A call run with its answer, and a raise turned into a record rather than the engine's report.
-    The trace is the message, the library having no idea what the caller was doing. The answer is
-    why this is not `contained`: nobody waits on a listener, and a responder's return is the
+    The trace is the message, since the library has no idea what the caller was doing. The answer
+    is why this is not `contained`: nobody waits on a listener, and a responder's return is the
     reply.
 ]]
 function Log.caught (call: (...any) -> ...any, ...: any): (boolean, any)
@@ -133,9 +133,9 @@ function Log.contains (call: (...any) -> (), count: number, values: { any }, ...
 end
 
 --[[
-    The same over three arrays that move together rather than one and some constants, which is what
-    a set tells a caller: an id, the record it names, and what that record was. Caught an item at a
-    time for the reason the walk above is, and a settle of two hundred is one thread and not two.
+    The same over three arrays that move together rather than one and some constants. A set tells a
+    caller an id, the record it names, and what that record was. Caught an item at a time for the
+    same reason the walk above is, and a settle of two hundred is one thread and not two.
 ]]
 local function alongside (
     at: { number },
@@ -193,8 +193,8 @@ end
 function Log.refuse (message: string): never return error (message, 0) end
 
 --[[
-    A rejection for the boundary above. It carries a code and facts and no line, composing one being
-    a walk of a template on a path a hostile client decides how often to reach.
+    A rejection for the boundary above. It carries a code and facts and no line, because composing
+    one walks a template on a path a hostile client decides how often to reach.
 ]]
 function Log.reject (code: Catalog.Code, facts: Facts?): never
     return error (table.freeze ({ code = code, facts = facts or NO_FACTS }) :: Rejection, 0)
@@ -212,7 +212,7 @@ function Log.line (code: Catalog.Code, facts: Facts): string
     return out
 end
 
--- Whatever the boundary caught, as the record a drop is.
+-- Whatever the boundary caught, turned into the record a drop leaves behind.
 function Log.dropped (thrown: unknown, about: Facts, kind: Types.LogKind?)
     local rejection = if typeof (thrown) == "table" then thrown :: Rejection else nil
     local entry = if rejection == nil then nil else Catalog.entries[rejection.code]

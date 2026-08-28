@@ -63,7 +63,8 @@ return {
     --[[
         The fields a bit run takes, which is every leaf narrow enough to flow rather than align. A
         truth is one bit, a bounded integer is as many as its range needs, a name out of a list is
-        as many as the list needs, and a record of truths is one leaf a name.
+        as many as the list needs, a record of truths is one leaf a name, and a number or an angle
+        on a grid is as many as the grid holds.
     ]]
     Harness.case ("regions.packs-narrow", function ()
         local narrow = {

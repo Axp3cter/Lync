@@ -48,6 +48,8 @@ Repo.SETTINGS = ".vscode/settings.json"
 ]]
 Repo.DEFINITIONS = "typedefs/roblox.d.luau"
 Repo.LUNE_TYPES = "typedefs/lune"
+
+-- The files inside the trees that a gate names on their own.
 Repo.ENTRY = `{Repo.SRC}/init.luau`
 Repo.PROTOCOL = `{Repo.SRC}/wire/Protocol.luau`
 Repo.EXPECT = `{Repo.TEST}/harness/Expect.luau`

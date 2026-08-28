@@ -338,7 +338,7 @@ local function answered (
     ]]
     local id = 0
 
-    -- Held here for the same reason the run above holds its own.
+    -- Reached once for the same reason the request run reaches its own once.
     local boundary = of.boundary
     local response = def.response
     local says = response.read

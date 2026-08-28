@@ -110,6 +110,13 @@ const GROUPED = table.freeze ({
 const GROUPS = 19
 
 --[[
+    A word that no one rule covers. Its first field is its own index and leaves patterns its bits
+    spell that it has no point for, its second starts under nothing, its third fills its bits
+    exactly and its fourth is a flag, so the reading walk is the general one and nothing else.
+]]
+const MIXED = table.freeze ({ face = 359, lean = 90, zoom = 15 })
+
+--[[
     The two widths the tagged pair in `wire.max-bytes-together` is built from.
 
     Different on purpose, so neither field can stand in for the other: a value taking one wide
@@ -911,6 +918,34 @@ return {
             Expect.equal (#back, GROUPS)
             for index = 1, GROUPS do
                 Expect.equal (back[index], held[index])
+            end
+        end
+    end),
+
+    --[[
+        Every field of that word back as it went. A word taking the general walk is read a piece at
+        a time against the grid each one belongs to, where the three walks beside it hold every
+        piece to one rule, so what this says is that the pieces are told apart at all.
+    ]]
+    Harness.case ("wire.mixed-word", function ()
+        local of = Turns.built (Lync.struct ({
+            face = Lync.int (0, MIXED.face),
+            pitch = Lync.int (-MIXED.lean, MIXED.lean),
+            zoom = Lync.int (0, MIXED.zoom),
+            firing = Lync.bool (),
+        }))
+
+        for _, face in { 0, 1, MIXED.face } do
+            for _, pitch in { -MIXED.lean, 0, MIXED.lean } do
+                local held = { face = face, pitch = pitch, zoom = MIXED.zoom, firing = true }
+
+                local bytes, size = Turns.wrote (of, held)
+                local back = Turns.read (of, bytes, size)
+
+                Expect.equal (back.face, face)
+                Expect.equal (back.pitch, pitch)
+                Expect.equal (back.zoom, MIXED.zoom)
+                Expect.equal (back.firing, true)
             end
         end
     end),

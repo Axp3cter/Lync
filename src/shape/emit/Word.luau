@@ -241,6 +241,14 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         are nowhere near each other in the record.
     ]]
     local function pack (b: buffer, pos: number, value: any, slots: { number }, held: { any })
+        --[[
+            The arrays the window walk reads, reached once for the walk. Each of them is a table
+            this closure was built over, so naming one at every piece asks the closure for it as
+            many times as the word has pieces, where the walk wants it as many times as it runs.
+        ]]
+        local first, last, slot, span, shift, direct = first, last, slot, span, shift, direct
+        local where, width = where, width
+
         if flatly then
             for index, key in keys do
                 local one = value[key]
@@ -327,6 +335,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         left there, and a field that straddles two windows meets its low piece first.
     ]]
     local function unpack (b: buffer, pos: number, into: any, slots: { number }, held: { any }): any
+        local first, last, slot, span, shift, offset = first, last, slot, span, shift, offset
+        local where, width = where, width
+
         if barren then
             for _, leaf in empties do
                 slots[leaf] = 0
@@ -804,6 +815,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             piece here has a key to be put under and neither half asks whether it does.
         ]]
         local function level (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local offset, span, tops, takes, puts = offset, span, tops, takes, puts
+
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]
@@ -829,6 +842,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             grid it belongs to, so what the walk asks after is the reading and never the piece.
         ]]
         local function plane (b: buffer, pos: number, into: any, _s: { number }, _h: { any }): any
+            local offset, span, takes, puts = offset, span, takes, puts
+
             for window = 1, windows do
                 local at = pos + where[window]
                 local bytes = width[window]

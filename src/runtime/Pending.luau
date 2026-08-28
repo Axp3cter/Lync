@@ -83,7 +83,7 @@ function Pending.new (namespace: string): Pending
     return (setmetatable (self, Pending) :: any) :: Pending
 end
 
--- A request, under the first id nothing is waiting on.
+-- A request, under the next id nothing is waiting on.
 function Pending.open (
     self: Self,
     now: number,
@@ -119,8 +119,8 @@ function Pending.open (
 end
 
 --[[
-    The reply arrived. Answers whether anybody was waiting, an id nobody waits on being a reply to a
-    request that already ended or a frame nobody here sent for.
+    The reply arrived. Answers whether anybody was waiting, since an id nobody waits on is a
+    reply to a request that already ended or a frame nobody here sent for.
 ]]
 function Pending.answer (self: Self, id: number, value: any): boolean
     local entry = taken (self, id)
@@ -131,8 +131,8 @@ function Pending.answer (self: Self, id: number, value: any): boolean
 end
 
 --[[
-    The request ended as one of the four outcomes. The elapsed time rides on all of them, a caller
-    reading how long a leave took being owed the same number as one reading a timeout.
+    The request ended as one of the four outcomes. The elapsed time rides on all of them, since
+    a caller reading how long a leave took is owed the same number as one reading a timeout.
 ]]
 function Pending.fail (self: Self, id: number, code: Types.OutcomeCode, now: number): boolean
     local entry = taken (self, id)

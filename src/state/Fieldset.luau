@@ -39,7 +39,7 @@ export type Chosen = {
 export type Write = (b: buffer, at: number, of: Chosen) -> number
 export type Read = (b: buffer, at: number, into: Chosen) -> number
 
--- One set's fieldset, compiled: the widths its two forms take and the pair that writes them.
+-- One set's fieldset, compiled once, since which of its two forms a section takes is per section.
 export type Fieldset = {
     read over: number,
     read width: number,

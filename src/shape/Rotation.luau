@@ -1,6 +1,9 @@
 --!strict
 --!optimize 2
--- The two orientation mappings: a direction as a pair on a square, a turn as three of its four.
+--[[
+    The orientation mappings: a direction folded onto a square, a turn as the three components it
+    keeps, and a turn about one declared axis as the angle alone.
+]]
 
 local Grid = require ("@src/shape/Grid")
 local Protocol = require ("@src/wire/Protocol")

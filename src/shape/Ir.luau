@@ -55,7 +55,7 @@ export type Tag = {
 export type Write = (b: buffer, pos: number, value: any) -> number
 export type Read = (b: buffer, pos: number, ctx: Types.ValidateContext) -> (number, any)
 
--- The instances that ride beside a frame, and the map holding one reference to one slot in them.
+-- The instances that ride beside a frame, the slot each takes, and whether the schema names any.
 export type Sidecar = {
     refs: { Instance },
     slotOf: { [Instance]: number },

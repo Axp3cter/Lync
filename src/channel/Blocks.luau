@@ -50,7 +50,7 @@ Blocks.ESTABLISH = ESTABLISH
 Blocks.DELTA = DELTA
 Blocks.LOOSE = LOOSE
 
--- How many classes there are, which is the number of buckets a reliable queue keeps.
+-- How many classes there are, which is the last of them, since they are numbered from one.
 Blocks.CLASSES = DELTA
 
 -- What a caller runs to fill one block, which is everything this layer refuses to know.

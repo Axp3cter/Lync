@@ -137,7 +137,7 @@ local function imprecise (of: Base.Cell, at: string): string?
     return `declares {at} to a precision whose parts fall either side of {CEILING} bits`
 end
 
--- Every node of a tree, in the one order a walk of this library visits children in.
+-- The first node with something wrong, in the one order a walk of this library visits children in.
 local function imprecision (of: Base.Cell, at: string): string?
     local said = imprecise (of, at)
     if said ~= nil then return said end

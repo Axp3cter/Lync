@@ -46,7 +46,7 @@ const FINDING = 60
 -- Private -------------------------------------------------------------
 
 --[[
-    What this client has been handed under one name. A bucket per check, so the four sequences
+    What this client has been handed under one name. A bucket per check, so the four runs
     accumulate side by side and a client that is behind the server on one is not reading another's
     arrivals.
 ]]

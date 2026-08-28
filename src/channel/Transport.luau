@@ -44,7 +44,7 @@ type Self = {
 
 -- Private -------------------------------------------------------------
 
--- One folder for every namespace, so the first to open makes it and the rest find it.
+-- The one folder every namespace sits under, made by the first to open and found by the rest.
 local function rooted (storage: Instance): Instance
     local found = storage:FindFirstChild (FOLDER)
     if found ~= nil then return found end

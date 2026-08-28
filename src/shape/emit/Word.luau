@@ -1390,6 +1390,35 @@ function Word.emit (
         end
 
         --[[
+            The same three for a grid that turns what it is given. The test above is a fast path for
+            a value that already stands as its own index, which a turning grid never hands back, so
+            asking it there is three questions answered no before the turn that was always coming.
+        ]]
+        local function castByte (b: buffer, pos: number, value: any): number
+            local made = writing (value)
+            if made == nil then Word.refused (said, want, value) end
+
+            buffer.writeu8 (b, pos, made :: number)
+            return pos + after
+        end
+
+        local function castPair (b: buffer, pos: number, value: any): number
+            local made = writing (value)
+            if made == nil then Word.refused (said, want, value) end
+
+            buffer.writeu16 (b, pos, made :: number)
+            return pos + after
+        end
+
+        local function castWide (b: buffer, pos: number, value: any): number
+            local made = writing (value)
+            if made == nil then Word.refused (said, want, value) end
+
+            buffer.writeu32 (b, pos, made :: number)
+            return pos + after
+        end
+
+        --[[
             The pair a group takes in place of its own where the word is one field at its first
             byte. The reading half asks a grid that answers with what it was given, which the
             writing half has no need of, so the two are offered apart.
@@ -1408,10 +1437,17 @@ function Word.emit (
 
             local answering: Ir.Read? = if reading == nil then asRead else asTurned
 
-            local laying: Ir.Write = if bytes == ONE
+            local asKept = if bytes == ONE
                 then keptByte
                 elseif bytes == PAIR then keptPair
                 else keptWide
+
+            local asCast = if bytes == ONE
+                then castByte
+                elseif bytes == PAIR then castPair
+                else castWide
+
+            local laying: Ir.Write = if reading == nil then asKept else asCast
 
             solo = table.freeze ({ read = answering, write = laying })
         end

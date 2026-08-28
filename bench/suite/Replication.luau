@@ -55,7 +55,7 @@ type Run = {
 
 -- Private -------------------------------------------------------------
 
--- The definitions one machine requires, keyed, because two of the three rows are about a partition.
+-- The definitions one machine requires, keyed, because one row moves a viewer between partitions.
 local function defined (): any
     return { [BOARD] = Lync.replicate (Schemas.everything.codec):keyBy (TEAM) }
 end

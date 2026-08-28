@@ -106,7 +106,7 @@ end
 -- An id a record can be held under, which is any whole number a double carries exactly.
 local function identified (of: Sync, id: number)
     if id ~= id or id % 1 ~= 0 or math.abs (id) >= Protocol.EXACT then
-        refuse (of, "cannot hold a record under", id)
+        refuse (of, "cannot hold", id)
     end
 end
 

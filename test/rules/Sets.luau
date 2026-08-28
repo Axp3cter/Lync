@@ -132,7 +132,7 @@ return {
             for _, entry in REFUSED do
                 Expect.throws (
                     function () DEFINITIONS.roster:add (entry.id, record (10)) end,
-                    "cannot hold a record under"
+                    "cannot hold record"
                 )
             end
         end)

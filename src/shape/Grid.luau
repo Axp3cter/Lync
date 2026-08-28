@@ -183,9 +183,9 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
             fromIndex = fromIndex,
 
             --[[
-                A whole list handed over at once, which a list is the one shape worth offering it
-                for: what a caller of it spares is a crossing back an element, and the walk under it
-                is the walk that would have been done out there anyway.
+                A list is the one shape worth handing over whole. What a caller spares is a
+                crossing back an element, and the walk under it is the walk it would have done
+                out there anyway.
             ]]
             toIndices = toIndices,
         }

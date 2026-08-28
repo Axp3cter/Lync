@@ -951,6 +951,22 @@ return {
     end),
 
     --[[
+        One value standing alone rather than as a field of a record, at each width a word takes it
+        in. What it came back as is compared rather than only that it came back at all: a byte read
+        where a pair was written answers every value under two hundred and fifty six correctly.
+    ]]
+    Harness.case ("wire.lone-word", function ()
+        for _, top in { 255, 65535 } do
+            local of = Turns.built (Lync.int (0, top))
+
+            for _, one in { 0, 1, top // 2, top } do
+                local bytes, size = Turns.wrote (of, one)
+                Expect.equal (Turns.read (of, bytes, size), one)
+            end
+        end
+    end),
+
+    --[[
         Every field of that word back as it went. A word taking the general walk is read a piece at
         a time against the grid each one belongs to, where the three walks beside it hold every
         piece to one rule, so what this says is that the pieces are told apart at all.

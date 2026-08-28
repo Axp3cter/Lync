@@ -1274,7 +1274,42 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             return nil
         end
 
-        local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
+        --[[
+            A word that is a field of its own, over a grid every reading of which is its own index,
+            has nothing to do to a reading but hand it back. The three above ask that twice on every
+            payload where the build settled it once, and these are the same three without it.
+        ]]
+        local function rawByte (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu8 (b, pos + seat)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return raw
+        end
+
+        local function rawPair (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu16 (b, pos + seat)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return raw
+        end
+
+        local function rawWide (b: buffer, pos: number, _i: any, _s: { number }, _h: { any }): any
+            local raw = buffer.readu32 (b, pos + seat)
+            if raw > bound then
+                Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
+            end
+
+            return raw
+        end
+
+        local bare = key == nil and reading == nil
+        local sole = if bare
+            then (if bytes == ONE then rawByte elseif bytes == PAIR then rawPair else rawWide)
+            else (if bytes == ONE then narrow elseif bytes == PAIR then middle else widest)
 
         return only, sole
     end

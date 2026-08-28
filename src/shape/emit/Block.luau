@@ -615,7 +615,26 @@ function Block.pairs (
     local widths: { number } = {}
     local order: { number } = {}
 
+    --[[
+        What each key's leading bytes come to, so the sort settles most pairs on two numbers. A pair
+        that ties there is still asked the whole question, which is what keeps the order the bytes'
+        own rather than the number's.
+    ]]
+    local ranks: { number } = {}
+
     local function before (a: number, b: number): boolean
+        local rankA, rankB = ranks[a], ranks[b]
+        if rankA ~= rankB then return rankA < rankB end
+
+        return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
+    end
+
+    --[[
+        The same without the leading bytes, for a map whose keys all begin alike. Every rank ties
+        there, so asking them is a question with one answer, and the sort is handed the comparison
+        that was going to be reached for anyway.
+    ]]
+    local function bytewise (a: number, b: number): boolean
         return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
     end
 
@@ -705,6 +724,12 @@ function Block.pairs (
         local count = 0
         local at = 0
 
+        --[[
+            The narrowest and widest rank seen, which tells a map whose keys all begin alike from
+            one whose do not, without a second walk over them.
+        ]]
+        local least, most = 0, 0
+
         for key in value do
             count += 1
             if count > high then Word.refusedAt (tag, paths, said, count) end
@@ -720,9 +745,20 @@ function Block.pairs (
                 down below rather than here, so nothing is written that is written over.
             ]]
             if not even then
+                local wide = at - from
                 starts[count] = from
-                widths[count] = at - from
+                widths[count] = wide
                 order[count] = count
+                local rank = Bytes.leading (room, from, wide)
+                ranks[count] = rank
+
+                if count == 1 then
+                    least, most = rank, rank
+                elseif rank < least then
+                    least = rank
+                elseif rank > most then
+                    most = rank
+                end
             end
         end
 
@@ -736,6 +772,8 @@ function Block.pairs (
 
         if even then
             table.sort (order)
+        elseif least == most then
+            table.sort (order, bytewise)
         else
             table.sort (order, before)
         end

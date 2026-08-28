@@ -111,7 +111,28 @@ end
 ]]
 const RANKED = 4
 
+-- Two more than that, which is the widest a double still spells every byte of.
+const PAIR = 2
+
+-- How many bytes of a range one number holds, which is what a double spells without losing any.
+const LEADING = RANKED + PAIR
+
 function Bytes.ranks (len: number): boolean return len <= RANKED end
+
+--[[
+    The first bytes of a range as one number, padded with nothing where the range holds fewer. Two
+    of these order the ranges the way the ranges themselves order, as far as they reach, so a sort
+    may ask them first and reach for the whole comparison only where a pair of them ties.
+]]
+@native
+function Bytes.leading (b: buffer, at: number, len: number): number
+    local sum = 0
+    for step = 0, LEADING - 1 do
+        sum = sum * 256 + (if step < len then buffer.readu8 (b, at + step) else 0)
+    end
+
+    return sum
+end
 
 @native
 function Bytes.ranked (b: buffer, at: number, len: number): number

@@ -422,7 +422,7 @@ Schemas.all = table.freeze ({
     Schemas.everything,
 })
 
--- The names a replicated roster carries, which are the fields three rules suites read it by.
+-- The set, its two fields, and the two keys one takes, which three rules suites read it by.
 Schemas.ROSTER = "roster"
 Schemas.TEAM = "team"
 Schemas.HP = "hp"

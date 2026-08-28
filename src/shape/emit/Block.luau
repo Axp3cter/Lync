@@ -543,10 +543,7 @@ function Block.apart (
     return write, read
 end
 
---[[
-    A tag and the arm it chooses, and nothing to choose it by but the field the variant names itself
-    in.
-]]
+-- A tag and the arm it chooses, by the field the variant names itself in.
 function Block.branch (
     of: Ir.Branch,
     writes: { Ir.Write },
@@ -593,10 +590,7 @@ function Block.branch (
     return write, read
 end
 
---[[
-    A count and then that many of one thing, each starting on a byte because the thing before it
-    ended on one.
-]]
+-- A count and then that many of one thing, each on a byte because the one before ended on one.
 function Block.list (
     of: Ir.List,
     writeElem: Ir.Write,
@@ -702,17 +696,17 @@ function Block.pairs (
         return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
     end
 
-    --[[
-        Keys of one narrow width order by a number rather than by their bytes, and a sort told to
-        order numbers calls nothing to ask. A comparison that reaches a function of ours is one the
-        sort pays for on every pair it looks at, which is most of what a map spends.
-    ]]
     local marks: { number } = {}
     local owners: { any } = {}
 
     -- How the values lie, which the shape decided when it said what it weighs.
     local runs: Grid.Grid? = of.runs
 
+    --[[
+        Keys of one narrow width order by a number rather than by their bytes, and a sort told to
+        order numbers calls nothing to ask. A comparison that reaches a function of ours is one the
+        sort pays for on every pair it looks at, which is most of what a map spends.
+    ]]
     local even = of.key.fixed and Bytes.ranks (of.key.maxBytes)
     local wide = of.key.maxBytes
 

@@ -177,7 +177,7 @@ function Set.onRemoved (self: any, fn: (number, Types.Cause) -> ()): Types.Conne
     return watches (self, Sync.onRemoved, fn)
 end
 
--- The schema as text, and how a record turned away on arrival is described back.
+-- The same for a set, which is the field it keys by and then the record under it.
 function Set.describe (self: any): string
     return Serial.frame ({
         kind = "set",

@@ -137,7 +137,7 @@ function Query.request (self: any, first: any, second: any, third: any, fourth: 
     return asked (self, first, second, third)
 end
 
--- The schema as text, and the wording a refused request comes back with.
+-- The same for a query, which is its request and then the reply it is owed.
 function Query.describe (self: any): string
     return Serial.frame ({
         kind = "query",

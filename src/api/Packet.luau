@@ -94,7 +94,7 @@ function Packet.onClient (self: any, fn: (any, number?) -> ()): Types.Connection
     return hears (self, fn)
 end
 
--- The schema as text, which is what a report quotes back when a decode is refused.
+-- The schema as text, exactly as the descriptor spells it and the handshake hashes it.
 function Packet.describe (self: any): string
     return Serial.frame ({
         kind = "packet",

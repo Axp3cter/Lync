@@ -19,7 +19,7 @@ Scalars.TURN = 360
 -- An angular precision, in the degrees every one of them is spelled in.
 function Scalars.precise (kind: string, degrees: number)
     if not (Legality.finite (degrees) and degrees > 0 and degrees <= Scalars.TURN) then
-        Log.refuse (`{kind} takes a precision from zero to {Scalars.TURN}, not {degrees}`)
+        Log.refuse (`{kind} takes a precision above zero and up to {Scalars.TURN}, not {degrees}`)
     end
 end
 

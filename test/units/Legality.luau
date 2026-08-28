@@ -217,7 +217,7 @@ return {
         Lync.angle (TURN)
         Lync.angle (FINE)
 
-        local turns = "takes a precision from zero to"
+        local turns = "takes a precision above zero"
         Expect.throws (function () Lync.angle (0) end, turns)
         Expect.throws (function () Lync.angle (TURN + FINE) end, turns)
     end),

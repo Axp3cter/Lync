@@ -191,7 +191,7 @@ local function gathered (
     return reach
 end
 
--- The same slots, without the values, which is what a reader has before a column has answered.
+-- The slots without the values, which is what a reader has before a column has answered.
 local function covering (of: Frame, place: number, count: number): number
     local under = of.under[place]
 

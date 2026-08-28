@@ -12,6 +12,9 @@ local Words = require ("@src/shape/Words")
 
 local Word = {}
 
+-- What a group takes in place of its own pair where the word it holds is one field standing alone.
+export type Solo = { read read: Ir.Read?, read write: Ir.Write }
+
 -- Constants -----------------------------------------------------------
 
 -- The same two widths a frame header reads, a region and a header being one kind of bit run.
@@ -63,7 +66,7 @@ function Word.emit (
     of: Ir.Word,
     paths: Serial.Interner,
     expected: Serial.Interner
-): (Pack, Unpack, Ir.Read?)
+): (Pack, Unpack, Solo?)
     local leaves = of.leaves
     local joins = of.joins
     local held = #leaves
@@ -1314,11 +1317,65 @@ function Word.emit (
         end
 
         local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
-        local solo = if key ~= nil
-                or reading ~= nil
-                or seat ~= 0
-            then nil
-            else (if bytes == ONE then soloByte elseif bytes == PAIR then soloPair else soloWide)
+        --[[
+            The same on the way out. A lone field at the word's first byte is the whole block, so
+            these answer the byte past it as the group's own writer does, and neither asks which
+            width it is nor whether there is a name to reach the value under.
+        ]]
+        local function keptByte (b: buffer, pos: number, value: any): number
+            local made = value
+            if type (value) ~= "number" or bit32.bor (value, 0) ~= value or value > level then
+                made = writing (value)
+                if made == nil then Word.refused (said, want, value) end
+            end
+
+            buffer.writeu8 (b, pos, made :: number)
+            return pos + after
+        end
+
+        local function keptPair (b: buffer, pos: number, value: any): number
+            local made = value
+            if type (value) ~= "number" or bit32.bor (value, 0) ~= value or value > level then
+                made = writing (value)
+                if made == nil then Word.refused (said, want, value) end
+            end
+
+            buffer.writeu16 (b, pos, made :: number)
+            return pos + after
+        end
+
+        local function keptWide (b: buffer, pos: number, value: any): number
+            local made = value
+            if type (value) ~= "number" or bit32.bor (value, 0) ~= value or value > level then
+                made = writing (value)
+                if made == nil then Word.refused (said, want, value) end
+            end
+
+            buffer.writeu32 (b, pos, made :: number)
+            return pos + after
+        end
+
+        --[[
+            The pair a group takes in place of its own where the word is one field at its first
+            byte. The reading half asks a grid that answers with what it was given, which the
+            writing half has no need of, so the two are offered apart.
+        ]]
+        local solo: Solo? = nil
+        if key == nil and seat == 0 then
+            local answering: Ir.Read? = if reading ~= nil
+                then nil
+                else (if bytes == ONE
+                    then soloByte
+                    elseif bytes == PAIR then soloPair
+                    else soloWide)
+
+            local laying: Ir.Write = if bytes == ONE
+                then keptByte
+                elseif bytes == PAIR then keptPair
+                else keptWide
+
+            solo = table.freeze ({ read = answering, write = laying })
+        end
 
         return only, sole, solo
     end

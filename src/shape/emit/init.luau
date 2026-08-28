@@ -139,7 +139,7 @@ local function made (of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
 
     if of.op == "group" then
         local word = of.word
-        local pack: Word.Pack?, unpack: Word.Unpack?, solo: Ir.Read?
+        local pack: Word.Pack?, unpack: Word.Unpack?, solo: Word.Solo?
         if word ~= nil then
             pack, unpack, solo = Word.emit (word, paths, expected)
         end

@@ -15,8 +15,8 @@ local Rng = require ("@test/harness/Rng")
 
 --[[
     The instants one stamp field can tell apart, and the half of that a receiver reconstructs
-    within. A stamp is thirty-two bits of milliseconds, so the space is about fifty days and the
-    window about twenty-five.
+    within. A stamp is twenty-four bits of milliseconds, so the space is about four and a half
+    hours and the window a little over two.
 ]]
 const SPAN = 2 ^ Protocol.STAMP_BITS
 const WINDOW = SPAN / 2

@@ -19,7 +19,7 @@ const CEILING = Protocol.BIT_CEILING
 -- The presence bits a record at the surface's cap opens with.
 const PRESENCE = Protocol.MAX_FIELDS
 
--- How far the run sweep counts, which is three whole words and a tail.
+-- How far the run sweep counts, which is past six of the widest window and a tail.
 const REACH = 200
 
 -- Fields a drawn run holds.

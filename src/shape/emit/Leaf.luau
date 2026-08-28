@@ -92,6 +92,9 @@ const SCORED = SCORE + FLAG
 -- Twenty three, the widest that still takes eight of them, and twenty three bytes to do it.
 const STOUTER = STOUT + FLAG
 
+-- Nineteen, a score short one, which takes eight elements and nineteen bytes of its own.
+const SCANT = SCORE - FLAG
+
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
@@ -545,6 +548,54 @@ local function packed (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    --[[
+        Eight elements to nineteen bytes, four words a pair and one. The third and the fifth are
+        the only ones that come out of a single word, and the sixth is carried by one bit of the
+        third word and the whole low half of the fourth.
+    ]]
+    if width == SCANT then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, SCANT)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (second, DOZEN + FLAG),
+                    bit32.lshift (third, SEXTET),
+                    bit32.lshift (fourth, BROAD + FLAG)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (fourth, SEVEN),
+                    bit32.lshift (fifth, DOZEN),
+                    bit32.lshift (sixth, BROAD + SEVEN)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * TRIO,
+                bit32.bor (bit32.rshift (sixth, FLAG), bit32.lshift (seventh, WIDER))
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD * NIBBLE,
+                bit32.bor (bit32.rshift (seventh, SEVENS), bit32.lshift (eighth, FIVE))
+            )
+            buffer.writeu8 (b, at + WORD * NIBBLE + PAIR, bit32.rshift (eighth, ELEVEN))
+
+            at += WORD * NIBBLE + TRIO
+            from += BYTE
         end
     end
 
@@ -1140,6 +1191,44 @@ local function unpacked (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    -- The nineteen bytes back as the eight they carry, six of them gathered from two places.
+    if width == SCANT then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+            local four = buffer.readu32 (b, at + WORD * TRIO)
+            local five = buffer.readu16 (b, at + WORD * NIBBLE)
+
+            into[from] = bit32.extract (one, 0, SCANT)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (one, SCANT),
+                bit32.lshift (bit32.extract (two, 0, SEXTET), DOZEN + FLAG)
+            )
+            into[from + PAIR] = bit32.extract (two, SEXTET, SCANT)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (two, BROAD + FLAG),
+                bit32.lshift (bit32.extract (three, 0, DOZEN), SEVEN)
+            )
+            into[from + NIBBLE] = bit32.extract (three, DOZEN, SCANT)
+            into[from + FIVE] = bit32.bor (
+                bit32.rshift (three, BROAD + SEVEN),
+                bit32.lshift (bit32.extract (four, 0, WIDER), FLAG)
+            )
+            into[from + SEXTET] = bit32.bor (
+                bit32.rshift (four, WIDER),
+                bit32.lshift (bit32.extract (five, 0, FIVE), SEVENS)
+            )
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (five, FIVE),
+                bit32.lshift (buffer.readu8 (b, at + WORD * NIBBLE + PAIR), ELEVEN)
+            )
+
+            at += WORD * NIBBLE + TRIO
+            from += BYTE
         end
     end
 

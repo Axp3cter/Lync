@@ -110,6 +110,7 @@ const GROUPED = table.freeze ({
     1048575,
     2097151,
     4194303,
+    8388607,
     16777215,
 })
 const GROUPS = 19

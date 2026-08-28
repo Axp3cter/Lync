@@ -89,6 +89,9 @@ const STOUT = BROAD - PAIR
 -- Twenty one, which takes eight elements and twenty one bytes to come out even.
 const SCORED = SCORE + FLAG
 
+-- Twenty three, the widest that still takes eight of them, and twenty three bytes to do it.
+const STOUTER = STOUT + FLAG
+
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
@@ -542,6 +545,55 @@ local function packed (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    --[[
+        Eight elements to twenty three bytes, five words a pair and one. Only the first and the
+        fourth come out of a single word, the seventh reaching into the pair and the eighth across
+        it into the byte beyond.
+    ]]
+    if width == STOUTER then
+        while from + SEVEN <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth, fifth = indices[from + TRIO], indices[from + NIBBLE]
+            local sixth, seventh = indices[from + FIVE], indices[from + SEXTET]
+            local eighth = indices[from + SEVEN]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, STOUTER)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (bit32.rshift (second, NINE), bit32.lshift (third, SEVENS))
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (
+                    bit32.rshift (third, WIDER),
+                    bit32.lshift (fourth, FIVE),
+                    bit32.lshift (fifth, AMPLE)
+                )
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * TRIO,
+                bit32.bor (bit32.rshift (fifth, NIBBLE), bit32.lshift (sixth, WIDER + FLAG))
+            )
+            buffer.writeu32 (
+                b,
+                at + WORD * NIBBLE,
+                bit32.bor (bit32.rshift (sixth, DOZEN + FLAG), bit32.lshift (seventh, TEN))
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD * FIVE,
+                bit32.bor (bit32.rshift (seventh, STOUT), bit32.lshift (eighth, FLAG))
+            )
+            buffer.writeu8 (b, at + WORD * FIVE + PAIR, bit32.rshift (eighth, WIDE - FLAG))
+
+            at += WORD * FIVE + TRIO
+            from += BYTE
         end
     end
 
@@ -1088,6 +1140,48 @@ local function unpacked (
 
             at += WORD + TRIO
             from += NIBBLE
+        end
+    end
+
+    -- The twenty three bytes back as the eight they carry, six of them gathered from two places.
+    if width == STOUTER then
+        while from + SEVEN <= count do
+            local one = buffer.readu32 (b, at)
+            local two = buffer.readu32 (b, at + WORD)
+            local three = buffer.readu32 (b, at + WORD * PAIR)
+            local four = buffer.readu32 (b, at + WORD * TRIO)
+            local five = buffer.readu32 (b, at + WORD * NIBBLE)
+            local six = buffer.readu16 (b, at + WORD * FIVE)
+
+            into[from] = bit32.extract (one, 0, STOUTER)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (one, STOUTER),
+                bit32.lshift (bit32.extract (two, 0, SEVENS), NINE)
+            )
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (two, SEVENS),
+                bit32.lshift (bit32.extract (three, 0, FIVE), WIDER)
+            )
+            into[from + TRIO] = bit32.extract (three, FIVE, STOUTER)
+            into[from + NIBBLE] = bit32.bor (
+                bit32.rshift (three, AMPLE),
+                bit32.lshift (bit32.extract (four, 0, WIDER + FLAG), NIBBLE)
+            )
+            into[from + FIVE] = bit32.bor (
+                bit32.rshift (four, WIDER + FLAG),
+                bit32.lshift (bit32.extract (five, 0, TEN), DOZEN + FLAG)
+            )
+            into[from + SEXTET] = bit32.bor (
+                bit32.rshift (five, TEN),
+                bit32.lshift (bit32.extract (six, 0, FLAG), STOUT)
+            )
+            into[from + SEVEN] = bit32.bor (
+                bit32.rshift (six, FLAG),
+                bit32.lshift (buffer.readu8 (b, at + WORD * FIVE + PAIR), WIDE - FLAG)
+            )
+
+            at += WORD * FIVE + TRIO
+            from += BYTE
         end
     end
 

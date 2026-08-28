@@ -17,7 +17,7 @@ local Harness = require ("@test/harness")
 -- What a set is named by, which a refusal reads back so a caller is sent to their own line.
 const SET = "roster"
 
--- A step a turn does not divide into a whole number of, which is what an angle may not take.
+-- A step a turn does not divide into a whole number of, which a set's own field may not take.
 const ASKEW = 7
 
 -- A name holding what a descriptor separates its own names with, which no definition may.

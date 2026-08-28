@@ -49,7 +49,7 @@ const CLEARED: Types.Cause = "cleared"
 ]]
 const DOUBLING: Doubles.Faults = table.freeze ({ lose = 0, double = 1, hold = 0 })
 
--- More records than one flush at the floor budget can carry, and how wide each of them is.
+-- More records than one flush at the floor budget can carry.
 const MANY = 200
 
 --[[
@@ -69,6 +69,8 @@ const LETS = 2
 
 -- Flushes enough to walk a partition of `MANY` end to end however few slots one section takes.
 const DRAINS = 24
+
+-- The wide field a record of `MANY` carries, and what fills it.
 const NOTE = "note"
 const WIDTH = 64
 const FILLED = string.rep ("x", WIDTH)
@@ -101,7 +103,7 @@ local function defined (): any
 end
 
 --[[
-    The same set with a field that rides the lossy lane, which is where a replay can reach.
+    A field that rides the lossy lane, which is where a replay can reach.
 
     `pos` rather than `hp`, so the field that streams is not the field every other check here moves,
     and a run that confused the two would be reading a delta on the reliable lane.
@@ -115,7 +117,7 @@ local function streamed (): any
     }
 end
 
--- The same streamed set, with the cap on how often the field that streams may go out.
+-- A streamed field under a cap on how often it may go out.
 local function paced (): any
     return {
         [ROSTER] = Lync.replicate (Lync.struct ({
@@ -126,7 +128,7 @@ local function paced (): any
 end
 
 --[[
-    The same set with a field wide enough to make a flush choose, which is what a catch-up needs.
+    A field wide enough to make a flush choose, which is what a catch-up needs.
 
     One string beside the number, since what decides how many records a flush carries is what a
     record costs and a set of two small numbers costs almost nothing.

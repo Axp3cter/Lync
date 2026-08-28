@@ -930,13 +930,43 @@ local function unpacked (
 
     local left = if from > count then 0 else Bytes.whole ((count - from + 1) * width)
 
-    for index = from, count do
+    --[[
+        How many elements come out before the run's last bytes are what a read would reach for. One
+        element draws four bytes at the most, so counting a byte's worth beyond that as spent keeps
+        every pair the walk below takes inside the run, and it has no end left to test for.
+    ]]
+    local spare = used + (left - BYTE) * BYTE - width
+    local bulk = if spare > 0 then from - 1 + spare // width else from - 1
+    if bulk > count then bulk = count end
+
+    for index = from, bulk do
         while used < width do
             --[[
-                A pair taken where the accumulator has room for one. What bounds that is the bits
-                already waiting rather than the width, a run of any width having room whenever it
-                is under a pair short of the thirty two the accumulator carries.
+                A pair taken where the accumulator has room for one, which is the only thing left
+                to ask: a run of any width has room whenever it is under a pair short of the thirty
+                two the accumulator carries, and the run is known to have the bytes.
             ]]
+            if used <= WIDE then
+                acc = bit32.bor (acc, bit32.lshift (buffer.readu16 (b, at), used))
+                at += PAIR
+                used += WIDE
+                left -= PAIR
+            else
+                acc = bit32.bor (acc, bit32.lshift (buffer.readu8 (b, at), used))
+                at += 1
+                used += BYTE
+                left -= 1
+            end
+        end
+
+        into[index] = bit32.band (acc, mask)
+        acc = bit32.rshift (acc, width)
+        used -= width
+    end
+
+    -- The elements the run's own end reaches into, where what it has left is asked again.
+    for index = bulk + 1, count do
+        while used < width do
             if left >= PAIR and used <= WIDE then
                 acc = bit32.bor (acc, bit32.lshift (buffer.readu16 (b, at), used))
                 at += PAIR

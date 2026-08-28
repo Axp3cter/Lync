@@ -2114,23 +2114,30 @@ function Leaf.bytes (
     end
 
     local width = Bits.width (#alphabet - 1)
-    local index: { [string]: number } = {}
-    local symbol: { string } = {}
+
+    --[[
+        The set held as bytes rather than as strings of one character. A symbol is a byte either
+        way, and reaching it through a string costs one to cut and a hash to find it under, where a
+        number costs a read off an array, on every character of every name that crosses.
+    ]]
+    local index = table.create (BYTES) :: { number }
+    local symbol = table.create (#alphabet) :: { number }
 
     for place = 1, #alphabet do
-        local one = string.sub (alphabet, place, place)
-        index[one] = place - 1
-        symbol[place] = one
+        local byte = string.byte (alphabet, place)
+        index[byte + 1] = place - 1
+        symbol[place] = byte
     end
 
     local scratch: { number } = {}
+    local letters = buffer.create (high)
 
     local function write (b: buffer, pos: number, value: any): number
         local count = #value
         if count < low or count > high then refuse (at, count) end
 
         for place = 1, count do
-            local one = index[string.sub (value, place, place)]
+            local one = index[string.byte (value, place) + 1]
             if one == nil then refuse (at, value) end
             scratch[place] = one :: number
         end
@@ -2147,14 +2154,18 @@ function Leaf.bytes (
         local after, clean = unpacked (b, pos + held, width, count, scratch)
         if not clean then reject (Catalog.PAD, at, count) end
 
-        local out = table.create (count) :: { string }
+        --[[
+            Laid into bytes and read back as one string, rather than a string a character and
+            those joined. What the caller is handed is the same. What it costs is one crossing
+            rather than a table the length of the name and a walk over it to gather them.
+        ]]
         for place = 1, count do
             local one = symbol[scratch[place] + 1]
             if one == nil then reject (Catalog.TAG, at, scratch[place]) end
-            out[place] = one :: string
+            buffer.writeu8 (letters, place - 1, one :: number)
         end
 
-        return after, table.concat (out)
+        return after, buffer.readstring (letters, 0, count)
     end
 
     return write, read

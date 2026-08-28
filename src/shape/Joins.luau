@@ -125,9 +125,14 @@ function Joins.of (of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: n
     local function push (from: { number }, opens: number): any
         local names, out = names, table.clone (blank) :: { [string]: boolean }
 
+        --[[
+            Only the flags that are set are laid down. The copy already carries every name against
+            a false, so writing one there is writing what is already under it, and a field of flags
+            is mostly false in the places that declare one.
+        ]]
         local at = opens
         for place = 1, reach do
-            out[names[place]] = from[at] == 1
+            if from[at] == 1 then out[names[place]] = true end
             at += 1
         end
         return out

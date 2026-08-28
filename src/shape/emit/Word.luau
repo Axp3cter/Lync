@@ -1279,15 +1279,15 @@ function Word.emit (
         end
 
         --[[
-            A word that is a field of its own, over a grid every reading of which is its own index,
-            has nothing to do to a reading but hand it back, and where the block is that word alone
-            there is no part after it to place. So these answer the block's own two, the byte past
-            the word and the reading, and the group emitter takes one of them in place of its own.
+            A lone field over a grid whose readings are their own indices has nothing to do to one
+            but hand it back, and where the block is that word alone there is no part after it to
+            place. So these answer the block's own two, the byte past the word and the reading, and
+            they sit at the word's first byte, which is one more thing the build settles for them.
         ]]
         local after = of.maxBytes
 
         local function soloByte (b: buffer, pos: number, _c: any): (number, any)
-            local raw = buffer.readu8 (b, pos + seat)
+            local raw = buffer.readu8 (b, pos)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
@@ -1296,7 +1296,7 @@ function Word.emit (
         end
 
         local function soloPair (b: buffer, pos: number, _c: any): (number, any)
-            local raw = buffer.readu16 (b, pos + seat)
+            local raw = buffer.readu16 (b, pos)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
@@ -1305,7 +1305,7 @@ function Word.emit (
         end
 
         local function soloWide (b: buffer, pos: number, _c: any): (number, any)
-            local raw = buffer.readu32 (b, pos + seat)
+            local raw = buffer.readu32 (b, pos)
             if raw > bound then
                 Log.reject (Catalog.TAG, { pathId = named, expectId = meant, got = raw })
             end
@@ -1314,7 +1314,9 @@ function Word.emit (
         end
 
         local sole = if bytes == ONE then narrow elseif bytes == PAIR then middle else widest
-        local solo = if key ~= nil or reading ~= nil
+        local solo = if key ~= nil
+                or reading ~= nil
+                or seat ~= 0
             then nil
             else (if bytes == ONE then soloByte elseif bytes == PAIR then soloPair else soloWide)
 

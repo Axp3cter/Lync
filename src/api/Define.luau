@@ -51,7 +51,7 @@ Define.spaces = spaces
 Define.order = order
 Define.refuse = refuse
 
--- The same, or only what the call was named where the handle has no namespace yet.
+-- The space and the name where the handle has one, and only the call's own where it does not.
 function Define.naming (of: Live, said: string): string
     if of.space == nil then return said end
     return called (of)

@@ -111,7 +111,7 @@ end
     left describing the project that was staged, because the watchers serve reconverts through must
     keep reading the instance paths of the place they are serving.
 ]]
-function Build.stage (name: string): Ruling.Ruling
+function Build.stage (name: string, config: string?): Ruling.Ruling
     local project = Repo.projectPath (name)
     if project == nil then return { ok = false, note = `no {Repo.project (name)}` } end
 
@@ -120,7 +120,7 @@ function Build.stage (name: string): Ruling.Ruling
 
     clear (Repo.STAGE)
     for _, dir in Repo.mounted (name) do
-        local converted = convert (dir, Repo.staged (dir))
+        local converted = convert (dir, Repo.staged (dir), config)
         if not converted.ok then return { ok = false, note = `darklua failed on {dir}` } end
     end
     fs.copy (project, Repo.staged (project))
@@ -129,9 +129,13 @@ function Build.stage (name: string): Ruling.Ruling
     return { ok = true }
 end
 
--- Packages a staged project into build/, a place or a model by its root class.
-function Build.place (name: string): Ruling.Ruling
-    local staged = Build.stage (name)
+--[[
+    Packages a staged project into build/, a place or a model by its root class. A caller naming a
+    config gets the tree that config converts, which is how the model that ships is the release one
+    where the places that run the suite and the bench are the development one.
+]]
+function Build.place (name: string, config: string?): Ruling.Ruling
+    local staged = Build.stage (name, config)
     if not staged.ok then return staged end
 
     local output = Repo.artifact (name)

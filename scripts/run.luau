@@ -94,7 +94,7 @@ local STEPS: { [string]: Step } = {
     },
     model = {
         title = "building the library model",
-        run = function () return Build.place (Repo.DEFAULT) end,
+        run = function () return Build.place (Repo.DEFAULT, Repo.DARKLUA_RELEASE) end,
     },
     dist = { title = "assembling the package", run = Build.dist },
     wally = { title = "publishing to wally", run = Tools.publishWally },

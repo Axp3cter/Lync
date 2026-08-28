@@ -29,7 +29,7 @@ const RUN = 12
 const WIDEST = Protocol.EXACT - 1
 const GROUPS = Protocol.VARINT_GROUPS
 
--- Every byte of a group but the last carries this, and the last carries none.
+-- Every group but the last carries this, and the last carries none.
 const MORE = 0x80
 
 -- Types ---------------------------------------------------------------

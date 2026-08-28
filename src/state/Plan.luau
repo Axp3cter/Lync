@@ -67,7 +67,6 @@ export type Dirt = {
     cleared: boolean,
 }
 
--- One partition: which key it is, what it holds, and what it owes.
 export type Partition = {
     read key: any,
     read store: Store.Store,
@@ -316,7 +315,6 @@ function Plan.keyframes (of: Sections.Layout, bytes: number): number
     return (math.min (bytes, BOUND) - of.opening) // of.entry
 end
 
--- A set's planner, as the costs a section of it comes to and the scratch a partition fills.
 function Plan.of (layout: Sections.Layout): Plan
     local reach = layout.def.fieldCount
     local bit = table.create (reach) :: { integer }
@@ -348,10 +346,9 @@ function Plan.of (layout: Sections.Layout): Plan
     }
 end
 
--- What a partition owes, empty, which a partition holds one of for as long as it exists.
+-- An empty one, which a partition keeps for as long as it exists.
 function Plan.dirt (): Dirt return { ops = {}, masks = {}, freed = {}, cleared = false } end
 
--- What one flush of one namespace may spend on state, and what it has spent.
 function Plan.budget (bytes: number): Budget return { target = bytes, spent = 0, took = false } end
 
 -- The same one again, ready for another flush, for a caller that keeps one rather than making one.
@@ -399,7 +396,7 @@ function Plan.dropping (of: Plan, budget: Budget, part: Partition): boolean
     return dirt.cleared or fell > 0
 end
 
--- What one partition puts down, gathered and put in order, and whether it puts anything.
+-- What one partition puts down and moves, gathered and put in order, and whether it has any.
 function Plan.making (of: Plan, budget: Budget, part: Partition): boolean
     if spent (budget) then return false end
 

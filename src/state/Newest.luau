@@ -50,7 +50,7 @@ const SAID = table.freeze ({
 
 -- Types ---------------------------------------------------------------
 
--- One partition's streams, one to a newest field, and the four numbers each of them keeps.
+-- One partition's streams, one to a newest field, and what each of them keeps.
 export type Streams = {
     at: { number },
     last: { number? },
@@ -188,7 +188,7 @@ function Newest.of (layout: Sections.Layout): Lane
     }
 end
 
--- A partition's streams, none of them having said anything yet.
+-- A partition's streams, before any of them has said anything.
 function Newest.streams (of: Lane): Streams
     local reach = #of.fields
     local held: Streams = { at = {}, last = {}, heard = {}, took = {}, from = {} }
@@ -372,8 +372,9 @@ function Newest.section (
 end
 
 --[[
-    Whatever section is at this position, as the stream it is for, the sequence it carries and the
-    byte past it.
+    Whatever section is at this position: how many fields it groups, how many records it names,
+    and the byte past it. Which streams those are, and the sequence each carries, are left in the
+    lane's own `group` and `seqs`.
 ]]
 function Newest.taken (
     of: Lane,
@@ -455,15 +456,11 @@ function Newest.apply (
     local ids = store.ids
 
     --[[
-        The column this section speaks for and the three runs it arrived as, taken once. A section
-        is one field over many slots, so the field was settled before the walk and so was every run
-        the reading gathered into.
+        The column, the writer, and the three runs the reading gathered into, taken once. A section
+        is one field over many slots, so every one of them was settled before the walk began.
     ]]
     local column = store.columns[field]
-
-    -- The writer this field is put down by, which a section names once and not once a slot.
     local put = store.writers[field]
-
     local slots = of.slots
     local standing = of.gens
     local values = of.values

@@ -52,7 +52,7 @@ const UNRELIABLE: Transport.Channel = "unreliable"
 const ORDERED: Serial.Delivery = "reliable"
 const LATEST: Serial.Delivery = "newest"
 
--- The field a header opens with, which is the definition it is about, in every form there is.
+-- The field a block's own header opens with, which is the definition it is about.
 const WHOSE = 1
 
 --[[
@@ -169,9 +169,8 @@ local function budgeted (self: Self, asked: number?, now: number): number
 end
 
 --[[
-    The sealing, named before it is written. Nothing outside this module reaches for either of
-    these, so both are held under their own names rather than on the table: a fire reaches the
-    sealing three times and the queueing once, and a name costs nothing to reach.
+    Named here because the sealing is written below everything that reaches for it, and held as a
+    local rather than on the table because nothing outside this module calls it.
 ]]
 local shipped: (self: Self) -> ()
 
@@ -617,7 +616,7 @@ function Session.flush (self: Self, budget: number?)
     self.pending:sweep (now)
     latest (self, now)
 
-    -- Every set's audiences, before anything is decided about what this flush carries.
+    -- Every set's audiences, settled before this flush plans anything against them.
     for _, id in self.order do
         Sync.resolved (self.sets[id], self.link, self.link.ready)
     end
@@ -822,7 +821,7 @@ function shipped (self: Self)
     Outbox.targeted (link, audience, 1, block)
 end
 
--- One packet fired, as the block that carries it.
+-- One packet fired, on whichever of the three paths its declaration puts it.
 function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, value: any)
     local link = self.link
 
@@ -865,8 +864,8 @@ function Session.fire (self: Self, def: Compile.Packet, to: Types.Recipient?, va
     end
 
     --[[
-        How many the run already holds, taken once. A run that will not have this one sealed and
-        stands at nothing again, so what it held is known here without the link being asked over.
+        How many the run already holds, taken once. A run that will not take this one is sealed and
+        stands at nothing again, so what it holds is known here without asking the link twice.
     ]]
     local holds = link.holds
     if not joins (link, holds, FIRES, def, to, loose) then

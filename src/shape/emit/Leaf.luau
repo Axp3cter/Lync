@@ -83,6 +83,9 @@ const BROAD = TRIO * BYTE
 -- Twenty, which fills no three bytes and fills five of them two at a time.
 const SCORE = DOZEN + BYTE
 
+-- Twenty two, which fills eleven bytes four at a time and no fewer of them at all.
+const STOUT = BROAD - PAIR
+
 -- Ten, which fills those same five bytes four at a time, twenty being twice it.
 const TEN = SEXTET + NIBBLE
 
@@ -95,6 +98,9 @@ const NINE = BYTE + FLAG
 
 -- The width over a byte that one call still carries whole, which spares the loop below it.
 const WIDE = PAIR * BYTE
+
+-- Eighteen, which is that width and a pair over, and fills nine bytes four at a time.
+const WIDER = WIDE + PAIR
 
 -- The slot a reference nobody made takes, which is none, since the array it indexes starts at one.
 const NOTHING = 0
@@ -449,6 +455,60 @@ local function packed (
 
             at += WORD + 1
             from += PAIR
+        end
+    end
+
+    --[[
+        Four elements to eleven bytes, twenty two being the widest that neither fills a byte nor
+        sits under the pair the accumulator holds back. Two words, a pair and a byte carry them,
+        and every element but the first lies across one of those boundaries.
+    ]]
+    if width == STOUT then
+        while from + TRIO <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth = indices[from + TRIO]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, STOUT)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (bit32.rshift (second, TEN), bit32.lshift (third, DOZEN))
+            )
+            buffer.writeu16 (
+                b,
+                at + WORD * PAIR,
+                bit32.bor (bit32.rshift (third, SCORE), bit32.lshift (fourth, PAIR))
+            )
+            buffer.writeu8 (b, at + WORD * PAIR + PAIR, bit32.rshift (fourth, SEVEN * PAIR))
+
+            at += WORD * PAIR + TRIO
+            from += NIBBLE
+        end
+    end
+
+    --[[
+        Four elements to nine bytes, eighteen being a pair over a pair of them. Two words and a
+        byte carry the four, and the third is the only one of them out of a single word.
+    ]]
+    if width == WIDER then
+        while from + TRIO <= count do
+            local second, third = indices[from + 1], indices[from + PAIR]
+            local fourth = indices[from + TRIO]
+
+            buffer.writeu32 (b, at, bit32.bor (indices[from], bit32.lshift (second, WIDER)))
+            buffer.writeu32 (
+                b,
+                at + WORD,
+                bit32.bor (
+                    bit32.rshift (second, SEVEN * PAIR),
+                    bit32.lshift (third, NIBBLE),
+                    bit32.lshift (fourth, STOUT)
+                )
+            )
+            buffer.writeu8 (b, at + WORD * PAIR, bit32.rshift (fourth, TEN))
+
+            at += WORD * PAIR + 1
+            from += NIBBLE
         end
     end
 
@@ -832,6 +892,54 @@ local function unpacked (
 
             at += WORD + 1
             from += PAIR
+        end
+    end
+
+    -- The eleven bytes back as the four they carry, three of them lying across a boundary.
+    if width == STOUT then
+        while from + TRIO <= count do
+            local low = buffer.readu32 (b, at)
+            local mid = buffer.readu32 (b, at + WORD)
+            local high = buffer.readu16 (b, at + WORD * PAIR)
+
+            into[from] = bit32.extract (low, 0, STOUT)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (low, STOUT),
+                bit32.lshift (bit32.extract (mid, 0, DOZEN), TEN)
+            )
+            into[from + PAIR] = bit32.bor (
+                bit32.rshift (mid, DOZEN),
+                bit32.lshift (bit32.extract (high, 0, PAIR), SCORE)
+            )
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (high, PAIR),
+                bit32.lshift (buffer.readu8 (b, at + WORD * PAIR + PAIR), SEVEN * PAIR)
+            )
+
+            at += WORD * PAIR + TRIO
+            from += NIBBLE
+        end
+    end
+
+    -- The nine bytes back as the four they carry, only the third lying inside one word.
+    if width == WIDER then
+        while from + TRIO <= count do
+            local low = buffer.readu32 (b, at)
+            local mid = buffer.readu32 (b, at + WORD)
+
+            into[from] = bit32.extract (low, 0, WIDER)
+            into[from + 1] = bit32.bor (
+                bit32.rshift (low, WIDER),
+                bit32.lshift (bit32.extract (mid, 0, NIBBLE), SEVEN * PAIR)
+            )
+            into[from + PAIR] = bit32.extract (mid, NIBBLE, WIDER)
+            into[from + TRIO] = bit32.bor (
+                bit32.rshift (mid, STOUT),
+                bit32.lshift (buffer.readu8 (b, at + WORD * PAIR), TEN)
+            )
+
+            at += WORD * PAIR + 1
+            from += NIBBLE
         end
     end
 

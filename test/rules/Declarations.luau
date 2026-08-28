@@ -248,7 +248,7 @@ return {
     Harness.case ("codec.datatypes-legal", function ()
         refuses ({
             {
-                what = "an angle finer than a turn",
+                what = "an angle coarser than a turn",
                 says = "takes a precision",
                 make = function () Lync.angle (TOO_FINE) end,
             },

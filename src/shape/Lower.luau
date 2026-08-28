@@ -56,7 +56,7 @@ local function tagged (of: Base.Cell, at: string, site: Site): Ir.Tag
     })
 end
 
--- The same place, for the nodes under the one the checks are on and for the bits that are no node.
+-- The place alone, for the nodes under the one the checks are on and for the bits that are no node.
 local function plain (of: Base.Cell, at: string, site: Site): Ir.Tag
     local pathId, expectId = Serial.tagged (site.paths, site.expected, at, of)
     return table.freeze ({ pathId = pathId, expectId = expectId })
@@ -75,7 +75,7 @@ local function pathed (at: string, path: { string }): string
     return out
 end
 
--- The same, as the one string a table of them can be keyed by.
+-- The names down to a depth, joined as the one string a table of them can be keyed by.
 local function spelled (path: { string }, deep: number): string
     return table.concat (path, ".", 1, deep)
 end

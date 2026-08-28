@@ -95,7 +95,7 @@ function Bytes.take (b: buffer, at: number, width: number): (number, number)
     return of, at + width
 end
 
--- The byte a bit run ends on, and whether what it left above itself is zero.
+-- Where whatever follows a bit run starts, and whether what the run left above itself is zero.
 function Bytes.aligned (b: buffer, at: number): (number, boolean)
     local over = at % BYTE
     if over == 0 then return at // BYTE, true end

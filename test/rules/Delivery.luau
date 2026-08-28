@@ -19,8 +19,8 @@ const SPACE = "delivery"
 const SENDER = "alice"
 
 --[[
-    Five packets over one codec, so the only thing that differs between any two of them is what a
-    caller chained onto the definition.
+    Six packets, five of them over one codec, so the only thing that differs between any two of
+    those is what a caller chained onto the definition. The sixth carries nothing at all.
 ]]
 const SURE = "sure"
 const LOSSY = "lossy"

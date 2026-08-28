@@ -136,9 +136,8 @@ function Bytes.rangeLess (b: buffer, atA: number, lenA: number, atB: number, len
     local at = 0
 
     while at < words do
-        local wordA = Wide.ordered (b, atA + at)
-        local wordB = Wide.ordered (b, atB + at)
-        if not Wide.same (wordA, wordB) then return Wide.below (wordA, wordB) end
+        local same, below = Wide.ordering (b, atA + at, atB + at)
+        if not same then return below end
         at += STRIDE
     end
 

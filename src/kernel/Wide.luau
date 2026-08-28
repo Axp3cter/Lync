@@ -70,6 +70,13 @@ export type Carrier = {
     read read: (b: buffer, at: number) -> Word,
     read write: (b: buffer, at: number, of: Word) -> number,
     read ordered: (b: buffer, at: number) -> Word,
+
+    --[[
+        The same two, compared where they lie. A sort asks this of every pair it looks at and never
+        wants the words themselves, so answering with the comparison spares a carrier that has to
+        make a table for each of them from making two on every question.
+    ]]
+    read ordering: (b: buffer, atA: number, atB: number) -> (boolean, boolean),
     read text: (of: Word) -> string,
 }
 
@@ -129,6 +136,14 @@ local held: Carrier = {
 
     ordered = function (b: buffer, at: number): Word
         return carried.bswap (buffer.readinteger (b, at))
+    end,
+
+    ordering = function (b: buffer, atA: number, atB: number): (boolean, boolean)
+        local a = carried.bswap (buffer.readinteger (b, atA))
+        local held = carried.bswap (buffer.readinteger (b, atB))
+
+        if a == held then return true, false end
+        return false, carried.ult (a, held)
     end,
 
     text = function (of: Word): string
@@ -267,6 +282,18 @@ local halved: Carrier = {
         }
     end,
 
+    ordering = function (b: buffer, atA: number, atB: number): (boolean, boolean)
+        local aboveA = bit32.byteswap (buffer.readu32 (b, atA + LOW))
+        local aboveB = bit32.byteswap (buffer.readu32 (b, atB + LOW))
+        if aboveA ~= aboveB then return false, aboveA < aboveB end
+
+        local underA = bit32.byteswap (buffer.readu32 (b, atA + HIGH))
+        local underB = bit32.byteswap (buffer.readu32 (b, atB + HIGH))
+        if underA ~= underB then return false, underA < underB end
+
+        return true, false
+    end,
+
     text = function (of: Word): string return string.format (SPELLING, of[1], of[2]) end,
 }
 
@@ -310,6 +337,7 @@ Wide.below = chosen.below
 Wide.read = chosen.read
 Wide.write = chosen.write
 Wide.ordered = chosen.ordered
+Wide.ordering = chosen.ordering
 Wide.text = chosen.text
 
 --[[

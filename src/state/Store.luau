@@ -65,7 +65,7 @@ export type Store = {
 
 -- Private -------------------------------------------------------------
 
--- A slot nobody holds, and whether it has been held before.
+-- A slot nobody holds, its generation moved on where it has been held before.
 local function taken (of: Store): number
     local gens = of.gens
     local _, held = Heap.pop (of.free)

@@ -21,7 +21,7 @@ const PLACE = false
 
 -- Types ---------------------------------------------------------------
 
--- What one definition costs, as the two numbers a caller of it can want.
+-- One packet: what its payload comes to at worst, and what the block carrying it comes to.
 export type Packet = {
     read id: number,
     read name: string,
@@ -108,7 +108,7 @@ export type Compiled = {
     read byId: { [number]: Def },
 }
 
--- A set's fields, as the four arrays a column walk reads and the bytes one record comes to.
+-- A set's fields, as the arrays a column walk reads and the bytes one record comes to.
 type Fields = {
     names: { string },
     index: { [string]: number },

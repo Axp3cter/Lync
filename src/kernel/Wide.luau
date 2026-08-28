@@ -13,8 +13,8 @@ local carried: any = integer
 const NATIVE = carried ~= nil
 
 --[[
-    The piece a half is cut into for a multiply, what a piece and a word count to, and how wide a
-    half is.
+    The piece a half is cut into for a multiply, what a piece and a half each count to, and how
+    wide a half is.
 ]]
 const PIECE = 16
 const PLACE = 65536

@@ -2129,6 +2129,12 @@ function Leaf.bytes (
         symbol[place] = byte
     end
 
+    --[[
+        Whether every pattern the width spells is a symbol. A set that fills its bits leaves no
+        reading the walk back has to turn away, so where that holds the walk does not ask.
+    ]]
+    local exact = #alphabet == bit32.lshift (1, width)
+
     local scratch: { number } = {}
     local letters = buffer.create (high)
 
@@ -2178,10 +2184,17 @@ function Leaf.bytes (
             those joined. What the caller is handed is the same. What it costs is one crossing
             rather than a table the length of the name and a walk over it to gather them.
         ]]
-        for place = 1, count do
-            local one = symbol[scratch[place] + 1]
-            if one == nil then reject (Catalog.TAG, at, scratch[place]) end
-            buffer.writeu8 (letters, place - 1, one :: number)
+        if exact then
+            for place = 1, count do
+                buffer.writeu8 (letters, place - 1, symbol[scratch[place] + 1])
+            end
+        else
+            for place = 1, count do
+                local one = symbol[scratch[place] + 1]
+                if one == nil then reject (Catalog.TAG, at, scratch[place]) end
+
+                buffer.writeu8 (letters, place - 1, one :: number)
+            end
         end
 
         return after, buffer.readstring (letters, 0, count)

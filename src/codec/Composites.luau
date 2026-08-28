@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- The seven composites: five that record a codec under a name, and two that record names alone.
+-- The composites: five that record a codec under a name, two that record names, and unknown.
 
 local Base = require ("@src/codec/Base")
 local Legality = require ("@src/codec/Legality")

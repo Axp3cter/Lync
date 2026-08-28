@@ -164,7 +164,7 @@ local function stateless (name: string, at: Site, what: string, of: Base.Cell, r
     refuse (name, at, why)
 end
 
--- A record a set replicates, and the four things a set decides about it that nothing else does.
+-- A record a set replicates, and everything about it that only a set decides.
 local function replicated (name: string, at: Site, of: Set)
     local cell = Base.cell (of.of)
     if cell.kind ~= RECORD then

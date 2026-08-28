@@ -31,10 +31,10 @@ const HP = "hp"
 const POS = "pos"
 const AIM = "aim"
 
--- One record, and the two ids the checks that need a second one use.
+-- The one record every check writes to.
 const ID = 1
 
--- What Studio hands a test player, which a set is expected to carry unchanged.
+-- The negative id Studio hands a test player, and a second ordinary one beside it.
 const NEGATIVE = -2
 const OTHER = 2
 

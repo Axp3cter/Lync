@@ -27,10 +27,10 @@ const RIDING = 3
 const PLAIN = "plain"
 const LATEST = "latest"
 const WIDE = "wide"
+const GUARDED = "guarded"
 
 -- A set, since a section is composed rather than fired and is counted where it is composed.
 const ROSTER = "roster"
-const GUARDED = "guarded"
 
 -- The bound on what a narrow fire carries, and the two on what a wide one does.
 const TOP = 100

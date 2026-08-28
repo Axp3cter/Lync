@@ -60,7 +60,7 @@ const IDS = table.freeze ({
 const REFUSED = table.freeze ({
     table.freeze ({ of = "a fraction", id = 1.5 }),
     table.freeze ({ of = "the ceiling", id = CEILING }),
-    table.freeze ({ of = "below the ceiling", id = -CEILING }),
+    table.freeze ({ of = "the floor", id = -CEILING }),
     table.freeze ({ of = "not a number at all", id = 0 / 0 }),
 })
 

@@ -296,7 +296,20 @@ function Grid.named (names: { string }): Grid
     local function toIndex (value: any): number? return index[value] end
     local function fromIndex (at: number): any return names[at + 1] end
 
-    return { span = span, width = Bits.width (span), toIndex = toIndex, fromIndex = fromIndex }
+    --[[
+        A list of names filling the bits it takes has one for every pattern those bits spell, so
+        nothing off any bytes is off this grid and the walks that read it are spared asking. Said
+        the way every other grid here says it, since it is the same question about the same span.
+    ]]
+    local width = Bits.width (span)
+
+    return {
+        span = span,
+        width = width,
+        whole = span == bit32.lshift (1, width) - 1,
+        toIndex = toIndex,
+        fromIndex = fromIndex,
+    }
 end
 
 --[[

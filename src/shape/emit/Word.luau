@@ -17,12 +17,12 @@ export type Solo = { read read: Ir.Read?, read write: Ir.Write }
 
 -- Constants -----------------------------------------------------------
 
--- The same two widths a frame header reads, a region and a header being one kind of bit run.
+-- The same two widths a frame header reads, since a region and a header are one kind of bit run.
 const ONE = Words.ONE
+const PAIR = Words.PAIR
 
 -- How many bits a byte holds, which is what turns a field's width into the call that writes it.
 const BYTE = Protocol.BYTE_BITS
-const PAIR = Words.PAIR
 
 --[[
     A top no reading stands under, which is what a piece carries where recognising one would cost
@@ -61,7 +61,7 @@ function Word.refusedAt (
     return Word.refused (paths.texts[tag.pathId], said.texts[tag.expectId], got)
 end
 
--- The pair, with every constant the region is laid out by read once and held.
+-- The pair a region is laid by, and the solo offered where the word is one field alone.
 function Word.emit (
     of: Ir.Word,
     paths: Serial.Interner,
@@ -433,7 +433,7 @@ function Word.emit (
             local leaf = watched[spot]
             if slots[leaf] <= spans[leaf] then continue end
 
-            -- Held back to here, since a decode that holds never has a tag to report.
+            -- The tag reached only here, since a reading inside its grid never wants one.
             local tag = joins[watcher[spot]].tag
             Log.reject (Catalog.TAG, {
                 pathId = tag.pathId,
@@ -870,7 +870,7 @@ function Word.emit (
             end
         end
 
-        -- A piece off the end of its grid, said by whichever of the two readings below met it.
+        -- A piece off the end of its grid, said by whichever of the readings below met it.
         local function past (part: number, raw: number)
             local tag = joins[owner[part]].tag
             Log.reject (Catalog.TAG, { pathId = tag.pathId, expectId = tag.expectId, got = raw })

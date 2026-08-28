@@ -55,8 +55,8 @@ export type Validate = (value: any, ctx: Types.ValidateContext) -> string?
 
 --[[
     Every parameter any constructor records, in one vocabulary. The set is closed because the
-    descriptor writes these as decimal text, and two machines agreeing on a schema is that text
-    agreeing.
+    descriptor writes every one of these as text, and two machines agreeing on a schema is that
+    text agreeing.
 ]]
 export type Params = {
     read min: number?,

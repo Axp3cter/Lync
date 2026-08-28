@@ -84,7 +84,7 @@ local function snapped (of: Heard, store: Store.Store, id: number)
     of.olds[id] = table.clone (row)
 end
 
--- The same, for the lane that does not come through a section.
+-- Reached from outside for the lane that does not come through a section.
 function Apply.snapped (of: Heard, store: Store.Store, id: number) snapped (of, store, id) end
 
 -- A record established, which is an arrival unless this frame has already taken it away.

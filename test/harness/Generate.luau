@@ -78,10 +78,10 @@ const ALL =
     table.freeze (table.move (COMPOSITES, 1, #COMPOSITES, #LEAVES + 1, table.clone (LEAVES)))
 
 --[[
-    The constructors no case here builds, each for its own reason. `unknown` is the one whose
-    reason is the kind itself: a drawn schema is what every value here is drawn from, and that one
-    declares no shape to draw. `empty` is the same the other way: no value to draw at all, and
-    nothing that may hold one so as to be drawn inside it.
+    The constructors no case here builds. `unknown` is the one whose reason is the kind itself: a
+    drawn schema is what every value here is drawn from, and that one declares no shape to draw.
+    `empty` is the same the other way: no value to draw at all, and nothing that may hold one so as
+    to be drawn inside it.
 ]]
 const UNGENERATED = table.freeze ({
     "empty",
@@ -111,7 +111,7 @@ const ROTATIONS =
 -- What a map's key may be, which is a scalar that sorts.
 const KEYS = table.freeze ({ "int", "enum", "str.alphabet" })
 
--- What a set may partition by, which is narrower and for a reason the wire gives.
+-- What a set may partition by, which is a map key without the string.
 const PARTS = table.freeze ({ "int", "enum" })
 
 --[[

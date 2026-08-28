@@ -29,8 +29,8 @@ const CUT = 0.25
 const FROM = 4
 
 --[[
-    How far a value may sit from the one it went in as. A component off a grid comes back rounded to
-    the nearest point it holds, so nothing here is exact and the margin is the step it was cut on.
+    How far a value may sit from the one it went in as. Nothing here is asked to survive a rounding,
+    so what this covers is what the arithmetic loses and not what a grid does.
 ]]
 const NEARLY = 1e-6
 

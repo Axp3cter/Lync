@@ -40,7 +40,7 @@ Dead.__iter = gone
 
 -- State ---------------------------------------------------------------
 
--- Every group that has not been destroyed, which is where a leave sweep finds them.
+-- Every group not yet destroyed. A leave sweep walks this to find them.
 local live: { [Held]: true } = {}
 
 -- Public --------------------------------------------------------------
@@ -99,15 +99,15 @@ function Group.new (): Types.Group
 end
 
 --[[
-    Whether a value is a group, which is what a recipient asks before it walks one. A destroyed one
-    never reaches here: every recipient form is told apart by reading a field off it first, and
-    reading any field off a destroyed group is already the raise that says so.
+    A destroyed group never reaches this test. Every recipient form is told apart by reading a
+    field off it first, and reading any field off a destroyed one is already the raise that says
+    so.
 ]]
 function Group.is (value: unknown): boolean return getmetatable (value :: any) == Members end
 
 --[[
-    Every group a departed player was in, thinned. Called once per leave from wherever the removal
-    is heard, which is the same sweep that releases every other structure keyed by them.
+    Every group a departed player was in, thinned. Called once a leave, from the same sweep that
+    releases every other structure keyed by them.
 ]]
 function Group.dropped (player: Player)
     for of in live do

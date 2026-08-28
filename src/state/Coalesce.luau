@@ -10,17 +10,17 @@ local Coalesce = {}
 -- State ---------------------------------------------------------------
 
 --[[
-    The two word operations a mask asks for, under their own names. `Wide` picks its carrier once
-    when it loads, so both are the same function for the life of the place and naming them here
-    is a lookup every field of every write would otherwise make.
+    The two word operations a mask asks for, under their own names. `Wide` settles its carrier when
+    it loads, so both stay the same function for the life of the place, and naming them here spares
+    a lookup on every field of every write.
 ]]
 const MEETS = Wide.meets
 const UNION = Wide.union
 
 --[[
-    Every field's own bit, worked out once for the whole run of the library. A field's bit is a
-    constant of its place and nothing else, and the one home for what that constant is answers a
-    call and a lookup deep, which is a price a mask pays on every field of every write.
+    Every field's own bit, worked out once for the run of the library. A field's bit never moves,
+    and asking for it costs a call and a lookup that a mask would otherwise pay on every field of
+    every write.
 ]]
 local BITS: { Wide.Word } = table.create (Protocol.MAX_FIELDS)
 for field = 1, Protocol.MAX_FIELDS do
@@ -41,9 +41,9 @@ export type Kind = "add" | "update" | "remove" | "replace"
 -- Public --------------------------------------------------------------
 
 --[[
-    Nothing pending takes whatever came. An update never changes what an entry is, since a keyframe
-    already states every field and a delta is still a delta. An add can only follow a removal, which
-    is a replace. A remove ends the entry, and ends it as nothing where the add it cancels never
+    Nothing pending takes whatever came. An update never changes what an entry is, a keyframe
+    already stating every field and a delta still being a delta. An add can only follow a removal,
+    so it replaces. A remove ends the entry, and ends it as nothing where the add it cancels never
     reached anybody.
 ]]
 function Coalesce.merge (was: Kind?, took: Kind): Kind?

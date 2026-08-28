@@ -65,8 +65,8 @@ type Run = {
 -- Private -------------------------------------------------------------
 
 --[[
-    One packet and one query, which is the smallest pair that reaches both of the things a phase
-    decides: whether a fire leaves, and whether a request finds anybody to answer it.
+    A packet, a query and a set. The first two are the smallest pair that reaches both of the things
+    a phase decides, whether a fire leaves and whether a request finds anybody to answer it.
 ]]
 local function defined (): any
     return {

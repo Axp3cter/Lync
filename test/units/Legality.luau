@@ -223,9 +223,9 @@ return {
     end),
 
     --[[
-        The same bound asked of every constructor that takes one. Four read it through one test and
-        the fifth spells it itself, which is how the two could come apart, so what this holds is
-        that a precision means the same thing wherever the surface takes one.
+        The same bound asked of every constructor that takes one. Four reach it from another
+        module and the fifth sits in the same one, which is how the two could come apart, so what
+        this holds is that a precision means the same thing wherever the surface takes one.
     ]]
     Harness.case ("legality.precision-everywhere", function ()
         for _, one in PRECISE do

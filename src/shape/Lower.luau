@@ -86,7 +86,7 @@ local function there (value: any, into: { number }, at: number): boolean
     return true
 end
 
--- What a presence bit answers, which is nothing.
+-- A presence join gives nothing back, since the bit says only whether the field came.
 local function nothing (): any return nil end
 
 local function planar (from: { any }): any return Vector2.new (from[1], from[2]) end

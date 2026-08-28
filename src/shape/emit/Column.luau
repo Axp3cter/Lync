@@ -210,10 +210,7 @@ function Column.bits (width: number, said: string): (Write, Read)
     return write, read
 end
 
---[[
-    A field that is no run, as its own pair called once per record, and saying nothing about where
-    its values sit on a grid.
-]]
+-- A field that is no run, as its own pair called once per record.
 local function apiece (writeOne: Ir.Write, readOne: Ir.Read): (Write, Read)
     local function write (
         b: buffer,
@@ -289,10 +286,7 @@ local function stated (writeOne: Ir.Write, readOne: Ir.Read, of: Grid.Grid): (Wr
     return write, read
 end
 
---[[
-    A field that is no run, as its own pair called once per record, which is a constant stride when
-    the field is a byte field and whatever the field is otherwise.
-]]
+-- Whichever of the two above the field wants, which is the stated one wherever it has a grid.
 function Column.each (writeOne: Ir.Write, readOne: Ir.Read, of: Grid.Grid?): (Write, Read)
     if of == nil then return apiece (writeOne, readOne) end
     return stated (writeOne, readOne, of)
@@ -371,7 +365,7 @@ function Column.gain (
         at: { number },
         count: number
     ): number
-        -- The two the grid answers with, and the steps, which the walk reaches at every element.
+        -- What the walk reaches at every element, taken once: the steps, the bounds, the pair.
         local steps, span, points = steps, span, points
         local fromIndices, fromIndex = fromIndices, fromIndex
 
@@ -455,7 +449,7 @@ function Column.gain (
         local ok, after = pcall (walk, b, pos, into, slots, was, at, count)
         if ok then return after :: number end
 
-        -- Passed along rather than raised again, which is why it does not take the door.
+        -- A rejection from deeper in, rethrown as it stands rather than read as a varint fault.
         if typeof (after) == "table" then error (after, 0) end
         return reject (Catalog.VARINT, tag, after)
     end

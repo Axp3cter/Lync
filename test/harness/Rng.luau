@@ -61,7 +61,7 @@ local function split (state: number): (number, number)
     return advanced, bit32.bxor (z, bit32.rshift (z, 15))
 end
 
--- Fifty-three bits, the widest a double counts without gaps.
+-- Two draws joined into one fifty-three bit number, which is what a wide span is drawn from.
 local function wide (of: Rng): number
     return Rng.next (of) * 2097152 + bit32.rshift (Rng.next (of), 11)
 end

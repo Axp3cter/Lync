@@ -92,7 +92,7 @@ end
 
 --[[
     A value inside a grid, landing on an end or on the midpoint between two points as often as
-    anywhere between. A uniform draw across a span of forty thousand lands on a midpoint about
+    anywhere between. A uniform draw across a span of twenty thousand lands on a midpoint about
     never, and a midpoint is the only place the rounding is decided.
 ]]
 local function inside (rng: Rng.Rng, of: Laid): number

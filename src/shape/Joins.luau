@@ -82,8 +82,22 @@ function Joins.of (of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: n
     local names = of.params.names :: { string }
     local reach = #names
 
+    --[[
+        The record a reading comes back as, with every name already on it. A bitfield answers a
+        table of names and nothing else, so the shape of that table is the same one every time and
+        a copy of it arrives sized where one built name by name grows into its keys.
+    ]]
+    local blank = {}
+    for _, name in names do
+        blank[name] = false
+    end
+
+    table.freeze (blank)
+
     local function pull (value: any, into: { number }, opens: number): boolean
         if type (value) ~= "table" then return false end
+
+        local names = names
 
         --[[
             A name it does carry has to carry a truth. A flag is a `bool` declared n at a time and
@@ -91,19 +105,24 @@ function Joins.of (of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: n
             would let `{ dead = "no" }` write that the thing is dead. The whole field goes rather
             than the flag, because a bitfield's twentieth bit is still the bitfield.
         ]]
+        local at = opens
         for place = 1, reach do
             local held = value[names[place]]
             if held ~= nil and type (held) ~= "boolean" then return false end
-            into[opens + place - 1] = if held then 1 else 0
+
+            into[at] = if held then 1 else 0
+            at += 1
         end
         return true
     end
 
     local function push (from: { number }, opens: number): any
-        local out = table.create (reach) :: { [string]: boolean }
+        local names, out = names, table.clone (blank) :: { [string]: boolean }
 
+        local at = opens
         for place = 1, reach do
-            out[names[place]] = from[opens + place - 1] == 1
+            out[names[place]] = from[at] == 1
+            at += 1
         end
         return out
     end

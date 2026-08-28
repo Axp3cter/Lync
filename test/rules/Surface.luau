@@ -256,10 +256,10 @@ return {
     end),
 
     --[[
-        The four codecs that carry forms of their own, and the thirty-six forms the twenty-three
-        constructors come to between them. Each form is a function, and each carrier offers exactly
-        the forms listed and no others, so a form added without a home here is caught where it is
-        added rather than where it is first used.
+        The four codecs that carry forms of their own, and the forms every constructor comes to
+        between them. Each form is a function, and each carrier offers exactly the forms listed
+        and no others, so a form added without a home here is caught where it is added rather
+        than where it is first used.
     ]]
     Harness.case ("surface.forms", function ()
         local held = surface ()

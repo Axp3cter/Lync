@@ -20,7 +20,7 @@ local Harness = {}
 ]]
 const FLOOR = 0.01
 
--- How many batches a row is measured over, and which of them is believed.
+-- How many batches a row is measured over, of which the fastest is the one believed.
 const SAMPLES = 5
 
 --[[
@@ -174,7 +174,7 @@ local function measured (of: Row): Cell
         break
     end
 
-    -- What one turn moves, from where a row says one starts, which is a setup as a batch gets.
+    -- What one turn moves, measured off a setup of its own, the same one a batch is given.
     local wire = nil
     if of.bytes ~= nil then wire = of.bytes (if of.setup ~= nil then of.setup () else nil) end
 
@@ -204,7 +204,7 @@ local function collect (suite: Instance): { Row }
     return found
 end
 
--- The committed numbers, where they have been committed.
+-- Those numbers as the module holds them, or nothing where none are committed.
 local function committed (root: Instance): Report.Baseline?
     local held = root:FindFirstChild (BASELINE)
     if held == nil or not held:IsA ("ModuleScript") then return nil end
@@ -213,7 +213,7 @@ end
 
 -- Public --------------------------------------------------------------
 
--- The part of a suite's run that turning a value needs, which is the lane, the sender and a flag.
+-- What a suite's turn is driven through, shared by every row of it that sends.
 export type Turning = {
     read wire: Doubles.Wire,
     read server: Session.Session,

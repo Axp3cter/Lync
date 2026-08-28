@@ -22,8 +22,8 @@ const TEAM = "team"
 
 --[[
     One of each kind, assigned rather than chosen: a marker outside a set is refused at `start` so
-    the widest fixture can only be a set, `motion` is what a packet is for, and a query takes the
-    two left. Built once, so a loop measures the build rather than the first of them.
+    the widest fixture can only be a set, `motion` is what a packet is for, and a query takes two
+    of what is left. Built once, so a loop measures the build rather than the first of them.
 ]]
 local function defined (): any
     return {

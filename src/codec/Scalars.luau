@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- The eight scalar constructors, and the parameters each of them will take.
+-- The scalar constructors, and the parameters each of them will take.
 
 local Base = require ("@src/codec/Base")
 local Legality = require ("@src/codec/Legality")
@@ -24,18 +24,18 @@ function Scalars.precise (kind: string, degrees: number)
 end
 
 --[[
-    No value at all, which is what a caller declares when the fact of the call is the whole of what
-    they are sending. It writes nothing, it reads back nothing, and what a listener is handed in
-    its place is nothing rather than a table standing in for it.
+    No value at all, declared where the fact of the call is the whole of what a caller is sending.
+    It writes nothing, reads back nothing, and hands a listener nothing rather than a table
+    standing in for it.
 ]]
 function Scalars.empty (): Types.Codec<nil> return Base.make ("empty") end
 
 function Scalars.bool (): Types.Codec<boolean> return Base.make ("bool") end
 
 --[[
-    Bounds are inclusive and may meet, which is a field of no bits carrying one value. How wide
-    the range may be is left alone here for the same reason a count is, since what a frame holds is
-    a fact about the wire, and a refusal at start carries a declaration site this cannot name.
+    Bounds are inclusive, and bounds that meet make a field of no bits carrying one value. How wide
+    the range may be is left alone here for the same reason a count is: what a frame holds is a fact
+    about the wire, and a refusal at start carries a declaration site this cannot name.
 ]]
 function Scalars.int (min: number, max: number): Types.Codec<number>
     if not (Legality.whole (min) and Legality.whole (max)) then

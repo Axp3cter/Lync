@@ -14,7 +14,7 @@ Set.__index = Set
 
 -- Private -------------------------------------------------------------
 
--- The set this handle mutates, which only the server has records in.
+-- The set this handle mutates. Only the server holds records in one.
 local function owning (self: any, said: string): Sync.Sync
     local live = self.live
     return Define.reach (live, said, true):set (live.id :: number)
@@ -34,7 +34,7 @@ local function viewing (self: any): Sync.Sync?
     return session:set (live.id :: number)
 end
 
--- A walk over nothing, which is what a set that has not opened has to walk.
+-- What a set that has not opened iterates, so a walk before start is a walk and not a refusal.
 local function barren (): (number?, any) return nil end
 
 --[[
@@ -61,8 +61,8 @@ end
 Set.NONE = Sync.NONE
 
 --[[
-    The key is not here. A set is split by a field a caller names afterwards, and until they do the
-    whole set goes to everybody, which is the declaration this makes on its own.
+    The key is not here. A set is split by a field a caller names afterwards, and until they do,
+    this declares one that goes whole to everybody.
 ]]
 function Set.new <T>(of: Types.Codec<T>): Types.Set<T>
     --[[
@@ -82,10 +82,10 @@ function Set.new <T>(of: Types.Codec<T>): Types.Set<T>
 end
 
 --[[
-    The field records are split by, which is what gives a key an audience to be assigned one.
+    The field records are split by, and what an audience is later assigned against.
 
     Whether the field exists and whether its codec can be a key is settled at start against the
-    compiled record rather than here against the declaration, which has no record to look in yet.
+    compiled record, since there is no record to look in at the declaration.
 ]]
 function Set.keyBy (self: any, field: string): any
     Define.declaring (self.live, "keyBy")
@@ -111,8 +111,8 @@ function Set.remove (self: any, id: number)
 end
 
 --[[
-    Everything at once, which goes out as one marker per partition rather than a removal per id.
-    A listener is still told once per record, under a cause that says a clear was what did it.
+    Everything at once, sent as one marker a partition rather than a removal an id. A listener is
+    still told once a record, under a cause naming the clear that did it.
 ]]
 function Set.clear (self: any)
     local of = owning (self, "clear")
@@ -120,7 +120,7 @@ function Set.clear (self: any)
 end
 
 --[[
-    Who sees the records under one key, which an unkeyed set has nobody to say it about.
+    Who sees the records under one key. An unkeyed set has no key to say it about.
 
     Refused rather than ignored: an audience on a set that goes to everybody is a caller who
     believes they have restricted something and has not.
@@ -140,8 +140,8 @@ end
 --[[
     The live record under an id, borrowed rather than copied.
 
-    Nothing where this machine holds no record under it, which on a client is every id its audiences
-    do not reach as well as every id nobody has added.
+    Nothing where this machine holds no record under it. On a client that is every id its audiences
+    do not reach, as well as every id nobody has added.
 ]]
 function Set.get (self: any, id: number): any?
     local of = viewing (self)
@@ -177,7 +177,7 @@ function Set.onRemoved (self: any, fn: (number, Types.Cause) -> ()): Types.Conne
     return watches (self, Sync.onRemoved, fn)
 end
 
--- The schema as text, which is how a record turned away on arrival is described back.
+-- The schema as text, and how a record turned away on arrival is described back.
 function Set.describe (self: any): string
     return Serial.frame ({
         kind = "set",

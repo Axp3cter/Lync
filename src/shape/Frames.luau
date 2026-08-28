@@ -18,7 +18,7 @@ const OUTCOME = Protocol.OUTCOME_BITS
 const KIND = Bits.width (Protocol.SECTION_CLEAR)
 const BYTE = Protocol.BYTE_BITS
 
--- The narrow windows a plan cuts, read from the module that cuts them. The widest is the last arm.
+-- The narrow windows a plan cuts. The widest wants no name, since the others fall through to it.
 const ONE = Words.ONE
 const PAIR = Words.PAIR
 
@@ -34,13 +34,13 @@ export type Head = {
     read write: Write,
     read read: Read,
 
-    -- How many payloads one block of this form may carry, which only a running form answers.
+    -- How many payloads one block of this form may carry. Only a running form answers it.
     read runs: number?,
 }
 
 -- Private -------------------------------------------------------------
 
--- A run of fixed-width fields, as the pair that composes it into windows and takes it apart.
+-- A run of fixed-width fields, and the two calls that compose it into windows and take it apart.
 local function run (widths: { number }): (Write, Read, number)
     local plan = Words.plan (widths)
     local windows = #plan
@@ -53,8 +53,8 @@ local function run (widths: { number }): (Write, Read, number)
 
     --[[
         The plan as arrays rather than as records. A header is laid down and taken up on every
-        block, and walking the plan itself reaches a field of a window and four of a part every
-        time, where all of them are settled once the run is planned.
+        block, and walking the plan reaches through a record for every window and again for every
+        part of one, where all of it is settled once the run is planned.
     ]]
     local width = table.create (windows, 0)
     local where = table.create (windows, 0)
@@ -103,8 +103,9 @@ local function run (widths: { number }): (Write, Read, number)
     end
 
     --[[
-        Every field cleared first, because a piece at no shift is written and every piece above it
-        is merged, and what is under a field the caller reused is whatever the last header left.
+        Every field cleared first, since every piece is merged into what its field already holds
+        rather than written over it, and a caller reusing its table holds whatever the last header
+        left there.
     ]]
     local function read (b: buffer, pos: number, into: { number })
         for index = 1, held do
@@ -128,10 +129,10 @@ local function run (widths: { number }): (Write, Read, number)
     end
 
     --[[
-        A head of one field lying in one piece, which is what a namespace's own is and what every
-        header a run repeats is. The loops above walk arrays to find what is already known here, so
-        the same work is one read, one cut and one store, and the two places the general form adds
-        are held to being zero rather than assumed to be.
+        A head of one field lying in one piece. A namespace's own is one, and so is every header a
+        run repeats. The loops above walk arrays to reach what is already known here, so the same
+        work comes to one read, one cut and one store, and the two places the general form adds are
+        held to zero rather than assumed to be.
     ]]
     local first = plan[1]
     if
@@ -169,7 +170,6 @@ local function run (widths: { number }): (Write, Read, number)
     return write, read, bytes
 end
 
--- A form's fields, as the head that writes them.
 local function headed (widths: { number }): Head
     local write, read, bytes = run (widths)
 
@@ -185,7 +185,7 @@ local function named (over: number): number return Bits.width (over - 1) end
 
 -- Public --------------------------------------------------------------
 
--- The defId on its own, which is the one field every form opens with.
+-- The defId on its own, which is the whole of a block that carries nothing beside it.
 function Frames.naming (over: number): Head return headed ({ named (over) }) end
 
 --[[
@@ -223,7 +223,7 @@ function Frames.stamped (over: number): Head return headed ({ named (over), STAM
 -- One question of a run: the id it is owed an answer under.
 function Frames.asking (): Head return headed ({ ASKED }) end
 
--- One answer of a run: the question it answers, and whether it is an answer or a refusal.
+-- One answer of a run: the question it settles, and whether it carries a value or a refusal.
 function Frames.answering (): Head return headed ({ ASKED, OUTCOME }) end
 
 --[[
@@ -241,7 +241,7 @@ function Frames.section (over: number): Head return headed ({ named (over), KIND
 --[[
     A newest block: `{ defId, which, more, seq }`, where `more` counts the fields riding behind
     the first. Several fields that moved over the same slots in one flush spell those slots once,
-    so what follows the header is the run, and then one column of values a field that shares it.
+    so the run follows the header, and behind it one column of values for each field sharing them.
 ]]
 function Frames.stream (over: number, fields: number): Head
     return headed ({ named (over), named (fields), named (fields), SEQ })
@@ -251,10 +251,9 @@ end
 function Frames.follow (fields: number): Head return headed ({ named (fields), SEQ }) end
 
 --[[
-    What one payload's block comes to, which is the header, the payload, and whatever follows it.
+    What one payload's block comes to: the header, and the payload standing behind it.
 
-    Stated once: the three parts are the grammar, and a caller adding two of them is one who will
-    eventually add the wrong two.
+    Stated once, so no caller adds the two itself.
 ]]
 function Frames.block (of: Head, payload: number): number return of.bytes + payload end
 

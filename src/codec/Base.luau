@@ -54,9 +54,9 @@ export type Marker = "none" | "monotonic" | "newest"
 export type Validate = (value: any, ctx: Types.ValidateContext) -> string?
 
 --[[
-    Every parameter any constructor records, in one vocabulary. The set is closed and holds nothing
-    without exact text: the descriptor writes parameters as decimals, and two machines agreeing on
-    a schema is that text agreeing.
+    Every parameter any constructor records, in one vocabulary. The set is closed because the
+    descriptor writes these as decimal text, and two machines agreeing on a schema is that text
+    agreeing.
 ]]
 export type Params = {
     read min: number?,
@@ -139,16 +139,13 @@ function Base.make (kind: Kind, params: Params?, children: Children?): Types.Cod
     }, Modifiers)) :: any
 end
 
---[[
-    The same value as the compile path reads it. One call rather than a cast at every field, and the
-    one place the two views of a codec meet.
-]]
+-- The same value as the compile path reads it, so the cast lives here and not at every field.
 function Base.cell (of: Types.Codec<any>): Cell return of :: any end
 
 -- The other way round, which is one table read two ways and never two tables.
 function Base.codec (of: Cell): Types.Codec<any> return of :: any end
 
--- Whether a value came from here, which is what a composite asks of every child handed to it.
+-- Whether a value came from here. Every composite asks it of the children handed to it.
 function Base.made (value: unknown): boolean return getmetatable (value :: any) == Modifiers end
 
 --[[

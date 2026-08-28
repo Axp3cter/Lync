@@ -50,7 +50,7 @@ const ALWAYS = 1
 -- The clients a broadcast is counted over, which is more than one so that one encode can be fewer.
 const AUDIENCE = table.freeze ({ "alice", "bob", "carol" })
 
--- Fires a lossy run makes, even so the pattern lands on the same half every time.
+-- Fires a lossy run makes, an even count so the pattern lands on the same half every time.
 const RUN = 6
 
 -- What a fire carries, and the two values a latest-wins stream carries in order.
@@ -73,11 +73,7 @@ type Run = {
 
 -- Private -------------------------------------------------------------
 
---[[
-    Every delivery a packet can declare and the one pair of them that combines: a plain fire, the
-    lane that may lose, the one that coalesces, the one that carries a stamp, and a stamp on the
-    losing lane.
-]]
+-- Every delivery a packet can declare, and the one pair of them that combines.
 local function defined (): any
     return {
         [SURE] = Lync.packet (Lync.int (0, 100)),
@@ -393,9 +389,9 @@ return {
     end),
 
     --[[
-        The same fired with a value anyway, which a caller may do and which changes nothing. A
-        schema carrying no value has nowhere to put one, so what reaches the other machine is the
-        call and never the argument, and a caller is not refused for handing one over.
+        Fired with a value anyway, which a caller may do and which changes nothing. A schema
+        carrying no value has nowhere to put one, so what reaches the other machine is the call and
+        never the argument, and a caller is not refused for handing one over.
     ]]
     Harness.case ("packet.bare-drops-what-it-is-handed", function ()
         local of = opened ()

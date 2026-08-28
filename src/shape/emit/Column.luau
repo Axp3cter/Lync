@@ -18,8 +18,8 @@ local Column = {}
 -- Constants -----------------------------------------------------------
 
 --[[
-    The two run walkers under their own names. Both sit inside closures this emits, so each is
-    reached once a run rather than once a build, and the module they come from is the same table
+    The two run walkers under their own names. Both sit inside the closures this emits, so each is
+    reached once a column rather than once a build, and the module they come from is the same table
     for the life of the place.
 ]]
 const PACKED = Leaf.packed

@@ -120,7 +120,7 @@ local BANNED = table.freeze ({
 local REGISTER = "(0[1-5]%l%l%l%l%l+)"
 local SPELLED = "[g-z]"
 
--- The one line allowed to name one, which opens a unit's banner and is the coverage gate's claim.
+-- The one line allowed to name one, which is a unit's coverage claim rather than a reference.
 local BANNER = "^%s*Owned by 0[1-5]%l+, "
 
 --[[

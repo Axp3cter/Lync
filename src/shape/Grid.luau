@@ -140,10 +140,12 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
             end
 
             toIndices = function (values: { any }, into: { number }, count: number): number?
+                local low, high = under, over
+
                 for place = 1, count do
                     local one = values[place]
                     if type (one) ~= "number" then return place end
-                    if not (one >= under and one <= over) then return place end
+                    if not (one >= low and one <= high) then return place end
 
                     into[place] = math.round (one)
                 end
@@ -158,10 +160,12 @@ function Grid.of (min: number, max: number, step: number, wraps: boolean?): Grid
             end
 
             toIndices = function (values: { any }, into: { number }, count: number): number?
+                local low, high = under, over
+
                 for place = 1, count do
                     local one = values[place]
                     if type (one) ~= "number" then return place end
-                    if not (one >= under and one <= over) then return place end
+                    if not (one >= low and one <= high) then return place end
 
                     into[place] = math.clamp (math.round (one), 0, span)
                 end

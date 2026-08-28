@@ -21,9 +21,9 @@ const BOUND = Protocol.QUAT_BOUND
 
 -- The four components a mapping may name, in the order the search tries them.
 const QUAT_X = Protocol.QUAT_X
-const QUAT_W = Protocol.QUAT_W
 const QUAT_Y = Protocol.QUAT_Y
 const QUAT_Z = Protocol.QUAT_Z
+const QUAT_W = Protocol.QUAT_W
 
 --[[
     Precisions in degrees a case lays a grid at, coarsest first. Ninety is the coarsest a

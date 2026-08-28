@@ -1455,6 +1455,45 @@ function Word.emit (
         return only, sole, solo
     end
 
+    --[[
+        One field in one window that is reached through a pull rather than under a name, which is
+        the word a record carrying a single option has: its whole content is the bit saying whether
+        that one came. The walk above finds all of that in arrays where it is settled here, so the
+        laying is the pull and the one write, and the reading is left as it was.
+    ]]
+    if
+        reach == 1
+        and windows == 1
+        and first[1] == last[1]
+        and keys[1] == nil
+        and pulls[1] ~= nil
+        and direct[1]
+        and offset[1] == 0
+        and inside[1] == 0
+    then
+        local pulling = pulls[1] :: (any, { number }, number) -> boolean
+        local cell = starts[1]
+        local seat, bytes = where[1], width[1]
+        local said, want = wheres[1], wanted[1]
+
+        local function bore (b: buffer, pos: number, value: any, slots: { number }, _h: { any })
+            if not pulling (value, slots, cell) then Word.refused (said, want, value) end
+
+            local at = pos + seat
+            local one = slots[cell]
+
+            if bytes == ONE then
+                buffer.writeu8 (b, at, one)
+            elseif bytes == PAIR then
+                buffer.writeu16 (b, at, one)
+            else
+                buffer.writeu32 (b, at, one)
+            end
+        end
+
+        return bore, unpack, nil
+    end
+
     return pack, unpack, nil
 end
 

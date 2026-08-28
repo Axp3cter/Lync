@@ -201,9 +201,9 @@ return {
     end),
 
     --[[
-        The clearing sentinel on a field that cannot be cleared. `Lync.none` says a value is gone,
-        which only an optional field has room to say, and a required one has no representation for
-        absent on the wire or off it.
+        The clearing sentinel on an optional field and on one that is not. `Lync.none` says a value
+        is gone, which only an optional has room to say, so the first clears and the second is
+        refused: a required field has no representation for absent on the wire or off it.
     ]]
     Harness.case ("set.none-on-required", function ()
         settled (function ()

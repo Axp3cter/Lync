@@ -13,7 +13,7 @@ local Harness = require ("@test/harness")
 
 -- Constants -----------------------------------------------------------
 
--- Four stand-ins, which is one more than the smallest arrangement any case here needs.
+-- Four stand-ins, one more than any case puts in a group, so somebody is always outside it.
 const LABELS = table.freeze ({ "alice", "bob", "carol", "dave" })
 
 -- Types ---------------------------------------------------------------

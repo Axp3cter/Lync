@@ -74,7 +74,7 @@ local function same (got: { [string]: boolean }, wanted: { string })
     end
 end
 
--- A group holding the named players, which is one of the five forms and the only built one.
+-- A group of the named players, one of the five forms and the only one filled a member at a time.
 local function grouped (of: Cast, names: { string }): Types.Group
     local held = Group.new ()
     for _, name in names do

@@ -60,7 +60,7 @@ Catalog.MISMATCH = "drop.mismatch" :: Code
     Every row, and the whole of what a drop can be. The first seven are shape violations, six of
     them saying the field, what the schema wanted and what the bytes had, since there are only
     three things to say. The last six are about a frame rather than a field and name no path. A
-    section is one row, its ways of failing being settled phrases nobody should branch on.
+    section is one row, since its ways of failing are settled phrases nobody should branch on.
 ]]
 Catalog.entries = table.freeze ({
     [Catalog.TAG] = table.freeze ({

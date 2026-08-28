@@ -14,7 +14,7 @@ local Shape = {}
 
 -- Types ---------------------------------------------------------------
 
--- What a build interns and what it hands a sidecar, declared below and passed on unchanged.
+-- What a build interns and the sidecar it fills, declared in the emitter and re-exported here.
 export type Site = Emit.Site
 
 -- A declaration compiled: the pair, what it costs, and the facts everything above reads off it.

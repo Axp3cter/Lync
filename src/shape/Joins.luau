@@ -108,9 +108,15 @@ function Joins.of (of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: n
         local at = opens
         for place = 1, reach do
             local held = value[names[place]]
-            if held ~= nil and type (held) ~= "boolean" then return false end
 
-            into[at] = if held then 1 else 0
+            if held == false or held == nil then
+                into[at] = 0
+            elseif held == true then
+                into[at] = 1
+            else
+                return false
+            end
+
             at += 1
         end
         return true

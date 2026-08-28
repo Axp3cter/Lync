@@ -125,9 +125,8 @@ function Varint.readSigned (b: buffer, at: number): (number, number)
 end
 
 --[[
-    A run of them laid down at once, both signs, for the reason the pair below is taken at once: a
-    column of steps is many of them back to back and nothing between, so the caller crosses in once
-    for the section instead of once a step.
+    A run of them laid down at once, both signs. A column of steps is many of them back to back and
+    nothing between, so the caller crosses in once for the section instead of once a step.
 ]]
 @native
 function Varint.writeRun (out: buffer, at: number, values: { number }, count: number): number

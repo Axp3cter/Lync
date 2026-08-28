@@ -225,6 +225,28 @@ function Word.emit (
     end
 
     --[[
+        The same again where one name of it is reached through a pull rather than under a key, which
+        is what a record carrying an option has: the option's bit is worked out from the record and
+        every other name is its own index. The walk for that asks after a record that dissolved and
+        after a name that may be absent, and neither of those is here.
+    ]]
+    local mixed = true
+    for index = 1, reach do
+        if inside[index] ~= 0 then
+            mixed = false
+            break
+        end
+
+        if pulls[index] ~= nil then continue end
+
+        local grid = leaves[starts[index]]
+        if keys[index] == nil or pushes[index] ~= nil or grid == nil or grid.plain ~= true then
+            mixed = false
+            break
+        end
+    end
+
+    --[[
         What each field needs, by the field. The arrays above are held by the leaf a field
         starts at, so reaching one costs a step through that number every time a word runs,
         where the number itself never changes after the word is built.
@@ -276,6 +298,34 @@ function Word.emit (
                 if made == nil then Word.refused (wheres[index], wanted[index], one) end
 
                 slots[at] = made :: number
+            end
+        elseif mixed then
+            local keys, writes, wheres, wanted = keys, writes, wheres, wanted
+            local pulls, starts, bounds = pulls, starts, bounds
+
+            for index = 1, reach do
+                local key = keys[index]
+                local pull = pulls[index]
+
+                if pull ~= nil then
+                    -- A pull with no name is handed the record, which is what an option's bit is.
+                    local whole = if key == nil then value else value[key]
+                    if not pull (whole, slots, starts[index]) then
+                        Word.refused (wheres[index], wanted[index], whole)
+                    end
+
+                    continue
+                end
+
+                local one = value[key]
+                local made = one
+
+                if type (one) ~= "number" or bit32.bor (one, 0) ~= one or one > bounds[index] then
+                    made = writes[index] (one)
+                    if made == nil then Word.refused (wheres[index], wanted[index], one) end
+                end
+
+                slots[starts[index]] = made :: number
             end
         else
             local keys, writes, wheres, wanted = keys, writes, wheres, wanted

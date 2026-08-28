@@ -430,7 +430,7 @@ local function packed (
         end
     end
 
-    -- The same three bytes two at a time, twelve being twice six and four times three.
+    -- Two elements to three bytes, twelve being twice six and four times three.
     if width == DOZEN then
         while from + 1 <= count do
             local group = bit32.bor (indices[from], bit32.lshift (indices[from + 1], DOZEN))
@@ -531,7 +531,7 @@ local function packed (
         end
     end
 
-    -- The same seven bytes four at a time, fourteen being half of twenty eight.
+    -- Four elements to seven bytes, fourteen being half of twenty eight.
     if width == SEVENS then
         while from + TRIO <= count do
             local first, second = indices[from], indices[from + 1]
@@ -886,7 +886,7 @@ local function packed (
         end
     end
 
-    -- The same five bytes four at a time, ten being half of twenty and the fourth still astride.
+    -- Four elements to five bytes, ten being half of twenty and the fourth still astride.
     if width == TEN then
         while from + TRIO <= count do
             local last = indices[from + TRIO]
@@ -1070,7 +1070,7 @@ local function unpacked (
     count: number,
     into: { number }
 ): (number, boolean)
-    -- The same run, and the same reason. A whole byte leaves no bits over, so the pad is never set.
+    -- A whole byte leaves no bits over, so the pad is never set.
     if width == BYTE then
         for index = 1, count do
             into[index] = buffer.readu8 (b, at)
@@ -1080,7 +1080,7 @@ local function unpacked (
         return at, true
     end
 
-    -- The same back, which leaves no bits over and so has no pad to hold to nothing.
+    -- Two whole bytes leave no bits over, so there is no pad to hold to nothing.
     if width == WIDE then
         for index = 1, count do
             into[index] = buffer.readu16 (b, at)

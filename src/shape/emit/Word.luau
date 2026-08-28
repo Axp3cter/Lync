@@ -986,6 +986,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 elseif bytes == PAIR then buffer.readu16 (b, pos + seat)
                 else buffer.readu32 (b, pos + seat)
 
+            local offset, span, tops = offset, span, tops
+
             for part, key in puts do
                 local raw = bit32.extract (acc, offset[part], span[part])
                 if raw > tops[part] then past (part, raw) end
@@ -1006,6 +1008,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 elseif bytes == PAIR then buffer.readu16 (b, pos + seat)
                 else buffer.readu32 (b, pos + seat)
 
+            local offset, span = offset, span
+
             for part, key in puts do
                 into[key] = bit32.extract (acc, offset[part], span[part])
             end
@@ -1024,6 +1028,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 then buffer.readu8 (b, at)
                 elseif bytes == PAIR then buffer.readu16 (b, at)
                 else buffer.readu32 (b, at)
+
+            local offset, span, tops, takes = offset, span, tops, takes
 
             for part, key in puts do
                 local raw = bit32.extract (acc, offset[part], span[part])
@@ -1044,6 +1050,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 elseif bytes == PAIR then buffer.readu16 (b, at)
                 else buffer.readu32 (b, at)
 
+            local offset, span, takes = offset, span, takes
+
             for part, key in puts do
                 local raw = bit32.extract (acc, offset[part], span[part])
                 local reading = takes[part]
@@ -1062,6 +1070,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
         if windows == 1 then
             local function alone (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local acc = 0
+
+                local offset, levels, makes = offset, levels, makes
 
                 for part, key in puts do
                     local one = value[key]
@@ -1100,6 +1110,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
             local function round (b: buffer, pos: number, value: any, _s: { number }, _h: { any })
                 local acc = 0
 
+                local offset, makes = offset, makes
+
                 for part, key in puts do
                     local one = value[key]
                     local made = makes[part] (one)
@@ -1133,6 +1145,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                     then buffer.readu8 (b, at)
                     elseif bytes == PAIR then buffer.readu16 (b, at)
                     else buffer.readu32 (b, at)
+
+                local offset, span, tops, takes = offset, span, tops, takes
 
                 for part, key in puts do
                     local raw = bit32.extract (acc, offset[part], span[part])

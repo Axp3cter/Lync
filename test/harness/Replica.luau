@@ -28,7 +28,7 @@ export type Seen = {
 
 export type Machine = { read session: Session.Session, read defs: any }
 
--- One client: who it is, the machine of its own, the set it holds and what that set told it.
+-- One client, with a machine of its own, since a viewer is a whole endpoint and not a view.
 export type Viewer = {
     read player: Player,
     read machine: Machine,

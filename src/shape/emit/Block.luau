@@ -274,6 +274,54 @@ function Block.group (
         return solo.write, solo.read or spelled
     end
 
+    --[[
+        A group that dissolved nothing and names everything it holds, where some of what it holds is
+        an option. The walk above carries what a record that dissolved needs and what a part with no
+        name needs, and this has neither, so all that is left of it is the bit saying a part came.
+    ]]
+    if not plainly and deep == 0 and keyed and blank ~= nil and pack ~= nil and unpack ~= nil then
+        local putting, taking = pack, unpack
+
+        local function guarded (b: buffer, pos: number, value: any): number
+            if allow ~= nil then only (allow, of.tag, value) end
+            putting (b, pos, value, slots, held)
+
+            local at = pos + region
+            for index = 1, reach do
+                local bit = bits[index]
+                if bit == 0 or slots[bit] ~= 0 then
+                    at = writes[index] (b, at, value[keys[index]])
+                end
+            end
+
+            return at
+        end
+
+        local function gathered (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+            local into: any = table.clone (blank)
+            taking (b, pos, into, slots, held)
+
+            local at = pos + region
+            for index = 1, reach do
+                local key = keys[index]
+                local bit = bits[index]
+
+                if bit ~= 0 and slots[bit] == 0 then
+                    into[key] = nil
+                    continue
+                end
+
+                local one: any
+                at, one = reads[index] (b, at, ctx)
+                into[key] = one
+            end
+
+            return at, into
+        end
+
+        return guarded, gathered
+    end
+
     if not plainly then return write, read end
 
     --[[

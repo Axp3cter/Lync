@@ -47,7 +47,7 @@ end
 
 --[[
     One encode, answering the position after it, which at an offset of zero is the byte count. It
-    serves every row here twice over.
+    weighs every row here and times the encoding half.
 ]]
 local function wrote (state: any): number return state.of.write (state.out, AT, state.value) end
 

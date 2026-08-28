@@ -116,9 +116,9 @@ const TOGETHER = table.freeze ({ [0.1] = true, [0.2] = false })
 const APART = table.freeze ({ [0] = true, [1] = false })
 
 --[[
-    The same pair for a key spelled as bytes rather than landing on a grid. A float of four bytes
-    holds fewer numbers than a double does, so two doubles a caller keys a table by come out as one
-    key, which a map of fixed-width keys finds by the two spelling the same bytes.
+    A key spelled as bytes rather than landing on a grid. A float of four bytes holds fewer numbers
+    than a double does, so two doubles a caller keys a table by come out as one key, which a map of
+    fixed-width keys finds by the two spelling the same bytes.
 ]]
 const NEARLY = table.freeze ({ [1.0000000001] = true, [1.0000000002] = false })
 const CLEARLY = table.freeze ({ [1] = true, [2] = false })
@@ -250,9 +250,9 @@ return {
     end),
 
     --[[
-        The same where the record carries as many names as it declares and one of them is a name
-        it does not. How many a record holds is no answer to whether they are the right ones, and
-        the one with no business here is what a caller is owed a word about.
+        A record with as many names as it declares and one of them a name it does not. How many a
+        record holds is no answer to whether they are the right ones, and the one with no business
+        here is what a caller is owed a word about.
     ]]
     Harness.case ("wire.a-record-in-one-word-refuses-a-name-swapped-for-another", function ()
         local of = built (Lync.struct ({
@@ -268,10 +268,10 @@ return {
     end),
 
     --[[
-        The same where both grids fill the bytes carrying them. A grid whose top is its byte's own
-        is held to by masking the reading down to the byte rather than by comparing against the
-        top, so all three of over the top, under the bottom and no number at all have to come back
-        as the codec's refusal and not as whatever the mask would have made of them.
+        Both grids filling the bytes carrying them. A grid whose top is its byte's own is held to by
+        masking the reading down to the byte rather than by comparing against the top, so all three
+        of over the top, under the bottom and no number at all have to come back as the codec's
+        refusal and not as whatever the mask would have made of them.
     ]]
     Harness.case ("wire.a-record-filling-its-bytes-refuses-a-value-off-its-grid", function ()
         local of = built (Lync.struct ({
@@ -383,7 +383,7 @@ return {
 
         Expect.holds (of.write (SLAB, 0, APART) > 0, "two keys on two points wrote nothing")
 
-        -- The same, for keys spelled as bytes, which a map sorts by what they spell instead.
+        -- Keys spelled as bytes, which a map sorts by what they spell instead.
         local spelled = built (Lync.map (Lync.f32 (), Lync.bool (), 0, KEYS))
         names (refused (spelled, NEARLY, "two keys on one float"), ROOT, "a spelled collision")
 
@@ -473,8 +473,8 @@ return {
         names (refused (of, 9, "an optional payload off its grid"), ROOT, "a payload off its grid")
 
         --[[
-            The same inside a record, which is the form a caller writes most and the one that
-            lowers through a field rather than standing on its own.
+            Inside a record, which is the form a caller writes most and the one that lowers through
+            a field rather than standing on its own.
         ]]
         local held = built (Lync.struct ({ maybe = Lync.optional (Lync.int (0, 3)) }))
         Expect.holds (held.write (SLAB, 0, { maybe = 2 }) > 0, "an optional field wrote nothing")

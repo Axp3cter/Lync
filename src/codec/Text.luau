@@ -12,9 +12,9 @@ local Text = {}
 -- Constants -----------------------------------------------------------
 
 --[[
-    The five sets a caller never writes, which is the point of them. A set is a layout, since a
-    symbol's place in it is the index it encodes as, so the order inside each is arbitrary and it is
-    pinned: a preset a caller could spell differently would be two layouts under one name.
+    The five sets a caller never has to write. A set is a layout, since a symbol's place in it is
+    the index it encodes as, so the order inside each is arbitrary and pinned: a preset a caller
+    could spell differently would be two layouts under one name.
 ]]
 const ALPHANUM = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -59,7 +59,7 @@ local function preset (symbols: string): (number, number) -> Types.Codec<string>
     end
 end
 
--- The bare name, reached through the metamethod, which is handed the table before the bounds.
+-- The bare name, reached through the metamethod. That hands the table over ahead of the bounds.
 local function called (_: any, min: number, max: number): Types.Codec<string>
     Legality.counts ("str", min, max)
     return Base.make ("str", { min = min, max = max })

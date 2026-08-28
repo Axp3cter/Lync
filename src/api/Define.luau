@@ -15,8 +15,7 @@ local Define = {}
 
 --[[
     The binding a handle carries, named here because this is where a caller's half of it is
-    written. The other half is filled in by a session, which is why the record is not declared
-    here.
+    written. A session fills the other half, so the record itself is not declared here.
 ]]
 export type Live = Handles.Live
 
@@ -29,7 +28,10 @@ export type Space = {
 
 -- State ---------------------------------------------------------------
 
--- Every namespace this machine has declared, by the name it was declared under.
+--[[
+    Every namespace declared here, the order they were declared in, and whether start has closed
+    the list to any more.
+]]
 local spaces: { [string]: Space } = {}
 local order: { string } = {}
 local sealed = false
@@ -40,7 +42,7 @@ local function refuse (said: string, name: string): never
     return Log.error (said, { definition = name })
 end
 
--- What a message calls a definition, which is both halves because either alone names several.
+-- What a message calls a definition. Both halves, since either alone names several.
 local function called (of: Live): string return `{of.space}.{of.name}` end
 
 -- Public --------------------------------------------------------------
@@ -49,7 +51,7 @@ Define.spaces = spaces
 Define.order = order
 Define.refuse = refuse
 
--- What this definition is called, which is both halves where it has them.
+-- The same, or only what the call was named where the handle has no namespace yet.
 function Define.naming (of: Live, said: string): string
     if of.space == nil then return said end
     return called (of)
@@ -66,7 +68,7 @@ function Define.declaring (of: Live, said: string)
 end
 
 --[[
-    The session a handle talks through, or nothing where it has none yet, held to the machine whose
+    The session a handle talks through, refused where it has none yet and held to the machine whose
     call it is. A side is a question about the place rather than about the session, so it is asked
     here beside the rest: a wrapper apiece would pay a second call to reach what this already
     holds, on every fire and every update a place makes.
@@ -95,7 +97,7 @@ function Define.reach (of: Live, said: string, server: boolean): Session.Session
     return held
 end
 
--- No more namespaces, which is what start says about the ones it did not find.
+-- Closes the list. A namespace declared after this has nothing left to open it.
 function Define.seal () sealed = true end
 
 --[[

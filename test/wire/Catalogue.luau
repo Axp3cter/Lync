@@ -48,7 +48,7 @@ const TOP = 100
 const RELIABLE: Doubles.Channel = "reliable"
 const HANDSHAKE: Doubles.Channel = "handshake"
 
--- The bytes a sweep writes over a position: the widest, the emptiest, and the one below the widest.
+-- The bytes a sweep writes over a position: none of the bits, the low seven, and all of them.
 const HOSTILE = table.freeze ({ 0x00, 0x7F, 0xFF })
 
 -- Types ---------------------------------------------------------------

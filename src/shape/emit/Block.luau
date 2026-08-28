@@ -325,8 +325,8 @@ function Block.group (
     if not plainly then return write, read end
 
     --[[
-        The same write. Nothing dissolved, so no part is reached through a record held aside, and
-        no part is an option, so none of them is a bit away from not being written at all.
+        Nothing dissolved, so no part is reached through a record held aside, and no part is an
+        option, so none of them is a bit away from not being written at all.
     ]]
     local function laid (b: buffer, pos: number, value: any): number
         if allow ~= nil then only (allow, of.tag, value) end
@@ -340,7 +340,7 @@ function Block.group (
         return at
     end
 
-    -- The same read where each part goes straight onto the record, which is where most of them do.
+    -- Each part goes straight onto the record, which is where most of them go.
     local function plain (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         local into: any = table.clone (blank)
 
@@ -361,9 +361,9 @@ function Block.group (
     if allow == nil or pack == nil or unpack == nil then return laid, plain end
 
     --[[
-        The same pair for a group that declares its names and holds a word, which is most of them.
-        Whether it does is settled when the group is built, so the pair above asks it once a record
-        where the answer was the same every time.
+        A group that declares its names and holds a word, which is most of them. Whether it does is
+        settled when the group is built, so the pair above asks it once a record where the answer
+        was the same every time.
     ]]
     local function stated (b: buffer, pos: number, value: any): number
         only (allow, of.tag, value)
@@ -393,9 +393,9 @@ function Block.group (
     end
 
     --[[
-        The same pair for a group holding one part outside its word, which is a record carrying a
-        string, an array or a map beside the names its bytes fit. One part is no run to climb, so
-        what climbs it is a loop set up to go round once.
+        A group holding one part outside its word carries a string, an array or a map beside the
+        names its bytes fit. One part is no run to climb, so what climbs it is a loop set up to go
+        round once.
     ]]
     if reach == 1 then
         local key = keys[1]
@@ -422,9 +422,9 @@ function Block.group (
     end
 
     --[[
-        The same pair for a group with nothing outside its word, which is every record whose names
-        all fit the bytes the word plans. There is no part left to walk, so what walks them is a
-        climb over none, taken once a record for as long as the schema runs.
+        A group with nothing outside its word is every record whose names all fit the bytes the
+        word plans. There is no part left to walk, so what walks them is a climb over none, taken
+        once a record for as long as the schema runs.
     ]]
     if reach == 0 then
         local function worded (b: buffer, pos: number, value: any): number

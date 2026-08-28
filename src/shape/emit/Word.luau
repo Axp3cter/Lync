@@ -271,6 +271,9 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
                 slots[at] = made :: number
             end
         else
+            local keys, writes, wheres, wanted = keys, writes, wheres, wanted
+            local inside, pulls, starts = inside, pulls, starts
+
             for index = 1, reach do
                 local key = keys[index]
 
@@ -409,6 +412,8 @@ function Word.emit (of: Ir.Word, paths: Serial.Interner, expected: Serial.Intern
 
             return bare
         end
+
+        local keys, readings, pushes, starts = keys, readings, pushes, starts
 
         for index = 1, reach do
             local at = starts[index]

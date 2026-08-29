@@ -463,7 +463,7 @@ function Rotation.smallest (of: Grid.Grid): Smallest
 
     --[[
         The last matrix asked about and what it answered. A sender standing still, or turning about
-        one axis, hands the same rotation frame after frame, and the search above walks eight
+        one axis, hands the same rotation frame after frame, and the search walks eight
         corners over four tags every time it is asked. Nine comparisons buy skipping all of it.
     ]]
     local warm = false

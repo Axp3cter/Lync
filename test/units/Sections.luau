@@ -35,8 +35,8 @@ const IDS = table.freeze ({ 1, 2, 3, 4, 5 })
 
 --[[
     Where the ids' steps go down: the header, the count with the slots' width, the first slot, the
-    slots' steps, the width the ids take, and the first id. Held to below, since a layout that
-    moved would put this check on some other run's bytes and read as a check that still passes.
+    slots' steps, the width the ids take, and the first id. A layout that moved would put the check
+    on some other run's bytes and read as a check that still passes.
 ]]
 const STEPS = 6
 

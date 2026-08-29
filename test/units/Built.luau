@@ -34,9 +34,8 @@ return {
     end),
 
     --[[
-        Whether a build is one width or many, which is what decides if a column of them may be a
-        run. A string of many lengths is the plainest thing that is not, and answering fixed for
-        one is a column stepping over values that are not where it expected them.
+        Whether a build is one width or many. A string of many lengths is the plainest thing
+        that is not, and a composite is fixed only where every part of it is.
     ]]
     Harness.case ("built.says-what-is-fixed", function ()
         Expect.equal (Shape.build (Lync.int (0, 5), AT).fixed, true)

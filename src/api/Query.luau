@@ -34,7 +34,7 @@ end
 --[[
     A client's request. It yields until it is answered or told why it will not be. A third argument
     is the server form's completion and the client form has no third, so a call carrying one is the
-    server's made on the wrong machine. The lookup below cannot refuse, since the caller has already
+    server's made on the wrong machine. The reach cannot refuse, since the caller has already
     branched on the side it tests, and what it is called for is the session.
 ]]
 local function asked (
@@ -137,7 +137,7 @@ function Query.request (self: any, first: any, second: any, third: any, fourth: 
     return asked (self, first, second, third)
 end
 
--- The same for a query, which is its request and then the reply it is owed.
+-- A query's request and then the reply it is owed.
 function Query.describe (self: any): string
     return Serial.frame ({
         kind = "query",

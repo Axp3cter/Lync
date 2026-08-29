@@ -65,8 +65,8 @@ end
 
 --[[
     Every listener handed a block's payloads, one thread apiece rather than one a payload. Only a
-    list built with a walker takes this, since what it hands over is a run of values where the fan
-    below hands over one, and a list of one value a call has no run to give it.
+    list built with a walker takes this, since what it hands over is a run of values where an
+    ordinary fan hands over one, and a list of one value a call has no run to give it.
 ]]
 function Listeners.fanned <A...>(of: List<A...>, count: number, values: { any }, ...: any)
     local walk = of.walk

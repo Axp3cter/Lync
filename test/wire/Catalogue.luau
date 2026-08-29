@@ -174,7 +174,7 @@ local function replays (into: Survey, of: Run, frame: Doubles.Carried, from: Pla
     --[[
         The same frame cut short at every length it could arrive at. A corrupted byte reaches a
         header that says the wrong thing, and a cut reaches one that is not all there, which is a
-        different refusal and one no length of frame should be needed to provoke.
+        different refusal.
     ]]
     for size = 0, buffer.len (frame.bytes) - 1 do
         local bytes = buffer.create (size)

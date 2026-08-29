@@ -104,7 +104,7 @@ return {
         Every scenario driven and its frames held to the bytes pinned for them. A change to how a
         value packs is one both machines make together, so both agree and every round trip holds:
         it breaks the client on the old build alone, which no single-build suite reaches.
-        Compared per recipient, arrival order between them being promised to nobody.
+        Grouped by recipient, since arrival order between two of them is promised to nobody.
     ]]
     Harness.case ("det.golden-frames", function ()
         local made: { [string]: { string } } = {}

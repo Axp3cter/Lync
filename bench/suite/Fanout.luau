@@ -28,8 +28,8 @@ const HUNDRED = 100
 --[[
     The shape a broadcast carries, and the case of it.
 
-    A frame of movement, and the same case another suite fires, so the two are measuring one
-    payload from two directions and the fan is the only thing that differs between them.
+    A frame of movement, and the same case another suite fires, so the payload is never what
+    separates a number here from one there.
 ]]
 const CARRIED = "typical"
 

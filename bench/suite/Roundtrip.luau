@@ -107,7 +107,7 @@ return {
 
     --[[
         The join payload, which is the shape where a length is a cost rather than a bound. Read
-        against the row above it, since the two differ in whether anything varies.
+        against the motion rows, since the two differ in whether anything varies.
     ]]
     Harness.row ({
         name = "roundtrip.encode-profile-typical",
@@ -156,7 +156,7 @@ return {
         bytes = wrote,
     }),
 
-    -- Every constructor and every modifier in one record, which bounds the rest.
+    -- Nearly every constructor and every modifier in one record, which bounds the rest.
     Harness.row ({
         name = "roundtrip.encode-everything-typical",
         setup = function (): any return writing (Schemas.everything, TYPICAL) end,

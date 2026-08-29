@@ -119,9 +119,9 @@ local STEPS: { [string]: Step } = {
 }
 
 --[[
-    Every static check, cheapest first, so a fault a pattern can find is reported before a type
-    check has been waited on. Named rather than written inside one command, since publishing runs
-    the same gate and a second copy of the list would be one that falls behind.
+    Every static check, ordered so most faults are reported before a slow tool has been waited on.
+    Named rather than written inside one command, since publishing runs the same gate and a second
+    copy of the list would be one that falls behind.
 ]]
 local CHECKED = {
     "toolchain",

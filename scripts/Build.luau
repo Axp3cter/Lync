@@ -19,6 +19,10 @@ local PRIVATE = '"private": true,'
 -- What a line of it ends on, spelled rather than escaped so nothing on the way to here eats it.
 local LINES = string.char (10)
 
+-- What a project mounts a data file as, and what darklua leaves in the staged tree instead.
+local DATA = ".json"
+local CONVERTED = ".lua"
+
 -- Private -------------------------------------------------------------
 
 -- Empties a directory to a known state, creating it when it is absent.
@@ -26,10 +30,6 @@ local function clear (path: string)
     if Repo.exists (path) then fs.removeDir (path) end
     fs.writeDir (path)
 end
-
--- What a project mounts a data file as, and what darklua leaves in the staged tree instead.
-local DATA = ".json"
-local CONVERTED = ".lua"
 
 --[[
     Rewrites a tree's string requires into Roblox requires. The default config is the development

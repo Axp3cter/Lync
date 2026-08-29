@@ -26,16 +26,15 @@ const REACH = 200
 const MOST = 12
 
 --[[
-    Widths that land a field on or beside a window edge, drawn as often as anywhere between. A width
-    drawn uniformly from a range of twenty-four straddles often enough, but the edges are where the
-    split is decided.
+    The narrowest widths and those at or beside a window edge, drawn as often as anywhere between. A
+    width drawn uniformly from a range of twenty-four straddles often enough, but the edges are
+    where the split is decided.
 ]]
 const NOTABLE = table.freeze ({ 1, 2, 7, 8, 9, 15, 16, 17, CEILING })
 
 --[[
-    The windows one field can reach across. A window is at least a byte and a field is at most three
-    bytes, so a field can start inside one window, cover a whole one, and end inside a third, and it
-    can never cover two whole ones.
+    The windows one field can reach across. A field is at most three bytes and nothing follows the
+    single-byte window, so a field can start inside one, cover a whole one, and end inside the last.
 ]]
 const MOST_PARTS = 3
 

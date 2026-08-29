@@ -1295,7 +1295,7 @@ local function unpacked (
         end
     end
 
-    -- The nine bytes back as the four they carry, only the third lying inside one word.
+    -- The nine bytes back as the four they carry, the first and the third out of one word.
     if width == WIDER then
         while from + TRIO <= count do
             local low = buffer.readu32 (b, at)

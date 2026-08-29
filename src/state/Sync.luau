@@ -638,7 +638,7 @@ function Sync.update (of: Sync, id: number, fields: any)
     if moved == 0 then return end
 
     --[[
-        A call that named every field of the record owes what all of them come to, which the
+        A call that moved every field of the record owes what all of them come to, which the
         definition holds already and the ordinary write is. Nothing it was already owing changes
         that: what a record owes is field bits, and the whole of them is every field bit there is.
     ]]

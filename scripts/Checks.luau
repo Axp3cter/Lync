@@ -1118,7 +1118,7 @@ local SAID_TWICE = 0
 local ALIKE = 0.68
 local ALIKE_ENOUGH = 8
 
--- Where a banner ends, which is the one block a suite and its module agree in by design.
+-- Where a file's opening block ends, which is the one place a suite and its module agree by design.
 local BANNER_ENDS = 8
 
 --[[

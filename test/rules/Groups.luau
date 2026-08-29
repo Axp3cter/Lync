@@ -27,15 +27,15 @@ const DEFINITIONS = { beat = Lync.packet (Lync.bool ()) }
 const ROSTER = Doubles.roster ()
 
 --[[
-    The namespace the leave check opens, and the two members it puts on its own roster. The
-    namespace is a label like every other one here, and what it is for is written where it is
-    opened.
+    The namespace a leave check opens, and the labels its two members join under. A leave reaches a
+    group through a roster the session listens to, and `hearing` builds a fresh one per call, so
+    these are spent there rather than on `ROSTER`.
 ]]
 const LEAVING = "leaving"
 const LEAVER = "leaver"
 const STAYER = "stayer"
 
--- The member of the released group, on a roster of its own for the same reason the two above are.
+-- The member of the released group, spent on a roster of its own for the same reason.
 const RELEASED = "released"
 
 -- Private -------------------------------------------------------------
@@ -137,7 +137,11 @@ return {
         Expect.equal (count, 2)
     end),
 
-    -- A group released, read from the one place the release shows.
+    --[[
+        A group released while a live one holds the same member. The release has to take it out of
+        the sweep's set, since a destroyed group raises on every call and a sweep that reached one
+        would stop there and leave every group behind it holding a player who left.
+    ]]
     Harness.case ("group.destroy", function ()
         local roster = hearing ()
         local released, kept = Lync.group (), Lync.group ()

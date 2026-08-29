@@ -106,8 +106,8 @@ local function names (of: string, part: string, what: string)
 end
 
 --[[
-    Two texts a declaration has to move apart. Only ever asked of a pair that agrees in everything
-    else, so a failure names the one declaration that was meant to be in the text and is not.
+    Two texts that have to differ. Every pair is built to agree in everything but one stated
+    thing, so a failure names what the text was supposed to carry and did not.
 ]]
 local function apart (what: string, left: string, right: string)
     if left ~= right then return end

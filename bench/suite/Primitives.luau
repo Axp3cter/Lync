@@ -19,7 +19,7 @@ local Harness = require ("@bench/harness")
 const AT = 0
 const ROOM = 64
 
--- The two magnitudes a `vlq` is read at.
+-- The two magnitudes a `vlq` is timed at, one group and eight.
 const SMALL = 100
 const WIDEST = Protocol.EXACT - 1
 
@@ -145,8 +145,8 @@ return {
     --[[
         The same comparison over ranges shorter than one stride, which is the tail alone.
 
-        A one-word key never reaches the loop above, and short keys are the common ones, so a stride
-        that was fast and a tail that was not would read as a fast comparison and a slow map.
+        A key shorter than a word skips the word loop, and short keys are the common ones, so a
+        stride that was fast and a tail that was not would read as a fast comparison and a slow map.
     ]]
     Harness.row ({
         name = "bytes.range-less-tail",

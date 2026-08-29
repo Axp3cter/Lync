@@ -148,7 +148,7 @@ return {
     Harness.opens (NAMESPACE, DEFINITIONS),
 
     --[[
-        Nothing moves before the seal, the machinery a fire reaches for not existing until the
+        Nothing moves before the seal. The machinery a fire reaches for does not exist until the
         schemas are compiled and the transports are open. The request is the client form written on
         the server, so it is a wrong-side call as well as an early one, and what it names is the
         namespace rather than an argument.

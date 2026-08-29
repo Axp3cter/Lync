@@ -29,7 +29,7 @@ const NAMELESS: any = { [NOT_A_NAME] = Lync.struct ({}) }
 const SHADOWING: any = { [TWO] = Lync.struct ({ [ONE] = fine () }) }
 const PLAIN: any = { [ONE] = Lync.struct ({}) }
 
--- A precision no angle takes, and one no bound does.
+-- A precision no angle takes, and a count no array starts from.
 const TOO_FINE = 1000
 const BACKWARDS = -1
 

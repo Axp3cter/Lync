@@ -23,7 +23,7 @@ const SENDER = "alice"
 const BEAT = "beat"
 const PULSE = "pulse"
 
--- The bound a fire's value is drawn inside, and the one value every fire here carries.
+-- The bound a fire's value sits inside, and the one value every fire here carries.
 const TOP = 100
 const CARRIED = 7
 

@@ -24,7 +24,7 @@ const RECORDS = "records"
 -- How many flushes a drain takes before it is a failure, read from its one home.
 const ROUNDS = Doubles.ROUNDS
 
--- What a frame addressed to nobody in particular is filed under, and to somebody who has left.
+-- What a frame addressed to nobody in particular is filed under, and to a player with no label.
 const EVERYBODY = "all"
 const NOBODY = "gone"
 

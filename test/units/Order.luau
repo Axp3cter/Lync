@@ -150,8 +150,8 @@ return {
     end),
 
     --[[
-        Everything a fixed width can be written in, which is what a layout is planned from. One of
-        them reading as variable would be written where a size has to be stated instead.
+        Kinds a fixed width can be written in, which is what a layout is planned from. One of them
+        reading as variable would be written where a size has to be stated instead.
     ]]
     Harness.case ("order.varies-never", function ()
         local fixed = {

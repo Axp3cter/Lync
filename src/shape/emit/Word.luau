@@ -247,7 +247,7 @@ function Word.emit (
     end
 
     --[[
-        What each field needs, by the field. The arrays above are held by the leaf a field
+        What each field needs, by the field. The per-leaf arrays are held by the leaf a field
         starts at, so reaching one costs a step through that number every time a word runs,
         where the number itself never changes after the word is built.
     ]]
@@ -457,8 +457,8 @@ function Word.emit (
 
         --[[
             A word of fields that neither dissolve nor gather puts every reading straight onto the
-            record it was handed, so none of what the walk below carries for the rest is asked for.
-            Split here the way the writing half splits, rather than asked field by field.
+            record it was handed, so none of what the general walk carries for the rest is asked
+            for. Split here the way the writing half splits, rather than asked field by field.
         ]]
         if simple then
             for index, key in keys do
@@ -499,7 +499,7 @@ function Word.emit (
     end
 
     --[[
-        Every field in one piece, wherever the windows put them, where the pair above walks a
+        Every field in one piece, wherever the windows put them, where the general pair walks a
         scratch array between the fields and the bytes for a value that never leaves the call. A
         piece a field is the whole of what that asks: a cut one has a piece shifted up it and a
         piece that is not its whole reading, and counting pieces settles both at once.
@@ -545,7 +545,7 @@ function Word.emit (
         --[[
             Whether every field's grid runs from nothing in whole steps, where a whole number
             already inside it is its own index. Recognising that is not a second copy of the
-            rounding: anything the test below does not settle is still handed to the one grid.
+            rounding: anything the recognition does not settle is still handed to the one grid.
         ]]
         local plainly = upright
         for index = 1, reach do

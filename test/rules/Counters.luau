@@ -307,11 +307,11 @@ return {
         Expect.holds (put <= frame, `a line counted {put} bytes of a frame carrying {frame}`)
     end),
     --[[
-    What one fire costs where twenty definitions share the namespace. The count a block states is
-    spelled in the bits its definition id was already rounding away, so one payload costs a byte
-    and that payload. Read against a pair rather than a number: the pair share the header, so what
-    the second adds is its own payload, and a header that had grown would show in the difference.
-]]
+        What one fire costs where twenty definitions share the namespace. The count a block states
+        rides in bits the definition id was already rounding away, so one payload costs a byte and
+        that payload. Read against a pair, since the two share the header, so what the second adds
+        is its own payload and a header that had grown would show.
+    ]]
     Harness.case ("stats.header-costs-one-byte", function ()
         const ONE = 1
 

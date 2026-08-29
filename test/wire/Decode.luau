@@ -550,10 +550,11 @@ return {
     end),
 
     --[[
-    A reference of the class a schema declared, and one of another class in its place. What rides
-    beside a frame is never read off the frame, so the class is the one thing a receiver can hold
-    it to, and a schema declaring one says every other class is a frame it did not write.
-]]
+        A reference of the class a schema declared, and one of another class in its place. What
+        rides beside a frame is never read off the frame, so the class is the one thing a receiver
+        can hold it to, and a schema declaring one says every other class is a frame it did not
+        write.
+    ]]
     Harness.case ("total.reference-holds-its-class", function ()
         local of = Turns.built (Lync.inst (WANTED))
 

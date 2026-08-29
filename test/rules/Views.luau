@@ -607,10 +607,11 @@ return {
     end),
 
     --[[
-    A set emptied and filled again, with a field that streams and records enough that the stream
-    walks the partition over several flushes. What the set holds afterwards is what was written
-    after the clear, under every id, rather than anything the partition stood at before it.
-]]
+        A set emptied and filled again, with a field that streams and records enough that the
+        stream walks the partition over several flushes. What the set holds afterwards is what was
+        written after the clear, under every id, rather than anything the partition stood at
+        before it.
+    ]]
     Harness.case ("set.clear-sweeps-streams", function ()
         local of = opened (streamed)
         local set = Replica.ours (of)

@@ -141,7 +141,7 @@ local function paired (): Pair
     return { [ARENA] = opened (ARENA, roster, player), [LOBBY] = opened (LOBBY, roster, player) }
 end
 
--- A fire left where a caller left it, because half of what a flush is is what it did not reach.
+-- A fire left where a caller left it, because what a flush did not reach is half of what it is.
 local function queues (of: Pair, space: string, value: number)
     of[space].server.defs[BEAT]:fireClient (of[space].player, value)
 end

@@ -229,10 +229,9 @@ return {
     end),
 
     --[[
-        A chain of every modifier there is, each link held to being a value none of the others
-        became. Asking one base what four modifiers make of it is a separate question, and this
-        asks a chain whether the third link is still the second, which is where a shared table
-        would show.
+        A chain of modifiers, each link held to being a value none of the others became. Asking one
+        base what four modifiers make of it is a separate question, and this asks a chain whether
+        the third link is still the second, which is where a shared table would show.
     ]]
     Harness.case ("codec.modifier-pure", function ()
         local base = Lync.int (0, 100)

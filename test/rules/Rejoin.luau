@@ -182,10 +182,11 @@ return {
     end),
 
     --[[
-    Two keys in one run, one arriving and one moving. A key is a partition of its own and a slot is
-    a number inside one, so the same number names a record in each, and what a receiver holds after
-    both is every record of both rather than whichever of them was spoken for first.
-]]
+        Two keys in one run, one arriving and one moving. A key is a partition of its own and a
+        slot is a number inside one, so the same number names a record in each, and what a
+        receiver holds after both is every record of both rather than whichever was spoken for
+        first.
+    ]]
     Harness.case ("set.partitions-are-shadowed-apart", function ()
         local of = Replica.open (OPENS, SENDER)
         local set = Replica.ours (of)

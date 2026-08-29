@@ -126,7 +126,7 @@ return {
 
     --[[
         The three ranges a caller writes that are legal and read as though they might not be: a
-        floor of none, a ceiling of none, and two bounds that meet. Asked because each is a range
+        ceiling of none, a floor of none, and two bounds that meet. Asked because each is a range
         somebody would guard against, and a guard on any of them would refuse a legal schema.
     ]]
     Harness.case ("legality.counts", function ()

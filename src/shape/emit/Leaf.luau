@@ -697,9 +697,9 @@ local function packed (
     end
 
     --[[
-        Eight elements to nineteen bytes, four words a pair and one. The third and the fifth are
-        the only ones that come out of a single word, and the sixth is carried by one bit of the
-        third word and the whole low half of the fourth.
+        Eight elements to nineteen bytes, four words a pair and one. The first, the third and the
+        fifth are the only ones that come out of a single word, and the sixth is carried by one bit
+        of the third word and eighteen of the fourth.
     ]]
     if width == SCANT then
         while from + SEVEN <= count do

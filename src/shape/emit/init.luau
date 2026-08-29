@@ -15,8 +15,6 @@ local Word = require ("@src/shape/emit/Word")
 
 local Emit = {}
 
--- Constants -----------------------------------------------------------
-
 -- Types ---------------------------------------------------------------
 
 -- Everything a walk needs besides the node, which here includes the sidecar a slot writes into.

@@ -6,8 +6,6 @@ local Ruling = require ("./Ruling")
 
 local Cases = {}
 
--- Constants -----------------------------------------------------------
-
 -- Types ---------------------------------------------------------------
 
 -- One question with a name on it. A body raises at its first wrong answer.

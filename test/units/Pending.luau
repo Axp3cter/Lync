@@ -151,9 +151,9 @@ return {
     end),
 
     --[[
-    A namespace closing, which ends every request at once and leaves the machine waiting on none.
-    Each is told it was a shutdown rather than anything a caller could retry past.
-]]
+        A namespace closing, which ends every request at once and leaves the machine waiting on
+        none. Each is told it was a shutdown rather than anything a caller could retry past.
+    ]]
     Harness.case ("pending.a-shutdown-takes-everything", function ()
         local of = Pending.new (SPACE)
 

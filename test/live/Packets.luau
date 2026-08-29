@@ -233,10 +233,10 @@ return {
     end),
 
     --[[
-        One listener yields and its siblings run anyway, in the frame the frame arrived in. A fan
-        that awaited each listener before starting the next would let one caller's `task.wait` hold
-        up every other listener on the definition, which is a coupling between two pieces of code
-        that never agreed to know about each other.
+        One listener yields and its siblings run before it comes back. A fan that awaited each
+        listener before starting the next would let one caller's `task.wait` hold up every other
+        listener on the definition, which is a coupling between two pieces of code that never
+        agreed to know about each other.
     ]]
     Harness.pair ("packet.listener-yields", function ()
         Harness.together (SPAN, NAMESPACE, function ()

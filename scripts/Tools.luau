@@ -65,7 +65,7 @@ local function inside (where: string, name: string, args: { string }): Ruling.Ru
 end
 
 --[[
-    The assembled package, to each registry, as whoever is signed in on this machine.
+    The assembled package, to wally, as whoever is signed in on this machine.
 
     No token is read and none is stored. Both tools keep their own credentials from a login the
     person did, so a release never needs one written down anywhere a repository can reach.
@@ -75,8 +75,8 @@ function Tools.publishWally (): Ruling.Ruling return inside (Repo.DIST, "wally",
 --[[
     The package to npm, tried once without a second factor, since an account that wants no code is
     never asked and a prompt it could not answer would stop a release with nothing wrong with it.
-    The code is read after that attempt rather than before, one read earlier having expired while
-    the gate ahead of this ran.
+    The code is read after that attempt rather than before, since one read earlier would have
+    expired while the gate ahead of this ran.
 ]]
 function Tools.publishNpm (): Ruling.Ruling
     local held: process.ExecOptions = { cwd = Repo.DIST }

@@ -31,7 +31,7 @@ const EPOCH = 1750000000
 -- Instants where the wrap turns over, drawn as often as everywhere else.
 const MOMENTS = table.freeze ({ 0, 1, -1, SPAN - 1, SPAN, SPAN + 1, -SPAN, -(SPAN + 1) })
 
--- Drifts where the answer turns over, on the same terms.
+-- Drifts around where the answer turns over, and no drift at all, on the same terms.
 const DRIFTS = table.freeze ({
     0,
     1,

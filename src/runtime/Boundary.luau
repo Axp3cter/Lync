@@ -169,7 +169,7 @@ function Boundary.lost (of: Boundary, code: Catalog.Code, facts: Log.Facts)
 
     --[[
         Against the namespace and no definition, which is what a count with no name to charge is
-        for. What went wrong here is exactly which definition the frame said it was.
+        for. Either the frame never named one or the name it gave is what went wrong.
     ]]
     Tally.dropped (of.tally, nil)
 end

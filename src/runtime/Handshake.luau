@@ -27,7 +27,7 @@ local function unspoken ()
     Log.warn (Log.line (Catalog.HELLO, facts), facts)
 end
 
--- Two builds that cannot speak to one another, as the one sentence both machines read it as.
+-- Two builds that cannot speak to one another, as the one sentence both machines read.
 local function mismatch (ours: Wide.Word, theirs: Wide.Word): (string, Log.Facts)
     local facts: Log.Facts =
         { code = Catalog.MISMATCH, ours = Wide.text (ours), theirs = Wide.text (theirs) }

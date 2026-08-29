@@ -99,8 +99,8 @@ local function built (specs: { [string]: any }): any return Compile.build (UNDER
 --[[
     Two builds of one schema, written two ways, held to one identity. The descriptor is compared
     before the hash, since the hash is a fold of it and a difference in the text says which part of
-    the walk moved. The digests go through `Wide.same`, an equals on two of them being a question
-    about which table they are.
+    the walk moved. The digests go through `Wide.same`, since an equals on two of them asks which
+    table they are.
 ]]
 local function agree (what: string, left: any, right: any)
     if left.descriptor ~= right.descriptor then

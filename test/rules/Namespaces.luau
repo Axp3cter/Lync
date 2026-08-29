@@ -96,7 +96,7 @@ return {
     end),
 
     --[[
-        A name the descriptor cannot spell back: nothing at all, or either mark the grammar
+        A name the descriptor cannot spell back: nothing at all, or a mark the grammar
         separates with, which the far side reads as two names. The number is here for what it is
         not. It holds neither mark, so the name guard passes it and the definitions already being
         named are what turn it away, which this says rather than reading as a name test that passes.

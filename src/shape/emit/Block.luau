@@ -276,8 +276,8 @@ function Block.group (
 
     --[[
         A group that dissolved nothing and names everything it holds, where some of what it holds is
-        an option. The walk above carries what a record that dissolved needs and what a part with no
-        name needs, and this has neither, so all that is left of it is the bit saying a part came.
+        an option. The general pair carries what a record that dissolved needs and what a part with
+        no name needs, and this has neither, so all that is left is the bit saying a part came.
     ]]
     if not plainly and deep == 0 and keyed and blank ~= nil and pack ~= nil and unpack ~= nil then
         local putting, taking = pack, unpack
@@ -362,7 +362,7 @@ function Block.group (
 
     --[[
         A group that declares its names and holds a word, which is most of them. Whether it does is
-        settled when the group is built, so the pair above asks it once a record where the answer
+        settled when the group is built, so the general pair asks it once a record where the answer
         was the same every time.
     ]]
     local function stated (b: buffer, pos: number, value: any): number

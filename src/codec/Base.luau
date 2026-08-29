@@ -177,9 +177,9 @@ function Modifiers.monotonic <T>(self: Types.Codec<T>): Types.Codec<T>
 end
 
 --[[
-    A rate of zero never opens its gate and a negative one always does, so both are a stream that
-    silently does not do what it says. Whether the marker belongs on this field at all is a
-    question about the shape underneath it, and is asked when the namespace starts.
+    A rate of zero never opens its gate, and a negative or an infinite one always does, so each is
+    a stream that silently does not do what it says. Whether the marker belongs on this field at
+    all is a question about the shape underneath it, and is asked when the namespace starts.
 ]]
 function Modifiers.newest <T>(self: Types.Codec<T>, hz: number?): Types.Codec<T>
     if hz ~= nil and not (hz > 0 and hz < math.huge) then

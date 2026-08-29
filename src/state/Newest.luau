@@ -29,7 +29,7 @@ const STAMPED = 1
 const LEAST = 0
 
 --[[
-    Where a stream header keeps the three fields a sender states outright, the fourth being the
+    Where a stream header keeps the three fields a sender states outright, and the fourth is the
     sequence. Which slot that one is comes off the form rather than being written down here, since
     the order is the wire's and its home is the frame that lays the header out.
 ]]
@@ -247,8 +247,8 @@ function Newest.changed (
 
     --[[
         How many fit one fire, worked out here because the slot is the piece a schema cannot bound.
-        A partition of a hundred spells every slot in a byte and one of a million in three, and the
-        difference is a section three times the size for the same values.
+        A partition of a hundred spells every slot in a byte and one of a million in three, which
+        is two bytes a record more for the same values.
     ]]
     local wide = math.max (1, math.ceil (Bits.width (store.high) / GROUP))
     local reach = math.max (1, (CAP - of.opening) // (wide + spent))

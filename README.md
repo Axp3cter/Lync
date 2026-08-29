@@ -54,7 +54,7 @@ was generated.
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@3.1.2"
+Lync = "axp3cter/lync@3.1.3"
 ```
 
 ```bash

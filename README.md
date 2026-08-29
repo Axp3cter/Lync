@@ -239,7 +239,7 @@ Net.Fighters:update(id, { team = "blue" })   -- migrates atomically inside this 
 | --- | --- |
 | `add(id, record)` | Throws if the id is live. |
 | `update(id, fields)` | Only the named fields. `Lync.none` clears an optional one. |
-| `remove(id)` `clear()` | Throws on an absent id. |
+| `remove(id)` `clear()` | Remove throws on an absent id. Clear empties the set. |
 | `audience(key, to)` | Keyed sets only. |
 
 | Both sides | |

@@ -131,7 +131,8 @@ end
 --[[
     The same over three arrays that move together rather than one and some constants. A set tells a
     caller an id, the record it names, and what that record was. Caught an item at a time for the
-    same reason the walk above is, and a settle of two hundred is one thread and not two.
+    same reason a block's payloads are, and a settle of two hundred is one thread and not two
+    hundred.
 ]]
 local function alongside (
     at: { number },

@@ -115,8 +115,9 @@ function Fieldset.of (over: number): Fieldset
 
     --[[
         A reader turns away a fieldset an encoder could not have written, and stops there. Out of
-        order and empty are one comparison each and convict a repeat as well. A count past the
-        field count needs no test: that many ascending indices inside it do not exist.
+        order and empty are one comparison each, and the order test convicts a repeat as well. A
+        count past the field count needs no test: that many ascending indices inside it do not
+        exist.
     ]]
     local function read (b: buffer, at: number, into: Chosen): number
         local mode, held = Bytes.take (b, at * BYTE, MODE)

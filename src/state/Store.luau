@@ -27,7 +27,7 @@ export type Writer = (slot: number, id: number, value: any) -> ()
 --[[
     The same write for a whole section at once. A keyframe states every slot it names for every
     field it carries, so the crossing into the store is paid once a field there rather than once a
-    slot, which is the only thing between this and the one above.
+    slot, which is the only thing between this and a writer.
 ]]
 export type Spread = (slots: { number }, ids: { number }, values: { any }, count: number) -> ()
 

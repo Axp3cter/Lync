@@ -130,9 +130,9 @@ local function run (widths: { number }): (Write, Read, number)
 
     --[[
         A head of one field lying in one piece. A namespace's own is one, and so is every header a
-        run repeats. The loops above walk arrays to reach what is already known here, so the same
-        work comes to one read, one cut and one store, and the two places the general form adds are
-        held to zero rather than assumed to be.
+        run repeats. The general form walks arrays to reach what this case already knows, so the
+        same work comes to one read, one cut and one store, and the two places it adds are held to
+        zero rather than assumed to be.
     ]]
     local first = plan[1]
     if

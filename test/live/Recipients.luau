@@ -27,8 +27,8 @@ const CARRIED = 7
 const LATER = 9
 
 --[[
-    Two packets. Every check but the first fires both in one span, one at the recipient under test
-    and one at the complement of it, and a client answers which of the two it was handed.
+    Two packets, so a check can fire at the recipient under test and at the complement of it in one
+    span, and a client answers which of the two it was handed.
 ]]
 const DEFINITIONS = table.freeze ({
     here = Lync.packet (Lync.int (0, 100)),

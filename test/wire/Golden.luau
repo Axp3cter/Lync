@@ -63,7 +63,7 @@ return {
         end
     end),
 
-    -- The number each of those texts folds to.
+    -- Each of those texts folded, against the number pinned for it.
     Harness.case ("det.golden-hashes", function ()
         local made = {}
         for _, held in Schemas.all do

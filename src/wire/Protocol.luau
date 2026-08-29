@@ -122,7 +122,7 @@ Protocol.QUAT_Y = 1
 Protocol.QUAT_Z = 2
 Protocol.QUAT_W = 3
 
--- How far one component of the octahedral fold runs, and what a precision for it is read against.
+-- How far one unit of an octahedral component runs, and what a precision for it is read against.
 Protocol.QUARTER_TURN = 90
 
 --[[

@@ -162,7 +162,7 @@ return {
     end),
 
     --[[
-        The widest is a bound and not an estimate. Every selection a set can make is written and
+        The widest is a bound and not an estimate. Every count a set can make is written and
         measured, and none of them comes to more, which is the promise a caller cutting a section at
         a bound is holding. The buffer is exactly that many bytes, so a write past it raises here
         rather than answering a number that is quietly wrong.

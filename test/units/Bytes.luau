@@ -68,10 +68,9 @@ local function spelled (bytes: { number }): string
 end
 
 --[[
-    Both ranges laid into one buffer, each behind a byte of padding and ahead of a byte the other
-    does not carry. The padding puts every range at an offset no stride can assume. The trailing
-    bytes differ so that a compare reading past a range's length answers wrongly rather than
-    agreeing by luck.
+    Both ranges laid into one buffer, each behind a byte of padding. The padding puts every range
+    at an offset no stride can assume. The trailing bytes differ so that a compare reading past a
+    range's length answers wrongly rather than agreeing by luck.
 ]]
 local function laid (a: { number }, b: { number }): (buffer, number, number, number, number)
     local out = buffer.create (#a + #b + 4)
@@ -422,8 +421,8 @@ return {
 
     --[[
         The run this exists for: the fieldset a delta section opens with, which is a mode bit, a
-        count over the field count, and that many field indices. Three widths in one run and no two
-        of them the same.
+        count over the field count, and that many field indices. A one-bit field and four six-bit
+        ones, ending part way through a byte.
     ]]
     Harness.case ("bytes.bit-run", function ()
         local b = buffer.create (16)

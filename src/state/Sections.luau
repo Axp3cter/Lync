@@ -63,7 +63,7 @@ const WIDTH = Slots.width
 const WRITE_SIGNED = Varint.writeSigned
 const READ_SIGNED = Varint.readSigned
 
--- What a slot run of a reliable section refuses under.
+-- What a reliable section refuses under: its slot run, then its two runs of its own numbers.
 const SAID: Slots.Said = table.freeze ({
     many = "a section naming more records than its own bytes could hold",
     order = "a section naming its slots out of order",

@@ -97,7 +97,6 @@ function Regions.packs (of: Base.Cell): boolean
     return true
 end
 
--- A record's fields, partitioned.
 function Regions.of (of: { [string]: Base.Cell }): Split
     local into: Split = { presence = {}, bits = {}, bytes = {}, vars = {}, nests = {} }
     walk (of, {}, into)

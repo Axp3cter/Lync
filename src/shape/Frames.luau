@@ -16,6 +16,8 @@ const SEQ = Bits.width (Protocol.NEWEST_WINDOW * 2 - 1)
 const ASKED = Bits.width (Protocol.QUERY_CAP * 2 - 1)
 const OUTCOME = Protocol.OUTCOME_BITS
 const KIND = Bits.width (Protocol.SECTION_CLEAR)
+
+-- Bits in a byte, which a field is rounded up to.
 const BYTE = Protocol.BYTE_BITS
 
 -- The narrow windows a plan cuts. The widest wants no name, since the others fall through to it.

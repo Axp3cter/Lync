@@ -20,7 +20,7 @@ const SPACE = "catchup"
 const SET = "roster"
 const FIELD = "score"
 
--- The key a backlog is filed under, and another nothing is ever owed of.
+-- The key a backlog is filed under, and a second one left standing when the first is taken away.
 const KEY = "red"
 const OTHER = "blue"
 

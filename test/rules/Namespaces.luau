@@ -30,8 +30,9 @@ const NOWHERE = "nowhere"
 const BEFORE = 3
 
 --[[
-    One of each kind, because a snapshot carries a row per definition and a namespace holding only
-    packets would not show whether the rows follow the definitions or the kind.
+    Every kind and more than one packet, because a snapshot carries a row per definition and a
+    namespace holding only packets would not show whether the rows follow the definitions or the
+    kind.
 ]]
 const DEFINITIONS = {
     beat = Lync.packet (Lync.bool ()),

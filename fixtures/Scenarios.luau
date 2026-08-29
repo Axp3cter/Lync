@@ -282,8 +282,8 @@ Scenarios.migrate = scenario ("migrate", PROFILE, "team", {
 
 --[[
     A client arriving after the records did, and one leaving while they stand. The arrival is owed
-    every visible record as catch-up. The departure is owed nothing, and what it leaves behind is
-    what the teardown inventory walks.
+    every visible record as catch-up. The departure is owed nothing, which is what the flush after
+    it says.
 ]]
 Scenarios.visitors = scenario (
     "visitors",

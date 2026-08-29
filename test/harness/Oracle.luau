@@ -194,9 +194,8 @@ function Oracle.line (events: { Event }): string
 end
 
 --[[
-    A client arriving or departing. A joiner holds nothing, so its first flush hands it every record
-    it can see. A leaver stops being asked and the view it held stays readable, that being the
-    inventory a teardown walks.
+    A client arriving or departing. A joiner holds nothing, so its first flush hands it every
+    record it can see. A leaver drops out of the walk, so no later flush composes anything for it.
 ]]
 function Oracle.joins (of: Oracle, who: string)
     assert (of._views[who] == nil, `{who} has already joined`)

@@ -15,6 +15,11 @@ const WIDE = 4
 const PAIR = 2
 const ONE = 1
 
+-- The same three widths, named for whoever else lays a run down.
+Words.WIDE = WIDE
+Words.PAIR = PAIR
+Words.ONE = ONE
+
 -- Types ---------------------------------------------------------------
 
 --[[
@@ -35,12 +40,7 @@ export type Word = {
     read parts: { Part },
 }
 
--- Public --------------------------------------------------------------
-
--- The same three widths, named for whoever else lays a run down.
-Words.WIDE = WIDE
-Words.PAIR = PAIR
-Words.ONE = ONE
+-- Private -------------------------------------------------------------
 
 -- How many bytes a plan comes to, which is what decides between two of them.
 local function spent (plan: { Word }): number
@@ -172,6 +172,8 @@ local function cutting (widths: { number }): { Word }
 
     return plan
 end
+
+-- Public --------------------------------------------------------------
 
 --[[
     Whichever of the two spends fewer bytes, and the one that cuts nothing where they tie. Both are

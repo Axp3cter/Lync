@@ -23,8 +23,8 @@ const LENGTH = 12
 const DEPTH = 3
 
 --[[
-    The widest bits an int may span, and the widest that still flows into a bit run beside its
-    neighbours.
+    The widest bits that still flow into a bit run beside their neighbours, and the widest an int
+    may span.
 ]]
 const PACKED = Protocol.BIT_CEILING
 const WIDEST = 52
@@ -116,8 +116,8 @@ const PARTS = table.freeze ({ "int", "enum" })
 
 --[[
     Sets a drawn alphabet picks from, narrowest first. Their sizes are the point rather than their
-    letters: one symbol costs no bits at all, two cost one, and the rest sit either side of a whole
-    number of bits so a set that does not divide the space is drawn as often as one that does.
+    letters: one symbol costs no bits at all, two cost one, and the widest does not divide the bit
+    space at all, so a set that wastes codes is drawn beside ones that do not.
 ]]
 const SETS = table.freeze ({
     "a",
@@ -1063,7 +1063,7 @@ Generate.SIZED = SIZED
 --[[
     The depth a suite draws at, one past what a shape spends unasked, so a drawn tree reaches a
     composite inside a composite and no further. Deeper buys a longer failing tape rather than a
-    shape a schema had not already reached. Five suites picked it apart before this held it.
+    shape a schema had not already reached.
 ]]
 Generate.DEEP = DEPTH + 1
 

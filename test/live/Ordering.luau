@@ -122,7 +122,7 @@ local function sequenced (which: string, broadcast: (number) -> boolean)
 end
 
 --[[
-    A sequence as this client received it, the claim being that the first `RUNS` arrivals are one,
+    A sequence as this client received it. The claim is that the first `RUNS` arrivals are one,
     two, three and so on. What arrived afterwards is left alone: the wait returns the moment the
     run is complete, so a later arrival races the assertion rather than saying anything.
 ]]
@@ -156,7 +156,7 @@ return {
         The two forms alternating on one instance, which is the fact the design leans on: a
         uniform flush goes out as one broadcast and any other goes per client, so a lane is a
         stream of both and its order is promised across the pair. Were the engine to order them
-        apart, the uniform fire would go and the frames would be identical either way.
+        apart, no byte would say so, since the frames are the same either way.
     ]]
     Harness.pair ("order.interleaved", function ()
         sequenced ("interleaved", function (index: number): boolean return index % 2 == 0 end)

@@ -38,7 +38,7 @@ local function rejecting (why: string): (any, Types.ValidateContext) -> string?
 end
 
 --[[
-    Every kind the vocabulary spells, at the simplest shape it has, with a value of that shape.
+    Every kind the generator offers, at the simplest shape it has, with a value of that shape.
     Simplest rather than drawn, because what varies here is the wrapper and not the value: `as`
     holds whatever it is handed and a validate is a predicate over it, so a kind reached once is a
     kind reached, and ten thousand draws would be ten thousand instances of one claim.

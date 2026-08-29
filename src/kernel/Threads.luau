@@ -21,7 +21,7 @@ end
 
 --[[
     The first call arrives as this function's own arguments, so a fresh thread is resumed once and
-    not twice. Every call after it arrives out of the yield below.
+    not twice. Every call after it arrives out of the yield.
 ]]
 local function cycles (call: (...any) -> (), ...: any)
     ran (call, ...)

@@ -884,7 +884,7 @@ function Sync.settle (of: Sync)
     --[[
         What the frame did, taken apart only for somebody who asked. Partitioning it walks every
         record the frame touched and sorts the three answers, and those answers go nowhere but the
-        three lists below, so a set nobody connected to owes none of it.
+        three lists, so a set nobody connected to owes none of it.
     ]]
     local told = Listeners.any (of.removed)
         or Listeners.any (of.added)

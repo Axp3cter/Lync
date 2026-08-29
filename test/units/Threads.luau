@@ -66,8 +66,8 @@ return {
     end),
 
     --[[
-        The caller carries on while the call it made is still parked, which is what a listener
-        that yields must not cost the fan that reached it.
+        A listener that yields must not cost the fan that reached it, so the call runs on a thread
+        of its own rather than the caller's.
     ]]
     Harness.case ("threads.its-own-thread", function ()
         local held, call = noting ()
@@ -147,9 +147,9 @@ return {
     end),
 
     --[[
-        Five calls held at once are five threads and none of them is another, and the sixth after
-        they return takes one of those five back. The pair is what says a call in flight is never
-        handed out from under the one making it.
+        Five calls held at once are five threads and none of them is another, which is what says a
+        call in flight is never handed out from under the one making it. The resumes at the end put
+        all five back, so nothing after this case pays for them.
     ]]
     Harness.case ("threads.grows-to-the-depth", function ()
         local parked: { Ran } = {}

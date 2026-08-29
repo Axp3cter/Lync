@@ -171,7 +171,7 @@ local function drive (declaration: Check, side: Side, store: Corpus.Corpus, base
     local name = declaration.name
     local run = declaration.run
 
-    -- The corpus first, always in full: it is where depth accumulates.
+    -- The corpus first, always in full: it is every fault an earlier run found.
     local held = Corpus.cases (store, name)
     for index, tape in held do
         breathe (index)
@@ -403,9 +403,8 @@ function Harness.case (name: string, run: () -> ()): Declaration
 end
 
 --[[
-    A case that runs while the library is defined and not yet started. That window is `define`'s
-    alone: nothing else the surface offers behaves one way before the seal and another after, so
-    every case of this kind is about what a namespace may still be handed.
+    A case that runs while the library is defined and not yet started. What lives in that window
+    is a namespace that may still be handed something, and a call refused for being early.
 ]]
 function Harness.sealed (name: string, run: () -> ()): Declaration
     return table.freeze ({ kind = "sealed" :: "sealed", name = name, run = run })

@@ -16,11 +16,11 @@ local Rng = require ("@test/harness/Rng")
 -- Room for the widest varint and an offset in front of it.
 const ROOM = 32
 
--- Two values a group boundary falls inside, so a run has to walk more than one group.
+-- The last value that fits one group and one that does not, so a run walks both lengths.
 const WIDE = 127
 const MANY = 300
 
--- A magnitude of whole half groups, which is the one negative the encoder spells its own way.
+-- A magnitude of whole half groups, the one negative shape the encoder spells its own way.
 const SUNK = -Protocol.VARINT_HALF * 2
 
 -- Values a packing case writes back to back.
@@ -112,7 +112,7 @@ return {
         Expect.equal (circles (UNSIGNED, 0), 0)
     end),
 
-    -- Everything under seven bits is one group, and the top of that range is 127.
+    -- Everything inside seven bits is one group, and the top of that range is 127.
     Harness.case ("varint.one-group", function ()
         Expect.equal (laid (UNSIGNED, 1), { 0x01 })
         Expect.equal (laid (UNSIGNED, 127), { 0x7F })
@@ -228,7 +228,7 @@ return {
         The signed form needs its own ceiling case, because its cap is wider than the value it has
         to hold. Eight groups carry fifty-six bits and the zigzag of the widest signed value takes
         fifty-four, so a well formed frame has two bits of room above the ceiling and only the value
-        closes it. The row above says the same of the unsigned form and stops there.
+        closes it.
     ]]
     Harness.case ("varint.signed-read-ceiling", function ()
         local widest = { 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x1F }
@@ -260,7 +260,7 @@ return {
         Expect.equal (at, after)
     end),
 
-    -- The same where the values carry a sign, the negatives being what the two forms differ over.
+    -- The same where the values carry a sign.
     Harness.case ("varint.signed-write-run", function ()
         local held = { 0, -1, 1, -MANY, MANY, SUNK }
 

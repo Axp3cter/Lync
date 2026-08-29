@@ -116,7 +116,7 @@ return {
     Harness.case ("regions.packs-straddles", function ()
         local held = Base.cell (Lync.rotation.quat (ABSURD))
 
-        -- The tag is two bits and the three components are far past the ceiling at this precision.
+        -- The tag is two bits and the three components are past the ceiling at this precision.
         Expect.equal (Regions.packs (held), false)
     end),
 
@@ -285,7 +285,7 @@ return {
     end),
 
     --[[
-        A record with no fields at all. Four empty lists rather than a raise, because a struct
+        A record with no fields at all. Every list empty rather than a raise, because a struct
         declaring nothing is a legal declaration and what it writes is nothing, which every region
         agrees about.
     ]]

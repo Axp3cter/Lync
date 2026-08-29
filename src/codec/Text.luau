@@ -52,7 +52,7 @@ local function alphabet (symbols: string, min: number, max: number): Types.Codec
     return Base.make ("str", { symbols = symbols, min = min, max = max })
 end
 
--- A preset is one of the sets above with the general form behind it, so every set is one path.
+-- A preset is one of the five sets with the general form behind it, so every set is one path.
 local function preset (symbols: string): (number, number) -> Types.Codec<string>
     return function (min: number, max: number): Types.Codec<string>
         return alphabet (symbols, min, max)

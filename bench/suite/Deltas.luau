@@ -69,7 +69,7 @@ type Run = {
     The definitions one machine requires, each side assembling its own.
 
     Unkeyed, so every client sees every record and the state sections are the shared ones. A keyed
-    set is an audience question and has rows of its own to come.
+    set is an audience question rather than a delta one.
 ]]
 local function defined (): any return { [BOARD] = Lync.replicate (Schemas.everything.codec) } end
 

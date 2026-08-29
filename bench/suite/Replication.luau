@@ -41,7 +41,7 @@ const HIGH = 900
 --[[
     Both machines, since a replication row is measured on the sending side and read on the other.
 
-    `up` is the alternating field the harness steps, kept here so a write is always a write: a row
+    `up` is the toggle a row steps between turns, kept here so a write is always a write: a row
     that wrote the value already held would be measuring suppression rather than replication.
 ]]
 type Run = {

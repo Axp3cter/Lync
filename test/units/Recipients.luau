@@ -120,9 +120,9 @@ return {
     end),
 
     --[[
-        A list naming one player three times, and two of them naming each other's. Each player
-        reaches the answer once, and the repeats are arranged so a scan that stopped early or
-        started late would leave one behind.
+        A list naming one player three times and another twice, interleaved. Each player reaches
+        the answer once, and the repeats are arranged so a scan that stopped early or started late
+        would leave one behind.
     ]]
     Harness.case ("recipients.list-repeats", function ()
         local of = cast ()

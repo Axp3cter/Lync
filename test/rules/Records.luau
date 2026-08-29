@@ -216,8 +216,8 @@ return {
     end),
 
     --[[
-        Studio hands a test player a negative UserId. An id encodes unsigned, so a set holding one
-        proves nothing about a set sending one.
+        Studio hands a test player a negative UserId. An id crosses as a signed varint, so a set
+        holding one proves nothing about a set sending one.
     ]]
     Harness.case ("set.negative-id-replicates", function ()
         local of = opened ()

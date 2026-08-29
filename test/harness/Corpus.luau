@@ -39,8 +39,8 @@ export type Corpus = {
 
 --[[
     One line into a tape, or an error naming where it went wrong. A corpus is a file a person edits,
-    so a bad line has to say so: silently skipping one would mean depth stopped accumulating and
-    nothing said a word about it.
+    so a bad line has to say so: silently skipping one would mean a committed case stopped being
+    replayed and nothing said a word about it.
 ]]
 local function tape (name: string, at: number, text: string): Tape
     if text == NOTHING then return table.freeze ({} :: Tape) end

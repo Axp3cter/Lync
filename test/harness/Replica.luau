@@ -229,8 +229,9 @@ function Replica.joins (of: Alone, label: string): Viewer
 end
 
 --[[
-    A client gone from the game. The roster drops it and the lane forgets its transport, which is
-    the pair a departure is: a library told nobody left would go on addressing frames to it.
+    A client gone from the game. The roster drops it and the lane stops reaching it on a
+    broadcast, which is the pair a departure is: a library told nobody left would go on addressing
+    frames to it.
 ]]
 function Replica.leaves (of: Alone, held: Viewer)
     of.roster:leave (held.player)

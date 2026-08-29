@@ -260,7 +260,7 @@ function Harness.weighs (turn: (any) -> number): (any) -> number
     end
 end
 
--- The last thing a measured call answered, which nothing has a use for. See the sink above.
+-- The last thing a measured call answered, which nothing has a use for.
 function Harness.sank (): any return sank end
 
 -- The one door a row is declared through, so nothing measured can be edited after it is named.

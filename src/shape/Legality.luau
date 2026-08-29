@@ -77,7 +77,7 @@ local function refuse (name: string, at: Site, said: string): never
     return Log.refuse (`{name} {said}, declared at {at.file}:{at.line}`)
 end
 
--- The first node under here carrying a state marker, and the marker it carries.
+-- The first node carrying a state marker, and the marker it carries.
 local function marked (of: Base.Cell, at: string): (string?, Base.Marker)
     if of.marker ~= "none" then return at, of.marker end
 

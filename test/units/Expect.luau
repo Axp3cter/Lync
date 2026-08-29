@@ -9,7 +9,7 @@ local Harness = require ("@test/harness")
 
 -- Constants -----------------------------------------------------------
 
--- Two numbers a tolerance can sit either side of, and the tolerance that does.
+-- Two numbers and a tolerance half their gap, so a case can sit a pair on it or past it.
 const LOW = 1
 const HIGH = 2
 const SLACK = 0.5

@@ -52,7 +52,7 @@ const REACH = 4
 --[[
     A send instant, in whole milliseconds against the epoch. Negative because a client's shared
     clock can read behind the epoch in the moments after start, and several spaces out because a
-    server up two months has passed one.
+    server up a day has passed five of them.
 ]]
 local function instant (rng: Rng.Rng): number
     if Rng.bool (rng) then return Rng.pick (rng, MOMENTS) end
@@ -91,7 +91,7 @@ return {
     end),
 
     --[[
-        The field the wire carries, which is the count wrapped into thirty-two bits and always a
+        The field the wire carries, which is the count wrapped into twenty-four bits and always a
         value those bits can hold. A negative count is what decides the wrap: a remainder following
         the dividend answers a negative stamp, which is not a field at all, and what reaches the
         buffer is whatever it makes of one.

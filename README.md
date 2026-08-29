@@ -188,7 +188,7 @@ Delivery is reliable and ordered by default. The first two below are alternative
 | `Group` | Its members at send time. |
 | `Lync.except(t)` | Everyone but `t`, a player, list, or group. |
 
-Firing where nothing listens is reported and throws in Studio. Listeners may yield, and one that
+Firing where nothing listens is a warning rather than a throw. Listeners may yield, and one that
 throws does not stop the others.
 
 ---
@@ -321,7 +321,8 @@ Lync.onLog(function(kind, message, data)
 end)
 ```
 
-`kind` is `warn` for something dropped, `error` for a fault contained, or `debug` in Studio only.
+`kind` is `warn` for something dropped, `error` for a fault contained, or `debug`, which the
+shipped build folds away.
 `data` always carries a file and a line. `Lync.console` is the default printer and is itself a
 connection, so disconnect it to format records yourself. Match on `data`, never on the message.
 

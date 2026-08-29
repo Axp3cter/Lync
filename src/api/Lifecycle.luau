@@ -23,7 +23,7 @@ local started = false
 
 -- Private -------------------------------------------------------------
 
--- That roster over the engine's Players service.
+-- The roster a session takes, over the engine's Players service.
 local function rostered (): Session.Roster
     local players = game:GetService ("Players")
 

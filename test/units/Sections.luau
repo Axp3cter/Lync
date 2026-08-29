@@ -26,9 +26,8 @@ const ROOM = 512
 const AT = 0
 
 --[[
-    Slots that climb by two and ids that climb by one, which is what puts the pad in one run and
-    not the other: four steps of two bits fill a byte exactly, and four of one bit leave four over.
-    A pad anywhere else in this section would be a second way to reach the refusal below.
+    Slots that climb by two and ids that climb by one, which store the same step: a slot step goes
+    down one under itself and an id step does not, so the two runs pack alike.
 ]]
 const SLOTS = table.freeze ({ 1, 3, 5, 7, 9 })
 const IDS = table.freeze ({ 1, 2, 3, 4, 5 })

@@ -1,4 +1,5 @@
 --!strict
+--!optimize 2
 -- One partition's own bookkeeping: which slot holds which record, and how far the slots reach.
 
 local Compile = require ("@src/shape/Compile")

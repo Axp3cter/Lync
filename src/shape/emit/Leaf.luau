@@ -1339,7 +1339,7 @@ local function unpacked (
         end
     end
 
-    -- The fifteen bytes back as the eight they carry, the fourth and the sixth out of one word.
+    -- The fifteen bytes back as the eight they carry, four of them out of one word.
     if width == WIDE - FLAG then
         while from + SEVEN <= count do
             local one = buffer.readu32 (b, at)
@@ -1437,7 +1437,7 @@ local function unpacked (
         end
     end
 
-    -- The nineteen bytes back as the eight they carry, six of them gathered from two places.
+    -- The nineteen bytes back as the eight they carry, five of them gathered from two places.
     if width == SCANT then
         while from + SEVEN <= count do
             local one = buffer.readu32 (b, at)

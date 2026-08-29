@@ -18,7 +18,7 @@ local Harness = require ("@test/harness")
 -- Where a node says it is, which its refusals read back.
 const TAG: Ir.Tag = table.freeze ({ pathId = 1, expectId = 1 })
 
--- A count a collection is bounded by, and one shape simple enough to stand in for any other.
+-- A count a collection is bounded by.
 const SPAN: Ir.Span = table.freeze ({ min = 0, max = 2 })
 
 -- Private -------------------------------------------------------------

@@ -12,10 +12,10 @@ local Harness = require ("@test/harness")
 
 -- Constants -----------------------------------------------------------
 
--- The name a brace holds, read the way the composer reads it so the two cannot spell it apart.
+-- The name a brace holds, in the pattern the composer reads a template with.
 const HELD = "{(%w+)}"
 
--- The scope every code is under, and the one a row is expected to be spelled in.
+-- The scope every code is under, and the case a name is expected to be written in.
 const SCOPE = "drop"
 const SPELLED = "^%l[%l-]*$"
 
@@ -80,8 +80,8 @@ return {
 
     --[[
         A template naming something no key declares is a line with a brace left in it. The two are
-        held to each other exactly, in this direction and in the one below, because either half on
-        its own is satisfied by a row that says nothing.
+        held to each other exactly, in both directions, because either half on its own is
+        satisfied by a row that says nothing.
     ]]
     Harness.case ("catalog.templates-name-declared-keys", function ()
         for code, entry in Catalog.entries do

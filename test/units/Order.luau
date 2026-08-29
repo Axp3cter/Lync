@@ -150,9 +150,8 @@ return {
     end),
 
     --[[
-        Everything a fixed width can be written in. These are the fields a region packs, and one of
-        them reading as variable would move it out of the bit run it belongs in and cost the frame
-        the alignment the run exists to avoid.
+        Everything a fixed width can be written in, which is what a layout is planned from. One of
+        them reading as variable would be written where a size has to be stated instead.
     ]]
     Harness.case ("order.varies-never", function ()
         local fixed = {
@@ -174,7 +173,7 @@ return {
     --[[
         A composite varies when what it holds does. The children are walked rather than named,
         because every kind that has any varies exactly when one of them does, and naming each would
-        be six places to keep in step with a constructor that already records what it holds.
+        be a place per kind to keep in step with a constructor that already records what it holds.
     ]]
     Harness.case ("order.varies-through-children", function ()
         local loose = Lync.str (0, SMALL)

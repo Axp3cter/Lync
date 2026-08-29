@@ -62,7 +62,7 @@ end
 -- One bit, which is what a flag takes and the width a whole byte of elements lands on exactly.
 const FLAG = 1
 
--- Two to a byte, which is the one width over a flag that meets the boundary without carrying.
+-- Two to a byte, one of the widths over a flag that meets the boundary without carrying.
 const NIBBLE = 4
 const NIBBLES = 2 ^ NIBBLE
 
@@ -124,7 +124,7 @@ const AMPLE = BROAD + NIBBLE
 -- The slot a reference nobody made takes, which is none, since the array it indexes starts at one.
 const NOTHING = 0
 
--- How deep a value nobody declared may nest, and what each part of one opens with.
+-- How deep a value nobody declared may nest, and what a real inside one weighs.
 const DEPTH = Protocol.UNKNOWN_DEPTH
 const REAL_BYTES = 8
 
@@ -507,7 +507,7 @@ local function packed (
 
     --[[
         Four elements to nine bytes, eighteen being a pair over a pair of them. Two words and a
-        byte carry the four, and the third is the only one of them out of a single word.
+        byte carry the four, and the first and the third are the only ones out of a single word.
     ]]
     if width == WIDER then
         while from + TRIO <= count do

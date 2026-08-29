@@ -29,7 +29,7 @@ const SPACE = WINDOW * 2
 ]]
 const ANCHORS = table.freeze ({ 0, SPACE - 3 })
 
--- The distances where the answer changes, drawn as often as everywhere else.
+-- The distances around where the answer changes, and the far end of the ring, drawn as often.
 const EDGES = table.freeze ({ 0, 1, WINDOW - 1, WINDOW, WINDOW + 1, SPACE - 1 })
 
 --[[

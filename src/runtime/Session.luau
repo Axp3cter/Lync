@@ -70,7 +70,10 @@ const WINDOW = Protocol.DETECTOR_WINDOW
 
 -- Types ---------------------------------------------------------------
 
--- Who is here, as the three things a namespace asks of the roster and no more.
+--[[
+    Who is here. A namespace walks the roster at start and listens for a leave, admitting a client
+    from the handshake rather than from a join.
+]]
 export type Roster = {
     read all: (self: Roster) -> { Player },
     read onAdded: (self: Roster, take: (Player) -> ()) -> () -> (),

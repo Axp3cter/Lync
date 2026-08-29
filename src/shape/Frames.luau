@@ -199,7 +199,7 @@ function Frames.running (over: number): Head
 
     --[[
         The count is spelled in the bits rounding the id up to its byte, which were spare before it
-        wanted them. What that buys is a block that never runs costing exactly what it did when no
+        wanted them. Where the id leaves any, a block that never runs costs what it did when no
         block could, and what it costs is a cap that a crowded namespace holds to more tightly.
     ]]
     local spare = BYTE - id % BYTE

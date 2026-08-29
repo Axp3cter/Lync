@@ -33,7 +33,7 @@ local function rostered (): Session.Roster
             local held = players.PlayerAdded:Connect (take)
             return function () held:Disconnect () end
         end,
-        -- Wrapped, unlike the one above it, because this event hands over a reason as well.
+        -- Wrapped where the join is not, so the callback is handed the player and nothing else.
         onRemoving = function (_, take: (Player) -> ()): () -> ()
             local held = players.PlayerRemoving:Connect (function (who: Player) take (who) end)
             return function () held:Disconnect () end

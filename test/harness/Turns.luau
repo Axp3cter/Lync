@@ -39,7 +39,7 @@ function Turns.text (of: any, value: any): string
     return buffer.readstring (out, 0, size)
 end
 
--- Text as the buffer a read takes, which is that way round.
+-- Text as the buffer a read takes.
 function Turns.held (text: string): buffer
     local out = buffer.create (#text)
     buffer.writestring (out, 0, text)

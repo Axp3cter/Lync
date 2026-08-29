@@ -154,7 +154,7 @@ end
 --[[
     The smallest tape this could find that still fails, and the calls it spent. `fails` must be
     deterministic and must already hold for `tape`. The answer is confirmed once more at the end,
-    a minimal case that does not reproduce being worse to receive than the large one that did.
+    since a minimal case that does not reproduce is worse to receive than the large one that did.
 ]]
 function Shrink.run (tape: Tape, fails: (Tape) -> boolean, budget: number?): (Tape, number)
     for index, word in tape do

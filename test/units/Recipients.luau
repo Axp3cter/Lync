@@ -15,7 +15,6 @@ local Harness = require ("@test/harness")
 
 -- Constants -----------------------------------------------------------
 
--- Four stand-ins, which is one more than any check needs.
 const LABELS = table.freeze ({ "alice", "bob", "carol", "dave" })
 
 -- The one who is on the roster and never told they may receive, which is what `ready` is about.
@@ -110,8 +109,7 @@ return {
 
     --[[
         A list, which is the form a caller writes out and the one that has to be read back as a
-        set. What comes back is asked as a set for that reason, and the count is asked beside it so
-        a list that named nobody twice would still have to come back one.
+        set. What comes back is asked as a set for that reason.
     ]]
     Harness.case ("recipients.list", function ()
         local of = cast ()
@@ -151,7 +149,7 @@ return {
     end),
 
     --[[
-        Everyone but one, in each of the forms an exclusion can hold. Each is resolved through a
+        Everyone but one, in each of the three forms that name players. Each is resolved through a
         ready set the exclusion never saw, which is what says the members are read at the flush.
     ]]
     Harness.case ("recipients.except", function ()
@@ -163,9 +161,10 @@ return {
     end),
 
     --[[
-        The two ends of an exclusion. Excluding everybody is nobody, and excluding somebody who is
-        not listening is everybody who is, which is the reading that says the ready set is applied
-        to the answer rather than to what was excluded.
+        Both ends of an exclusion and the reading between them. Excluding everybody is nobody,
+        excluding nobody is everybody listening, and excluding somebody who is not listening is
+        the same, which says the ready set is applied to the answer rather than to what was
+        excluded.
     ]]
     Harness.case ("recipients.except-ends", function ()
         local of = cast ()

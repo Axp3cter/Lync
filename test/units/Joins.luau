@@ -136,8 +136,8 @@ return {
     end),
 
     --[[
-        Every kind with a grid, held to answering one leaf and no pair. A pair appearing on one of
-        them is a call the emitter would make and nobody wrote.
+        A kind with a grid, held to answering one leaf and no pair. A pair on a plain field is a
+        call the emitter would make and nobody wrote.
     ]]
     Harness.case ("joins.plain-carries-no-pair", function ()
         local held = field (Lync.int (LOW, HIGH))
@@ -166,7 +166,7 @@ return {
 
     --[[
         Both facts ride on the join and neither is derived at the call. Asked of a dissolved
-        record as well as a plain one, since those are the two places the pair can differ.
+        record as well as a plain one, since those are the two places they can differ.
     ]]
     Harness.case ("joins.key-and-nest", function ()
         local plain = field (Lync.bool ())

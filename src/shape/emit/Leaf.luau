@@ -31,7 +31,7 @@ const READ_SIGNED = Varint.readSigned
 const BYTE = Protocol.BYTE_BITS
 const EXACT = Protocol.EXACT
 
--- The widths a whole number of bytes is read and written in, and the value one word carries.
+-- The widths a whole number of bytes is read and written in, and what a pair and a word carry.
 const PAIR = 2
 const TRIO = PAIR + 1
 const WORD = 4

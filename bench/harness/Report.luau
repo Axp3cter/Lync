@@ -50,8 +50,8 @@ export type Baseline = { [string]: { [string]: { nanos: number, allocated: numbe
 --[[
     A number as a report prints it. Three places on the nanoseconds and one on the bytes, because a
     host does not answer the same figure twice and printing digits it cannot reproduce would make
-    every diff a diff. The batch size prints whole: it is the count the doubling landed on rather
-    than a measurement, and rounding it would hide which power of two a row settled at.
+    every diff a diff. The batch size prints whole: it is a count rather than a measurement, and
+    rounding it would hide the size a row was measured at.
 ]]
 local function nanos (of: number): string return string.format ("%9.3f ns", of) end
 

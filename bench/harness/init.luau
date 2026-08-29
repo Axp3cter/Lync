@@ -156,8 +156,8 @@ local function measured (of: Row): Cell
 
     --[[
         The fastest of the samples, and the widest heap reading none of them lost to a collection.
-        Kept apart because zero is a reading three rows below are about and a collection answers the
-        same zero, so a growth that was never seen is nothing rather than none.
+        Kept apart because a row that allocates nothing reads zero and a collection answers the same
+        zero, so a growth that was never seen is nothing rather than none.
     ]]
     local fastest, widest = math.huge, nil :: number?
     for _ = 1, SAMPLES do

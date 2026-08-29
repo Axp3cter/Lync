@@ -26,10 +26,10 @@ const QUAT_Z = Protocol.QUAT_Z
 const QUAT_W = Protocol.QUAT_W
 
 --[[
-    Precisions in degrees a case lays a grid at, coarsest first. Ninety is the coarsest a
-    declaration can ask for and is where every rounding is widest, which is where a mapping that is
-    nearly right stops being right. Half a degree is finer than anything a place has reason to send
-    and is where a search that scores badly still looks correct.
+    Precisions in degrees a case lays a grid at, coarsest first. Ninety is the coarsest that
+    still leaves a square three points a side, and is where every rounding is widest, which is
+    where a mapping that is nearly right stops being right. Half a degree is finer than anything
+    a place has reason to send and is where a search that scores badly still looks correct.
 ]]
 const DEGREES = table.freeze ({ 90, 45, 10, 5, 1, 0.5 })
 
@@ -154,8 +154,8 @@ local function away (
 end
 
 --[[
-    The turns of a cube whose every component is a whole number or the bound itself, which is
-    thirteen: the identity, a half turn about each axis, and a quarter turn each way about each.
+    The turns of a cube whose every component is a whole number or the bound itself, which is ten:
+    the identity, a half turn about each axis, and a quarter turn each way about each.
     Every one of them sits on a grid point at every precision that divides the range evenly.
 ]]
 local function square (): { Turn }

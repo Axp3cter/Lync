@@ -13,7 +13,7 @@ local Harness = require ("@test/harness")
 
 -- Constants -----------------------------------------------------------
 
--- Four stand-ins, one more than any case puts in a group, so somebody is always outside it.
+-- Four stand-ins, enough that a full group can lose two members and still hold two.
 const LABELS = table.freeze ({ "alice", "bob", "carol", "dave" })
 
 -- Types ---------------------------------------------------------------
@@ -173,9 +173,9 @@ return {
     end),
 
     --[[
-        The test a recipient makes before it walks a group, asked of the four things that are not
-        one. A player is an instance, a list and the two tagged forms are tables, and a walk that
-        took any of them for a group would read a member off something that has none.
+        The test a recipient makes before it walks a group, asked of a player, a table with
+        members and one without, and nothing at all. A walk that took any of these for a group
+        would read a member off something that has none.
     ]]
     Harness.case ("group.is", function ()
         local of = cast ()
@@ -207,9 +207,8 @@ return {
     end),
 
     --[[
-        The six ways in, each asked after the release. One metatable stands in front of all of
-        them rather than a guard at each, and the count and the walk are the two a guard is most
-        easily left out of.
+        One metatable stands in front of every way into a group rather than a guard at each, so a
+        release has one table to swap and no door it can miss.
     ]]
     Harness.case ("group.destroyed-is-not-a-group", function ()
         local of = cast ()
@@ -219,8 +218,9 @@ return {
         group:destroy ()
 
         --[[
-            False rather than a raise, which is the one way in that answers. A recipient walk
-            asks this first, so a destroyed group is skipped rather than throwing mid-send.
+            False rather than a raise, which is the one way in that answers. It reads the
+            metatable rather than a field, so it is the one door the dead table is not in
+            front of.
         ]]
         Expect.equal (Group.is (group), false)
     end),

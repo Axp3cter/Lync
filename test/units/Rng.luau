@@ -25,7 +25,7 @@ const HIGH = 10
 const SEED = 20260825
 const OTHER = 99999
 
--- What a shuffle is asked of, long enough that one ordering out of its permutations is unlikely.
+-- What a shuffle is asked of, long enough that a first element never moving is not bad luck.
 const LONG = 12
 
 -- Bytes a draw is asked for.
@@ -47,7 +47,7 @@ local function drawn (call: (Rng.Rng) -> number, seed: number?): ({ [number]: bo
     return seen, order
 end
 
--- A list of known values, which a shuffle has to answer with the same of and no more.
+-- A list's values and how many of each, which a shuffle has to answer back unchanged.
 local function counted (list: { number }): { [number]: number }
     local held: { [number]: number } = {}
     for _, value in list do
@@ -60,8 +60,8 @@ end
 
 return {
     --[[
-        The claim every budget in the register rests on: a span is covered rather than sampled at
-        one end. A generator answering its low bound forever passes every property there is.
+        A span is covered rather than sampled at one end. A generator answering its low bound
+        forever passes every property there is.
     ]]
     Harness.case ("rng.int-covers-its-span", function ()
         local seen = drawn (function (of) return Rng.int (of, LOW, HIGH) end)
@@ -104,8 +104,8 @@ return {
     end),
 
     --[[
-        Both answers, and the two probabilities that have only one. A coin that always says the same
-        thing takes every branch a suite meant to exercise both ways.
+        Both answers, and the two probabilities that have only one. A coin that always says the
+        same thing takes one branch of every case a suite meant to exercise both ways.
     ]]
     Harness.case ("rng.bool-answers-both", function ()
         local of = Rng.new (SEED)

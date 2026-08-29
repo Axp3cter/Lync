@@ -97,7 +97,7 @@ function Define.reach (of: Live, said: string, server: boolean): Session.Session
     return held
 end
 
--- Closes the list. A namespace declared after this has nothing left to open it.
+-- A namespace declared after this has nothing left to open it.
 function Define.seal () sealed = true end
 
 --[[

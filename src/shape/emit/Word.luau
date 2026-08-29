@@ -25,9 +25,8 @@ const PAIR = Words.PAIR
 const BYTE = Protocol.BYTE_BITS
 
 --[[
-    A top no reading stands under, which is what a piece carries where recognising one would cost
-    more than asking its grid. Every number is above it, so the recognition settles nothing and
-    the one grid answers, which is what a grid not running from nothing in whole steps needs.
+    A top no reading stands under, which is what a piece carries where a reading is not its own
+    index. Every number is above it, so the recognition settles nothing and the one grid answers.
 ]]
 const UNDER_ALL = -1
 

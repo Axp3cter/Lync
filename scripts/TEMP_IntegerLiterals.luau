@@ -94,7 +94,7 @@ function TEMP.reveal (dir: string)
 end
 
 --[[
-    To remove: delete this file, delete the five TEMP calls in Tools.format and Build.convert, and
-    drop the require from each. Nothing else moves.
+    To remove: delete this file, delete the five TEMP calls in Tools.format and Build's convert,
+    and drop the require from each. Nothing else moves.
 ]]
 return table.freeze (TEMP)

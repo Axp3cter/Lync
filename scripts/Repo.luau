@@ -8,7 +8,7 @@ local Repo = {}
 
 -- Constants -----------------------------------------------------------
 
--- The five authored trees, which is everything a person in this repository writes.
+-- The five authored trees, which hold every line of Luau a person here writes.
 Repo.SRC = "src"
 Repo.TEST = "test"
 Repo.BENCH = "bench"

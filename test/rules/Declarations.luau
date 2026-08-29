@@ -161,9 +161,9 @@ return {
     end),
 
     --[[
-        A bound that is not a bound, on the three kinds that take a pair of them. A count is whole,
-        starts at nothing and runs upward, and every counted kind takes the same three rules. A
-        number's bounds are the looser pair, needing only to sit on the line and be in order.
+        A bound that is not a bound, asked of three kinds. A count is whole, starts at nothing and
+        runs upward, and every counted kind takes the same three rules. A number's bounds are the
+        looser pair, needing only to sit on the line and be in order.
     ]]
     Harness.case ("codec.bounds-legal", function ()
         refuses ({

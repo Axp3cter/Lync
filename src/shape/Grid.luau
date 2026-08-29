@@ -40,9 +40,9 @@ export type Grid = {
 
     --[[
         The pair of points a reading sits between, as indices and as the values at them. A caller
-        could assemble that from the two above at the cost of asking five times over, so a grid a
-        search reaches for settles it once instead. A reading that is no place answers with the
-        first index missing, and a pair with no other half either.
+        could assemble that from `toIndex` and `fromIndex` at the cost of asking four times over,
+        so a grid a search reaches for settles it once instead. A reading that is no place answers
+        with the first index missing, and a pair with no other half either.
     ]]
     read window: ((value: any) -> (number?, number, number, number))?,
     --[[

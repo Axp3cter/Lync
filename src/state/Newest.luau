@@ -37,7 +37,7 @@ const WHOSE = 1
 const WHICH = 2
 const MORE = WHICH + 1
 
--- What a slot run of this lane refuses under.
+-- What this lane refuses under: its slot run, and a field number naming no stream.
 const SAID = table.freeze ({
     many = "a newest section naming more records than its own bytes could hold",
     order = "a newest section naming its slots out of order",

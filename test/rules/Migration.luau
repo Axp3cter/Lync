@@ -150,9 +150,9 @@ return {
 
     --[[
         A record leaving a viewer's audience beside a record leaving existence, which are two facts
-        and have to be one frame. A removal naming its reason breaks the boundary at the moment it
-        matters, since a viewer told the record moved has been told it is still there under a key
-        they were never meant to know of.
+        that have to cross as the same bytes. A removal naming its reason breaks the boundary at
+        the moment it matters, since a viewer told the record moved has been told it is still there
+        under a key they were never meant to know of.
     ]]
     Harness.case ("key.no-cause-leak", function ()
         local moved, movedLoser = staged ()

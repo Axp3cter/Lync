@@ -20,8 +20,8 @@ const DEPTH = Generate.DEEP
 --[[
     Multiples of a schema's own width that a hostile frame is offered at. In a frame the schema
     could have written, an over-count runs off the end and the buffer refuses it, which is the
-    right answer for the wrong reason. Room to spare tells the two apart, a believed count then
-    having bytes to eat and handing back a collection the schema does not own.
+    right answer for the wrong reason. Room to spare tells the two apart, since a believed count
+    then has bytes to eat and hands back a collection the schema does not own.
 ]]
 const OVERLONG = table.freeze ({ 2, 4, 16 })
 
@@ -505,10 +505,9 @@ return {
     end),
 
     --[[
-        The two frames of the constants above, at the length a reader expects and at every length up
-        to it. Every length because a short frame and a whole one fail differently: one runs out of
-        bytes and the other runs out of meaning, and only the pair says which happened. The one a
-        padding bug reads as a legal empty everything.
+        The two adversary frames, at every length up to the one a reader expects and at multiples
+        past it. Every length because a short frame and a whole one fail differently: one runs out
+        of bytes and the other runs out of meaning, and only the pair says which happened.
     ]]
     Harness.case ("total.no-hang", function ()
         for _, frame in frames () do
@@ -593,7 +592,7 @@ return {
         A frame whose padding is not zero, which is damage no encoder makes. The bits over the last
         element of a packed run go down as nothing, so a frame carrying anything else in them spells
         one value two ways, and two spellings of one value are what the order of map keys rests on
-        being impossible. Each of the three forms that leave a pad behind is put to it.
+        being impossible. Every form that leaves a pad behind is put to it.
     ]]
     Harness.case ("total.pad-is-refused", function ()
         local forms = {

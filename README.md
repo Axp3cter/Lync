@@ -154,8 +154,8 @@ Nudge = Lync.packet(Lync.empty()),
 ```
 
 A packet of `empty()` carries no payload: fire it with no value and the listener is handed none.
-A block of them costs one byte whether it holds one nudge or thirty, the header being the whole of
-what goes out.
+A block of them costs one byte whether it holds one nudge or thirty, since the header is the whole
+of what goes out.
 
 ```lua
 Nudge:fireClient(player)
@@ -188,8 +188,8 @@ Delivery is reliable and ordered by default. The first two below are alternative
 | `Group` | Its members at send time. |
 | `Lync.except(t)` | Everyone but `t`, a player, list, or group. |
 
-Firing at nobody is reported and throws in Studio. Listeners may yield, and one that throws does
-not stop the others.
+Firing where nothing listens is reported and throws in Studio. Listeners may yield, and one that
+throws does not stop the others.
 
 ---
 

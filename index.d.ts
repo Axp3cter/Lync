@@ -76,7 +76,7 @@ declare namespace Lync {
         unreliable(this: Packet<T>): Packet<T>;
         /** Declaration: lossy latest-wins, rate-capped when hz is given. */
         newest(this: Packet<T>, hz?: number): Packet<T>;
-        /** Declaration: stamps every fire with its flush's shared send instant. */
+        /** Declaration: stamps every fire with its own instant on the shared clock. */
         timestamped(this: Packet<T>): Packet<T>;
         fireServer(this: Packet<T>, value: T): void;
         fireClient(this: Packet<T>, recipient: Recipient, value: T): void;

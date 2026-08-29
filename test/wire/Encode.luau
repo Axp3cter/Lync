@@ -314,8 +314,8 @@ return {
     --[[
         A value off its grid in a record wider than one window where no grid runs from nothing.
         Such a record is written by the pair that recognises nothing it is handed, so what says the
-        piece was reached at all is the line naming it, a raise on its own being what a walk that
-        never looked would give too.
+        piece was reached at all is the line naming it, since a raise on its own is what a walk
+        that never looked would give too.
     ]]
     Harness.case ("wire.a-wide-turned-record-names-its-piece", function ()
         local fields = {}
@@ -573,11 +573,11 @@ return {
         Expect.equal (of.maxBytes, HELD * EACH)
         Expect.equal (of.write (SLAB, 0, { 1, 2 }), HELD * EACH)
     end),
+
     --[[
-        The four things a value nobody declared is held to, since its declaration says only how
+        The three things a value nobody declared is held to, since its declaration says only how
         much room it may take. Every one of them is the only bound left once the shape is gone:
-        what it may hold, how deep it may nest, how much room it fills, and that the room is what
-        the frame keeps rather than what the writer discovers.
+        what it may hold, how deep it may nest, and how much room it fills.
     ]]
     Harness.case ("wire.unknown-holds-what-it-can", function ()
         --[[

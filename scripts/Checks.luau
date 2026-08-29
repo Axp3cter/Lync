@@ -1293,9 +1293,8 @@ local function shares (mine: { [string]: boolean }, theirs: { [string]: boolean 
 end
 
 --[[
-    Every sentence a file says about its subject, with the banner left out: a unit cites the
-    register section that owns its subject and the module names the same subject, so the two agree
-    by design.
+    Every sentence a file says about its subject, with the banner left out: a suite's header and
+    the header of the module it is about name one subject, so the two agree by design.
 ]]
 local function about (path: string): { { at: number, said: string } }
     local source = Repo.read (path)

@@ -66,7 +66,7 @@ return {
 
     --[[
         A run whose every step is forged to nothing. A step goes down one under itself, so nothing
-        at all is a step of one and no bytes name a slot twice, which is why the order below is
+        at all is a step of one and no bytes name a slot twice, which is why the order refusal is
         asked about the first slot alone and never about the run behind it.
     ]]
     Harness.case ("slots.a-repeat-cannot-be-spelled", function ()

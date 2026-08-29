@@ -28,7 +28,7 @@ const CAP = Protocol.UNRELIABLE_CAP
 ]]
 const CEILING = Protocol.MAX_FIRE
 
--- What a frame that is everybody's is merged against, having no client half of its own.
+-- What a frame that is everybody's is merged against, since it has no client half of its own.
 const NONE = table.freeze ({} :: { Blocks.Block })
 
 -- Types ---------------------------------------------------------------

@@ -81,8 +81,9 @@ const RISEN = (NIBBLE_TOP - 1) // 2
 const FAR_SIDE = 30000
 
 --[[
-    The widest value a byte holds, and its neighbours either side. A run of the middle one carries
-    nothing between elements and the other two do, which is what tells a boundary from a length.
+    The widest value a byte holds, and its neighbours either side. The lower two are a byte wide
+    and the third is not, so a run of the first two carries nothing between elements and a run of
+    the third carries a bit of each one into the next.
 ]]
 const TOPS = table.freeze ({ under = 254, whole = 255, over = 256 })
 
@@ -120,7 +121,7 @@ const GROUPED = table.freeze ({
 const GROUPS = 19
 
 --[[
-    The three shifts of the second filling. Counting down from the top sets every high bit of every
+    The two shifts of the second filling. Counting down from the top sets every high bit of every
     element, so a bit laid where a one already sits cannot be seen. A stride alone does not fix it
     either: any value linear in the index holds the same low bits at every eighth place, and a group
     is eight elements, so these fold the high bits down and let that place vary.
@@ -220,7 +221,7 @@ const COUNTS = table.freeze ({
     table.freeze ({ max = 16777216, bytes = 4, carried = 0 }),
 })
 
--- Where the letters a one-character element is drawn from start, which is a byte that is never nil.
+-- Where the letters a one-character element is drawn from start, which is capital A.
 const LETTER = 65
 
 -- The element shapes a wide count sits in front of, which are written by two different hands.
@@ -895,8 +896,8 @@ return {
 
     --[[
         A run whose elements are exactly a byte, which is the width where nothing is carried from
-        one element to the next. The run either side of it is what says the boundary is where the
-        difference is, rather than anywhere a run of that length happens to land.
+        one element to the next. The tops either side of it are asked too, so what the check turns
+        on is the crossing at the byte rather than the length the run happens to be.
     ]]
     Harness.case ("wire.byte-wide-run", function ()
         for _, top in { TOPS.under, TOPS.whole, TOPS.over } do

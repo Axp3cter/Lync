@@ -21,7 +21,7 @@ const DRAWS = 2000
 -- Fixed, so a red is the factory having changed rather than a run having been unlucky.
 const SEED = 20260825
 
--- Deep enough for a composite to hold a composite, which is what `DEEP` is the one home of.
+-- Deep enough for a composite to hold a composite.
 const DEEP = Generate.DEEP
 
 -- Bytes a corruption is handed, which is what it is for: a frame, rather than a shape's own text.

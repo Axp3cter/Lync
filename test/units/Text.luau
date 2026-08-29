@@ -96,8 +96,8 @@ return {
 
     --[[
         A set a caller wrote with a symbol in it twice, refused with the repeat named. Both halves
-        are asked, since a refusal that named neither leaves a caller holding sixty four characters
-        and a sentence about one of them.
+        are asked, since a refusal naming the rule alone leaves a caller holding sixty four
+        characters and a sentence about one of them.
     ]]
     Harness.case ("text.alphabet-refuses-a-repeat", function ()
         local said = Expect.throws (function () Lync.str.alphabet ("abca", LOW, HIGH) end)

@@ -1,6 +1,6 @@
 --!strict
 --!optimize 2
--- The pinned artifacts: what every fixture schema reads as, hashes to, and costs on the wire.
+-- The pinned artifacts: what a schema reads as, hashes to and costs, and what a scenario ships.
 
 local Golden = {}
 

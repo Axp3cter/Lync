@@ -213,8 +213,8 @@ Schemas.inventory = fixture (
 )
 
 --[[
-    Every constructor and every modifier in one record: the schema a live run drives end to end,
-    and the suite's definition of shipped. `team` is what a keyed set keys by, `title` is the
+    Every modifier and nearly every constructor in one record: the schema a live run drives end to
+    end, and the suite's definition of shipped. `team` is what a keyed set keys by, `title` is the
     optional `Lync.none` clears, `score` only climbs, and `carry` replicates unreliably.
 ]]
 Schemas.everything = fixture (

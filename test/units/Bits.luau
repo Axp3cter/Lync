@@ -72,7 +72,7 @@ return {
 
     --[[
         One past a power, which is where a width computed through a logarithm stops telling the
-        truth. From 2^49 upward the log of `span + 1` rounds back to the exponent and the width
+        truth. From 2^50 upward the log of `span + 1` rounds back to the exponent and the width
         comes out one short, which is a shape that encodes fine and decodes as a different value.
     ]]
     Harness.case ("bits.above-powers", function ()

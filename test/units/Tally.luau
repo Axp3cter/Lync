@@ -62,8 +62,7 @@ return {
     end),
 
     --[[
-        A name nothing happened to, after everything else has moved. A line is made for every
-        definition rather than for the ones that did something, and the reading this asks for is
+        A name nothing happened to, after everything else has moved. The reading this asks for is
         the one an absent row could not have given.
     ]]
     Harness.case ("tally.quiet-definitions-stay", function ()
@@ -167,9 +166,9 @@ return {
     end),
 
     --[[
-        The four figures about the namespace, arranged so the frame total lands above the sum of
-        the lines under it. One block to two clients is what pulls them apart, and a run where the
-        two agreed would say the frames were never counted separately.
+        The namespace's own figures, arranged so the frame total lands above the sum of the lines
+        under it. One block to two clients is what pulls them apart, and a run where the two
+        agreed would say the frames were never counted separately.
     ]]
     Harness.case ("tally.namespace-figures", function ()
         local of = made ()

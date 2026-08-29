@@ -18,14 +18,11 @@ local Wide = require ("@src/kernel/Wide")
     What an entry with nothing pending is called in the tables below. A merge answers nil for it,
     because a record added and removed inside one flush leaves nothing to say, and an op meaning
     nothing would be a fifth kind the wire has no section for. A table literal cannot hold a nil, so
-    the absence is spelled here and turned back at the one place these rows are read.
+    the absence is spelled here and turned back where a row is handed to the merge.
 ]]
 const NOTHING = "none"
 
---[[
-    Every merge the protocol states, in the order it states them. `replace` is written in prose
-    rather than as a word, being the one row that names two sections instead of one.
-]]
+-- Every merge the module makes, one row for each pair a flush reaches.
 const MERGES = table.freeze ({
     table.freeze ({ was = NOTHING, took = "add", is = "add" }),
     table.freeze ({ was = NOTHING, took = "update", is = "update" }),

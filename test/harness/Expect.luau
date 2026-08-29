@@ -226,8 +226,8 @@ function Expect.equal (actual: unknown, expected: unknown)
 end
 
 --[[
-    The same walk with slack at every numeric leaf, for the codecs that round on purpose: quant,
-    angle, the unit and quaternion rotations, and rgb565.
+    The same walk with slack at every numeric leaf, for the codecs that round on purpose: the ones
+    that take a step or a precision, and rgb565.
 ]]
 function Expect.near (actual: unknown, expected: unknown, tolerance: number)
     assert (tolerance > 0, `near wants a tolerance above zero, got {tolerance}`)
@@ -238,10 +238,10 @@ function Expect.near (actual: unknown, expected: unknown, tolerance: number)
 end
 
 --[[
-    The same walk answering rather than raising. The one caller is a model asking whether an
-    update wrote the value a record already held, which is what decides whether a flush says
-    anything, and a model rolling its own comparison would be a second opinion about NaN, a buffer
-    and a nested table.
+    The same walk answering rather than raising. It exists for a model asking whether an update
+    wrote the value a record already held, which is what decides whether a flush says anything, and
+    a model rolling its own comparison would be a second opinion about NaN, a buffer and a nested
+    table.
 ]]
 function Expect.alike (left: unknown, right: unknown): boolean
     return compare (left, right, 0, "value", {}) == nil

@@ -155,8 +155,9 @@ return {
 
     --[[
         One run laid out in full: two fields whole in the first window, a third filling it and
-        carrying three bits over, a fourth spanning the last two. A part names its field, its place
-        in the window, its width and how far up the field it starts, which is all a reader needs.
+        carrying three bits over, and a fourth sitting whole in the second. A part names its
+        field, its place in the window, its width and how far up the field it starts, which is all
+        a reader needs.
     ]]
     Harness.case ("words.parts", function ()
         local plan = Words.plan ({ 3, 12, 20, 9 })
@@ -177,10 +178,10 @@ return {
     end),
 
     --[[
-        A field across two boundaries, which is three parts rather than the two a field usually
-        splits into. Both shapes of it are here: one opening at the top of a two-byte window covers
-        the byte after it whole and ends in the byte after that, and one opening at the top of a
-        four-byte window does the same over the two that follow.
+        A field across two window boundaries, which is three parts rather than the two a field
+        usually splits into. The first run is the case it is not: crossing bytes inside one window
+        leaves a field whole, since a part is cut at a window and never at a byte. The second opens
+        at the top of a four-byte window, covers the two-byte one whole, and ends in the byte after.
     ]]
     Harness.case ("words.thrice", function ()
         local across = Words.plan ({ 15, 10 })
@@ -213,11 +214,11 @@ return {
     end),
 
     --[[
-    Every run, against what a plan owes whichever way it laid its fields out. A field sits where the
-    windowing put it rather than where its declaration alone would, since one that fits a window
-    goes ahead of one that would be cut across it. What is left is what either laying owes: every
-    bit placed, every piece knowing how far up its field it starts and staying inside its window.
-]]
+        Every run, against what a plan owes whichever way it laid its fields out. A field sits
+        where the windowing put it rather than where its declaration alone would, since one that
+        fits a window goes ahead of one that would be cut across it. What is left is what either
+        laying owes: every bit placed, every piece inside its window and knowing its own shift.
+    ]]
     Harness.property ("words.places", "leaves", function (rng: Rng.Rng)
         local widths = drawn (rng)
         local plan = Words.plan (widths)

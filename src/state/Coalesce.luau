@@ -7,7 +7,7 @@ local Wide = require ("@src/kernel/Wide")
 
 local Coalesce = {}
 
--- State ---------------------------------------------------------------
+-- Constants -----------------------------------------------------------
 
 --[[
     The two word operations a mask asks for, under their own names. `Wide` settles its carrier when

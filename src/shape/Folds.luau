@@ -12,11 +12,6 @@ local Scalars = require ("@src/codec/Scalars")
 
 local Folds = {}
 
--- Types ---------------------------------------------------------------
-
--- What a fold becomes, which is what a field the language carries becomes and for one reason.
-export type Field = Joins.Field
-
 -- Constants -----------------------------------------------------------
 
 -- What the engine calls each of the four this file takes apart.
@@ -44,7 +39,10 @@ const RED = Protocol.RGB565_RED
 const GREEN = Protocol.RGB565_GREEN
 const BLUE = Protocol.RGB565_BLUE
 
--- Private -------------------------------------------------------------
+-- Types ---------------------------------------------------------------
+
+-- What a fold becomes, which is what a field the language carries becomes and for one reason.
+export type Field = Joins.Field
 
 -- A fold, as the one shape every form below answers in.
 export type Fold = {
@@ -52,6 +50,8 @@ export type Fold = {
     pull: (value: any, into: { number }, at: number) -> boolean,
     push: (from: { number }, at: number) -> any,
 }
+
+-- Private -------------------------------------------------------------
 
 -- The components of a vector, one grid each, in the order they are written.
 local function spread (of: Grid.Grid, wide: boolean): Fold

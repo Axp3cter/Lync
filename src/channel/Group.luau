@@ -19,6 +19,11 @@ type Held = {
     at: { [Player]: number },
 }
 
+-- State ---------------------------------------------------------------
+
+-- Every group not yet destroyed. A leave sweep walks this to find them.
+local live: { [Held]: true } = {}
+
 -- Private -------------------------------------------------------------
 
 local Members = {}
@@ -37,11 +42,6 @@ local function gone (): any return Log.refuse ("this group was destroyed") end
 Dead.__index = gone
 Dead.__len = gone
 Dead.__iter = gone
-
--- State ---------------------------------------------------------------
-
--- Every group not yet destroyed. A leave sweep walks this to find them.
-local live: { [Held]: true } = {}
 
 -- Public --------------------------------------------------------------
 

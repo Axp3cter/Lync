@@ -107,7 +107,7 @@ return {
         end,
     }),
 
-    -- The same bytes through the transport with nothing above them.
+    -- A frame of the same width through the transport with nothing above it.
     Harness.row ({
         name = "throughput.raw-remote",
         setup = function (): any

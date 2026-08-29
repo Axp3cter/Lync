@@ -45,7 +45,7 @@ return {
         run = function (): any return shaped (Schemas.flag) end,
     }),
 
-    -- The other end: every constructor and modifier at once, which is a caller's widest definition.
+    -- The other end: nearly every constructor and every modifier, a caller's widest definition.
     Harness.row ({
         name = "compile.schema-everything",
         run = function (): any return shaped (Schemas.everything) end,

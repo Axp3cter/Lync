@@ -1,120 +1,147 @@
 --!strict
 --!optimize 2
---[[
-    What a declaration has to be before a namespace will carry it, which is read off the shape a
-    caller declared rather than off the codec under it. A codec legal on its own is what every one
-    of these is built out of, so what is refused here is the declaration and not the codec.
-]]
+-- What a declaration has to be before a namespace will carry it, read off the shape a caller
+-- declared rather than off the codec under it.
 
-local Legality = require ("@src/shape/Legality")
-local Lync = require ("@src")
+local Codecs = require("@src/codec")
+local Legality = require("@src/shape/Legality")
+local Protocol = require("@src/wire/Protocol")
 
-local Expect = require ("@test/harness/Expect")
-local Harness = require ("@test/harness")
+local Expect = require("@test/harness/Expect")
+local Harness = require("@test/harness")
 
--- Constants -----------------------------------------------------------
+local SET = "roster"
+local PACKET = "beat"
 
--- What a set is named by, which a refusal reads back so a caller is sent to their own line.
-const SET = "roster"
+-- A step a turn does not divide into a whole number of.
+local ASKEW = 7
 
--- A step a turn does not divide into a whole number of, which a set's own field may not take.
-const ASKEW = 7
+-- A name holding what a descriptor separates its own names with.
+local MARKED = "holds;a;mark"
 
--- A name holding what a descriptor separates its own names with, which no definition may.
-const MARKED = "holds;a;mark"
+local AT = table.freeze({ file = "Origin", line = 1 })
 
--- Where a declaration says it was written, which every refusal carries.
-const AT = table.freeze ({ file = "Origin", line = 1 })
-
--- Private -------------------------------------------------------------
-
--- One set declared over the codec given, under the key named, which is the whole of a set.
-local function replicating (of: any, key: string?): any
+local function replicating(of: any, key: string?): any
     return { kind = "set" :: "set", of = of, keyField = key, at = AT }
 end
 
--- Public --------------------------------------------------------------
+local function firing(of: any, unreliable: boolean?, newest: boolean?): any
+    return {
+        kind = "packet" :: "packet",
+        of = of,
+        isUnreliable = unreliable == true,
+        isNewest = newest == true,
+        hz = nil,
+        isTimestamped = false,
+        at = AT,
+    }
+end
+
+local function asking(of: any, reply: any): any
+    return { kind = "query" :: "query", of = of, reply = reply, at = AT }
+end
+
+-- A refusal naming the definition and containing the phrase.
+local function refuses(name: string, declared: any, phrase: string)
+    local said = Expect.throws(function()
+        Legality.definition(name, declared)
+    end, phrase)
+    Expect.holds(string.find(said, name, 1, true) ~= nil, `it named no definition: {said}`)
+    Expect.holds(string.find(said, "Origin:1", 1, true) ~= nil, `it named no site: {said}`)
+end
 
 return {
-    --[[
-        A record of no fields, replicated. A set says what changed by naming fields, so one with
-        none has nothing it could ever say and nothing a receiver could ever be told, and the
-        empty struct under it is a legal codec that a packet would carry without complaint.
-    ]]
-    Harness.case ("declared.set-of-no-fields", function ()
-        Legality.definition (SET, replicating (Lync.struct ({ held = Lync.bool () })))
-
-        local said = Expect.throws (
-            function () Legality.definition (SET, replicating (Lync.struct ({}))) end,
-            "no fields"
-        )
-
-        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
+    -- A set says what changed by naming fields, so a record of none has nothing to say.
+    Harness.case("declared.set-of-no-fields", function()
+        Legality.definition(SET, replicating(Codecs.struct({ held = Codecs.bool() })))
+        refuses(SET, replicating(Codecs.struct({})), "no fields")
     end),
 
-    --[[
-        A field counted more finely than the grid it sits on can spell. An angle whose step does
-        not divide a turn lands its last point somewhere other than the first, so two machines
-        rounding the same reading would answer two indices, and a set is the one place that is a
-        difference somebody reads rather than a value somebody sent.
-    ]]
-    Harness.case ("declared.set-of-an-imprecise-field", function ()
-        local said = Expect.throws (
-            function ()
-                Legality.definition (SET, replicating (Lync.struct ({ spun = Lync.angle (ASKEW) })))
-            end,
+    -- An angle whose step does not divide a turn rounds to two indices on two machines.
+    Harness.case("declared.set-of-an-imprecise-field", function()
+        refuses(SET, replicating(Codecs.struct({ spun = Codecs.angle(ASKEW) })), "divide a turn")
+        refuses(SET, replicating(Codecs.struct({ far = Codecs.int(0, 2 ^ 53) })), "counts exactly")
+        refuses(
+            PACKET,
+            firing(Codecs.struct({ deep = Codecs.struct({ spun = Codecs.angle(ASKEW) }) })),
             "divide a turn"
         )
-
-        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
     end),
 
-    --[[
-        A definition named what a descriptor separates its own names with. What one machine writes
-        its schema out as is what the other reads back to decide the two agree, so a name holding
-        a separator is one the far side reads as two names and a schema the two never agree on.
-        Read off the name rather than off what it was declared over, which every kind shares.
-    ]]
-    Harness.case ("declared.refuses-a-name-it-cannot-spell", function ()
-        local held = replicating (Lync.struct ({ held = Lync.bool () }))
-        Legality.definition (SET, held)
-
-        local said = Expect.throws (
-            function () Legality.definition (MARKED, held) end,
-            "separates its own names with"
-        )
-
-        Expect.holds (string.find (said, MARKED, 1, true) ~= nil, `it named no definition: {said}`)
+    Harness.case("declared.refuses-a-name-it-cannot-spell", function()
+        local held = replicating(Codecs.struct({ held = Codecs.bool() }))
+        Legality.definition(SET, held)
+        refuses(MARKED, held, "separates its own names with")
+        Expect.holds(Legality.named("plain") == nil, "a plain name was refused")
+        Expect.holds(Legality.named("a=b") ~= nil, "an equals sign was taken")
     end),
 
-    --[[
-        A set declared over something that is not a record. What a set sends is which of a record's
-        fields moved, so a value with no fields to name has no difference a set could ever describe,
-        and the codec under it is one a packet would carry perfectly well.
-    ]]
-    Harness.case ("declared.set-of-what-is-not-a-record", function ()
-        local said = Expect.throws (
-            function () Legality.definition (SET, replicating (Lync.int (0, 1))) end,
-            "and a set replicates records"
-        )
-
-        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
+    Harness.case("declared.set-of-what-is-not-a-record", function()
+        refuses(SET, replicating(Codecs.int(0, 1)), "and a set replicates records")
     end),
 
-    --[[
-        A set keyed by a field its own record does not declare. A key is what a set partitions by
-        and every record has to answer it, so a name the record never carries is one no record
-        could be filed under, which is a schema that could never hold anything at all.
-    ]]
-    Harness.case ("declared.set-keyed-by-nothing-it-has", function ()
-        local of = Lync.struct ({ held = Lync.bool () })
-        Legality.definition (SET, replicating (of, "held"))
+    -- A key is what a set partitions by, so every record has to answer it with one number that
+    -- always arrives.
+    Harness.case("declared.set-keys", function()
+        local of = Codecs.struct({ held = Codecs.bool(), team = Codecs.int(0, 3) })
+        Legality.definition(SET, replicating(of, "held"))
+        Legality.definition(SET, replicating(of, "team"))
+        refuses(SET, replicating(of, "elsewhere"), "which its record does not declare")
 
-        local said = Expect.throws (
-            function () Legality.definition (SET, replicating (of, "elsewhere")) end,
-            "which its record does not declare"
-        )
+        local late = Codecs.struct({ team = Codecs.int(0, 3):newest() })
+        refuses(SET, replicating(late, "team"), "a key has to arrive")
 
-        Expect.holds (string.find (said, SET, 1, true) ~= nil, `it named no set: {said}`)
+        local wordy = Codecs.struct({ team = Codecs.str(0, 4) })
+        refuses(SET, replicating(wordy, "team"), "not one number to partition by")
+    end),
+
+    -- One dirty mask covers a fixed number of fields.
+    Harness.case("declared.set-field-cap", function()
+        local fields: { [string]: any } = {}
+        for index = 1, Protocol.MAX_FIELDS do
+            fields[`f{index}`] = Codecs.bool()
+        end
+        Legality.definition(SET, replicating(Codecs.struct(fields)))
+
+        fields.extra = Codecs.bool()
+        refuses(SET, replicating(Codecs.struct(fields)), "one dirty mask covers")
+    end),
+
+    -- A set deltas its own fields, so a marker deeper than one field is refused.
+    Harness.case("declared.set-marker-depth", function()
+        Legality.definition(SET, replicating(Codecs.struct({ pos = Codecs.f32():newest(10) })))
+        local deep = Codecs.struct({ inner = Codecs.struct({ pos = Codecs.f32():newest() }) })
+        refuses(SET, replicating(deep), "deltas its own fields")
+    end),
+
+    -- A packet and a query keep nothing between frames, so a state marker anywhere in them is
+    -- refused, and a packet may name one lane.
+    Harness.case("declared.stateless", function()
+        Legality.definition(PACKET, firing(Codecs.int(0, 1)))
+        Legality.definition(PACKET, firing(Codecs.int(0, 1), true))
+        Legality.definition(PACKET, firing(Codecs.int(0, 1), false, true))
+        refuses(PACKET, firing(Codecs.int(0, 1), true, true), "two ways of delivering")
+        refuses(PACKET, firing(Codecs.struct({ a = Codecs.int(0, 1):newest() })), "keeps nothing")
+
+        local plain = Codecs.int(0, 1)
+        Legality.definition("ask", asking(plain, plain))
+        refuses("ask", asking(plain, Codecs.struct({ a = plain:newest() })), "ask.response.a")
+        refuses("ask", asking(Codecs.struct({ a = plain:newest() }), plain), "ask.request.a")
+    end),
+
+    -- A lossy block has to fit one fire.
+    Harness.case("declared.block-cap", function()
+        local cap = Protocol.UNRELIABLE_CAP
+        Legality.block(PACKET, firing(Codecs.int(0, 1)), cap * 2)
+        Legality.block(PACKET, firing(Codecs.int(0, 1), true), cap)
+        Expect.throws(function()
+            Legality.block(PACKET, firing(Codecs.int(0, 1), true), cap + 1)
+        end, "one fire carries")
+        Expect.throws(function()
+            Legality.block(PACKET, firing(Codecs.int(0, 1), false, true), cap + 1)
+        end, "is newest")
+        Expect.equal(Legality.delivery(firing(Codecs.int(0, 1))), "reliable")
+        Expect.equal(Legality.delivery(firing(Codecs.int(0, 1), true)), "unreliable")
+        Expect.equal(Legality.delivery(firing(Codecs.int(0, 1), false, true)), "newest")
     end),
 }

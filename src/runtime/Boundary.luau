@@ -2,20 +2,19 @@
 --!optimize 2
 -- The trust split: bytes from a client are hostile, bytes from the server are this library's own.
 
-local Catalog = require ("@src/kernel/Catalog")
-local Compile = require ("@src/shape/Compile")
-local Log = require ("@src/kernel/Log")
-local Serial = require ("@src/shape/Serial")
-local Tally = require ("@src/kernel/Tally")
-local Types = require ("@src/Types")
+local Catalog = require("../kernel/Catalog")
+local Compile = require("../shape/Compile")
+local Log = require("../kernel/Log")
+local Serial = require("../shape/Serial")
+local Types = require("../Types")
 
 local Boundary = {}
 
 -- Constants -----------------------------------------------------------
 
 -- What a drop is on each side, which is the whole of what the trust split comes to afterwards.
-const HOSTILE: Types.LogKind = "warn"
-const TRUSTED: Types.LogKind = "error"
+local HOSTILE: Types.LogKind = "warn"
+local TRUSTED: Types.LogKind = "error"
 
 -- Types ---------------------------------------------------------------
 
@@ -32,10 +31,10 @@ export type Names = {
     read expected: Serial.Interner,
 }
 
--- One link's boundary: a context for each side of the split, and where the frame in hand stands.
+-- One link's boundary: a context for each side of the split, when each sender's definitions were
+-- last heard, and where the frame in hand stands.
 export type Boundary = {
     read name: string,
-    read tally: Tally.Tally,
     read hostile: Context,
     read trusted: Context,
     read stamps: { [Player]: { [number]: number } },
@@ -47,53 +46,50 @@ export type Boundary = {
 
 -- Private -------------------------------------------------------------
 
--- An empty context, which is what a link holds two of for as long as it is open.
-local function context (): Context return { player = nil, now = 0, last = nil } end
+local function context(): Context
+    return { player = nil, now = 0, last = nil }
+end
 
 -- What one sender's definitions were last heard at, made the first time they are heard at all.
-local function marks (of: Boundary, from: Player): { [number]: number }
+local function marks(of: Boundary, from: Player): { [number]: number }
     local held = of.stamps[from]
     if held ~= nil then return held end
-
     held = {}
     of.stamps[from] = held
     return held
 end
 
 -- Where the reader got to, which only a check's own rejection says and so only it can resume.
-local function resumed (thrown: unknown): number?
-    if typeof (thrown) ~= "table" then return nil end
-
+local function resumed(thrown: unknown): number?
+    if typeof(thrown) ~= "table" then return nil end
     local rejection = thrown :: Log.Rejection
     if rejection.code ~= Catalog.VALIDATE then return nil end
-
     local at = rejection.facts.at
-    return if typeof (at) == "number" then at else nil
+    return if typeof(at) == "number" then at else nil
 end
 
 -- A rejection's numbers as the words they were interned from.
-local function diagnosed (thrown: unknown, names: Names, about: Log.Facts)
-    if typeof (thrown) ~= "table" then return end
-
+local function diagnosed(thrown: unknown, names: Names, about: Log.Facts)
+    if typeof(thrown) ~= "table" then return end
     local facts = (thrown :: Log.Rejection).facts
-    local path = facts.pathId
-    local expected = facts.expectId
+    local path, expected = facts.pathId, facts.expectId
+    if typeof(path) == "number" then about.path = names.paths.texts[path] end
+    if typeof(expected) == "number" then about.expected = names.expected.texts[expected] end
+end
 
-    if typeof (path) == "number" then about.path = names.paths.texts[path] end
-    if typeof (expected) == "number" then about.expected = names.expected.texts[expected] end
+local function kind(of: Boundary): Types.LogKind
+    return if of.ctx.player == nil then TRUSTED else HOSTILE
 end
 
 -- Public --------------------------------------------------------------
 
 -- One link's boundary, before anything has arrived.
-function Boundary.new (name: string, tally: Tally.Tally): Boundary
-    local hostile = context ()
-
+function Boundary.new(name: string): Boundary
+    local hostile = context()
     return {
         name = name,
-        tally = tally,
         hostile = hostile,
-        trusted = context (),
+        trusted = context(),
         stamps = {},
         heard = {},
         ctx = hostile,
@@ -103,27 +99,25 @@ function Boundary.new (name: string, tally: Tally.Tally): Boundary
 end
 
 -- A frame arriving, and the context every payload in it is read under.
-function Boundary.opened (of: Boundary, from: Player?, now: number)
+function Boundary.opened(of: Boundary, from: Player?, now: number)
     local ctx = if from == nil then of.trusted else of.hostile
-
     ctx.player = from
     ctx.now = now
     ctx.last = nil
-
     of.ctx = ctx
     of.live = true
 end
 
 -- One definition heard from one sender, stamped whether or not what follows decodes.
-function Boundary.stamped (of: Boundary, from: Player?, id: number, now: number)
-    local held = if from == nil then of.heard else marks (of, from)
-
+function Boundary.stamped(of: Boundary, from: Player?, id: number, now: number)
+    local held = if from == nil then of.heard else marks(of, from)
     of.ctx.last = held[id]
     held[id] = now
 end
 
--- One payload or one entry, decoded under containment, and the byte past it.
-function Boundary.ran (
+-- One payload or one entry decoded under containment, and the byte past it. A check's rejection
+-- says where the reader got to and the frame goes on. Anything else closes the frame.
+function Boundary.ran(
     of: Boundary,
     def: Compile.Def,
     names: Names,
@@ -131,50 +125,34 @@ function Boundary.ran (
     b: buffer,
     pos: number
 ): (number?, any)
-    local ok, at, value = pcall (take, b, pos, of.ctx)
+    local ok, at, value = pcall(take, b, pos, of.ctx)
     if ok then
         of.took = true
         return at, value
     end
-
     of.took = false
-
-    local ends = resumed (at)
+    local ends = resumed(at)
     if ends == nil then of.live = false end
-
     local about: Log.Facts = {
         definition = def.name,
         file = def.file,
         line = def.line,
         player = of.ctx.player,
     }
-
-    diagnosed (at, names, about)
-    Log.dropped (at, about, if of.ctx.player == nil then TRUSTED else HOSTILE)
-    Tally.dropped (of.tally, def.name)
-
+    diagnosed(at, names, about)
+    Log.drop(at, about, kind(of))
     return ends, nil
 end
 
 -- A failure about the frame rather than about anything in it, which closes it.
-function Boundary.lost (of: Boundary, code: Catalog.Code, facts: Log.Facts)
+function Boundary.lost(of: Boundary, code: Catalog.Code, facts: Log.Facts)
     of.live = false
-
-    local raised = { code = code, facts = facts }
-    Log.dropped (
-        raised,
-        { player = of.ctx.player },
-        if of.ctx.player == nil then TRUSTED else HOSTILE
-    )
-
-    --[[
-        Against the namespace and no definition, which is what a count with no name to charge is
-        for. Either the frame never named one or the name it gave is what went wrong.
-    ]]
-    Tally.dropped (of.tally, nil)
+    Log.drop({ code = code, facts = facts }, { player = of.ctx.player }, kind(of))
 end
 
 -- A sender gone, and the stamps that were only ever about them.
-function Boundary.left (of: Boundary, who: Player) of.stamps[who] = nil end
+function Boundary.left(of: Boundary, who: Player)
+    of.stamps[who] = nil
+end
 
-return table.freeze (Boundary)
+return table.freeze(Boundary)

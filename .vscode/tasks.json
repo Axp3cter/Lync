@@ -12,7 +12,7 @@
     "tasks": [
         {
             "label": "setup",
-            "detail": "Install the toolchain and write the sourcemap.",
+            "detail": "Install the toolchain.",
             "type": "shell",
             "command": "lune",
             "args": ["run", "scripts/run.luau", "setup"],
@@ -20,7 +20,7 @@
         },
         {
             "label": "verify",
-            "detail": "Run every static check.",
+            "detail": "Run every check and the suite.",
             "type": "shell",
             "command": "lune",
             "args": ["run", "scripts/run.luau", "verify"],
@@ -51,28 +51,21 @@
             "problemMatcher": []
         },
         {
-            "label": "analyze",
-            "detail": "Type-check the trees and the tooling.",
+            "label": "test",
+            "detail": "Run the suite.",
             "type": "shell",
             "command": "lune",
-            "args": ["run", "scripts/run.luau", "analyze"],
+            "args": ["run", "scripts/run.luau", "test"],
             "group": "test",
-            "problemMatcher": [
-                {
-                    "owner": "luau",
-                    "source": "luau-lsp",
-                    "fileLocation": ["relative", "${workspaceFolder}"],
-                    "severity": "error",
-                    "pattern": {
-                        "regexp": "^(.+?)\\((\\d+),(\\d+)\\):\\s+(\\w+):\\s+(.+)$",
-                        "file": 1,
-                        "line": 2,
-                        "column": 3,
-                        "code": 4,
-                        "message": 5
-                    }
-                }
-            ]
+            "problemMatcher": []
+        },
+        {
+            "label": "bench",
+            "detail": "Measure every bench row.",
+            "type": "shell",
+            "command": "lune",
+            "args": ["run", "scripts/run.luau", "bench"],
+            "problemMatcher": []
         },
         {
             "label": "check",
@@ -80,51 +73,7 @@
             "type": "shell",
             "command": "lune",
             "args": ["run", "scripts/run.luau", "check"],
-            "group": "test",
             "problemMatcher": ["$tsc"]
-        },
-        {
-            "label": "sourcemap",
-            "detail": "Regenerate sourcemap.json.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "sourcemap"],
-            "problemMatcher": []
-        },
-        {
-            "label": "test",
-            "detail": "Build the test place for Studio.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "test"],
-            "group": { "kind": "test", "isDefault": true },
-            "problemMatcher": []
-        },
-        {
-            "label": "bench",
-            "detail": "Build the bench place for Studio.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "bench"],
-            "problemMatcher": []
-        },
-        {
-            "label": "serve",
-            "detail": "Serve the test place to Studio.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "serve"],
-            "isBackground": true,
-            "problemMatcher": []
-        },
-        {
-            "label": "place",
-            "detail": "Build the test place in Studio without a sync plugin.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "place"],
-            "isBackground": true,
-            "problemMatcher": []
         },
         {
             "label": "build",
@@ -132,16 +81,6 @@
             "type": "shell",
             "command": "lune",
             "args": ["run", "scripts/run.luau", "build"],
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "dist",
-            "detail": "Assemble the publishable package.",
-            "type": "shell",
-            "command": "lune",
-            "args": ["run", "scripts/run.luau", "dist"],
-            "group": "build",
             "problemMatcher": []
         }
     ]

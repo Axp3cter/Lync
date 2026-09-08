@@ -1,60 +1,51 @@
 --!strict
 --!optimize 2
---[[
-    A namespace's phases: what a listener attached early hears, what nothing leaves without, and
-    what is left after it closes.
-]]
+-- A namespace's phases: what a listener attached early hears, what nothing leaves without, and
+-- what is left after it closes.
 
-local Lync = require ("@src")
-local Session = require ("@src/runtime/Session")
-local Types = require ("@src/Types")
+local Codecs = require("@src/codec")
+local Lifecycle = require("@src/api/Lifecycle")
+local Packet = require("@src/api/Packet")
+local Query = require("@src/api/Query")
+local Session = require("@src/runtime/Session")
+local Set = require("@src/api/Set")
+local Types = require("@src/Types")
 
-local Doubles = require ("@fixtures/Doubles")
+local Doubles = require("@fixtures/Doubles")
 
-local Expect = require ("@test/harness/Expect")
-local Harness = require ("@test/harness")
-local Replica = require ("@test/harness/Replica")
+local Expect = require("@test/harness/Expect")
+local Harness = require("@test/harness")
+local Records = require("@test/harness/Records")
+local Replica = require("@test/harness/Replica")
 
--- Constants -----------------------------------------------------------
-
-const SPACE = "lifecycle"
+local SPACE = "lifecycle"
 
 -- The one client, because every phase here is one machine's and the other end only has to exist.
-const SENDER = "alice"
+local SENDER = "alice"
 
--- A packet both sides listen for, and a query the client answers.
-const HEARD = "heard"
-const ASKS = "asks"
+-- A packet both sides listen for, a query the client answers, and a set for the readings one
+-- answers before there is a session under it.
+local HEARD = "heard"
+local ASKS = "asks"
+local ROSTER = "roster"
 
 -- A packet legal to declare and illegal to compile, which is what asks when the compiling happens.
-const MARKED = "marked"
+local MARKED = "marked"
 
--- A set, for the readings one answers before there is a session under it.
-const ROSTER = "roster"
+local CARRIED = true
 
-const CARRIED = true
+-- Flushes a check makes when it is asking what a flush does with nothing to do. More than one,
+-- because a machine that spoke on every eighth flush would answer a single reading correctly.
+local ROUNDS = 8
 
---[[
-    Flushes a check makes when it is asking what a flush does with nothing to do.
-
-    More than one, because a machine that spoke on every eighth flush rather than on every one would
-    answer a single reading correctly and cost a place a frame a second anyway.
-]]
-const ROUNDS = 8
-
--- Types ---------------------------------------------------------------
-
---[[
-    One machine: the session that owns the lane, the handles a caller reads through, and what its
-    listener has been handed since it was attached.
-]]
+-- One machine: the session that owns the lane, the handles a caller reads through, and what its
+-- listener has been handed since it was attached.
 type Machine = {
     read session: Session.Session,
     read defs: any,
     read heard: { boolean },
 }
 
--- The pair, with each side's own listener beside it.
 type Run = {
     read wire: Doubles.Wire,
     read player: Player,
@@ -62,40 +53,43 @@ type Run = {
     read client: Machine,
 }
 
+type Done = { read ok: boolean, read code: unknown, read data: Types.OutcomeData? }
+
 -- Private -------------------------------------------------------------
 
---[[
-    A packet, a query and a set. The first two are the smallest pair that reaches both of the things
-    a phase decides, whether a fire leaves and whether a request finds anybody to answer it.
-]]
-local function defined (): any
+-- A packet, a query and a set: the smallest schema that reaches both of the things a phase
+-- decides, whether a fire leaves and whether a request finds anybody to answer it.
+local function defined(): any
     return {
-        [HEARD] = Lync.packet (Lync.bool ()),
-        [ASKS] = Lync.query (Lync.bool (), Lync.bool ()),
-        [ROSTER] = Lync.replicate (Lync.struct ({ [MARKED] = Lync.bool () })),
+        [HEARD] = Packet.new(Codecs.bool()),
+        [ASKS] = Query.new(Codecs.bool(), Codecs.bool()),
+        [ROSTER] = Set.new(Codecs.struct({ [MARKED] = Codecs.bool() })),
     }
 end
 
 -- Two machines on one lane, each with its listener attached before it starts.
-local function opened (): Run
+local function opened(): Run
     local inbound: { boolean } = {}
     local outbound: { boolean } = {}
-
-    local pair = Replica.paired ({
+    local pair = Replica.paired({
         space = SPACE,
         defined = defined,
         label = SENDER,
-        wires = function (defs: any, side: string)
+        wires = function(defs: any, side: string)
             if side == "server" then
-                defs[HEARD]:onServer (function () table.insert (inbound, true) end)
+                defs[HEARD]:onServer(function()
+                    table.insert(inbound, true)
+                end)
                 return
             end
-
-            defs[HEARD]:onClient (function () table.insert (outbound, true) end)
-            defs[ASKS]:onClient (function (value: boolean): boolean return value end)
+            defs[HEARD]:onClient(function()
+                table.insert(outbound, true)
+            end)
+            defs[ASKS]:onClient(function(value: boolean): boolean
+                return value
+            end)
         end,
     })
-
     return {
         wire = pair.wire,
         player = pair.player,
@@ -105,246 +99,243 @@ local function opened (): Run
 end
 
 -- A fire from the client, flushed and carried, which is what most of these need.
-local function sent (of: Run)
-    of.client.defs[HEARD]:fireServer (CARRIED)
-    of.client.session:flush ()
-    of.wire:settle ()
+local function sent(of: Run)
+    of.client.defs[HEARD]:fireServer(CARRIED)
+    of.client.session:flush()
+    of.wire:settle()
 end
 
-local moved = Replica.crossed
-
---[[
-    A request the server makes and does not wait for, and what the completion was handed. Never
-    yields, so the close that follows it happens while the request is still in flight, which is the
-    arrangement two checks want.
-]]
-local function asking (of: Run): { { ok: boolean, code: unknown, data: Types.OutcomeData? } }
-    local done = {}
-
-    of.server.defs[ASKS]:request (
-        of.player,
-        CARRIED,
-        function (ok: boolean, code: unknown, data: Types.OutcomeData?)
-            table.insert (done, { ok = ok, code = code, data = data })
-        end
-    )
+-- A request the server makes and does not wait for, so the close that follows it happens while
+-- the request is still in flight.
+local function asking(of: Run): { Done }
+    local done: { Done } = {}
+    local function completed(ok: boolean, code: unknown, data: Types.OutcomeData?)
+        table.insert(done, { ok = ok, code = code, data = data })
+    end
+    of.server.defs[ASKS]:request(of.player, CARRIED, completed)
     return done
 end
 
 -- Public --------------------------------------------------------------
 
 return {
-    --[[
-        The calls a place makes on a library that has not started, which are refused rather than
-        answered. Nothing is open until a place starts, so a flush has no session to spend, a close
-        has none to let go and a reading has nothing to count. Sealed, since this is the one window
-        the question exists in and it closes the moment anything calls start.
-    ]]
-    Harness.sealed ("life.surface-before-start", function ()
-        for _, said in { "flush", "close", "stats" } do
-            Expect.throws (function () (Lync :: any)[said] (Lync) end, `{said} before start`)
-        end
+    -- The calls a place makes on a library that has not started, which are refused rather than
+    -- answered: a flush has no session to spend and a close has none to let go.
+    Harness.case("life.surface-before-start", function()
+        Expect.throws(function()
+            Lifecycle.flush()
+        end, "flush before start")
+        Expect.throws(function()
+            Lifecycle.close()
+        end, "close before start")
     end),
 
-    --[[
-        A set read before the machine started, which answers empty rather than refusing. A handle
-        exists from the moment it is declared and a place wires its interface against one, so the
-        readings have to hold before anything is bound: nothing under any id, nothing held, and
-        nothing to walk. A set answering otherwise tells a caller about records that do not exist.
-    ]]
-    Harness.case ("life.set-before-start", function ()
-        local defs = defined ()
-        local set = defs[ROSTER]
-
-        Expect.equal (set:get (1), nil)
-        Expect.equal (#set, 0)
-
+    -- A set read before the machine started answers empty rather than refusing, since a place
+    -- wires its interface against a handle before anything is bound.
+    Harness.case("life.set-before-start", function()
+        local set = defined()[ROSTER]
+        Expect.equal(set:get(1), nil)
+        Expect.equal(#set, 0)
         local walked = 0
         for _ in set do
             walked += 1
         end
-        Expect.equal (walked, 0)
+        Expect.equal(walked, 0)
     end),
 
-    --[[
-        A listener attached before the machine started, and the traffic it hears afterwards, which
-        is the ordinary way a caller wires one. A definitions module is required on both sides and
-        its handles are where listeners go, all before anything is started.
-    ]]
-    Harness.case ("life.listeners-before-start", function ()
-        local of = opened ()
-        sent (of)
-
-        Expect.equal (#of.server.heard, 1)
+    -- A listener attached before the machine started, and the traffic it hears afterwards.
+    Harness.case("life.listeners-before-start", function()
+        local of = opened()
+        sent(of)
+        Expect.equal(#of.server.heard, 1)
     end),
 
-    --[[
-        A listener attached after the machine started, and the traffic either side of the moment.
-        From then on is the claim, so it hears the fire that follows and not the one before:
-        replaying what a definition was already handed is a caller seeing the past as the present.
-    ]]
-    Harness.case ("life.listeners-after-start", function ()
-        local of = opened ()
-        sent (of)
+    -- A registration for the other machine's side attaches nothing and says so: a shared module
+    -- wiring both sides loads, the right side alone is heard or answers, and each wrong one is a
+    -- warning naming the call, since its listener would be handed the other side's arguments.
+    Harness.case("life.wrong-side-registrations", function()
+        local right, wrong = {}, {}
+        local links: { [string]: Types.Connection } = {}
+        local heard = Records.made(function()
+            local pair = Replica.paired({
+                space = SPACE,
+                defined = defined,
+                label = SENDER,
+                wires = function(defs: any, side: string)
+                    if side == "server" then
+                        links.serverWrong = defs[HEARD]:onClient(function(...)
+                            table.insert(wrong, { ... })
+                        end)
+                        defs[ASKS]:onServer(function(): boolean
+                            return true
+                        end)
+                        return
+                    end
+                    links.clientWrong = defs[HEARD]:onServer(function(...)
+                        table.insert(wrong, { ... })
+                    end)
+                    links.clientRight = defs[HEARD]:onClient(function(...)
+                        table.insert(right, { ... })
+                    end)
+                    defs[ASKS]:onServer(function(): boolean
+                        return false
+                    end)
+                    defs[ASKS]:onClient(function(): boolean
+                        return true
+                    end)
+                end,
+            })
+            pair.server.defs[HEARD]:fireClient(pair.player, CARRIED)
+            pair.server.session:flush()
+            pair.wire:settle()
 
+            local done: { boolean } = {}
+            pair.server.defs[ASKS]:request(pair.player, CARRIED, function(ok: boolean, value: any)
+                table.insert(done, ok and value == true)
+            end)
+            pair.server.session:flush()
+            pair.wire:settle()
+            pair.client.session:flush()
+            pair.wire:settle()
+            Expect.equal(done, { true })
+        end)
+
+        Expect.equal(#right, 1)
+        Expect.equal(#wrong, 0)
+        Expect.equal(links.clientWrong.connected, false)
+        Expect.equal(links.serverWrong.connected, false)
+        Expect.equal(links.clientRight.connected, true)
+
+        local warned = 0
+        for _, one in heard do
+            if one.kind ~= "warn" then continue end
+            if string.find(one.message, "nothing is attached", 1, true) then
+                warned += 1
+            end
+            if string.find(one.message, "nothing answers", 1, true) then
+                warned += 1
+            end
+            Expect.holds(one.data.definition ~= nil, "a wrong-side warning named no definition")
+        end
+        Expect.equal(warned, 3)
+    end),
+
+    -- A listener attached after the machine started hears the fire that follows and not the one
+    -- before.
+    Harness.case("life.listeners-after-start", function()
+        local of = opened()
+        sent(of)
         local late = {}
-        of.server.defs[HEARD]:onServer (function () table.insert (late, true) end)
-
-        sent (of)
-
-        Expect.equal (#of.server.heard, 2)
-        Expect.equal (#late, 1)
+        of.server.defs[HEARD]:onServer(function()
+            table.insert(late, true)
+        end)
+        sent(of)
+        Expect.equal(#of.server.heard, 2)
+        Expect.equal(#late, 1)
     end),
 
-    --[[
-        A flush with nothing behind it, which a place makes more of than any other call here. A
-        namespace carrying occasional traffic is flushed at the rate of one carrying constant
-        traffic, so a machine sending anyway puts a correct, empty, paid for frame on the wire every
-        time.
-    ]]
-    Harness.case ("life.flush-empty-free", function ()
-        local of = opened ()
-
-        of.client.defs[HEARD]:fireServer (CARRIED)
-        of.client.session:flush ()
-        of.wire:settle ()
-
-        local before = moved (of)
-        Expect.holds (before > 0, "the lane carried nothing, so it was never working")
+    -- A flush with nothing behind it puts nothing on the wire.
+    Harness.case("life.flush-empty-free", function()
+        local of = opened()
+        sent(of)
+        local before = Replica.crossed(of)
+        Expect.holds(before > 0, "the lane carried nothing, so it was never working")
 
         for _ = 1, ROUNDS do
-            of.client.session:flush ()
-            of.server.session:flush ()
-            of.wire:settle ()
+            of.client.session:flush()
+            of.server.session:flush()
+            of.wire:settle()
         end
-
-        Expect.equal (moved (of), before)
-        Expect.equal (#of.server.heard, 1)
+        Expect.equal(Replica.crossed(of), before)
+        Expect.equal(#of.server.heard, 1)
     end),
 
     -- A fire with no flush behind it, which is nothing at all.
-    Harness.case ("life.flush-required", function ()
-        local of = opened ()
-        local before = moved (of)
+    Harness.case("life.flush-required", function()
+        local of = opened()
+        local before = Replica.crossed(of)
+        of.client.defs[HEARD]:fireServer(CARRIED)
+        of.wire:settle()
+        Expect.equal(Replica.crossed(of), before)
+        Expect.equal(#of.server.heard, 0)
 
-        of.client.defs[HEARD]:fireServer (CARRIED)
-        of.wire:settle ()
-
-        Expect.equal (moved (of), before)
-        Expect.equal (#of.server.heard, 0)
-
-        of.client.session:flush ()
-        of.wire:settle ()
-
-        Expect.holds (moved (of) > before, "a flush carried nothing")
-        Expect.equal (#of.server.heard, 1)
+        of.client.session:flush()
+        of.wire:settle()
+        Expect.holds(Replica.crossed(of) > before, "a flush carried nothing")
+        Expect.equal(#of.server.heard, 1)
     end),
 
-    -- Traffic queued when a machine closes, and where it goes.
-    Harness.case ("life.close-flushes", function ()
-        local of = opened ()
-        local before = moved (of)
-
-        of.client.defs[HEARD]:fireServer (CARRIED)
-        of.client.session:close ()
-        of.wire:settle ()
-
-        Expect.holds (moved (of) > before, "a close carried nothing")
-        Expect.equal (#of.server.heard, 1)
+    -- Traffic queued when a machine closes goes out with the close.
+    Harness.case("life.close-flushes", function()
+        local of = opened()
+        local before = Replica.crossed(of)
+        of.client.defs[HEARD]:fireServer(CARRIED)
+        of.client.session:close()
+        of.wire:settle()
+        Expect.holds(Replica.crossed(of) > before, "a close carried nothing")
+        Expect.equal(#of.server.heard, 1)
     end),
 
     -- What a closed machine is still holding, which is nothing.
-    Harness.case ("life.close-releases", function ()
-        local of = opened ()
-
-        of.server.defs[HEARD]:fireClient (of.player, CARRIED)
-        of.server.session:flush ()
-
-        of.client.session:close ()
-        of.wire:settle ()
-
-        Expect.equal (#of.client.heard, 0)
+    Harness.case("life.close-releases", function()
+        local of = opened()
+        of.server.defs[HEARD]:fireClient(of.player, CARRIED)
+        of.server.session:flush()
+        of.client.session:close()
+        of.wire:settle()
+        Expect.equal(#of.client.heard, 0)
     end),
 
     -- A fire after the close, which is a mistake rather than a no-op.
-    Harness.case ("life.close-then-traffic", function ()
-        local of = opened ()
-        of.client.session:close ()
-
-        Expect.throws (
-            function () of.client.defs[HEARD]:fireServer (CARRIED) end,
-            "close lets its remotes go"
-        )
+    Harness.case("life.close-then-traffic", function()
+        local of = opened()
+        of.client.session:close()
+        Expect.throws(function()
+            of.client.defs[HEARD]:fireServer(CARRIED)
+        end, "close lets its remotes go")
     end),
 
-    --[[
-        A second start on a session that has one. `Lync.start` refuses this at the surface and never
-        reaches the session, so the guard underneath is the one a caller never meets and the one
-        nothing was holding to anything. It is reachable here because a rules run opens its own
-        sessions rather than the place's.
-    ]]
-    Harness.case ("life.session-starts-once", function ()
-        local of = opened ()
-
-        Expect.throws (function () of.client.session:start () end, "has already started")
+    -- A second start on a session that has one, which is the guard under the surface's own.
+    Harness.case("life.session-starts-once", function()
+        local of = opened()
+        Expect.throws(function()
+            of.client.session:start()
+        end, "has already started")
     end),
 
-    --[[
-        A handle that was never put in a namespace, used. Every other refusal about phase is about a
-        namespace that is not started or is closed, and this is the one before any of that: a caller
-        who built a packet, forgot the `define`, and is holding something that looks finished.
-    ]]
-    Harness.case ("life.never-defined", function ()
-        local stray = Lync.packet (Lync.bool ())
-
-        Expect.throws (
-            function () (stray :: any):fireServer (CARRIED) end,
-            "before it was named in a namespace"
-        )
+    -- A handle that was never put in a namespace, used.
+    Harness.case("life.never-defined", function()
+        local stray: any = Packet.new(Codecs.bool())
+        Expect.throws(function()
+            stray:fireServer(CARRIED)
+        end, "before it was named in a namespace")
     end),
 
-    -- A request still in flight when its own machine closes.
-    Harness.case ("life.close-resolves", function ()
-        local of = opened ()
-        local done = asking (of)
+    -- A request still in flight when its own machine closes, and the name that failure has.
+    Harness.case("life.close-resolves", function()
+        local of = opened()
+        local done = asking(of)
+        Expect.equal(#done, 0)
 
-        Expect.equal (#done, 0)
-        of.server.session:close ()
-
-        Expect.equal (#done, 1)
-        Expect.equal (done[1].ok, false)
-    end),
-
-    -- The name that failure has.
-    Harness.case ("query.shutdown", function ()
-        local of = opened ()
-        local done = asking (of)
-
-        of.server.session:close ()
-
-        Expect.equal (done[1].code, "shutdown")
-        Expect.equal ((done[1].data :: Types.OutcomeData).definition, ASKS)
+        of.server.session:close()
+        Expect.equal(#done, 1)
+        Expect.equal(done[1].ok, false)
+        Expect.equal(done[1].code, "shutdown")
+        Expect.equal((done[1].data :: Types.OutcomeData).definition, ASKS)
     end),
 
     -- When the compiling happens, which is at the start and not at the first use.
-    Harness.case ("life.start-compiles", function ()
-        local wire = Doubles.wire ()
-        local roster = Doubles.roster ()
+    Harness.case("life.start-compiles", function()
+        local defs = defined()
+        defs[MARKED] = Packet.new(Codecs.int(0, 100):newest())
+        local thrown = Expect.throws(function()
+            Session.new(SPACE, defs, Doubles.wire():server(), Doubles.roster(), "server")
+        end)
+        Expect.holds(string.find(thrown, MARKED, 1, true) ~= nil, `it said "{thrown}"`)
 
-        local defs = defined ()
-        defs[MARKED] = Lync.packet (Lync.int (0, 100):monotonic ())
-
-        local thrown = Expect.throws (
-            function () Session.new (SPACE, defs, wire:server (), roster, "server") end
-        )
-        Expect.holds (string.find (thrown, MARKED, 1, true) ~= nil, `it said "{thrown}"`)
-
-        local of = opened ()
-        local stats = of.server.session:stats ()
-
-        for name in defined () do
-            Expect.holds (stats.definitions[name] ~= nil, `{name} has no counter row after start`)
-            Expect.holds (#of.server.defs[name]:describe () > 0, `{name} describes as nothing`)
+        local of = opened()
+        for name in defined() do
+            Expect.holds(#of.server.defs[name]:describe() > 0, `{name} describes as nothing`)
         end
     end),
 }

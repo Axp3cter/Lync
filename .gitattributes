@@ -1,7 +1,2 @@
 * text=auto eol=lf
 *.luau linguist-language=Luau
-
-test/data/** -text
-
-typedefs/roblox.d.luau linguist-generated=true
-typedefs/lune/** linguist-vendored

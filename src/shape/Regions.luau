@@ -2,21 +2,17 @@
 --!optimize 2
 -- Which of the four regions every field of a record is written in, and in what order.
 
-local Base = require ("@src/codec/Base")
-local Folds = require ("@src/shape/Folds")
-local Grid = require ("@src/shape/Grid")
-local Joins = require ("@src/shape/Joins")
-local Order = require ("@src/shape/Order")
-local Protocol = require ("@src/wire/Protocol")
+local Base = require("../codec/Base")
+local Folds = require("./Folds")
+local Grid = require("./Grid")
+local Joins = require("./Joins")
+local Order = require("./Order")
+local Protocol = require("../wire/Protocol")
 
 local Regions = {}
 
--- Constants -----------------------------------------------------------
-
 -- The widest a leaf can be and still flow with its neighbours rather than take whole bytes.
-const CEILING = Protocol.BIT_CEILING
-
--- Types ---------------------------------------------------------------
+local CEILING = Protocol.BIT_CEILING
 
 -- One field, at the path it is reached by from the record being partitioned.
 export type Entry = {
@@ -33,80 +29,58 @@ export type Split = {
     read nests: { Entry },
 }
 
--- Private -------------------------------------------------------------
-
 -- The leaves a declaration takes where it is a region field, and nothing where it is not.
-local function held (of: Base.Cell): { Grid.Grid }?
-    local named = Joins.leaves (of)
+local function leaves(of: Base.Cell): { Grid.Grid }?
+    local named = Joins.leaves(of)
     if named ~= nil then return named end
-
-    local fold = Folds.fold (of)
+    local fold = Folds.fold(of)
     return if fold == nil then nil else fold.leaves
 end
 
--- Every field of a record into the region it is written in, and the fixed records under it too.
-local function walk (of: { [string]: Base.Cell }, at: { string }, into: Split)
-    for _, name in Order.names (of) do
+-- Every field into the region it is written in, name sorted, and the fixed records under it too.
+-- An optional goes in two lists: its presence bit and the value behind it, whose width is not
+-- known ahead.
+local function walk(of: { [string]: Base.Cell }, at: { string }, into: Split)
+    for _, name in Order.names(of) do
         local child = of[name]
+        local path = table.clone(at)
+        table.insert(path, name)
+        local entry: Entry = table.freeze({ at = table.freeze(path), of = child })
 
-        local path = table.clone (at)
-        table.insert (path, name)
-
-        local entry: Entry = table.freeze ({ at = table.freeze (path), of = child })
-
-        --[[
-            Both lists, because the two ask different things. A presence bit says whether the field
-            is there at all, and the value behind it is still one whose width is not known ahead.
-        ]]
         if child.kind == "optional" then
-            table.insert (into.presence, entry)
-            table.insert (into.vars, entry)
-            continue
+            table.insert(into.presence, entry)
+            table.insert(into.vars, entry)
+        elseif Order.varies(child) then
+            table.insert(into.vars, entry)
+        elseif child.kind == "struct" then
+            table.insert(into.nests, entry)
+            walk(child.children :: { [string]: Base.Cell }, path, into)
+        elseif Regions.packs(child) then
+            table.insert(into.bits, entry)
+        else
+            table.insert(into.bytes, entry)
         end
-
-        if Order.varies (child) then
-            table.insert (into.vars, entry)
-            continue
-        end
-
-        if child.kind == "struct" then
-            table.insert (into.nests, entry)
-            walk (child.children :: { [string]: Base.Cell }, path, into)
-            continue
-        end
-
-        if Regions.packs (child) then
-            table.insert (into.bits, entry)
-            continue
-        end
-
-        table.insert (into.bytes, entry)
     end
 end
 
--- Public --------------------------------------------------------------
-
--- Whether a declaration flows in a bit run, which is one question asked of every leaf it takes.
-function Regions.packs (of: Base.Cell): boolean
-    local leaves = held (of)
-    if leaves == nil then return false end
-
-    for _, grid in leaves do
+-- Whether a declaration flows in a bit run, asked of every leaf it takes. A field whose leaves
+-- straddle the ceiling goes whole, since they come out of one computation.
+function Regions.packs(of: Base.Cell): boolean
+    local held = leaves(of)
+    if held == nil then return false end
+    for _, grid in held do
         if grid.width > CEILING then return false end
     end
     return true
 end
 
-function Regions.of (of: { [string]: Base.Cell }): Split
+function Regions.of(of: { [string]: Base.Cell }): Split
     local into: Split = { presence = {}, bits = {}, bytes = {}, vars = {}, nests = {} }
-    walk (of, {}, into)
-
-    table.freeze (into.presence)
-    table.freeze (into.bits)
-    table.freeze (into.bytes)
-    table.freeze (into.vars)
-    table.freeze (into.nests)
-    return table.freeze (into)
+    walk(of, {}, into)
+    for _, region in { into.presence, into.bits, into.bytes, into.vars, into.nests } do
+        table.freeze(region)
+    end
+    return table.freeze(into)
 end
 
-return table.freeze (Regions)
+return table.freeze(Regions)

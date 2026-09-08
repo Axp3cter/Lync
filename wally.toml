@@ -1,6 +1,6 @@
 [package]
 name = "axp3cter/lync"
-version = "3.1.3"
+version = "4.0.0"
 description = "Typed buffer networking for Roblox: packets, queries, and replicated sets."
 authors = ["Axp3cter"]
 license = "MIT"
@@ -8,4 +8,19 @@ homepage = "https://github.com/Axp3cter/Lync"
 repository = "https://github.com/Axp3cter/Lync.git"
 realm = "shared"
 registry = "https://github.com/UpliftGames/wally-index"
-exclude = ["index.d.ts", "package.json"]
+exclude = [
+    ".*",
+    "bench",
+    "build",
+    "fixtures",
+    "node_modules",
+    "scripts",
+    "test",
+    "typedefs",
+    "index.d.ts",
+    "package.json",
+    "package-lock.json",
+    "rokit.toml",
+    "stylua.toml",
+    "tsconfig.json",
+]

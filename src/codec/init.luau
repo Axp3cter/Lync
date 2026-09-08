@@ -2,12 +2,12 @@
 --!optimize 2
 -- Every constructor a schema is written from, in one frozen table.
 
-local Composites = require ("@src/codec/Composites")
-local Datatypes = require ("@src/codec/Datatypes")
-local Scalars = require ("@src/codec/Scalars")
-local Text = require ("@src/codec/Text")
+local Composites = require("@self/Composites")
+local Datatypes = require("@self/Datatypes")
+local Scalars = require("@self/Scalars")
+local Text = require("@self/Text")
 
-local Codecs = {
+return table.freeze({
     empty = Scalars.empty,
     bool = Scalars.bool,
     int = Scalars.int,
@@ -28,7 +28,6 @@ local Codecs = {
     tagged = Composites.tagged,
     enum = Composites.enum,
     bitfield = Composites.bitfield,
-    unknown = Composites.unknown,
 
     vec2 = Datatypes.vec2,
     vec3 = Datatypes.vec3,
@@ -36,6 +35,4 @@ local Codecs = {
     rotation = Datatypes.rotation,
     color3 = Datatypes.color3,
     inst = Datatypes.inst,
-}
-
-return table.freeze (Codecs)
+})

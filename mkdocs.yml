@@ -1,0 +1,83 @@
+site_name: Lync
+site_description: Typed buffer networking for Roblox
+site_url: https://axp3cter.github.io/Lync/
+repo_url: https://github.com/Axp3cter/Lync
+repo_name: Axp3cter/Lync
+edit_uri: edit/main/docs/
+copyright: MIT
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Guide:
+      - Setup: guide/index.md
+      - Packets: guide/packets.md
+      - Queries: guide/queries.md
+      - Sets: guide/sets.md
+      - Lifecycle: guide/lifecycle.md
+      - Validation: guide/validation.md
+      - Errors and logging: guide/logging.md
+  - Reference:
+      - Codecs: reference/codecs.md
+      - API: reference/api.md
+      - Types: reference/types.md
+      - roblox-ts: reference/roblox-ts.md
+      - Limits: reference/limits.md
+  - Contribute: contributing.md

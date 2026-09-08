@@ -8,29 +8,24 @@
     "stylua.searchBinaryInPATH": true,
     "luau-lsp.platform.type": "roblox",
     "luau-lsp.fflags.enableNewSolver": true,
-    "luau-lsp.sourcemap.rojoProjectFile": "test.project.json",
+    "luau-lsp.sourcemap.enabled": false,
     "luau-lsp.types.definitionFiles": {
         "roblox": "./typedefs/roblox.d.luau"
     },
-    "luau-lsp.ignoreGlobs": ["build/**", "dist/**", "typedefs/**"],
+    "luau-lsp.ignoreGlobs": ["build/**", "node_modules/**", "typedefs/**"],
     "typescript.tsdk": "node_modules/typescript/lib",
     "typescript.enablePromptUseWorkspaceTsdk": true,
     "search.exclude": {
         "build": true,
-        "dist": true,
         "typedefs/roblox.d.luau": true
     },
     "files.watcherExclude": {
         "**/build/**": true,
-        "**/dist/**": true,
         "**/typedefs/**": true
     },
     "files.exclude": {
-        "*.rbxl": true,
-        "*.rbxl.lock": true,
         "*.rbxm": true,
         "build": true,
-        "dist": true,
         "node_modules": true
     }
 }

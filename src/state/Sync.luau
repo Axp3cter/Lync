@@ -2,61 +2,55 @@
 --!optimize 2
 -- One set, coordinated: what a caller does to it, and what a flush turns that into.
 
-local Apply = require ("@src/state/Apply")
-local Audience = require ("@src/state/Audience")
-local Blocks = require ("@src/channel/Blocks")
-local Catchup = require ("@src/state/Catchup")
-local Coalesce = require ("@src/state/Coalesce")
-local Compile = require ("@src/shape/Compile")
-local Link = require ("@src/channel/Link")
-local Listeners = require ("@src/kernel/Listeners")
-local Log = require ("@src/kernel/Log")
-local Newest = require ("@src/state/Newest")
-local Outbox = require ("@src/channel/Outbox")
-local Plan = require ("@src/state/Plan")
-local Protocol = require ("@src/wire/Protocol")
-local Recipients = require ("@src/channel/Recipients")
-local Sections = require ("@src/state/Sections")
-local Store = require ("@src/state/Store")
-local Tally = require ("@src/kernel/Tally")
-local Types = require ("@src/Types")
-local Wide = require ("@src/kernel/Wide")
+local Apply = require("./Apply")
+local Audience = require("./Audience")
+local Blocks = require("../channel/Blocks")
+local Catchup = require("./Catchup")
+local Coalesce = require("./Coalesce")
+local Compile = require("../shape/Compile")
+local Link = require("../channel/Link")
+local Listeners = require("../kernel/Listeners")
+local Log = require("../kernel/Log")
+local Newest = require("./Newest")
+local Outbox = require("../channel/Outbox")
+local Plan = require("./Plan")
+local Protocol = require("../wire/Protocol")
+local Recipients = require("../channel/Recipients")
+local Sections = require("./Sections")
+local Store = require("./Store")
+local Types = require("../Types")
+local Wide = require("../kernel/Wide")
 
 local Sync = {}
 
 -- Constants -----------------------------------------------------------
 
-const KEYFRAME = Protocol.SECTION_KEYFRAME
-const DELTA = Protocol.SECTION_DELTA
-const REMOVAL = Protocol.SECTION_REMOVAL
-const CLEAR = Protocol.SECTION_CLEAR
+local KEYFRAME = Protocol.SECTION_KEYFRAME
+local DELTA = Protocol.SECTION_DELTA
+local REMOVAL = Protocol.SECTION_REMOVAL
+local CLEAR = Protocol.SECTION_CLEAR
 
 -- A record that has moved no field yet, which is what a first update is taken over.
-const NOTHING = Wide.NONE
+local NOTHING = Wide.NONE
 
--- What a telling with only two things to say hands over as its third, which is nothing at all.
-const UNSAID = table.freeze ({}) :: { any }
+-- What a telling with only two things to say hands over as its third.
+local UNSAID = table.freeze({}) :: { any }
 
 -- The partition an unkeyed set is the whole of.
-const WHOLE = table.freeze ({})
+local WHOLE = table.freeze({})
 
 -- What a caller writes into an update to empty a field, which nothing else can mean.
-const CLEARED =
-    setmetatable ({}, table.freeze ({ __tostring = function (): string return "Lync.none" end }))
-
---[[
-    What a set reaches for once a record it changes, under their own names. Each is the same
-    function for the life of the place, so a stream marking a thousand records reaches a name a
-    thousand times rather than another module's table.
-]]
-const MERGED = Coalesce.merge
-const TOUCHED = Coalesce.touched
-const GATHERED = Wide.gathered
-const MIGRATES = Coalesce.migrates
+local CLEARED = setmetatable(
+    {},
+    table.freeze({
+        __tostring = function(): string
+            return "Lync.none"
+        end,
+    })
+)
 
 -- Types ---------------------------------------------------------------
 
--- What each of a set's three tellings hands a listener, named so the lists that hold them fit.
 type Arriving = Listeners.Run<number, any>
 type Moving = Listeners.Run<number, any, any>
 type Leaving = Listeners.Run<number, Types.Cause>
@@ -84,7 +78,6 @@ export type Sync = {
     read order: { any },
     read partOf: { [number]: any },
     read place: { [string]: number },
-    read climbs: boolean,
     read streams: boolean,
     read bits: { Wide.Word },
     read whole: Wide.Word,
@@ -97,110 +90,95 @@ export type Sync = {
 -- Private -------------------------------------------------------------
 
 -- What a partition is found under, which is a table key and so is never nothing.
-local function under (key: any): any return if key == nil then WHOLE else key end
+local function under(key: any): any
+    return if key == nil then WHOLE else key
+end
 
-local function refuse (of: Sync, said: string, id: number): never
-    return Log.error (`{of.def.name} {said} record {id}`, { definition = of.def.name })
+local function refuse(of: Sync, said: string, id: number): never
+    return Log.error(`{of.def.name} {said} record {id}`, { definition = of.def.name })
 end
 
 -- An id a record can be held under, which is any whole number a double carries exactly.
-local function identified (of: Sync, id: number)
-    if id ~= id or id % 1 ~= 0 or math.abs (id) >= Protocol.EXACT then
-        refuse (of, "cannot hold", id)
+local function identified(of: Sync, id: number)
+    if id ~= id or id % 1 ~= 0 or math.abs(id) >= Protocol.EXACT then
+        refuse(of, "cannot hold", id)
     end
 end
 
 -- The partition a key names, made where this is the first record to name it.
-local function partition (of: Sync, key: any): Partition
-    local at = under (key)
+local function partition(of: Sync, key: any): Partition
+    local at = under(key)
     local held = of.parts[at]
     if held ~= nil then return held end
-
     local made: Partition = {
         key = key,
-        store = Store.new (of.def),
-        dirt = Plan.dirt (),
-        streams = Newest.streams (of.lane),
+        store = Store.new(of.def),
+        dirt = Plan.dirt(),
+        streams = Newest.streams(of.lane),
     }
-
     of.parts[at] = made
-    table.insert (of.order, at)
+    table.insert(of.order, at)
     return made
 end
 
 -- Every field of a record into the store, which is the whole of what a bind leaves to say.
-local function written (of: Sync, store: Store.Store, slot: number, id: number, record: any)
-    local def = of.def
-    local names = def.fieldNames
-    local writers = store.writers
-
-    for field = 1, def.fieldCount do
-        writers[field] (slot, id, record[names[field]])
+local function written(of: Sync, store: Store.Store, slot: number, id: number, record: any)
+    local names = of.def.fieldNames
+    for field = 1, of.def.fieldCount do
+        store.writers[field](slot, id, record[names[field]])
     end
 end
 
 -- What a record owes, folded into what it already owed rather than replacing it.
-local function marked (part: Partition, id: number, took: Coalesce.Kind)
+local function marked(part: Partition, id: number, took: Coalesce.Kind)
     local ops = part.dirt.ops
-    ops[id] = MERGED (ops[id], took)
+    ops[id] = Coalesce.merge(ops[id], took)
 end
 
 -- A record taken out of a partition, and what that leaves the wire owing.
-local function released (part: Partition, id: number, slot: number)
+local function released(part: Partition, id: number, slot: number)
     local dirt = part.dirt
-    local ops = dirt.ops
-
-    local took = MERGED (ops[id], "remove")
-
+    local took = Coalesce.merge(dirt.ops[id], "remove")
     dirt.masks[id] = nil
-    ops[id] = took
-
+    dirt.ops[id] = took
     if took == nil then
-        Store.spare (part.store, slot)
-        return
+        Store.spare(part.store, slot)
+    else
+        dirt.freed[slot] = id
     end
-
-    dirt.freed[slot] = id
 end
 
 -- One record out of the partition its key used to name, and into the one it names now.
-local function migrated (of: Sync, from: Partition, id: number, slot: number)
+local function migrated(of: Sync, from: Partition, id: number, slot: number)
     local row = of.row
     local columns = from.store.columns
-
-    for field = 1, of.def.fieldCount do
+    local fields = of.def.fieldCount
+    for field = 1, fields do
         row[field] = columns[field][slot]
     end
+    Store.unbind(from.store, id)
+    released(from, id, slot)
 
-    Store.unbind (from.store, id)
-    released (from, id, slot)
-
-    local into = partition (of, row[of.def.keyIndex :: number])
-    local held = Store.bind (into.store, id)
-
-    local writers = into.store.writers
-    for field = 1, of.def.fieldCount do
-        writers[field] (held, id, row[field])
+    local into = partition(of, row[of.def.keyIndex :: number])
+    local held = Store.bind(into.store, id)
+    for field = 1, fields do
+        into.store.writers[field](held, id, row[field])
     end
-
-    marked (into, id, "add")
-    of.partOf[id] = under (into.key)
+    marked(into, id, "add")
+    of.partOf[id] = under(into.key)
 end
 
 -- Ids a removal or a clear is about to take away, read while they can still be found.
-local function losing (of: Sync, part: Partition, kind: number)
+local function losing(of: Sync, part: Partition, kind: number)
     if kind == CLEAR then
         for id in part.store.slotOf do
             of.partOf[id] = nil
         end
         return
     end
-
     if kind ~= REMOVAL then return end
-
     local frame = of.layout.frame
     local ids = part.store.ids
-
     for index = 1, frame.count do
         local id = ids[frame.slots[index]]
         if id ~= nil then of.partOf[id] = nil end
@@ -208,47 +186,38 @@ local function losing (of: Sync, part: Partition, kind: number)
 end
 
 -- Ids a keyframe has just bound, which is the only section that puts a record anywhere.
-local function gaining (of: Sync, part: Partition, kind: number, at: any)
+local function gaining(of: Sync, kind: number, at: any)
     if kind ~= KEYFRAME then return end
-
     local frame = of.layout.frame
     for index = 1, frame.count do
         of.partOf[frame.ids[index]] = at
     end
 end
 
--- One block over the section just written, with whatever instances it named beside it.
-local function sealed (of: Sync, link: Link.Link, len: number, class: number): Blocks.Block
+-- One block over the section just written, with the instances it named beside it where the
+-- schema can name one at all, since that is the fact both machines pair a frame's sidecar by.
+local function sealed(of: Sync, link: Link.Link, len: number, class: number): Blocks.Block
     local side = of.def.site.sidecar
-
-    --[[
-        One where the schema can name an instance and nothing where it cannot, since that is the
-        fact both machines pair a frame's sidecar by. Whether this payload named one is not it.
-    ]]
     local held = if side.bears then side.refs else nil
-    local made = Blocks.sealed (link.scratch, len, class, Link.next (link), held)
-    Tally.sent (link.tally, of.def.name, len)
-
-    table.clear (side.refs)
-    table.clear (side.slotOf)
+    local made = Blocks.sealed(link.scratch, len, class, Link.next(link), held)
+    table.clear(side.refs)
+    table.clear(side.slotOf)
     return made
 end
 
 -- One section into the queue, everybody's or its audience's.
-local function queued (of: Sync, link: Link.Link, at: any, open: boolean, kind: number, len: number)
-    local block = sealed (of, link, len, if kind == DELTA then Blocks.DELTA else Blocks.ESTABLISH)
-
+local function queued(of: Sync, link: Link.Link, at: any, open: boolean, kind: number, len: number)
+    local block = sealed(of, link, len, if kind == DELTA then Blocks.DELTA else Blocks.ESTABLISH)
     if open then
-        Outbox.shared (link, block)
+        Outbox.shared(link, block)
         return
     end
-
-    local now = Audience.members (of.seen, at)
-    Outbox.targeted (link, now, #now, block)
+    local now = Audience.members(of.seen, at)
+    Outbox.targeted(link, now, #now, block)
 end
 
 -- What a shared section cost every client that is going to receive it.
-local function billed (
+local function billed(
     of: Sync,
     purse: { [Player]: number },
     at: any,
@@ -262,91 +231,49 @@ local function billed (
         end
         return
     end
-
-    for _, who in Audience.members (of.seen, at) do
+    for _, who in Audience.members(of.seen, at) do
         purse[who] = (purse[who] or 0) + bytes
     end
 end
 
--- Who sees this partition now, and what has changed about that since the last flush.
-local function diffed (of: Sync, part: Partition, ready: Recipients.Ready): boolean
-    local at = under (part.key)
-
-    Audience.diff (of.seen, at, ready)
-
-    local gained, lost = of.seen.gained, of.seen.lost
-    if #gained > 0 then Catchup.gained (of.owed, at, gained, part.store) end
-    if #lost > 0 then Catchup.lost (of.owed, at, lost) end
-
-    return Audience.everyone (of.seen, at)
-end
-
--- Every record a partition holds, gone, for the clients that stopped being able to see it.
-local function withdrawn (of: Sync, link: Link.Link, part: Partition, lost: { Player })
+-- Every record a partition holds, gone, for the clients that stopped being able to see it. A
+-- partition emptied this flush says so in one section. A record added in the flush that took the
+-- key away has not been sent yet, so it is owed no removal.
+local function withdrawn(of: Sync, link: Link.Link, part: Partition, lost: { Player })
     local store = part.store
-    local frame = of.layout.frame
     local layout = of.layout
-
-    -- A partition emptied this flush takes its losers with it, and says so in one section.
+    local frame = layout.frame
+    frame.key = part.key
     if part.dirt.cleared then
-        frame.key = part.key
-
-        local ends = Sections.clear (layout, link.scratch, 0)
-        Outbox.targeted (link, lost, #lost, sealed (of, link, ends, Blocks.ESTABLISH))
+        local ends = Sections.clear(layout, link.scratch, 0)
+        Outbox.targeted(link, lost, #lost, sealed(of, link, ends, Blocks.ESTABLISH))
         return
     end
 
-    --[[
-        Every slot this client was actually holding, which is every one that shipped. A record added
-        in the flush that took the key away has not been sent yet, so a removal for it would be a
-        removal of something the client never had, and the pending operation says so.
-    ]]
-    local ops = part.dirt.ops
-    local freed = part.dirt.freed
+    local ops, freed = part.dirt.ops, part.dirt.freed
     local held = 0
-
     for slot = 1, store.high do
-        local id = store.ids[slot]
-        if id == nil then id = freed[slot] end
+        local id = store.ids[slot] or freed[slot]
         if id == nil or ops[id] == "add" then continue end
-
         held += 1
         frame.slots[held] = slot
     end
     if held == 0 then return end
 
-    frame.key = part.key
-
-    local reach = Plan.keyframes (layout, Protocol.SECTION_BYTES)
+    local reach = Plan.keyframes(layout, Protocol.SECTION_BYTES)
     local from = 1
-
     while from <= held do
-        local count = math.min (reach, held - from + 1)
-        for index = 1, count do
-            frame.slots[index] = frame.slots[from + index - 1]
-        end
-
+        local count = math.min(reach, held - from + 1)
+        table.move(frame.slots, from, from + count - 1, 1, frame.slots)
         frame.count = count
-        local ends = Sections.removal (layout, link.scratch, 0)
-
-        Outbox.targeted (link, lost, #lost, sealed (of, link, ends, Blocks.ESTABLISH))
+        local ends = Sections.removal(layout, link.scratch, 0)
+        Outbox.targeted(link, lost, #lost, sealed(of, link, ends, Blocks.ESTABLISH))
         from += count
     end
 end
 
--- Every partition's audience, worked out before the flush decides anything about itself.
-function Sync.resolved (of: Sync, link: Link.Link, ready: Recipients.Ready)
-    for _, at in of.order do
-        local part = of.parts[at]
-        diffed (of, part, ready)
-
-        local lost = of.seen.lost
-        if #lost > 0 then withdrawn (of, link, part, lost) end
-    end
-end
-
 -- One partition's reliable sections, planned, queued, applied here and retired.
-local function planned (
+local function planned(
     of: Sync,
     link: Link.Link,
     budget: Plan.Budget,
@@ -356,346 +283,244 @@ local function planned (
     ready: Recipients.Ready,
     opens: (Plan.Plan, Plan.Budget, Partition) -> boolean
 )
-    if not opens (of.plan, budget, part) then return end
-
+    if not opens(of.plan, budget, part) then return end
     local frame = of.layout.frame
-    local at = under (part.key)
-    local scratch = link.scratch
-
+    local at = under(part.key)
     while true do
-        local kind, ends = Plan.next (of.plan, budget, part, scratch, 0)
+        local kind, ends = Plan.next(of.plan, budget, part, link.scratch, 0)
         if kind == nil then break end
-
         if kind == KEYFRAME or kind == REMOVAL then
-            Catchup.retired (of.owed, at, frame.slots, 1, frame.count)
+            Catchup.retired(of.owed, at, frame.slots, 1, frame.count)
         elseif kind == CLEAR then
-            Catchup.cleared (of.owed, at)
+            Catchup.cleared(of.owed, at)
         end
-
-        if kind ~= CLEAR then Apply.section (part.store, of.layout, kind, of.heard) end
-
+        if kind ~= CLEAR then Apply.section(part.store, of.layout, kind, of.heard) end
         if kind == REMOVAL then
             for index = 1, frame.count do
-                Store.spare (part.store, frame.slots[index])
+                Store.spare(part.store, frame.slots[index])
             end
         end
-
-        queued (of, link, at, open, kind, ends)
+        queued(of, link, at, open, kind, ends)
         if kind == KEYFRAME then
-            Newest.established (of.lane, part.store, frame.slots, frame.count)
+            Newest.established(of.lane, part.store, frame.slots, frame.count)
         end
-
-        if purse ~= nil then billed (of, purse, at, open, ready, ends) end
+        if purse ~= nil then billed(of, purse, at, open, ready, ends) end
     end
 end
 
--- One partition's newest fields, each as much of its stream as one fire carries.
-local function streamed (of: Sync, link: Link.Link, part: Partition, open: boolean, now: number)
+-- One partition's newest fields, each as much of its stream as one fire carries. Every open
+-- stream is walked with the cost of all of them, so two that named the same records stopped at
+-- the same one and can share a section.
+local function streamed(of: Sync, link: Link.Link, part: Partition, open: boolean, now: number)
     local lane = of.lane
     local reach = #lane.fields
     if reach == 0 then return end
-
-    local streams = part.streams
-    local store = part.store
-    local scratch = link.scratch
-
+    local streams, store = part.streams, part.store
     lane.key = part.key
 
-    --[[
-        What one record of a section costs when every stream open this flush rides in it. Walked
-        with the widest of them rather than each with its own, so two streams that named the same
-        records stopped at the same one and their runs can be compared for being the same at all.
-    ]]
     local spent = 0
     for at = 1, reach do
-        if Newest.opened (lane, streams, at, now) then
+        if Newest.opened(lane, streams, at, now) then
             spent += lane.spent[at]
         end
     end
     if spent == 0 then return end
-
     for at = 1, reach do
-        Newest.changed (lane, streams, store, at, now, spent)
+        Newest.changed(lane, streams, store, at, now, spent)
     end
 
-    --[[
-        The streams grouped by the records they named, each group one section. A run is spelled
-        once for the group and the generations with it, so a second field over the same records
-        costs its own values and the two numbers naming its stream, and nothing else.
-    ]]
-    local taken = table.create (reach, false)
-
+    local taken = table.create(reach, false)
     for at = 1, reach do
         if taken[at] or lane.counts[at] == 0 then continue end
-
         local many = 1
         lane.group[1] = at
         taken[at] = true
-
         for other = at + 1, reach do
             if taken[other] or lane.counts[other] == 0 then continue end
-            if not Newest.alike (lane, at, other) then continue end
-
+            if not Newest.alike(lane, at, other) then continue end
             many += 1
             lane.group[many] = other
             taken[other] = true
         end
 
         local count = lane.counts[at]
-        local ends = Newest.section (lane, streams, store, many, scratch, 0, now, count)
-        local block = sealed (of, link, ends, Blocks.LOOSE)
-
+        local ends = Newest.section(lane, streams, store, many, link.scratch, 0, now, count)
+        local block = sealed(of, link, ends, Blocks.LOOSE)
         if open then
-            Outbox.loose (link, block)
-            continue
+            Outbox.loose(link, block)
+        else
+            local held = Audience.members(of.seen, under(part.key))
+            Outbox.looseTo(link, held, #held, block)
         end
-
-        local held = Audience.members (of.seen, under (part.key))
-        Outbox.looseTo (link, held, #held, block)
     end
 end
 
--- The record an id names, read the way a caller reads one, or nothing where there is none.
-local function rowed (of: Sync, id: number): any
+-- The record an id names, or nothing where there is none.
+local function rowed(of: Sync, id: number): any
     local at = of.partOf[id]
     if at == nil then return nil end
-
     local part = of.parts[at]
-    if part == nil then return nil end
-
-    return part.store.rows[id]
+    return if part == nil then nil else part.store.rows[id]
 end
 
---[[
-    Every field's own bit, asked of the one that answers it once a field and not once a write, and
-    what all of them come to beside it. Naming every field of a record is the ordinary write, and
-    the answer to it is the same word every time rather than a fold that arrives at that word.
-]]
-local function bitted (reach: number): ({ Wide.Word }, Wide.Word)
-    local out = table.create (reach) :: { Wide.Word }
-    for field = 1, reach do
-        out[field] = TOUCHED (NOTHING, field)
+-- Whether two values a field may hold are the same value.
+local function alike(was: any, now: any): boolean
+    if was == now then return true end
+    if type(was) ~= "table" or type(now) ~= "table" then return false end
+    if getmetatable(was :: any) ~= nil or getmetatable(now :: any) ~= nil then return false end
+    for name, held in was do
+        if not alike(held, (now :: any)[name]) then return false end
     end
+    for name in now do
+        if (was :: any)[name] == nil then return false end
+    end
+    return true
+end
 
-    return table.freeze (out), GATHERED (NOTHING, out, 1, reach)
+-- Whether a partition is open to everyone, settled by `resolved` before the flush began.
+local function sees(of: Sync, at: any): boolean
+    return Audience.everyone(of.seen, under(at))
+end
+
+-- Who sees this partition now, and what has changed about that since the last flush.
+local function diffed(of: Sync, part: Partition, ready: Recipients.Ready)
+    local at = under(part.key)
+    Audience.diff(of.seen, at, ready)
+    local gained, lost = of.seen.gained, of.seen.lost
+    if #gained > 0 then Catchup.gained(of.owed, at, gained, part.store) end
+    if #lost > 0 then Catchup.lost(of.owed, at, lost) end
 end
 
 -- Public --------------------------------------------------------------
 
-Sync.NONE = table.freeze (CLEARED)
+Sync.NONE = table.freeze(CLEARED)
 
 -- One set, holding nothing.
-function Sync.new (def: Compile.Set): Sync
-    local bits, whole = bitted (def.fieldCount)
-    local layout = Sections.of (def)
-    local lane = Newest.of (layout)
-
+function Sync.new(def: Compile.Set): Sync
+    local reach = def.fieldCount
+    local bits = table.create(reach) :: { Wide.Word }
+    for field = 1, reach do
+        bits[field] = Coalesce.touched(NOTHING, field)
+    end
+    local layout = Sections.of(def)
+    local lane = Newest.of(layout)
     return {
         def = def,
         layout = layout,
-        plan = Plan.of (layout),
+        plan = Plan.of(layout),
         lane = lane,
-
-        --[[
-            Answers that hold for the life of a set, kept where a write reads them rather than
-            reached for through the definition every time one lands.
-        ]]
         place = def.fieldIndex,
-        climbs = def.climbs,
         streams = lane.streams,
-        bits = bits,
-        whole = whole,
-        seen = Audience.new (),
-        owed = Catchup.new (),
-        heard = Apply.heard (),
-        added = Listeners.list (Log.contained :: Arriving, nil, Log.beside),
-        changed = Listeners.list (Log.contained :: Moving, nil, Log.beside),
-        removed = Listeners.list (Log.contained :: Leaving, nil, Log.beside),
+        bits = table.freeze(bits),
+        whole = Wide.borAll(NOTHING, bits, 1, reach),
+        seen = Audience.new(),
+        owed = Catchup.new(),
+        heard = Apply.heard(),
+        added = Listeners.list(Log.spawn :: Arriving, Log.spawnRows :: Listeners.Batch),
+        changed = Listeners.list(Log.spawn :: Moving, Log.spawnRows :: Listeners.Batch),
+        removed = Listeners.list(Log.spawn :: Leaving, Log.spawnRows :: Listeners.Batch),
         parts = {},
         order = {},
         partOf = {},
-        row = table.create (def.fieldCount),
-        listed = table.create (def.fieldCount) :: { Wide.Word },
-        one = table.create (1) :: { Player },
+        row = table.create(reach),
+        listed = table.create(reach) :: { Wide.Word },
+        one = table.create(1) :: { Player },
         at = 1,
     }
 end
 
 -- A record under an id that nothing else holds.
-function Sync.add (of: Sync, id: number, record: any)
-    identified (of, id)
-    if of.partOf[id] ~= nil then refuse (of, "already holds", id) end
-
+function Sync.add(of: Sync, id: number, record: any)
+    identified(of, id)
+    if of.partOf[id] ~= nil then refuse(of, "already holds", id) end
     local field = of.def.keyField
-    local part = partition (of, if field == nil then nil else record[field])
-    local slot = Store.bind (part.store, id)
-
-    written (of, part.store, slot, id, record)
-    marked (part, id, "add")
-    of.partOf[id] = under (part.key)
+    local part = partition(of, if field == nil then nil else record[field])
+    local slot = Store.bind(part.store, id)
+    written(of, part.store, slot, id, record)
+    marked(part, id, "add")
+    of.partOf[id] = under(part.key)
 end
 
--- Whether two values a field may hold are the same value.
-local function alike (was: any, now: any): boolean
-    if was == now then return true end
-    if type (was) ~= "table" or type (now) ~= "table" then return false end
-    if getmetatable (was :: any) ~= nil or getmetatable (now :: any) ~= nil then return false end
-
-    for name, held in was do
-        if not alike (held, (now :: any)[name]) then return false end
-    end
-
-    for name in now do
-        if (was :: any)[name] == nil then return false end
-    end
-
-    return true
-end
-
--- Some fields of a record that is already held.
-function Sync.update (of: Sync, id: number, fields: any)
+-- Some fields of a record that is already held. A write of what the field already holds is no
+-- write at all. A newest field is written and not marked, since its lane compares the column
+-- against what it last sent, and an absolute value never rides a reliable delta.
+function Sync.update(of: Sync, id: number, fields: any)
     local at = of.partOf[id]
-    if at == nil then refuse (of, "does not hold", id) end
-
+    if at == nil then refuse(of, "does not hold", id) end
     local part = of.parts[at]
     local def = of.def
-    local place = of.place
     local store = part.store
     local slot = store.slotOf[id]
-
     local dirt = part.dirt
-    local mask = dirt.masks[id] or NOTHING
-
-    local climbs = of.climbs
-    local streams = of.streams
-    local bits = of.bits
-    local writers = store.writers
-
-    --[[
-        What the loop below asks of the definition rather than of the field, reached once. Every
-        one of them is the same table for every name a caller listed, so working them out again
-        for each is the definition answering a question it already answered.
-    ]]
-    local columns = store.columns
-    local optional = def.optionalFields
-    local climbing = def.climbingFields
-    local lane: any = of.lane
-
-    --[[
-        The fields this call moved, in the order it moved them. Every one of them is a bit of the
-        same mask, so the bits go on in one fold at the end instead of a fold and a word apiece on
-        the way through, which is what a record named three fields at a time would spend.
-    ]]
+    local lane = of.lane
     local listed = of.listed
     local moved = 0
 
     for name, value in fields do
-        local field = place[name]
+        local field = of.place[name]
         if field == nil then
-            Log.error (`{def.name} has no field named {name}`, { definition = def.name })
+            Log.error(`{def.name} has no field named {name}`, { definition = def.name })
         end
-
         local cleared = value == CLEARED
-        if cleared and not optional[field] then
-            Log.error (`{def.name}.{name} is not optional and cannot be cleared`, {
-                definition = def.name,
-            })
+        if cleared and not def.optionalFields[field] then
+            local said = `{def.name}.{name} is not optional and cannot be cleared`
+            Log.error(said, { definition = def.name })
         end
-
-        local was = columns[field][slot]
-
-        -- A field that may only climb, held to it at the call that would have lowered it.
-        if climbs and climbing[field] and was ~= nil and not cleared and value < was then
-            Log.error (
-                `{def.name}.{name} only climbs, and {value} is under {was}`,
-                { definition = def.name }
-            )
-        end
-
-        --[[
-            A write of what the field already holds is no write at all. Nothing is dirtied and
-            nothing is sent, which is what makes a settled stream cost nothing: a place writing
-            every record every frame from a source that stopped moving is the ordinary idle set.
-        ]]
         local now = if cleared then nil else value
-        if alike (was, now) then continue end
-
-        writers[field] (slot, id, now)
-
-        --[[
-            A newest field is written and not marked. The lane that carries one compares what the
-            column holds against what it last sent, so a mark here would be a second answer to a
-            question the store already answers, and it would put an absolute value in a reliable
-            delta, which is the one place it never goes.
-        ]]
-        if not streams or lane.place[field] == nil then
+        if alike(store.columns[field][slot], now) then continue end
+        store.writers[field](slot, id, now)
+        if not of.streams or lane.place[field] == nil then
             moved += 1
-            listed[moved] = bits[field]
+            listed[moved] = of.bits[field]
         end
     end
-
-    -- A call that moved nothing but newest fields owes the reliable lane nothing at all.
     if moved == 0 then return end
 
-    --[[
-        A call that moved every field of the record owes what all of them come to, which the
-        definition holds already and the ordinary write is. Nothing it was already owing changes
-        that: what a record owes is field bits, and the whole of them is every field bit there is.
-    ]]
-    mask = if moved == def.fieldCount then of.whole else GATHERED (mask, listed, 1, moved)
+    local mask = if moved == def.fieldCount
+        then of.whole
+        else Wide.borAll(dirt.masks[id] or NOTHING, listed, 1, moved)
     dirt.masks[id] = mask
-    marked (part, id, "update")
-
-    if MIGRATES (mask, def.keyIndex) then migrated (of, part, id, slot) end
+    marked(part, id, "update")
+    if Coalesce.migrates(mask, def.keyIndex) then migrated(of, part, id, slot) end
 end
 
 -- A record taken away, which is a slot the wire still has to be told about.
-function Sync.remove (of: Sync, id: number)
+function Sync.remove(of: Sync, id: number)
     local at = of.partOf[id]
-    if at == nil then refuse (of, "does not hold", id) end
-
+    if at == nil then refuse(of, "does not hold", id) end
     local part = of.parts[at]
-    local slot = Store.unbind (part.store, id) :: number
-
-    released (part, id, slot)
+    local slot = Store.unbind(part.store, id) :: number
+    released(part, id, slot)
     of.partOf[id] = nil
 end
 
 -- Every record of every partition, gone.
-function Sync.clear (of: Sync)
+function Sync.clear(of: Sync)
     for _, at in of.order do
         local part = of.parts[at]
         local dirt = part.dirt
-
-        Store.clear (part.store)
-        Newest.sweep (part.streams)
-        Catchup.cleared (of.owed, at)
-
-        table.clear (dirt.ops)
-        table.clear (dirt.masks)
-        table.clear (dirt.freed)
+        Store.clear(part.store)
+        Newest.sweep(part.streams)
+        Catchup.cleared(of.owed, at)
+        table.clear(dirt.ops)
+        table.clear(dirt.masks)
+        table.clear(dirt.freed)
         dirt.cleared = true
     end
-
-    table.clear (of.partOf)
+    table.clear(of.partOf)
 end
 
 -- Who a key's records are for, replacing whoever it was for.
-function Sync.audience (of: Sync, key: any, to: Types.Recipient)
-    partition (of, key)
-    Audience.assign (of.seen, under (key), to)
+function Sync.audience(of: Sync, key: any, to: Types.Recipient)
+    partition(of, key)
+    Audience.assign(of.seen, under(key), to)
 end
 
 -- The live record under an id, or nothing where this set does not hold one.
-function Sync.get (of: Sync, id: number): any?
-    local row = rowed (of, id)
-    if __DEV__ and row ~= nil and not table.isfrozen (row) then table.freeze (row) end
+Sync.get = rowed
 
-    return row
-end
-
--- How many records the set holds, which is every partition's count and not one of them.
-function Sync.size (of: Sync): number
+-- How many records the set holds, which is every partition's count.
+function Sync.size(of: Sync): number
     local held = 0
     for _, at in of.order do
         held += of.parts[at].store.count
@@ -704,62 +529,61 @@ function Sync.size (of: Sync): number
 end
 
 -- Every record the set holds, whichever partition it is in, once each.
-function Sync.walk (of: Sync): () -> (number?, any)
+function Sync.walk(of: Sync): () -> (number?, any)
     local at = 1
     local id: number? = nil
-
-    return function (): (number?, any)
+    return function(): (number?, any)
         while true do
             local key = of.order[at]
             if key == nil then return nil end
-
-            local found, row = next (of.parts[key].store.rows, id)
+            local found, row = next(of.parts[key].store.rows, id)
             if found ~= nil then
                 id = found
                 return found, row
             end
-
             at += 1
             id = nil
         end
     end
 end
 
---[[
-    A client that has just become ready, owed every record it can already see.
-
-    Apart from the audience diff, and for the reason a diff is kept apart at all: a diff answers
-    what changed, and a join changed nothing about who sees what.
-]]
-function Sync.joined (of: Sync, who: Player, ready: Recipients.Ready)
+-- A client that has just become ready, owed every record it can already see. Apart from the
+-- audience diff, since a join changed nothing about who sees what.
+function Sync.joined(of: Sync, who: Player)
     local one = of.one
     one[1] = who
-
     for _, at in of.order do
         local part = of.parts[at]
         if part.store.count == 0 then continue end
-
         local to = of.seen.of[at]
-        if to ~= nil and not Recipients.holds (to, who) then continue end
-
-        Catchup.gained (of.owed, at, one, part.store)
+        if to ~= nil and not Recipients.holds(to, who) then continue end
+        Catchup.gained(of.owed, at, one, part.store)
     end
 end
 
 -- A link that has closed, which is every backlog its client was carrying and nothing else.
-function Sync.left (of: Sync, who: Player) Catchup.dropped (of.owed, who) end
+function Sync.left(of: Sync, who: Player)
+    Catchup.dropped(of.owed, who)
+end
 
 -- Whether anything at all is catching up, which is what the shared plan holds a reserve for.
-function Sync.owing (of: Sync): boolean return of.owed.any > 0 end
+function Sync.owing(of: Sync): boolean
+    return of.owed.any > 0
+end
 
---[[
-    Whether a partition is open to everyone, read rather than worked out, since `resolved` settled
-    it before the flush began.
-]]
-local function sees (of: Sync, at: any): boolean return Audience.everyone (of.seen, under (at)) end
+-- Every partition's audience, worked out before the flush decides anything about itself, and
+-- every record withdrawn from whoever stopped seeing it.
+function Sync.resolved(of: Sync, link: Link.Link, ready: Recipients.Ready)
+    for _, at in of.order do
+        local part = of.parts[at]
+        diffed(of, part, ready)
+        local lost = of.seen.lost
+        if #lost > 0 then withdrawn(of, link, part, lost) end
+    end
+end
 
 -- One flush of one set: every partition twice, in the order the rotation reached them.
-function Sync.shared (
+function Sync.shared(
     of: Sync,
     link: Link.Link,
     budget: Plan.Budget,
@@ -770,187 +594,120 @@ function Sync.shared (
     local order = of.order
     local reach = #order
     if reach == 0 then return end
-
     for step = 0, reach - 1 do
         local key = order[(of.at + step - 1) % reach + 1]
-        planned (of, link, budget, purse, of.parts[key], sees (of, key), ready, Plan.dropping)
+        planned(of, link, budget, purse, of.parts[key], sees(of, key), ready, Plan.dropping)
     end
-
     for step = 0, reach - 1 do
         local key = order[(of.at + step - 1) % reach + 1]
         local part = of.parts[key]
-        local open = sees (of, key)
-
-        planned (of, link, budget, purse, part, open, ready, Plan.making)
-        streamed (of, link, part, open, now)
+        local open = sees(of, key)
+        planned(of, link, budget, purse, part, open, ready, Plan.making)
+        streamed(of, link, part, open, now)
     end
-
     of.at = of.at % reach + 1
 end
 
 -- What a client is owed, in chunks, queued for that client alone until the room runs out.
-function Sync.behind (of: Sync, link: Link.Link, who: Player, room: number): number
+function Sync.behind(of: Sync, link: Link.Link, who: Player, room: number): number
     if of.owed.any == 0 then return 0 end
-
     local held = of.owed.owed[who]
     if held == nil then return 0 end
-
     local spent = 0
     for _, at in of.order do
         if held[at] == nil then continue end
-
         local part = of.parts[at]
-
-        -- Chunks until the backlog is empty or the room is, rather than one and done.
         while true do
             local ends =
-                Catchup.next (of.owed, of.layout, part.store, who, at, link.scratch, 0, room)
+                Catchup.next(of.owed, of.layout, part.store, who, at, link.scratch, 0, room)
             if ends == 0 then break end
-
-            local one = of.one
-            one[1] = who
-            Outbox.targeted (link, one, 1, sealed (of, link, ends, Blocks.ESTABLISH))
-
+            of.one[1] = who
+            Outbox.targeted(link, of.one, 1, sealed(of, link, ends, Blocks.ESTABLISH))
             room -= ends
             spent += ends
         end
     end
-
     return spent
 end
 
 -- One reliable section off the wire, into the partition it is about.
-function Sync.taken (of: Sync, b: buffer, pos: number, ctx: Types.ValidateContext): number
+function Sync.taken(of: Sync, b: buffer, pos: number, ctx: Types.ValidateContext): number
     local layout = of.layout
-
-    local _, key = Sections.about (layout, b, pos, ctx)
-    local part = partition (of, key)
-
-    local kind, ends = Sections.taken (layout, b, pos, part.store.prev, ctx)
-
-    losing (of, part, kind)
-    Apply.section (part.store, layout, kind, of.heard)
-    gaining (of, part, kind, under (key))
-
+    local _, key = Sections.about(layout, b, pos, ctx)
+    local part = partition(of, key)
+    local kind, ends = Sections.taken(layout, b, pos, part.store.prev, ctx)
+    losing(of, part, kind)
+    Apply.section(part.store, layout, kind, of.heard)
+    gaining(of, kind, under(key))
     return ends
 end
 
--- One newest section off the wire, into the partition it is about.
-function Sync.stream (of: Sync, b: buffer, pos: number, ctx: Types.ValidateContext): number
+-- One newest section off the wire, into the partition it is about. Each field is read and
+-- applied before the next, since both go through the same scratch.
+function Sync.stream(of: Sync, b: buffer, pos: number, ctx: Types.ValidateContext): number
     local lane = of.lane
-    local many, count, ends = Newest.taken (lane, b, pos, ctx)
-    local part = partition (of, lane.key)
-
-    --[[
-        Each field of the section read and applied before the next is, since the values of one are
-        taken into the scratch the next will take its own into. The slots and the generations
-        stand for all of them and are read once above.
-    ]]
+    local many, count, ends = Newest.taken(lane, b, pos, ctx)
+    local part = partition(of, lane.key)
     for index = 1, many do
-        ends = Newest.values (lane, b, ends, ctx, index, count)
-        Newest.apply (
-            lane,
-            part.streams,
-            part.store,
-            of.heard,
-            lane.group[index],
-            lane.seqs[index],
-            count
-        )
+        ends = Newest.values(lane, b, ends, ctx, index, count)
+        local at, seq = lane.group[index], lane.seqs[index]
+        Newest.apply(lane, part.streams, part.store, of.heard, at, seq, count)
     end
-
     return ends
 end
 
-function Sync.onAdded (of: Sync, fn: (number, any) -> ()): Types.Connection
-    return Listeners.connect (of.added, fn) :: any
+function Sync.onAdded(of: Sync, fn: (number, any) -> ()): Types.Connection
+    return Listeners.connect(of.added, fn) :: any
 end
 
 -- Connecting here is what makes a frame keep a copy of every record it changes.
-function Sync.onChanged (of: Sync, fn: (number, any, any?) -> ()): Types.Connection
+function Sync.onChanged(of: Sync, fn: (number, any, any?) -> ()): Types.Connection
     of.heard.watching = true
-    return Listeners.connect (of.changed, fn) :: any
+    return Listeners.connect(of.changed, fn) :: any
 end
 
-function Sync.onRemoved (of: Sync, fn: (number, Types.Cause) -> ()): Types.Connection
-    return Listeners.connect (of.removed, fn) :: any
+function Sync.onRemoved(of: Sync, fn: (number, Types.Cause) -> ()): Types.Connection
+    return Listeners.connect(of.removed, fn) :: any
 end
 
--- The frame over: what its keyframes owe paid, what it did said, and what it did forgotten.
-function Sync.settle (of: Sync)
+-- The frame over: what its keyframes owe paid, what it did said to whoever asked, gathered a
+-- list at a time into arrays of their own since a listener that parks holds them, and forgotten.
+function Sync.settle(of: Sync)
     local heard = of.heard
-    Apply.settle (heard)
-
-    --[[
-        What the frame did, taken apart only for somebody who asked. Partitioning it walks every
-        record the frame touched and sorts the three answers, and those answers go nowhere but the
-        three lists, so a set nobody connected to owes none of it.
-    ]]
-    local told = Listeners.any (of.removed)
-        or Listeners.any (of.added)
-        or Listeners.any (of.changed)
-
+    Apply.settle(heard)
+    local told = Listeners.any(of.removed) or Listeners.any(of.added) or Listeners.any(of.changed)
     if told then
-        local gone, added, changed = Apply.parted (heard)
-
-        --[[
-            Gathered a list at a time and handed over together, since what a listener costs is a
-            thread and a settle of two hundred was two hundred of them. Its own arrays each time,
-            because a listener that parks holds them until it wakes and the next settle would
-            otherwise fill them under it.
-        ]]
+        local gone, added, changed = Apply.parted(heard)
         local count = #gone
         if count > 0 then
-            local ids = table.create (count)
-            local whys = table.create (count)
-
-            -- Reached once, since what a record was taken away for is one table for all of them.
-            local causes = heard.causes
-
-            for index = 1, count do
-                local id = gone[index]
+            local ids, whys = table.create(count), table.create(count)
+            for index, id in gone do
                 ids[index] = id
-                whys[index] = causes[id]
+                whys[index] = heard.causes[id]
             end
-
-            Listeners.beside (of.removed, count, ids, whys, UNSAID)
+            Listeners.fanBatch(of.removed, count, ids, whys, UNSAID)
         end
-
         count = #added
         if count > 0 then
-            local ids = table.create (count)
-            local rows = table.create (count)
-
-            for index = 1, count do
-                local id = added[index]
+            local ids, rows = table.create(count), table.create(count)
+            for index, id in added do
                 ids[index] = id
-                rows[index] = rowed (of, id)
+                rows[index] = rowed(of, id)
             end
-
-            Listeners.beside (of.added, count, ids, rows, UNSAID)
+            Listeners.fanBatch(of.added, count, ids, rows, UNSAID)
         end
-
         count = #changed
         if count > 0 then
-            local ids = table.create (count)
-            local rows = table.create (count)
-            local olds = table.create (count)
-
-            -- Reached once as well, for what each record stood at before the frame changed it.
-            local was = heard.olds
-
-            for index = 1, count do
-                local id = changed[index]
+            local ids, rows, olds = table.create(count), table.create(count), table.create(count)
+            for index, id in changed do
                 ids[index] = id
-                rows[index] = rowed (of, id)
-                olds[index] = was[id]
+                rows[index] = rowed(of, id)
+                olds[index] = heard.olds[id]
             end
-
-            Listeners.beside (of.changed, count, ids, rows, olds)
+            Listeners.fanBatch(of.changed, count, ids, rows, olds)
         end
     end
-
-    Apply.forget (heard)
+    Apply.forget(heard)
 end
 
-return table.freeze (Sync)
+return table.freeze(Sync)

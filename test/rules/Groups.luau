@@ -2,235 +2,177 @@
 --!optimize 2
 -- A group as the membership set it is, and the two recipients that reach nobody.
 
-local Lync = require ("@src")
-local Session = require ("@src/runtime/Session")
+local Codecs = require("@src/codec")
+local Define = require("@src/api/Define")
+local Group = require("@src/channel/Group")
+local Packet = require("@src/api/Packet")
+local Session = require("@src/runtime/Session")
 
-local Doubles = require ("@fixtures/Doubles")
-local Expect = require ("@test/harness/Expect")
-local Harness = require ("@test/harness")
+local Doubles = require("@fixtures/Doubles")
 
--- Constants -----------------------------------------------------------
+local Expect = require("@test/harness/Expect")
+local Harness = require("@test/harness")
 
-const NAMESPACE = "groups"
+local NAMESPACE = "groups"
 
---[[
-    One packet, which the two recipient checks need and nothing else does. A group is a value a
-    caller builds and reads without the library being involved at all, so the namespace here exists
-    only for the fires that go nowhere.
-]]
-const DEFINITIONS = { beat = Lync.packet (Lync.bool ()) }
+-- The namespace a leave check opens, and the labels its members join under. A leave reaches a
+-- group through a roster the session listens to, and `hearing` builds a fresh one per call.
+local LEAVING = "leaving"
+local LEAVER = "leaver"
+local STAYER = "stayer"
+local RELEASED = "released"
 
---[[
-    Players that are not players. An engine makes no Player on demand, and the stub is built in
-    one place already, so a second home for the fake would be a second answer to what a member is.
-]]
-const ROSTER = Doubles.roster ()
+local DESTROYED = "this group was destroyed"
 
---[[
-    The namespace a leave check opens, and the labels its two members join under. A leave reaches a
-    group through a roster the session listens to, and `hearing` builds a fresh one per call, so
-    these are spent there rather than on `ROSTER`.
-]]
-const LEAVING = "leaving"
-const LEAVER = "leaver"
-const STAYER = "stayer"
+-- One packet, which the two recipient checks need and nothing else does, on a lane this file
+-- reads to see that a fire at nobody leaves nothing.
+local WIRE = Doubles.wire()
+local DEFINITIONS = Define.define(NAMESPACE, { beat = Packet.new(Codecs.bool()) })
+local SERVER = Session.new(NAMESPACE, DEFINITIONS, WIRE:server(), Doubles.roster(), "server")
+SERVER:start()
 
--- The member of the released group, spent on a roster of its own for the same reason.
-const RELEASED = "released"
+-- Players that are not players, from the one place the stub is built.
+local ROSTER = Doubles.roster()
 
 -- Private -------------------------------------------------------------
 
 -- A machine that hears a removal, which is what a leave needs in order to reach a group.
-local function hearing (): Doubles.Roster
-    local roster = Doubles.roster ()
-    local defs = { pulse = Lync.packet (Lync.bool ()) }
-
-    local of = Session.new (LEAVING, defs, Doubles.wire ():server (), roster, "server")
-    of:start ()
+local function hearing(): Doubles.Roster
+    local roster = Doubles.roster()
+    local defs: any = { pulse = Packet.new(Codecs.bool()) }
+    Session.new(LEAVING, defs, Doubles.wire():server(), roster, "server"):start()
     return roster
 end
 
 -- A member, joined once and shared, because a label is spent once on a roster.
-local function member (label: string): Player
-    local held = ROSTER:named (label)
-    if held ~= nil then return held end
-
-    return ROSTER:join (label)
+local function member(label: string): Player
+    return ROSTER:named(label) or ROSTER:join(label)
 end
 
---[[
-    What the namespace has counted for its one definition: the fires a caller made, and the bytes
-    that left because of them.
-]]
-local function counted (): (number, number)
-    local of = Lync.stats (NAMESPACE).definitions.beat
-    return of.sent, of.sentBytes
+-- What a fire at `to` put on the lane, which for a recipient nobody stands behind is nothing.
+local function carried(to: any): number
+    local before = WIRE:moved().frames
+    DEFINITIONS.beat:fireClient(to, true)
+    SERVER:flush()
+    return WIRE:moved().frames - before
 end
 
 -- Public --------------------------------------------------------------
 
 return {
-    Harness.opens (NAMESPACE, DEFINITIONS),
+    -- Membership, which is what a group is: a set rather than a list.
+    Harness.case("group.membership", function()
+        local of = Group.new()
+        local alice, bob = member("alice"), member("bob")
+        Expect.equal(of:has(alice), false)
 
-    --[[
-        Membership, which is what a group is. A set rather than a list: adding a member twice leaves
-        one, and removing one who is not there is nothing rather than an error.
-    ]]
-    Harness.case ("group.membership", function ()
-        local of = Lync.group ()
-        local alice, bob = member ("alice"), member ("bob")
+        of:add(alice)
+        Expect.equal(of:has(alice), true)
+        Expect.equal(of:has(bob), false)
+        of:add(alice)
+        Expect.equal(#of, 1)
 
-        Expect.equal (of:has (alice), false)
-
-        of:add (alice)
-        Expect.equal (of:has (alice), true)
-        Expect.equal (of:has (bob), false)
-
-        of:add (alice)
-        Expect.equal (#of, 1)
-
-        of:remove (alice)
-        Expect.equal (of:has (alice), false)
-
-        of:remove (alice)
-        Expect.equal (#of, 0)
+        of:remove(alice)
+        Expect.equal(of:has(alice), false)
+        of:remove(alice)
+        Expect.equal(#of, 0)
     end),
 
-    --[[
-        The count, which moves with the membership and not with the calls. A caller reads it to
-        decide whether a fire is worth making, so a number that counted adds rather than members
-        would grow forever on a group a join handler keeps topping up.
-    ]]
-    Harness.case ("group.len", function ()
-        local of = Lync.group ()
-        Expect.equal (#of, 0)
-
+    -- The count, which moves with the membership and not with the calls.
+    Harness.case("group.len", function()
+        local of = Group.new()
+        Expect.equal(#of, 0)
         for index, label in { "alice", "bob", "carol" } do
-            of:add (member (label))
-            Expect.equal (#of, index)
+            of:add(member(label))
+            Expect.equal(#of, index)
         end
-
-        of:remove (member ("bob"))
-        Expect.equal (#of, 2)
+        of:remove(member("bob"))
+        Expect.equal(#of, 2)
+        Expect.equal(of:size(), 2)
     end),
 
-    --[[
-        The walk, held from both ends: every member is reached, each once, and nobody else is. A
-        walk that answered a member twice would send a caller two of whatever they were doing per
-        player, and one that reached past its own group would reach players another group holds.
-    ]]
-    Harness.case ("group.iterate", function ()
-        local of = Lync.group ()
+    -- The walk, held from both ends: every member is reached, each once, and nobody else is.
+    Harness.case("group.iterate", function()
+        local of = Group.new()
         local want = { alice = true, carol = true }
-
-        of:add (member ("alice"))
-        of:add (member ("carol"))
+        of:add(member("alice"))
+        of:add(member("carol"))
 
         local seen, count = {}, 0
         for _, player in of do
-            Expect.holds (seen[player] == nil, `{player.Name} was walked twice`)
-            Expect.holds (want[player.Name] == true, `{player.Name} is in no group`)
-
+            Expect.holds(seen[player] == nil, `{player.Name} was walked twice`)
+            Expect.holds(want[player.Name] == true, `{player.Name} is in no group`)
             seen[player] = true
             count += 1
         end
-        Expect.equal (count, 2)
+        Expect.equal(count, 2)
     end),
 
-    --[[
-        A group released while a live one holds the same member. The release has to take it out of
-        the sweep's set, since a destroyed group raises on every call and a sweep that reached one
-        would stop there and leave every group behind it holding a player who left.
-    ]]
-    Harness.case ("group.destroy", function ()
-        local roster = hearing ()
-        local released, kept = Lync.group (), Lync.group ()
+    -- A group released while a live one holds the same member: the release takes it out of the
+    -- sweep's set, so the sweep still reaches every group behind it.
+    Harness.case("group.destroy", function()
+        local roster = hearing()
+        local released, kept = Group.new(), Group.new()
+        local leaver = roster:join(RELEASED)
+        released:add(leaver)
+        kept:add(leaver)
 
-        local leaver = roster:join (RELEASED)
-        released:add (leaver)
-        kept:add (leaver)
-
-        released:destroy ()
-        roster:leave (leaver)
-
-        Expect.equal (kept:has (leaver), false)
+        released:destroy()
+        roster:leave(leaver)
+        Expect.equal(kept:has(leaver), false)
     end),
 
-    --[[
-        A group after it was released. Every later call throws rather than answering about a group
-        that no longer exists, since a stale reference answering an empty membership lets a caller
-        fire at nobody forever.
-    ]]
-    Harness.case ("group.use-after-destroy", function ()
-        local of = Lync.group ()
-        local alice = member ("alice")
+    -- A group after it was released: every later call throws rather than answering about a group
+    -- that no longer exists.
+    Harness.case("group.use-after-destroy", function()
+        local of = Group.new()
+        local alice = member("alice")
+        of:add(alice)
+        of:destroy()
 
-        of:add (alice)
-        of:destroy ()
-
-        local destroyed = "this group was destroyed"
-        Expect.throws (function () of:add (alice) end, destroyed)
-        Expect.throws (function () of:remove (alice) end, destroyed)
-        Expect.throws (function () of:has (alice) end, destroyed)
-        Expect.throws (function () of:destroy () end, destroyed)
+        Expect.throws(function()
+            of:add(alice)
+        end, DESTROYED)
+        Expect.throws(function()
+            of:remove(alice)
+        end, DESTROYED)
+        Expect.throws(function()
+            of:has(alice)
+        end, DESTROYED)
+        Expect.throws(function()
+            of:destroy()
+        end, DESTROYED)
     end),
 
-    --[[
-        A fire at a group that holds nobody. Not an error, because a group empties as players leave
-        and a caller firing at their party has no reason to check first, and nothing leaves the
-        machine, because there is nowhere for it to go.
-    ]]
-    Harness.case ("recip.empty", function ()
-        local of = Lync.group ()
-        local fires, bytes = counted ()
-
-        DEFINITIONS.beat:fireClient (of, true)
-        Lync.flush (NAMESPACE)
-
-        local made, left = counted ()
-        Expect.equal (made, fires + 1)
-        Expect.equal (left, bytes)
+    -- A fire at a group that holds nobody: not an error, and nothing leaves the machine.
+    Harness.case("recip.empty", function()
+        Expect.equal(carried(Group.new()), 0)
     end),
 
     -- A member who leaves the game.
-    Harness.case ("group.auto-drop", function ()
-        local roster = hearing ()
-        local of = Lync.group ()
+    Harness.case("group.auto-drop", function()
+        local roster = hearing()
+        local of = Group.new()
+        local leaver, stayer = roster:join(LEAVER), roster:join(STAYER)
+        of:add(leaver)
+        of:add(stayer)
+        Expect.equal(#of, 2)
 
-        local leaver, stayer = roster:join (LEAVER), roster:join (STAYER)
-        of:add (leaver)
-        of:add (stayer)
-        Expect.equal (#of, 2)
-
-        roster:leave (leaver)
-
-        Expect.equal (of:has (leaver), false)
-        Expect.equal (of:has (stayer), true)
-        Expect.equal (#of, 1)
+        roster:leave(leaver)
+        Expect.equal(of:has(leaver), false)
+        Expect.equal(of:has(stayer), true)
+        Expect.equal(#of, 1)
 
         local seen: { [Player]: boolean } = {}
         for _, player in of do
             seen[player] = true
         end
-
-        Expect.equal (seen[leaver], nil)
-        Expect.equal (seen[stayer], true)
+        Expect.equal(seen[leaver], nil)
+        Expect.equal(seen[stayer], true)
     end),
 
-    --[[
-        A fire at a player the connected set does not hold, which earns what an empty group earns
-        and for the same reason: a caller holding a `Player` from a moment ago is holding one who
-        may have left since, and a throw there would make every fire a call they had to guard.
-    ]]
-    Harness.case ("recip.departed", function ()
-        local gone = member ("gone")
-        local fires, bytes = counted ()
-
-        DEFINITIONS.beat:fireClient (gone, true)
-        Lync.flush (NAMESPACE)
-
-        local made, left = counted ()
-        Expect.equal (made, fires + 1)
-        Expect.equal (left, bytes)
+    -- A fire at a player the connected set does not hold, which earns what an empty group earns.
+    Harness.case("recip.departed", function()
+        Expect.equal(carried(member("gone")), 0)
     end),
 }

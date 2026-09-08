@@ -1,71 +1,69 @@
 --!strict
 --!native
---!optimize 2
 -- The nodes made of other nodes, as the pair of closures that puts each one's children in order.
 
-local Bits = require ("@src/kernel/Bits")
-local Bytes = require ("@src/wire/Bytes")
-local Catalog = require ("@src/kernel/Catalog")
-local Grid = require ("@src/shape/Grid")
-local Ir = require ("@src/shape/Ir")
-local Leaf = require ("@src/shape/emit/Leaf")
-local Log = require ("@src/kernel/Log")
-local Serial = require ("@src/shape/Serial")
-local Types = require ("@src/Types")
-local Word = require ("@src/shape/emit/Word")
+local Bits = require("../../kernel/Bits")
+local Bytes = require("../../wire/Bytes")
+local Catalog = require("../../kernel/Catalog")
+local Grid = require("../Grid")
+local Ir = require("../Ir")
+local Leaf = require("./Leaf")
+local Log = require("../../kernel/Log")
+local Serial = require("../Serial")
+local Types = require("../../Types")
+local Word = require("./Word")
 
 local Block = {}
 
 -- Constants -----------------------------------------------------------
 
---[[
-    The two run walkers under their own names. Both sit inside closures these emit, so each is
-    reached once a run rather than once a build, and the module they come from is the same table
-    for the life of the place.
-]]
-const PACKED = Leaf.packed
-const UNPACKED = Leaf.unpacked
-
--- The whole-byte widths a tag or a count is written at, and where a three-byte one splits.
-const PAIR = 2
-const TRIO = PAIR + 1
-const HALF = 2 ^ 16
+-- The leading bytes a tie between two ranks has already answered for.
+local PAST = Bytes.LEADING
 
 -- Private -------------------------------------------------------------
 
---[[
-    A tag or a count, as the whole bytes it occupies. Narrower than the leaf writer's, because
-    nothing composed here is wider than a count, and a bound past four bytes is more elements than a
-    caller could hold the values for.
-]]
-local function laid (b: buffer, at: number, bytes: number, value: number)
-    if bytes == 0 then return end
-    if bytes == 1 then return buffer.writeu8 (b, at, value) end
-    if bytes == PAIR then return buffer.writeu16 (b, at, value) end
-    if bytes == TRIO then
-        buffer.writeu16 (b, at, value % HALF)
-        return buffer.writeu8 (b, at + PAIR, value // HALF)
-    end
-    buffer.writeu32 (b, at, value)
+local function reject(code: Catalog.Code, tag: Ir.Tag, got: any): never
+    return Log.reject(code, { pathId = tag.pathId, expectId = tag.expectId, got = got })
 end
 
-local function taken (b: buffer, at: number, bytes: number): number
-    if bytes == 0 then return 0 end
-    if bytes == 1 then return buffer.readu8 (b, at) end
-    if bytes == PAIR then return buffer.readu16 (b, at) end
-    if bytes == TRIO then return buffer.readu16 (b, at) + buffer.readu8 (b, at + PAIR) * HALF end
-    return buffer.readu32 (b, at)
+-- Two keys of a map that spell the same bytes, refused in the writer's words.
+local function twice(tag: Ir.Tag, paths: Serial.Interner, last: any, key: any): never
+    local facts = { path = paths.texts[tag.pathId], expected = tostring(last), got = tostring(key) }
+    return Log.refuse(Log.format(Catalog.MAP_ORDER, facts))
+end
+
+-- A count between two bounds: the bytes it takes, the call that lays it, and the count read back
+-- off a buffer held to its span. One the word above carries takes no bytes here and is read off
+-- the hoist the group fills.
+local function counting(
+    of: Ir.Span,
+    tag: Ir.Tag,
+    hoist: Ir.Hoist?
+): (number, Leaf.Put, (buffer, number) -> number)
+    local low = of.min
+    if hoist ~= nil then
+        local function raised(_b: buffer, _p: number): number
+            return hoist.count + low
+        end
+        return 0, Leaf.laying(0), raised
+    end
+    local span = of.max - low
+    local held = Bytes.whole(Bits.width(span))
+    local take = Leaf.taking(held)
+    local function count(b: buffer, pos: number): number
+        local counted = take(b, pos)
+        if counted > span then reject(Catalog.COUNT, tag, counted) end
+        return counted + low
+    end
+    return held, Leaf.laying(held), count
 end
 
 -- Public --------------------------------------------------------------
 
---[[
-    A region and then everything after it, which is what a record is. The two arrays a call meets
-    its own state in are made once here and neither survives a call, and a group cannot appear
-    inside itself, so two calls through the pair never overlap. A dissolved record is resolved once
-    before either region and filled from both, which keeps two tables of one name from being built.
-]]
-function Block.group (
+-- A region and then everything after it, which is what a record is. The scratch arrays are made
+-- once, since a group cannot appear inside itself. A dissolved record is resolved once before
+-- either region and filled from both.
+function Block.group(
     of: Ir.Group,
     pack: Word.Pack?,
     unpack: Word.Unpack?,
@@ -77,14 +75,14 @@ function Block.group (
 ): (Ir.Write, Ir.Read)
     local slots: { number } = {}
     local held: { any } = {}
-    local region = if of.word == nil then 0 else of.word.maxBytes
+    local word, allow, tag = of.word, of.allow, of.tag
+    local region = if word == nil then 0 else word.maxBytes
 
     local deep = #of.nests
-    local names = table.create (deep) :: { string }
-    local unders = table.create (deep, 0)
-    local nested = table.create (deep) :: { Ir.Tag }
-    local slack = table.create (deep) :: { { [string]: boolean } }
-
+    local names = table.create(deep) :: { string }
+    local unders = table.create(deep, 0)
+    local nested = table.create(deep) :: { Ir.Tag }
+    local slack = table.create(deep) :: { { [string]: boolean } }
     for index, nest in of.nests do
         names[index] = nest.key
         unders[index] = nest.under or 0
@@ -92,163 +90,67 @@ function Block.group (
         slack[index] = nest.allow
     end
 
+    -- Every part, the record it is read off, the bit of the region that says whether it came, and
+    -- the hoist its count is handed down through where the region carries it.
     local reach = #of.parts
-    local keys = table.create (reach) :: { string? }
-    local inside = table.create (reach, 0)
-    local bits = table.create (reach, 0)
-
-    local keyed = true
-
+    local keys = table.create(reach) :: { string? }
+    local inside = table.create(reach, 0)
+    local bits = table.create(reach, 0)
+    local raised: { Ir.Hoist } = {}
+    local keyed, optional = true, false
     for index, part in of.parts do
         local shape = part.of
         keys[index] = part.key
         inside[index] = part.nest or 0
         bits[index] = if shape.op == "opt" then shape.bit else 0
         if part.key == nil then keyed = false end
+        if bits[index] ~= 0 then optional = true end
+        if part.hoist ~= nil then table.insert(raised, part.hoist) end
     end
 
-    if of.word ~= nil then
-        for _, join in of.word.joins do
+    -- Every hoisted count off the leaf it rode in, before any payload is read.
+    local function handed()
+        for _, hoist in raised do
+            hoist.count = slots[hoist.leaf]
+        end
+    end
+    if word ~= nil then
+        for _, join in word.joins do
             if join.key == nil then keyed = false end
         end
     end
 
-    --[[
-        The record's own names, as a table to copy rather than one to grow, since a record started
-        empty rehashes as each name lands on it. A name the frame left out is taken back off once
-        below, which is an assignment where growing the record is a rehash of everything on it.
-    ]]
-    local blank: any = nil
-
+    -- The record's own names as a table to clone rather than one to grow, since a record started
+    -- empty rehashes as each name lands on it. A name the frame left out is taken back off.
+    local blank: { [string]: boolean }? = nil
     if keyed then
         local shape: { [string]: boolean } = {}
-
         for index = 1, deep do
             if unders[index] == 0 then shape[names[index]] = false end
         end
-
-        if of.word ~= nil then
-            for _, join in of.word.joins do
+        if word ~= nil then
+            for _, join in word.joins do
                 local key = join.key
                 if key ~= nil and (join.nest or 0) == 0 then shape[key] = false end
             end
         end
-
         for index = 1, reach do
             local key = keys[index]
             if key ~= nil and inside[index] == 0 then shape[key] = false end
         end
-
         blank = shape
     end
 
     -- A record carries the names it declares and no others, at every depth it dissolved through.
-    local function only (of: { [string]: boolean }, tag: Ir.Tag, record: any)
-        if type (record) ~= "table" then Word.refusedAt (tag, paths, said, record) end
-
+    local function only(of: { [string]: boolean }, at: Ir.Tag, record: any)
+        if type(record) ~= "table" then Word.refusedAt(at, paths, said, record) end
         for key in record do
-            if of[key] ~= nil then continue end
-            Word.refusedAt (tag, paths, said, key)
+            if of[key] == nil then Word.refusedAt(at, paths, said, key) end
         end
     end
 
-    local allow = of.allow
-
-    local function write (b: buffer, pos: number, value: any): number
-        if allow ~= nil then only (allow, of.tag, value) end
-
-        for index = 1, deep do
-            local under = unders[index]
-            local one = (if under == 0 then value else held[under])[names[index]]
-            only (slack[index], nested[index], one)
-
-            held[index] = one
-        end
-
-        if pack ~= nil then pack (b, pos, value, slots, held) end
-
-        local at = pos + region
-        for index = 1, reach do
-            local key = keys[index]
-            local within = inside[index]
-            local from = if within == 0 then value else held[within]
-            local one = if key == nil then from else from[key]
-
-            local bit = bits[index]
-            if bit ~= 0 and slots[bit] == 0 then continue end
-
-            at = writes[index] (b, at, one)
-        end
-        return at
-    end
-
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local into: any = if blank ~= nil then table.clone (blank) elseif keyed then {} else nil
-        local bare: any = nil
-
-        for index = 1, deep do
-            local under = unders[index]
-            local up = if under == 0 then into else held[under]
-
-            local one = {}
-            up[names[index]] = one
-            held[index] = one
-        end
-
-        if unpack ~= nil then bare = unpack (b, pos, into, slots, held) end
-
-        local at = pos + region
-        for index = 1, reach do
-            local bit = bits[index]
-            local key = keys[index]
-
-            if bit ~= 0 and slots[bit] == 0 then
-                if key ~= nil and blank ~= nil then
-                    local absent = inside[index]
-                    local off = if absent == 0 then into else held[absent]
-                    off[key] = nil
-                end
-
-                continue
-            end
-
-            local one: any
-            at, one = reads[index] (b, at, ctx)
-
-            if key == nil then
-                bare = one
-                continue
-            end
-
-            local within = inside[index]
-            local up = if within == 0 then into else held[within]
-            up[key] = one
-        end
-
-        return at, (if keyed then into else bare)
-    end
-
-    --[[
-        Whether every part of this group lands on the record itself and is always there. Dissolving
-        nothing settles where a part goes, since a part is only put inside a record that dissolved,
-        and holding the keys settles that there is a shape to copy. What is left to ask is whether
-        any part is an option, which is a bit deciding at read time whether it came at all.
-    ]]
-    local plainly = deep == 0 and keyed
-    if plainly then
-        for index = 1, reach do
-            if bits[index] == 0 then continue end
-
-            plainly = false
-            break
-        end
-    end
-
-    --[[
-        A group that dissolved nothing, names nothing and keeps nothing outside its word, which is
-        a packet declared as one value rather than as a record. Neither half has a part to walk or
-        a name to put one under, so each is the word alone with the region stepped over.
-    ]]
+    -- A group with nothing outside its word and no name to put a value under is a value alone,
+    -- which is a bare number and every map key. The word's own pair serves where it offers one.
     if
         deep == 0
         and reach == 0
@@ -259,330 +161,170 @@ function Block.group (
     then
         local packing, unpacking = pack, unpack
 
-        local function worded (b: buffer, pos: number, value: any): number
-            packing (b, pos, value, slots, held)
+        local function worded(b: buffer, pos: number, value: any): number
+            packing(b, pos, value, slots, held)
             return pos + region
         end
 
-        local function spelled (b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
-            return pos + region, unpacking (b, pos, nil, slots, held)
+        local function spelled(b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
+            return pos + region, unpacking(b, pos, nil, slots, held)
         end
 
-        -- The word's own pair where it offers one, which is this block's without the hop between.
         if solo == nil then return worded, spelled end
-
         return solo.write, solo.read or spelled
     end
 
-    --[[
-        A group that dissolved nothing and names everything it holds, where some of what it holds is
-        an option. The general pair carries what a record that dissolved needs and what a part with
-        no name needs, and this has neither, so all that is left is the bit saying a part came.
-    ]]
-    if not plainly and deep == 0 and keyed and blank ~= nil and pack ~= nil and unpack ~= nil then
-        local putting, taking = pack, unpack
-
-        local function guarded (b: buffer, pos: number, value: any): number
-            if allow ~= nil then only (allow, of.tag, value) end
-            putting (b, pos, value, slots, held)
-
+    -- Every part on the record itself under a name and always there, which is most records.
+    local shape = blank
+    if deep == 0 and shape ~= nil and not optional then
+        local function plain(b: buffer, pos: number, value: any): number
+            if allow ~= nil then only(allow, tag, value) end
+            if pack ~= nil then pack(b, pos, value, slots, held) end
             local at = pos + region
             for index = 1, reach do
-                local bit = bits[index]
-                if bit == 0 or slots[bit] ~= 0 then
-                    at = writes[index] (b, at, value[keys[index]])
-                end
+                at = writes[index](b, at, value[keys[index]])
             end
-
             return at
         end
 
-        local function gathered (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-            local into: any = table.clone (blank)
-            taking (b, pos, into, slots, held)
-
+        local function plainly(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+            local into: any = table.clone(shape)
+            if unpack ~= nil then
+                unpack(b, pos, into, slots, held)
+                handed()
+            end
             local at = pos + region
             for index = 1, reach do
-                local key = keys[index]
-                local bit = bits[index]
-
-                if bit ~= 0 and slots[bit] == 0 then
-                    into[key] = nil
-                    continue
-                end
-
                 local one: any
-                at, one = reads[index] (b, at, ctx)
-                into[key] = one
+                at, one = reads[index](b, at, ctx)
+                into[keys[index]] = one
             end
-
             return at, into
         end
 
-        return guarded, gathered
+        return plain, plainly
     end
 
-    if not plainly then return write, read end
-
-    --[[
-        Nothing dissolved, so no part is reached through a record held aside, and no part is an
-        option, so none of them is a bit away from not being written at all.
-    ]]
-    local function laid (b: buffer, pos: number, value: any): number
-        if allow ~= nil then only (allow, of.tag, value) end
-        if pack ~= nil then pack (b, pos, value, slots, held) end
+    -- A dissolved record is reached through the record its nest holds, an option is skipped where
+    -- its bit says it did not come, and a keyless part's value is the group's own.
+    local function write(b: buffer, pos: number, value: any): number
+        if allow ~= nil then only(allow, tag, value) end
+        for index = 1, deep do
+            local under = unders[index]
+            local one = (if under == 0 then value else held[under])[names[index]]
+            only(slack[index], nested[index], one)
+            held[index] = one
+        end
+        if pack ~= nil then pack(b, pos, value, slots, held) end
 
         local at = pos + region
         for index = 1, reach do
-            at = writes[index] (b, at, value[keys[index]])
+            local bit = bits[index]
+            if bit ~= 0 and slots[bit] == 0 then continue end
+            local key = keys[index]
+            local within = inside[index]
+            local from = if within == 0 then value else held[within]
+            at = writes[index](b, at, if key == nil then from else from[key])
         end
-
         return at
     end
 
-    -- Each part goes straight onto the record, which is where most of them go.
-    local function plain (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local into: any = table.clone (blank)
-
-        -- Holding the keys means every part has one, so nothing here is read without a key.
-        if unpack ~= nil then unpack (b, pos, into, slots, held) end
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local into: any = if blank ~= nil then table.clone(blank) elseif keyed then {} else nil
+        local bare: any = nil
+        for index = 1, deep do
+            local under = unders[index]
+            local up = if under == 0 then into else held[under]
+            local one = {}
+            up[names[index]] = one
+            held[index] = one
+        end
+        if unpack ~= nil then
+            bare = unpack(b, pos, into, slots, held)
+            handed()
+        end
 
         local at = pos + region
         for index = 1, reach do
+            local key = keys[index]
+            local within = inside[index]
+            local up = if within == 0 then into else held[within]
+            -- An absent option is already nothing under its name: the presence join's push put
+            -- nothing there when the region was unpacked.
+            local bit = bits[index]
+            if bit ~= 0 and slots[bit] == 0 then continue end
             local one: any
-            at, one = reads[index] (b, at, ctx)
-
-            into[keys[index]] = one
+            at, one = reads[index](b, at, ctx)
+            if key == nil then
+                bare = one
+            else
+                up[key] = one
+            end
         end
-
-        return at, into
+        return at, if keyed then into else bare
     end
 
-    if allow == nil or pack == nil or unpack == nil then return laid, plain end
-
-    --[[
-        A group that declares its names and holds a word, which is most of them. Whether it does is
-        settled when the group is built, so the general pair asks it once a record where the answer
-        was the same every time.
-    ]]
-    local function stated (b: buffer, pos: number, value: any): number
-        only (allow, of.tag, value)
-        pack (b, pos, value, slots, held)
-
-        local at = pos + region
-        for index = 1, reach do
-            at = writes[index] (b, at, value[keys[index]])
-        end
-
-        return at
-    end
-
-    local function sorted (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local into: any = table.clone (blank)
-        unpack (b, pos, into, slots, held)
-
-        local at = pos + region
-        for index = 1, reach do
-            local one: any
-            at, one = reads[index] (b, at, ctx)
-
-            into[keys[index]] = one
-        end
-
-        return at, into
-    end
-
-    --[[
-        A group holding one part outside its word carries a string, an array or a map beside the
-        names its bytes fit. One part is no run to climb, so what climbs it is a loop set up to go
-        round once.
-    ]]
-    if reach == 1 then
-        local key = keys[1]
-        local put, take = writes[1], reads[1]
-
-        local function singly (b: buffer, pos: number, value: any): number
-            only (allow, of.tag, value)
-            pack (b, pos, value, slots, held)
-
-            return put (b, pos + region, value[key])
-        end
-
-        local function singled (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-            local into: any = table.clone (blank)
-            unpack (b, pos, into, slots, held)
-
-            local at, one = take (b, pos + region, ctx)
-            into[key] = one
-
-            return at, into
-        end
-
-        return singly, singled
-    end
-
-    --[[
-        A group with nothing outside its word is every record whose names all fit the bytes the
-        word plans. There is no part left to walk, so what walks them is a climb over none, taken
-        once a record for as long as the schema runs.
-    ]]
-    if reach == 0 then
-        local function worded (b: buffer, pos: number, value: any): number
-            only (allow, of.tag, value)
-            pack (b, pos, value, slots, held)
-
-            return pos + region
-        end
-
-        local function spelt (b: buffer, pos: number, _c: Types.ValidateContext): (number, any)
-            local into: any = table.clone (blank)
-            unpack (b, pos, into, slots, held)
-
-            return pos + region, into
-        end
-
-        return worded, spelt
-    end
-
-    return stated, sorted
+    return write, read
 end
 
 -- A value laid down as its parts and built back out of them.
-function Block.apart (
+function Block.apart(
     of: Ir.Apart,
     writes: { Ir.Write },
     reads: { Ir.Read },
     paths: Serial.Interner,
     expected: Serial.Interner
 ): (Ir.Write, Ir.Read)
-    local tag = of.tag
-    local engine = of.engine
-    local keys = of.keys
-    local push = of.push
+    local tag, engine, keys, push = of.tag, of.engine, of.keys, of.push
     local reach = #of.parts
+    local held = table.create(reach) :: { any }
 
-    local held = table.create (reach) :: { any }
-
-    --[[
-        Two parts and three, which between them are every value this emitter is given. How many
-        there are is settled when the word is built, so a walk over them is a walk to a number
-        already known, and each part's writer and name are settled with it rather than looked up
-        at every value that goes past.
-    ]]
-    if reach == PAIR then
-        local first, second = writes[1], writes[2]
-        local one, two = keys[1], keys[2]
-
-        local function write (b: buffer, pos: number, value: any): number
-            if typeof (value) ~= engine then Word.refusedAt (tag, paths, expected, value) end
-
-            return second (b, first (b, pos, value[one]), value[two])
-        end
-
-        local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-            local at, held = pos, held
-
-            at, held[1] = reads[1] (b, at, ctx)
-            at, held[2] = reads[2] (b, at, ctx)
-
-            return at, push (held)
-        end
-
-        return write, read
-    end
-
-    if reach == TRIO then
-        local first, second, third = writes[1], writes[2], writes[TRIO]
-        local one, two, three = keys[1], keys[2], keys[TRIO]
-
-        local function write (b: buffer, pos: number, value: any): number
-            if typeof (value) ~= engine then Word.refusedAt (tag, paths, expected, value) end
-
-            local at = first (b, pos, value[one])
-            at = second (b, at, value[two])
-            return third (b, at, value[three])
-        end
-
-        local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-            local at, held = pos, held
-
-            at, held[1] = reads[1] (b, at, ctx)
-            at, held[2] = reads[2] (b, at, ctx)
-            at, held[TRIO] = reads[TRIO] (b, at, ctx)
-
-            return at, push (held)
-        end
-
-        return write, read
-    end
-
-    local function write (b: buffer, pos: number, value: any): number
-        if typeof (value) ~= engine then Word.refusedAt (tag, paths, expected, value) end
-
-        -- The part writers and the names they take, reached once rather than once a part.
-        local writes, keys = writes, keys
-
-        local at = pos
+    local function write(b: buffer, pos: number, value: any): number
+        if typeof(value) ~= engine then Word.refusedAt(tag, paths, expected, value) end
         for index = 1, reach do
-            at = writes[index] (b, at, value[keys[index]])
+            pos = writes[index](b, pos, value[keys[index]])
         end
-        return at
+        return pos
     end
 
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        -- The same the other way, the readers and the array their answers go into.
-        local reads, held = reads, held
-
-        local at = pos
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
         for index = 1, reach do
-            at, held[index] = reads[index] (b, at, ctx)
+            pos, held[index] = reads[index](b, pos, ctx)
         end
-        return at, push (held)
+        return pos, push(held)
     end
 
     return write, read
 end
 
 -- A tag and the arm it chooses, by the field the variant names itself in.
-function Block.branch (
+function Block.branch(
     of: Ir.Branch,
     writes: { Ir.Write },
     reads: { Ir.Read },
     paths: Serial.Interner,
     said: Serial.Interner
 ): (Ir.Write, Ir.Read)
-    local tag = of.tag
-    local field = of.field
-    local bytes = Bytes.whole (of.tagWidth)
+    local tag, field, names = of.tag, of.field, of.names
+    local bytes = Bytes.whole(of.tagWidth)
+    local put, take = Leaf.laying(bytes), Leaf.taking(bytes)
     local reach = #of.arms
-
     local index: { [string]: number } = {}
-    local names = table.create (reach) :: { string }
-
-    for place, name in of.names do
+    for place, name in names do
         index[name] = place
-        names[place] = name
     end
 
-    local function write (b: buffer, pos: number, value: any): number
+    local function write(b: buffer, pos: number, value: any): number
         local place = index[value[field]]
-        if place == nil then Word.refusedAt (tag, paths, said, value[field]) end
-
-        laid (b, pos, bytes, (place :: number) - 1)
-        return writes[place :: number] (b, pos + bytes, value)
+        if place == nil then Word.refusedAt(tag, paths, said, value[field]) end
+        put(b, pos, (place :: number) - 1)
+        return writes[place :: number](b, pos + bytes, value)
     end
 
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local place = taken (b, pos, bytes) + 1
-        if place > reach then
-            Log.reject (Catalog.TAG, {
-                pathId = tag.pathId,
-                expectId = tag.expectId,
-                got = place - 1,
-            })
-        end
-
-        local at, one = reads[place] (b, pos + bytes, ctx)
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local place = take(b, pos) + 1
+        if place > reach then reject(Catalog.TAG, tag, place - 1) end
+        local at, one = reads[place](b, pos + bytes, ctx)
         one[field] = names[place]
         return at, one
     end
@@ -591,7 +333,7 @@ function Block.branch (
 end
 
 -- A count and then that many of one thing, each on a byte because the one before ended on one.
-function Block.list (
+function Block.list(
     of: Ir.List,
     writeElem: Ir.Write,
     readElem: Ir.Read,
@@ -600,37 +342,26 @@ function Block.list (
 ): (Ir.Write, Ir.Read)
     local tag = of.tag
     local low, high = of.count.min, of.count.max
-    local span = high - low
-    local held = Bytes.whole (Bits.width (span))
+    local held, put, counted = counting(of.count, tag, of.hoist)
 
-    local function write (b: buffer, pos: number, value: any): number
+    local function write(b: buffer, pos: number, value: any): number
+        if type(value) ~= "table" then Word.refusedAt(tag, paths, said, value) end
         local count = #value
-        if count < low or count > high then Word.refusedAt (tag, paths, said, count) end
-
-        laid (b, pos, held, count - low)
-
+        if count < low or count > high then Word.refusedAt(tag, paths, said, count) end
+        put(b, pos, count - low)
         local at = pos + held
         for index = 1, count do
-            at = writeElem (b, at, value[index])
+            at = writeElem(b, at, value[index])
         end
         return at
     end
 
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local counted = taken (b, pos, held)
-        if counted > span then
-            Log.reject (
-                Catalog.COUNT,
-                { pathId = tag.pathId, expectId = tag.expectId, got = counted }
-            )
-        end
-
-        local count = counted + low
-        local out = table.create (count) :: { any }
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local count = counted(b, pos)
+        local out = table.create(count) :: { any }
         local at = pos + held
-
         for index = 1, count do
-            at, out[index] = readElem (b, at, ctx)
+            at, out[index] = readElem(b, at, ctx)
         end
         return at, out
     end
@@ -638,8 +369,10 @@ function Block.list (
     return write, read
 end
 
--- A count and then that many pairs, in the order the bytes of their keys read in.
-function Block.pairs (
+-- A count and then that many pairs, in the order the bytes of their keys read in, so one map has
+-- one encoding. Keys that are one grid reading sort as the numbers they are and lie end to end in
+-- bits, and values that are one lie the same way after the keys.
+function Block.pairs(
     of: Ir.Pairs,
     writeKey: Ir.Write,
     readKey: Ir.Read,
@@ -650,406 +383,226 @@ function Block.pairs (
 ): (Ir.Write, Ir.Read)
     local tag = of.tag
     local low, high = of.count.min, of.count.max
-    local span = high - low
-    local held = Bytes.whole (Bits.width (span))
+    local held, put, counted = counting(of.count, tag, of.hoist)
+    local runs: Grid.Grid? = of.runs
+    local sorts: Grid.Grid? = of.keyed
 
-    local where = paths.texts[tag.pathId]
+    -- The sort order, the keys in that order, and the value indices in it.
+    local order: { number } = {}
+    local owners: { any } = {}
+    local marks: { number } = {}
 
-    local room = buffer.create (high * of.key.maxBytes)
+    local function sized(count: number)
+        if count > high or count < low then Word.refusedAt(tag, paths, said, count) end
+    end
+
+    -- The values of the map as a run of their indices, once the keys settled the order.
+    local function packValues(b: buffer, at: number, value: any, count: number): number
+        local grid = runs :: Grid.Grid
+        for index = 1, count do
+            local one = value[owners[index]]
+            local made = grid.toIndex(one)
+            if made == nil then Word.refusedAt(tag, paths, said, one) end
+            marks[index] = made :: number
+        end
+        return Leaf.packed(b, at, grid.width, count, marks)
+    end
+
+    -- The same run back, each value under the key that stands at its place.
+    local function unpackValues(b: buffer, at: number, out: any, count: number): number
+        local grid = runs :: Grid.Grid
+        local after, clean = Leaf.unpacked(b, at, grid.width, count, marks)
+        if not clean then reject(Catalog.PAD, tag, count) end
+        for index = 1, count do
+            local mark = marks[index]
+            if mark > grid.span then reject(Catalog.TAG, tag, mark) end
+            out[owners[index]] = grid.fromIndex(mark)
+        end
+        return after
+    end
+
+    -- Keys on a grid: sorted as indices, two keys of one index refused, laid as one run.
+    local byIndex: { any } = {}
+
+    local function writeIndexed(b: buffer, pos: number, value: any): number
+        local grid = sorts :: Grid.Grid
+        if type(value) ~= "table" then Word.refusedAt(tag, paths, said, value) end
+        table.clear(order)
+        local count = 0
+        for key in value do
+            count += 1
+            if count > high then sized(count) end
+            local made = grid.toIndex(key)
+            if made == nil then Word.refusedAt(tag, paths, said, key) end
+            order[count] = made :: number
+            byIndex[made :: number] = key
+        end
+        sized(count)
+        table.sort(order)
+        for index = 1, count do
+            local mark = order[index]
+            local key = byIndex[mark]
+            if index > 1 and mark == order[index - 1] then twice(tag, paths, key, key) end
+            owners[index] = key
+        end
+
+        put(b, pos, count - low)
+        local at = Leaf.packed(b, pos + held, grid.width, count, order)
+        if runs ~= nil then return packValues(b, at, value, count) end
+        for index = 1, count do
+            at = writeValue(b, at, value[owners[index]])
+        end
+        return at
+    end
+
+    -- Climbing rather than merely sorted, which turns away a pair out of order and a key the map
+    -- already holds in the same test.
+    local function readIndexed(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local grid = sorts :: Grid.Grid
+        local count = counted(b, pos)
+        local at, clean = Leaf.unpacked(b, pos + held, grid.width, count, order)
+        if not clean then reject(Catalog.PAD, tag, count) end
+        local span, fromIndex = grid.span, grid.fromIndex
+        for index = 1, count do
+            local mark = order[index]
+            if mark > span then reject(Catalog.TAG, tag, mark) end
+            if index > 1 and mark <= order[index - 1] then
+                Log.reject(Catalog.MAP_ORDER, {
+                    pathId = tag.pathId,
+                    expected = tostring(fromIndex(order[index - 1])),
+                    got = tostring(fromIndex(mark)),
+                })
+            end
+            owners[index] = fromIndex(mark)
+        end
+
+        local out: any = {}
+        if runs ~= nil then return unpackValues(b, at, out, count), out end
+        for index = 1, count do
+            at, out[owners[index]] = readValue(b, at, ctx)
+        end
+        return at, out
+    end
+
+    if sorts ~= nil then return writeIndexed, readIndexed end
+
+    -- Keys of any other shape are spelled into scratch and ordered by their bytes. A key narrow
+    -- enough to rank as one number sorts without a comparison of ours, its place riding under the
+    -- rank. Wider keys sort by their leading bytes first and the rest only on a tie.
+    local room = buffer.create(high * of.key.maxBytes)
     local keys: { any } = {}
     local starts: { number } = {}
     local widths: { number } = {}
-    local order: { number } = {}
-
-    --[[
-        What each key's leading bytes come to, so the sort settles most pairs on two numbers. A pair
-        that ties there is still asked the whole question, which is what keeps the order the bytes'
-        own rather than the number's.
-    ]]
     local ranks: { number } = {}
+    local wide = of.key.maxBytes
+    local even = of.key.fixed and Bytes.isRanked(wide)
+    local spread = high + 1
 
-    local function before (a: number, b: number): boolean
+    local function before(a: number, b: number): boolean
         local rankA, rankB = ranks[a], ranks[b]
         if rankA ~= rankB then return rankA < rankB end
-
-        --[[
-            The bytes a tie has already answered for, stepped over. A leading number holds the
-            width itself, so two that tie belong to keys of one width whose leading bytes are the
-            same ones, and what is left to ask about is everything past them.
-        ]]
-        local past = Bytes.LEADING
-        return Bytes.rangeLess (
+        return Bytes.less(
             room,
-            starts[a] + past,
-            widths[a] - past,
-            starts[b] + past,
-            widths[b] - past
+            starts[a] + PAST,
+            widths[a] - PAST,
+            starts[b] + PAST,
+            widths[b] - PAST
         )
     end
 
-    --[[
-        The same without the leading bytes, for a map whose keys all begin alike. Every rank ties
-        there, so asking them is a question with one answer, and the sort is handed the comparison
-        that was going to be reached for anyway.
-    ]]
-    local function bytewise (a: number, b: number): boolean
-        return Bytes.rangeLess (room, starts[a], widths[a], starts[b], widths[b])
-    end
-
-    local marks: { number } = {}
-    local owners: { any } = {}
-
-    -- How the values lie, which the shape decided when it said what it weighs.
-    local runs: Grid.Grid? = of.runs
-
-    --[[
-        Keys of one narrow width order by a number rather than by their bytes, and a sort told to
-        order numbers calls nothing to ask. A comparison that reaches a function of ours is one the
-        sort pays for on every pair it looks at, which is most of what a map spends.
-    ]]
-    local even = of.key.fixed and Bytes.ranks (of.key.maxBytes)
-    local wide = of.key.maxBytes
-
-    -- The index rides under the rank, so one sort answers both what the order is and whose it is.
-    local spread = high + 1
-
-    --[[
-        Keys that are one reading on a grid sort as the numbers they are and lie end to end in the
-        bits they take. Nothing is spelled into scratch to be compared and copied back out, since
-        what orders two keys is what the grid already turned them into.
-    ]]
-    local sorts: Grid.Grid? = of.keyed
-
-    local function running (b: buffer, pos: number, value: any): number
-        local grid = sorts :: Grid.Grid
-
-        table.clear (order)
-        local count = 0
-
-        local toIndex = grid.toIndex
-
+    local function write(b: buffer, pos: number, value: any): number
+        if type(value) ~= "table" then Word.refusedAt(tag, paths, said, value) end
+        table.clear(order)
+        local count, at = 0, 0
         for key in value do
             count += 1
-            if count > high then Word.refusedAt (tag, paths, said, count) end
-
-            local made = toIndex (key)
-            if made == nil then Word.refusedAt (tag, paths, said, key) end
-
-            order[count] = made :: number
-            owners[made :: number] = key
-        end
-
-        if count < low then Word.refusedAt (tag, paths, said, count) end
-        table.sort (order)
-
-        for index = 2, count do
-            if order[index] ~= order[index - 1] then continue end
-            Log.refuse (Log.line (Catalog.MAP_ORDER, {
-                path = where,
-                expected = tostring (owners[order[index]]),
-                got = tostring (owners[order[index]]),
-            }))
-        end
-
-        laid (b, pos, held, count - low)
-        local out = PACKED (b, pos + held, grid.width, count, order)
-
-        if runs == nil then
-            for index = 1, count do
-                out = writeValue (b, out, value[owners[order[index]]])
-            end
-
-            return out
-        end
-
-        local held2 = runs :: Grid.Grid
-        for index = 1, count do
-            local one = value[owners[order[index]]]
-            local made = held2.toIndex (one)
-            if made == nil then Word.refusedAt (tag, paths, said, one) end
-
-            marks[index] = made :: number
-        end
-
-        return PACKED (b, out, held2.width, count, marks)
-    end
-
-    local function write (b: buffer, pos: number, value: any): number
-        if sorts ~= nil then return running (b, pos, value) end
-
-        table.clear (order)
-
-        local count = 0
-        local at = 0
-
-        --[[
-            The narrowest and widest rank seen, which tells a map whose keys all begin alike from
-            one whose do not, without a second walk over them.
-        ]]
-        local least, most = 0, 0
-
-        for key in value do
-            count += 1
-            if count > high then Word.refusedAt (tag, paths, said, count) end
-
+            if count > high then sized(count) end
             keys[count] = key
-
             local from = at
-            at = writeKey (room, at, key)
-
-            --[[
-                Where a key sits and how wide it is, for keys that do not all spell the same width.
-                The ones that do are found by counting instead, and the order they sort in is put
-                down below rather than here, so nothing is written that is written over.
-            ]]
-            if not even then
-                local wide = at - from
-                starts[count] = from
-                widths[count] = wide
-                order[count] = count
-                local rank = Bytes.leading (room, from, wide)
-                ranks[count] = rank
-
-                if count == 1 then
-                    least, most = rank, rank
-                elseif rank < least then
-                    least = rank
-                elseif rank > most then
-                    most = rank
-                end
-            end
-        end
-
-        if count < low then Word.refusedAt (tag, paths, said, count) end
-
-        if even then
-            for index = 1, count do
-                order[index] = Bytes.ranked (room, (index - 1) * wide, wide) * spread + index
-            end
-        end
-
-        if even then
-            table.sort (order)
-        elseif least == most then
-            table.sort (order, bytewise)
-        else
-            table.sort (order, before)
-        end
-
-        laid (b, pos, held, count - low)
-
-        local out = pos + held
-        local ranked = 0
-        for index = 1, count do
-            local held = order[index]
-            local place = if even then held % spread else held
-
+            at = writeKey(room, at, key)
             if even then
-                local rank = (held - place) / spread
-                if index > 1 and rank == ranked then
-                    Log.refuse (Log.line (Catalog.MAP_ORDER, {
-                        path = where,
-                        expected = tostring (keys[place]),
-                        got = tostring (keys[place]),
-                    }))
-                end
-
-                ranked = rank
-            elseif index > 1 and not before (order[index - 1], place) then
-                local last = keys[order[index - 1]]
-                Log.refuse (Log.line (Catalog.MAP_ORDER, {
-                    path = where,
-                    expected = tostring (last),
-                    got = tostring (keys[place]),
-                }))
+                order[count] = Bytes.rank(room, from, wide) * spread + count
+            else
+                starts[count] = from
+                widths[count] = at - from
+                ranks[count] = Bytes.leading(room, from, at - from)
+                order[count] = count
             end
+        end
+        sized(count)
+        if even then
+            table.sort(order)
+        else
+            table.sort(order, before)
+        end
 
+        put(b, pos, count - low)
+        local out = pos + held
+        local last = 0
+        for index = 1, count do
+            local place = if even then order[index] % spread else order[index]
+            if even then
+                local rank = (order[index] - place) / spread
+                if index > 1 and rank == last then twice(tag, paths, keys[place], keys[place]) end
+                last = rank
+            elseif index > 1 and not before(order[index - 1], place) then
+                twice(tag, paths, keys[order[index - 1]], keys[place])
+            end
             local from = if even then (place - 1) * wide else starts[place]
             local cut = if even then wide else widths[place]
-
-            buffer.copy (b, out, room, from, cut)
+            buffer.copy(b, out, room, from, cut)
             out += cut
-
-            local one = value[keys[place]]
-            if runs == nil then
-                out = writeValue (b, out, one)
-                continue
-            end
-
-            local made = (runs :: Grid.Grid).toIndex (one)
-            if made == nil then Word.refusedAt (tag, paths, said, one) end
-
-            marks[index] = made :: number
+            owners[index] = keys[place]
+            if runs == nil then out = writeValue(b, out, value[keys[place]]) end
         end
-
         if runs == nil then return out end
-
-        return PACKED (b, out, (runs :: Grid.Grid).width, count, marks)
+        return packValues(b, out, value, count)
     end
 
-    local function taking (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local grid = sorts :: Grid.Grid
-        local counted = taken (b, pos, held)
-        if counted > span then
-            Log.reject (
-                Catalog.COUNT,
-                { pathId = tag.pathId, expectId = tag.expectId, got = counted }
-            )
-        end
-
-        local count = counted + low
-        local after, clean = UNPACKED (b, pos + held, grid.width, count, order)
-        if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
-
-        --[[
-            Climbing rather than merely sorted, which answers two things at once: a pair out of
-            order and a key the map already holds are both a reading no higher than the last.
-        ]]
-        local span, fromIndex = grid.span, grid.fromIndex
-
-        --[[
-            The first reading held to the grid on its own, since what the rest are held to besides
-            is the one before them and the first has none. Asked inside the walk the question would
-            be put to every reading for the sake of the one it is about.
-        ]]
-        local first = order[1]
-        if count > 0 and first > span then
-            Log.reject (Catalog.TAG, { pathId = tag.pathId, got = first })
-        end
-
-        for index = 2, count do
-            local mark = order[index]
-            if mark > span then Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark }) end
-
-            local under = order[index - 1]
-            if mark <= under then
-                Log.reject (Catalog.MAP_ORDER, {
-                    pathId = tag.pathId,
-                    expected = tostring (fromIndex (under)),
-                    got = tostring (fromIndex (mark)),
-                })
-            end
-        end
-
-        local out: any = {}
-        if runs == nil then
-            local at = after
-            for index = 1, count do
-                at, out[fromIndex (order[index])] = readValue (b, at, ctx)
-            end
-
-            return at, out
-        end
-
-        local spare = runs :: Grid.Grid
-        local ends, tidy = UNPACKED (b, after, spare.width, count, marks)
-        if not tidy then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
-
-        for index = 1, count do
-            local mark = marks[index]
-            if mark > spare.span then
-                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
-            end
-
-            out[grid.fromIndex (order[index])] = spare.fromIndex (mark)
-        end
-
-        return ends, out
-    end
-
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        if sorts ~= nil then return taking (b, pos, ctx) end
-
-        local counted = taken (b, pos, held)
-        if counted > span then
-            Log.reject (
-                Catalog.COUNT,
-                { pathId = tag.pathId, expectId = tag.expectId, got = counted }
-            )
-        end
-
-        local count = counted + low
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local count = counted(b, pos)
         local out: any = {}
         local at = pos + held
-
-        local was, wide, last = 0, 0, nil :: any
+        local was, span, last = 0, 0, nil :: any
         for index = 1, count do
             local from = at
-
             local key: any
-            at, key = readKey (b, at, ctx)
-
-            if index > 1 and not Bytes.rangeLess (b, was, wide, from, at - from) then
-                Log.reject (Catalog.MAP_ORDER, {
-                    pathId = tag.pathId,
-                    expected = tostring (last),
-                    got = tostring (key),
-                })
+            at, key = readKey(b, at, ctx)
+            local ordered = index == 1 or Bytes.less(b, was, span, from, at - from)
+            if not ordered or out[key] ~= nil then
+                local facts =
+                    { pathId = tag.pathId, expected = tostring(last), got = tostring(key) }
+                Log.reject(Catalog.MAP_ORDER, facts)
             end
-            -- A key this map already holds, which is a pair that would take the place of another.
-            if out[key] ~= nil then
-                Log.reject (Catalog.MAP_ORDER, {
-                    pathId = tag.pathId,
-                    expected = tostring (last),
-                    got = tostring (key),
-                })
-            end
-
-            was, wide, last = from, at - from, key
-
-            if runs == nil then
-                at, out[key] = readValue (b, at, ctx)
-            else
-                --[[
-                    Put down under its key before the values are read, so the check above reads a
-                    map holding every key that came before this one either way. The values arrive
-                    as one run after the keys, and each of them lands on its own key below.
-                ]]
+            was, span, last = from, at - from, key
+            if runs ~= nil then
                 owners[index] = key
                 out[key] = key
+            else
+                at, out[key] = readValue(b, at, ctx)
             end
         end
-
         if runs == nil then return at, out end
-
-        --[[
-            Every value of the map, read off the run its keys were followed by. A reading past the
-            grid is one no writer of this schema produced, so it is turned away rather than folded
-            back onto the last point the grid has.
-        ]]
-        local grid = runs :: Grid.Grid
-        local after, clean = UNPACKED (b, at, grid.width, count, marks)
-        if not clean then Log.reject (Catalog.PAD, { pathId = tag.pathId, got = count }) end
-
-        for index = 1, count do
-            local mark = marks[index]
-            if mark > grid.span then
-                Log.reject (Catalog.TAG, { pathId = tag.pathId, got = mark })
-            end
-
-            out[owners[index]] = grid.fromIndex (mark)
-        end
-
-        return after, out
+        return unpackValues(b, at, out, count), out
     end
 
     return write, read
 end
 
 -- A value on its way to and from the one the wire carries, which is the same bytes either way.
-function Block.xform (of: Ir.Xform, writeInner: Ir.Write, readInner: Ir.Read): (Ir.Write, Ir.Read)
+function Block.xform(of: Ir.Xform, writeInner: Ir.Write, readInner: Ir.Read): (Ir.Write, Ir.Read)
     local lift, lower = of.lift, of.lower
 
-    local function write (b: buffer, pos: number, value: any): number
-        return writeInner (b, pos, lower (value))
+    local function write(b: buffer, pos: number, value: any): number
+        return writeInner(b, pos, lower(value))
     end
 
-    local function read (b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
-        local at, one = readInner (b, pos, ctx)
-        return at, lift (one)
+    local function read(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local at, one = readInner(b, pos, ctx)
+        return at, lift(one)
     end
 
     return write, read
 end
 
-return table.freeze (Block)
+return table.freeze(Block)

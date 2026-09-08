@@ -2,54 +2,43 @@
 --!optimize 2
 -- One namespace's endpoint: the buffers it reuses, the clients it may reach, and what is queued.
 
-local Blocks = require ("@src/channel/Blocks")
-local Recipients = require ("@src/channel/Recipients")
-local Tally = require ("@src/kernel/Tally")
-local Transport = require ("@src/channel/Transport")
+local Blocks = require("./Blocks")
+local Recipients = require("./Recipients")
+local Transport = require("./Transport")
 
 local Link = {}
 
 -- Types ---------------------------------------------------------------
 
---[[
-    A namespace's outbound state, as a record rather than a handle, because everything here is read
-    by an assembler that walks the buckets and sums the lengths and a class would put a method in
-    front of every one of those reads. Four lists, since a frame is assembled per client and two of
-    them are the part that is the same for all, and the lossy pair has no classes.
-]]
+-- A namespace's outbound state as a record, since the assembler walks the buckets and sums the
+-- lengths directly. Four queues: a frame is assembled per client, two of them hold the part that
+-- is the same for all, and the lossy pair has no classes.
 export type Link = {
     read name: string,
     read isServer: boolean,
     read transport: Transport.Transport,
-    read tally: Tally.Tally,
     read scratch: buffer,
 
-    --[[
-        The run of fires still open, and the buffer it is being written into. Its own rather than
-        the scratch above, because a section written between two fires would land on top of it and
-        a run is only sealed when something else asks to be sent or the flush comes round.
-    ]]
+    -- The run of fires still open and the buffer it is written into, its own rather than the
+    -- scratch above since a section written between two fires would land on top of it.
     read pending: buffer,
     read room: number,
 
-    -- What the open run writes each payload with, taken from the definition it was opened for.
+    -- What the open run writes each payload with, what it is held to, and how many it holds.
     writing: (buffer, number, any) -> number,
-
-    -- What the open run is held to, and how many it holds now.
     runs: number,
     widest: number,
     holds: number,
 
-    -- The tally row of the definition the open run carries, so a fire does not name it again.
-    tallied: Tally.Row?,
+    -- Where the open run's next payload goes, the definition and kind it carries, who it is for
+    -- and on which lane, and the id its last question or answer named for the next to climb from.
     wrote: number,
     over: any,
     kind: number,
-
-    -- The id the run's last question or answer named, which the next one climbs from.
-    last: number,
     toward: Player?,
     lossy: boolean,
+    last: number,
+
     seq: number,
     epoch: number,
     sending: boolean,
@@ -64,8 +53,8 @@ export type Link = {
 -- Private -------------------------------------------------------------
 
 -- One bucket per class, which is what a reliable queue is on either side of the shared line.
-local function buckets (): { { Blocks.Block } }
-    local out = table.create (Blocks.CLASSES) :: { { Blocks.Block } }
+local function buckets(): { { Blocks.Block } }
+    local out = table.create(Blocks.CLASSES) :: { { Blocks.Block } }
     for index = 1, Blocks.CLASSES do
         out[index] = {}
     end
@@ -75,102 +64,94 @@ end
 -- Public --------------------------------------------------------------
 
 -- An endpoint, before its remotes exist.
-function Link.new (
+function Link.new(
     name: string,
     side: Transport.Side,
     room: number,
-    transport: Transport.Transport,
-    tally: Tally.Tally
+    transport: Transport.Transport
 ): Link
     return {
         name = name,
         isServer = side == "server",
         transport = transport,
-        tally = tally,
-        scratch = buffer.create (room),
-        pending = buffer.create (room),
+        scratch = buffer.create(room),
+        pending = buffer.create(room),
         room = room,
-        runs = 0,
         writing = nil :: any,
+        runs = 0,
         widest = 0,
         holds = 0,
-        tallied = nil,
         wrote = 0,
         over = nil,
         kind = 0,
-        last = 0,
         toward = nil,
         lossy = false,
+        last = 0,
         seq = 0,
         epoch = 0,
         sending = side == "server",
         audience = {},
         ready = {},
-        shared = buckets (),
+        shared = buckets(),
         divergent = {},
         sharedLossy = {},
         divergentLossy = {},
     }
 end
 
-function Link.open (of: Link) of.transport:open () end
+function Link.open(of: Link)
+    of.transport:open()
+end
 
--- A client this endpoint may now send to, and the two lists its targeted blocks queue in.
-function Link.admit (of: Link, player: Player)
+-- A client this endpoint may now send to, and the two queues its targeted blocks wait in.
+function Link.admit(of: Link, player: Player)
     of.ready[player] = true
-    of.divergent[player] = buckets ()
+    of.divergent[player] = buckets()
     of.divergentLossy[player] = {}
 end
 
 -- A client gone, and everything queued for them let go.
-function Link.drop (of: Link, player: Player)
+function Link.drop(of: Link, player: Player)
     of.ready[player] = nil
-
     local held = of.divergent[player]
     if held ~= nil then
         for _, one in held do
-            Blocks.drain (one)
+            Blocks.drain(one)
         end
         of.divergent[player] = nil
     end
-
     local lossy = of.divergentLossy[player]
-    if lossy == nil then return end
-
-    Blocks.drain (lossy)
-    of.divergentLossy[player] = nil
+    if lossy ~= nil then
+        Blocks.drain(lossy)
+        of.divergentLossy[player] = nil
+    end
 end
 
 -- The next block's place in its bucket, which is the half of a merge key a class does not decide.
-function Link.next (of: Link): number
+function Link.next(of: Link): number
     local at = of.seq
     of.seq = at + 1
     return at
 end
 
 -- The sequence back to nothing, which a flush does once every bucket it filled has drained.
-function Link.rewind (of: Link) of.seq = 0 end
-
--- An endpoint let go: nothing queued, nobody ready, and the remotes heard no longer.
-function Link.close (of: Link)
-    of.sending = false
-
-    for _, one in of.shared do
-        Blocks.drain (one)
-    end
-    Blocks.drain (of.sharedLossy)
-
-    --[[
-        Over the readiness set, because a client is admitted and given its buckets in one call, so
-        that set is the list of everyone holding any. Clearing a key mid-walk is what the language
-        allows, and dropping does exactly that.
-    ]]
-    for player in of.ready do
-        Link.drop (of, player)
-    end
-
-    table.clear (of.audience)
-    of.transport:close ()
+function Link.rewind(of: Link)
+    of.seq = 0
 end
 
-return table.freeze (Link)
+-- An endpoint let go: nothing queued, nobody ready, and the remotes heard no longer. The ready
+-- set is the list of everyone holding queues, since a client is admitted and given them together.
+function Link.close(of: Link)
+    of.sending = false
+    for _, one in of.shared do
+        Blocks.drain(one)
+    end
+    Blocks.drain(of.sharedLossy)
+    for player in of.ready do
+        Link.drop(of, player)
+    end
+    table.clear(of.audience)
+    of.transport:close()
+end
+
+return table.freeze(Link)

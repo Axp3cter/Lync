@@ -2,26 +2,18 @@
 --!optimize 2
 -- The public type vocabulary: every type a consumer names, and the inference behind it.
 
--- Types ---------------------------------------------------------------
-
-export type LogKind = "warn" | "error" | "debug"
+export type LogKind = "warn" | "error"
 export type Cause = "removed" | "cleared"
 export type OutcomeCode = "timeout" | "unanswered" | "leave" | "shutdown"
 
---[[
-    The three sentinels. Each carries a phantom field so the checker keeps them apart from one
-    another and from any table a caller might pass instead.
-]]
+-- The three sentinels, each with a phantom field so the checker keeps them apart.
 export type All = { read _all: true }
 export type Except = { read _except: true }
 export type None = { read _none: true }
 
 export type Recipient = All | Except | Group | Player | { Player }
 
---[[
-    What `define` takes, keyed by the names the definitions are reached under. Named rather than
-    written inline so a caller assembling a namespace has something to annotate.
-]]
+-- What `define` takes, keyed by the names the definitions are reached under.
 export type Definition = Packet<unknown> | Query<unknown, unknown> | Set<unknown>
 export type Definitions = { [string]: Definition }
 
@@ -30,10 +22,8 @@ export type Connection = {
     read disconnect: (self: Connection) -> (),
 }
 
---[[
-    Reused between decodes, so anything kept from it must be copied. `last` is stamped on every
-    arrival, accepted or not.
-]]
+-- Reused between decodes, so anything kept from it must be copied. `last` is stamped on every
+-- arrival, accepted or not.
 export type ValidateContext = {
     read player: Player?,
     read now: number,
@@ -53,28 +43,7 @@ export type OutcomeData = {
     read elapsed: number?,
 }
 
-export type DefinitionStats = {
-    read sent: number,
-    read sentBytes: number,
-    read received: number,
-    read receivedBytes: number,
-    read drops: number,
-}
-
-export type Stats = {
-    read flushes: number,
-    read sentBytes: number,
-    read receivedBytes: number,
-    read drops: number,
-    read definitions: { [string]: DefinitionStats },
-}
-
---[[
-    The phantom `_T` is the whole inference story: it never exists at run time and Infer reads it
-    back out below. `monotonic` takes any codec because a generic type may not name itself with a
-    different argument, and nothing beside it names a direction, since climbing is the only trend
-    a field may declare.
-]]
+-- The phantom `_T` never exists at run time and is what `Infer` reads back out.
 export type Codec<T> = {
     read _T: T,
     read validate: (
@@ -82,47 +51,40 @@ export type Codec<T> = {
         check: (value: T, ctx: ValidateContext) -> string?
     ) -> Codec<T>,
     read as: <U>(self: Codec<T>, to: (value: T) -> U, from: (value: U) -> T) -> Codec<U>,
-    read monotonic: (self: Codec<T>) -> Codec<T>,
     read newest: (self: Codec<T>, hz: number?) -> Codec<T>,
 }
 
---[[
-    The value a codec carries. `Infer<Codec<Vector3>>` is `Vector3`, which is what lets a handler
-    signature fall out of the schema with nothing annotated.
-]]
-export type function Infer (codec) return codec:readproperty (types.singleton ("_T")) end
+-- The value a codec carries, so a handler signature falls out of the schema with nothing annotated.
+export type function Infer(codec)
+    return codec:readproperty(types.singleton("_T"))
+end
 
---[[
-    A table of codecs read as the record it describes, mapping each field to the value its codec
-    carries. This is what `struct` returns the codec of.
-]]
-export type function Schema (fields)
-    local record = types.newtable ()
-    for key, property in fields:properties () do
+-- A table of codecs read as the record it describes, which is what `struct` returns the codec of.
+export type function Schema(fields)
+    local record = types.newtable()
+    for key, property in fields:properties() do
         local codec = property.read or property.write
-        record:setproperty (key, codec:readproperty (types.singleton ("_T")))
+        record:setproperty(key, codec:readproperty(types.singleton("_T")))
     end
     return record
 end
 
---[[
-    Every field is optional so a caller may omit it, and the clear sentinel is accepted on exactly
-    the fields the record declares optional.
-]]
-export type function Update (record, none)
-    if not (record:is ("table") or record:is ("class")) then return types.any end
+-- Every field optional so a caller may omit it, and the clear sentinel accepted on exactly the
+-- fields the record declares optional.
+export type function Update(record, none)
+    if not (record:is("table") or record:is("class")) then return types.any end
 
-    local fields = types.newtable ()
-    for key, property in record:properties () do
+    local fields = types.newtable()
+    for key, property in record:properties() do
         local field = property.read or property.write
         local isClearable = false
-        if field:is ("union") then
-            for _, part in field:components () do
-                if part:is ("nil") then isClearable = true end
+        if field:is("union") then
+            for _, part in field:components() do
+                if part:is("nil") then isClearable = true end
             end
         end
-        local value = if isClearable then types.unionof (field, none) else field
-        fields:setproperty (key, types.optional (value))
+        local value = if isClearable then types.unionof(field, none) else field
+        fields:setproperty(key, types.optional(value))
     end
     return fields
 end
@@ -141,11 +103,7 @@ export type Packet<T> = {
     read describe: (self: Packet<T>) -> string,
 }
 
---[[
-    The client form yields for the reply. The server form takes a completion callback and never
-    yields. Both answer `(true, reply)` or `(false, code, data)`, so a request never throws and
-    never hangs.
-]]
+-- Both request forms answer `(true, reply)` or `(false, code, data)`, so a request never throws.
 export type Outcome<R> = (ok: boolean, result: R | OutcomeCode, data: OutcomeData?) -> ()
 
 export type Query<Q, R> = {
@@ -176,32 +134,27 @@ type SetFields<T> = {
     read clear: (self: Set<T>) -> (),
     read audience: (self: Set<T>, key: unknown, recipient: Recipient) -> (),
     read get: (self: Set<T>, id: number) -> T?,
+    read size: (self: Set<T>) -> number,
+    read entries: (
+        self: Set<T>
+    ) -> (({ [number]: T }, number) -> (number?, T), { [number]: T }, number),
     read describe: (self: Set<T>) -> string,
 }
 
---[[
-    `#set` counts the local view and `for id, record in set do` walks it, so both reads sit on the
-    metatable rather than the record.
-]]
+-- `#set` counts the local view and `for id, record in set` walks it.
 type SetMeta<T> = {
     __len: (self: Set<T>) -> number,
-    __iter: (
-        self: Set<T>
-    ) -> (({ [number]: T }, number) -> (number?, T), { [number]: T }, number),
+    __iter: (self: Set<T>) -> (({ [number]: T }, number) -> (number?, T), { [number]: T }, number),
 }
 
---[[
-    No key parameter. Luau widens a string argument to `string` rather than its singleton, a
-    declaration inside the define literal has no annotation site, and a generic type may not name
-    itself with a different argument, so a key type could never be carried here. A key on an unkeyed
-    set is a programmer error the runtime throws on.
-]]
-export type Set<T> = typeof(setmetatable ({} :: SetFields<T>, {} :: SetMeta<T>))
+export type Set<T> = typeof(setmetatable({} :: SetFields<T>, {} :: SetMeta<T>))
 
 type GroupFields = {
     read add: (self: Group, player: Player) -> (),
     read remove: (self: Group, player: Player) -> (),
     read has: (self: Group, player: Player) -> boolean,
+    read size: (self: Group) -> number,
+    read players: (self: Group) -> () -> Player?,
     read destroy: (self: Group) -> (),
 }
 
@@ -210,6 +163,6 @@ type GroupMeta = {
     __iter: (self: Group) -> (({ Player }, number) -> (number?, Player), { Player }, number),
 }
 
-export type Group = typeof(setmetatable ({} :: GroupFields, {} :: GroupMeta))
+export type Group = typeof(setmetatable({} :: GroupFields, {} :: GroupMeta))
 
 return nil

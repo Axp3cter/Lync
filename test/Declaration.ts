@@ -1,8 +1,8 @@
-import Lync from "../index";
+import Lync from "@axpecter/lync";
 
 const Codec = Lync.struct({
     name: Lync.str(1, 20),
-    score: Lync.int(0, 1_000_000).monotonic(),
+    score: Lync.int(0, 1_000_000),
     pos: Lync.vec3(Lync.quant(-512, 512, 0.1)).newest(10),
     team: Lync.enum(["red", "blue"] as const),
     flags: Lync.bitfield(["alive", "stunned"] as const),
@@ -22,7 +22,7 @@ const Net = Lync.define("arena", {
 });
 
 // --- inference ------------------------------------------------------------
-const f: Fighter = { name: "a", score: 0, pos: new Vector3(), team: "red", flags: { alive: true, stunned: false }, };
+const f: Fighter = { name: "a", score: 0, pos: new Vector3(), team: "red", flags: { alive: true, stunned: false } };
 const _team: "red" | "blue" = f.team;
 const _alive: boolean = f.flags.alive;
 
@@ -38,7 +38,9 @@ const n: number = Net.Fighters.size();
 Net.Fighters.onAdded((id, record) => print(id, record.name));
 Net.Fighters.onChanged((id, record, old) => print(record.score, old?.score));
 Net.Fighters.onRemoved((id, cause) => { const c: Lync.Cause = cause; });
-for (const [id, record] of Net.Fighters) { print(id, record.name); }
+for (const [id, record] of Net.Fighters.entries()) { print(id, record.name); }
+const Squad = Lync.group();
+for (const player of Squad.players()) { print(player.UserId); }
 
 // --- packets --------------------------------------------------------------
 Net.Strike.fireServer(new Vector3());
@@ -55,7 +57,7 @@ Net.Sell.request(undefined as unknown as Player, { item: "x" }, (...r) => {
     if (r[0]) { const e: number = r[1].earned; } else { const c: Lync.OutcomeCode = r[1]; }
 }, 5);
 
-// --- lifecycle, log, stats ------------------------------------------------
+// --- lifecycle and log ----------------------------------------------------
 Lync.start();
 Lync.flush();
 Lync.flush(4096);
@@ -63,9 +65,6 @@ Lync.flush("arena", 4096);
 Lync.close();
 Lync.onLog((kind, message, d) => print(kind, message, d.file, d.line, d.player));
 Lync.console.disconnect();
-const s: Lync.Stats = Lync.stats("arena");
-const rate: number = s.sentBytes;
-const per = s.definitions.get("Strike");
 
 // --- codecs ---------------------------------------------------------------
 // Annotated rather than called. Calling one proves the name is there, and the declaration is a
@@ -76,15 +75,14 @@ const _f64: Lync.Codec<number> = Lync.f64();
 const _vlq: Lync.Codec<number> = Lync.vlq();
 const _vli: Lync.Codec<number> = Lync.vli();
 const _angle: Lync.Codec<number> = Lync.angle(1);
-const _alphanum: Lync.Codec<string> = Lync.str.alphanum(1, 4);
-const _hex: Lync.Codec<string> = Lync.str.hex(2, 2);
+const _alphabet: Lync.Codec<string> = Lync.str.alphabet("abc", 1, 4);
 const _bytes: Lync.Codec<buffer> = Lync.buffer(0, 64);
 const _array: Lync.Codec<boolean[]> = Lync.array(Lync.bool(), 0, 4);
 const _map: Lync.Codec<Map<string, boolean>> = Lync.map(Lync.str(1, 2), Lync.bool(), 0, 4);
 const _vec2: Lync.Codec<Vector2> = Lync.vec2();
+const _unit: Lync.Codec<Vector3> = Lync.vec3.unit(1);
 const _cframe: Lync.Codec<CFrame> = Lync.cframe(Lync.vec3(), Lync.rotation.none());
 const _packed: Lync.Codec<Color3> = Lync.color3.rgb565();
-const _palette: Lync.Codec<Color3> = Lync.color3.palette([]);
 const _inst: Lync.Codec<Player | undefined> = Lync.inst<Player>();
 const _validated: Lync.Codec<number> = Lync.int(0, 1).validate((v, ctx) =>
     ctx.player ? undefined : "no player",
@@ -100,7 +98,6 @@ const _variant: Lync.Infer<typeof Tagged> = { kind: "a", x: true };
 /*
  * Both directions. An annotation is satisfied by anything assignable and a codec is covariant in
  * the value it carries, so a constructor that dropped an optional still passes one asking for it.
- *
  * Read off the call and never off an annotated binding, since an annotation pins the type whatever
  * came back and a check against one asks nothing at all.
  */
@@ -115,27 +112,5 @@ const _optionalIsOptional: Exact<Lync.Infer<typeof _optionalCall>, string | unde
 const _enumCall = Lync.enum(["red", "blue"] as const);
 const _enumIsUnion: Exact<Lync.Infer<typeof _enumCall>, "red" | "blue"> = true;
 
-// --- rejections ------------------------------------------------------------
-// Each line must fail to compile. @ts-expect-error fails the build if one starts passing.
-
-const Plain = Lync.replicate(Codec);
-const Keyed = Lync.replicate(Codec).keyBy("team");
-
-// @ts-expect-error audience on an unkeyed set
-Plain.audience("red", Lync.all);
-// @ts-expect-error a key outside the field's type
-Keyed.audience(1, Lync.all);
-// @ts-expect-error the clear sentinel on a required field
-Keyed.update(1, { score: Lync.none });
-// @ts-expect-error a field the record does not declare that type for
-Keyed.update(1, { score: "high" });
-// @ts-expect-error keyBy an absent field
-Lync.replicate(Codec).keyBy("nope");
-// @ts-expect-error a set marker on a string codec
-Lync.str(1, 2).monotonic();
-// @ts-expect-error a payload the packet codec rejects
-Net.Strike.fireServer(1);
-// @ts-expect-error a flush budget that is not a number
-Lync.flush("arena", "big");
-// @ts-expect-error counters are numbers
-const _bad: string = Lync.stats("arena").flushes;
+// Every rejection lives in Rejections.ts, which only tsc reads: the roblox-ts compiler refuses a
+// file carrying a comment directive, and this file is compiled by both.

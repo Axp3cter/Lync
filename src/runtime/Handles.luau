@@ -2,13 +2,14 @@
 --!optimize 2
 -- What a handle is bound to, and what it was asked to do before there was anything to bind it to.
 
-local Types = require ("@src/Types")
+local Types = require("../Types")
 
 local Handles = {}
 
 -- Types ---------------------------------------------------------------
 
--- What a handle knows about where it ended up, and it knows none of it until it is told.
+-- What a handle knows about where it ended up. The names are written where a namespace is
+-- declared and the rest where one starts, so a handle held before either knows only that it is one.
 export type Live = {
     space: string?,
     name: string?,
@@ -19,7 +20,7 @@ export type Live = {
     waiting: { (any) -> () },
 }
 
--- An attachment made before there was anything to attach to.
+-- An attachment made before there was anything to attach to, ended the same way as one that was.
 export type Waiting = {
     connected: boolean,
     held: Types.Connection?,
@@ -27,31 +28,18 @@ export type Waiting = {
 
 -- Private -------------------------------------------------------------
 
---[[
-    A connection to something that does not exist yet, ended the same way as one that does.
-
-    A metatable rather than a closure per attachment, because a handle may be listened to as often
-    as a caller likes and the pair of fields is the whole of what one of these is.
-]]
 local Attached = {}
 Attached.__index = Attached
 
-function Attached.disconnect (self: Waiting)
+function Attached.disconnect(self: Waiting)
     self.connected = false
-
     local held = self.held
-    if held ~= nil then held:disconnect () end
+    if held ~= nil then held:disconnect() end
 end
 
 -- Public --------------------------------------------------------------
 
---[[
-    A fresh binding, empty of everything a handle later learns.
-
-    Nothing here is filled by a caller. The names are written where a namespace is declared and the
-    rest where one starts, so a handle held before either knows only that it has one.
-]]
-function Handles.live (): Live
+function Handles.live(): Live
     return {
         space = nil,
         name = nil,
@@ -63,52 +51,43 @@ function Handles.live (): Live
     }
 end
 
---[[
-    Something to do to this handle once there is a session to do it with.
-
-    Run now where there is one and held where there is not, so a caller who attaches before a
-    namespace opens and one who attaches after are asking for the same thing and get it.
-]]
-function Handles.waiting (of: Live, run: (any) -> ())
+-- Something to do to this handle once there is a session to do it with: run now where there is
+-- one and held where there is not.
+function Handles.waiting(of: Live, run: (any) -> ())
     local session = of.session
     if session ~= nil then
-        run (session)
+        run(session)
         return
     end
-
-    table.insert (of.waiting, run)
+    table.insert(of.waiting, run)
 end
 
 -- A listener attached whenever the caller liked, and the connection that ends it either way.
-function Handles.later (of: Live, bind: (any) -> Types.Connection): Types.Connection
+function Handles.later(of: Live, bind: (any) -> Types.Connection): Types.Connection
     local session = of.session
-    if session ~= nil then return bind (session) end
-
-    local held: Waiting = setmetatable ({ connected = true, held = nil }, Attached) :: any
-    table.insert (of.waiting, function (opened: any)
+    if session ~= nil then return bind(session) end
+    local held: Waiting = setmetatable({ connected = true, held = nil }, Attached) :: any
+    table.insert(of.waiting, function(opened: any)
         if not held.connected then return end
-        held.held = bind (opened)
+        local made = bind(opened)
+        held.held = made
+        -- A bind that attached nothing hands back a connection already over, and this one follows.
+        held.connected = made.connected
     end)
-
     return (held :: any) :: Types.Connection
 end
 
---[[
-    A handle, bound to what its namespace compiled it into, and everything it was owed since.
-
-    The binding is written before anything waiting runs, because what waits is listeners and
-    responders and both of them reach back through the handle for the id they attach under.
-]]
-function Handles.opened (of: Live, def: any, session: any, isServer: boolean)
+-- A handle bound to what its namespace compiled it into, then everything it was owed since. The
+-- binding is written first, because what waits reaches back through the handle for its id.
+function Handles.opened(of: Live, def: any, session: any, isServer: boolean)
     of.id = def.id
     of.def = def
     of.session = session
     of.isServer = isServer
-
     for _, run in of.waiting do
-        run (session)
+        run(session)
     end
-    table.clear (of.waiting)
+    table.clear(of.waiting)
 end
 
-return table.freeze (Handles)
+return table.freeze(Handles)

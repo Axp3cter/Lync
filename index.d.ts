@@ -6,8 +6,6 @@ declare namespace Lync {
         /** @hidden */ readonly _nominal_codec: T;
         /** Runs on decode. Return a reason to reject or undefined to accept. The first reason wins. */
         validate(this: Codec<T>, check: (value: T, context: ValidateContext) => string | undefined): Codec<T>;
-        /** Set fields only. The field never decreases, and an update that would lower it throws. */
-        monotonic(this: Codec<number>): Codec<number>;
         /** Set fields only: lossy latest-wins replication, rate-capped when hz is given. */
         newest(this: Codec<T>, hz?: number): Codec<T>;
         /** Domain transform: `to` lifts after decode, `from` lowers before encode. */
@@ -38,7 +36,7 @@ declare namespace Lync {
 
     type Recipient = All | Player | ReadonlyArray<Player> | Group | Except;
 
-    type LogKind = "warn" | "error" | "debug";
+    type LogKind = "warn" | "error";
     type Cause = "removed" | "cleared";
     type OutcomeCode = "timeout" | "unanswered" | "leave" | "shutdown";
 
@@ -53,22 +51,6 @@ declare namespace Lync {
         readonly line: number;
         readonly player?: Player;
         readonly definition?: string;
-    }
-
-    interface DefinitionStats {
-        readonly sent: number;
-        readonly sentBytes: number;
-        readonly received: number;
-        readonly receivedBytes: number;
-        readonly drops: number;
-    }
-
-    interface Stats {
-        readonly flushes: number;
-        readonly sentBytes: number;
-        readonly receivedBytes: number;
-        readonly drops: number;
-        readonly definitions: ReadonlyMap<string, DefinitionStats>;
     }
 
     interface Packet<T> {
@@ -121,7 +103,7 @@ declare namespace Lync {
         [K in keyof T]: T[K] extends boolean | number | string ? K & string : never;
     }[keyof T];
 
-    interface Set<T, K = never> extends Iterable<LuaTuple<[number, T]>> {
+    interface Set<T, K = never> {
         /** Declaration: partitions records by the field's value. Unkeyed sets have no audiences. */
         keyBy<F extends KeyableField<T>>(this: Set<T, never>, field: F): Set<T, T[F & keyof T]>;
         /** On first sight, which is an add, a late join, or a record coming into view. */
@@ -141,14 +123,18 @@ declare namespace Lync {
         /** The live record, or undefined. This is the library's own storage, so read and never write. */
         get(this: Set<T, K>, id: number): T | undefined;
         size(this: Set<T, K>): number;
+        /** Every record this machine holds, as `for (const [id, record] of set.entries())`. */
+        entries(this: Set<T, K>): IterableFunction<LuaTuple<[number, T]>>;
         describe(this: Set<T, K>): string;
     }
 
-    interface Group extends Iterable<Player> {
+    interface Group {
         add(this: Group, player: Player): void;
         remove(this: Group, player: Player): void;
         has(this: Group, player: Player): boolean;
         size(this: Group): number;
+        /** The members, as `for (const player of group.players())`. */
+        players(this: Group): IterableFunction<Player>;
         /** Empties the group. Any later use throws. */
         destroy(this: Group): void;
     }
@@ -157,33 +143,23 @@ declare namespace Lync {
         (this: void, min: number, max: number): Codec<string>;
         /** Every character drawn from the symbol set. The smaller the set, the fewer the bits. */
         alphabet(this: void, symbols: string, min: number, max: number): Codec<string>;
-        alphanum(this: void, min: number, max: number): Codec<string>;
-        base32(this: void, min: number, max: number): Codec<string>;
-        base64(this: void, min: number, max: number): Codec<string>;
-        digits(this: void, min: number, max: number): Codec<string>;
-        hex(this: void, min: number, max: number): Codec<string>;
     }
 
     interface Vec3 {
         (this: void, component?: Codec<number>): Codec<Vector3>;
         /** A direction at the angular precision. Any nonzero vector normalizes at encode. */
         unit(this: void, precision: number): Codec<Vector3>;
-        /** A direction at the implied precision and a quantized magnitude. */
-        bounded(this: void, max: number, step: number): Codec<Vector3>;
     }
 
-    /** Zero, one, two, or three degrees of freedom, in that order. */
+    /** No degrees of freedom, or three. */
     interface Rotation {
         none(this: void): Codec<CFrame>;
-        axis(this: void, axis: Vector3, precision: number): Codec<CFrame>;
-        direction(this: void, precision: number): Codec<CFrame>;
         quat(this: void, precision: number): Codec<CFrame>;
     }
 
     interface Color3Codec {
         (this: void): Codec<Color3>;
         rgb565(this: void): Codec<Color3>;
-        palette(this: void, colors: ReadonlyArray<Color3>): Codec<Color3>;
     }
 
     type Infer<C> = C extends Codec<infer T> ? T : never;
@@ -198,7 +174,7 @@ declare namespace Lync {
     >;
 }
 
-interface LyncModule {
+interface Module {
     /** Opens a namespace. The returned table is pure data, required by both machines. */
     define<T extends Record<string, Lync.Packet<unknown> | Lync.Query<unknown, unknown> | Lync.Set<unknown, unknown>>>(
         this: void,
@@ -229,8 +205,6 @@ interface LyncModule {
     onLog(this: void, fn: (kind: Lync.LogKind, message: string, data: Lync.LogData) => void): Lync.Connection;
     /** The default printer. Disconnect it to format records yourself. */
     readonly console: Lync.Connection;
-    /** A frozen snapshot of monotonic counters, so any two of them diff into exact rates. */
-    stats(this: void, name: string): Lync.Stats;
 
     /** No payload at all, for a call whose happening is the whole of what it says. */
     empty(this: void): Lync.Codec<undefined>;
@@ -273,8 +247,6 @@ interface LyncModule {
         this: void,
         names: T,
     ): Lync.Codec<{ [K in T[number]]: boolean }>;
-    /** A value the schema does not describe. Costs a tag per part and skips every packing. */
-    unknown(this: void, maxBytes: number): Lync.Codec<unknown>;
 
     vec2(this: void, component?: Lync.Codec<number>): Lync.Codec<Vector2>;
     readonly vec3: Lync.Vec3;
@@ -285,5 +257,5 @@ interface LyncModule {
     inst<T extends Instance = Instance>(this: void, className?: string): Lync.Codec<T | undefined>;
 }
 
-declare const Lync: LyncModule;
+declare const Lync: Module;
 export = Lync;

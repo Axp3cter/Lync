@@ -2,10 +2,10 @@
     "languageMode": "strict",
     "lint": { "*": true },
     "lintErrors": true,
-    "globals": ["__DEV__"],
     "aliases": {
         "bench": "./bench",
         "fixtures": "./fixtures",
+        "lune": "./typedefs/lune",
         "src": "./src",
         "test": "./test"
     }

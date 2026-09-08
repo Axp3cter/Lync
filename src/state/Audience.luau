@@ -2,15 +2,15 @@
 --!optimize 2
 -- Who sees a partition, and what has changed about that since the last flush.
 
-local Recipients = require ("@src/channel/Recipients")
-local Types = require ("@src/Types")
+local Recipients = require("../channel/Recipients")
+local Types = require("../Types")
 
 local Audience = {}
 
 -- Constants -----------------------------------------------------------
 
 -- What a player seeded into a key is marked with, which is a flush no diff ever runs under.
-const BEFORE = 0
+local BEFORE = 0
 
 -- Types ---------------------------------------------------------------
 
@@ -31,7 +31,7 @@ export type Audience = {
 
 -- Public --------------------------------------------------------------
 
-function Audience.new (): Audience
+function Audience.new(): Audience
     return {
         of = {},
         held = {},
@@ -45,43 +45,37 @@ function Audience.new (): Audience
 end
 
 -- A key's viewers, replacing whoever it had.
-function Audience.assign (of: Audience, key: any, to: Types.Recipient)
+function Audience.assign(of: Audience, key: any, to: Types.Recipient)
     of.of[key] = to
     of.moved[key] = true
 end
 
 -- Whether a key goes to everybody, which is what puts its sections on the shared list.
-function Audience.everyone (of: Audience, key: any): boolean
+function Audience.everyone(of: Audience, key: any): boolean
     local to = of.of[key]
     return to == nil or to == Recipients.ALL
 end
 
 -- Who holds a key, as the diff that ran this flush worked it out.
-function Audience.members (of: Audience, key: any): { Player }
-    local now = of.now[key]
-    if now ~= nil then return now end
-
-    now = {}
-    of.now[key] = now
-    return now
-end
-
--- Who holds a key now, and who gained or lost it since the last time this asked.
-function Audience.diff (of: Audience, key: any, ready: Recipients.Ready)
-    table.clear (of.gained)
-    table.clear (of.lost)
-
+function Audience.members(of: Audience, key: any): { Player }
     local now = of.now[key]
     if now == nil then
         now = {}
         of.now[key] = now
     end
+    return now
+end
 
-    local to = of.of[key]
-    local open = to == nil or to == Recipients.ALL
-
-    if open and of.moved[key] ~= true then
-        table.clear (now)
+-- Who holds a key now, and who gained or lost it since the last time this asked. An open key keeps
+-- no list, so wherever the last diff left the key open everybody ready counts as holding it, or
+-- the first diff after it narrows would report nobody lost.
+function Audience.diff(of: Audience, key: any, ready: Recipients.Ready)
+    table.clear(of.gained)
+    table.clear(of.lost)
+    local now = Audience.members(of, key)
+    local wide = Audience.everyone(of, key)
+    if wide and of.moved[key] ~= true then
+        table.clear(now)
         return
     end
 
@@ -90,42 +84,29 @@ function Audience.diff (of: Audience, key: any, ready: Recipients.Ready)
         held = {}
         of.held[key] = held
     end
-
-    --[[
-        Everybody ready counted as holding it, wherever the last diff left the key open. An open
-        key keeps no list, so without this the first diff after one narrows reports nobody lost,
-        and the clients that just stopped seeing the partition are never told to drop it.
-    ]]
     if of.wide[key] ~= false then
         for player in ready do
             held[player] = BEFORE
         end
     end
-
     of.moved[key] = nil
-    of.wide[key] = open
+    of.wide[key] = wide
 
     local at = of.at + 1
     of.at = at
-
-    Recipients.resolve (now, if open then Recipients.ALL else to :: Types.Recipient, ready)
-
+    Recipients.resolve(now, if wide then Recipients.ALL else of.of[key], ready)
     for _, player in now do
-        if held[player] == nil then table.insert (of.gained, player) end
+        if held[player] == nil then table.insert(of.gained, player) end
         held[player] = at
     end
 
     -- Who stopped holding this key, which is who is owed a removal for everything under it.
     for player, when in held do
         if when == at then continue end
-
         held[player] = nil
-        if ready[player] == nil then continue end
-
-        table.insert (of.lost, player)
+        if ready[player] ~= nil then table.insert(of.lost, player) end
     end
-
-    if open then table.clear (held) end
+    if wide then table.clear(held) end
 end
 
-return table.freeze (Audience)
+return table.freeze(Audience)

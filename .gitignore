@@ -1,14 +1,10 @@
 /.data/
-
+/.claude/
 /build/
 /dist/
+/node_modules/
 /sourcemap.json
-
 *.rbxl
 *.rbxl.lock
 *.rbxm
-
-/Packages/
-/ServerPackages/
-/DevPackages/
-/node_modules/
+/site/

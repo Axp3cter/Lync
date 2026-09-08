@@ -9,8 +9,10 @@
         "allowSyntheticDefaultImports": true,
         "typeRoots": ["node_modules/@rbxts"],
         "types": ["compiler-types", "types"],
+        "baseUrl": ".",
+        "paths": { "@axpecter/lync": ["./index"] },
         "skipLibCheck": true,
         "noEmit": true
     },
-    "files": ["index.d.ts", "test/Declaration.ts"]
+    "files": ["index.d.ts", "test/Declaration.ts", "test/Rejections.ts"]
 }

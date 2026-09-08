@@ -1,45 +1,26 @@
 --!strict
 --!optimize 2
---[[
-    One fire and many recipients, measured against how many, which is the whole of what a broadcast
-    promises.
-]]
+-- One fire and many recipients, measured against how many, which is the whole of what a broadcast
+-- promises.
 
-local Lync = require ("@src")
-local Session = require ("@src/runtime/Session")
+local Recipients = require("@src/channel/Recipients")
+local Session = require("@src/runtime/Session")
 
-local Doubles = require ("@fixtures/Doubles")
-local Schemas = require ("@fixtures/Schemas")
+local Doubles = require("@fixtures/Doubles")
+local Schemas = require("@fixtures/Schemas")
 
-local Harness = require ("@bench/harness")
+local Harness = require("@bench/harness")
 
--- Constants -----------------------------------------------------------
+local SPACE = "fanout"
 
-const SPACE = "fanout"
-
--- The one definition, fired at everyone.
-const BEAT = Schemas.BEAT
+-- The one definition, fired at everyone, and the case of the frame of movement it carries.
+local BEAT = Schemas.BEAT
+local CARRIED = "typical"
 
 -- The audience sizes, an order of magnitude apart.
-const ONE = 1
-const TEN = 10
-const HUNDRED = 100
+local SIZES = table.freeze({ one = 1, ten = 10, hundred = 100 } :: { [string]: number })
 
---[[
-    The shape a broadcast carries, and the case of it.
-
-    A frame of movement, and the same case another suite fires, so the payload is never what
-    separates a number here from one there.
-]]
-const CARRIED = "typical"
-
--- Types ---------------------------------------------------------------
-
---[[
-    One server and the definition every row fires, with the clients standing on the roster rather
-    than here. What a fanout row varies is how many are listening, so the count is the lane's and
-    what this holds is the one thing fired at all of them.
-]]
+-- One server and the definition every row fires, with the clients standing on the roster.
 type Run = {
     read wire: Doubles.Wire,
     read defs: any,
@@ -50,73 +31,46 @@ type Run = {
 -- Private -------------------------------------------------------------
 
 -- A server and however many clients the row is about, every one of them listening and ready.
-local function opened (viewers: number): Run
-    local wire = Doubles.wire ()
-    local roster = Doubles.roster ()
-
-    local serverDefs = Schemas.beat ()
-    local server = Session.new (SPACE, serverDefs, wire:server (), roster, "server")
-    server:start ()
-
+local function opened(viewers: number): Run
+    local wire = Doubles.wire()
+    local roster = Doubles.roster()
+    local serverDefs = Schemas.beat()
+    local server = Session.new(SPACE, serverDefs, wire:server(), roster, "server")
+    server:start()
     for index = 1, viewers do
-        local who = roster:join (`viewer{index}`)
-        local clientDefs = Schemas.beat ()
-
-        clientDefs[BEAT]:onClient (function () end)
-        Session.new (SPACE, clientDefs, wire:client (who), roster, "client"):start ()
+        local who = roster:join(`viewer{index}`)
+        local clientDefs = Schemas.beat()
+        clientDefs[BEAT]:onClient(function() end)
+        Session.new(SPACE, clientDefs, wire:client(who), roster, "client"):start()
     end
-    wire:settle ()
-
+    wire:settle()
     return {
         wire = wire,
         defs = serverDefs,
         server = server,
-        value = Schemas.cased (Schemas.motion, CARRIED),
+        value = Schemas.cased(Schemas.motion, CARRIED),
     }
 end
 
 -- One broadcast, flushed and carried to rest.
-local function fanned (of: Run): number
-    of.defs[BEAT]:fireClient (Lync.all, of.value)
-    of.server:flush ()
-    return of.wire:settle ()
+local function fanned(of: Run): number
+    of.defs[BEAT]:fireClient(Recipients.ALL, of.value)
+    return Harness.drained(of)
 end
 
--- What one turn put on the lane, which for a broadcast is one frame however many hear it.
-local function weighs (of: Run): number
-    local before = of.wire:moved ().bytes
-
-    fanned (of)
-    return of.wire:moved ().bytes - before
+-- A broadcast reaching that many, which for a per-recipient encode would be impossible to miss
+-- at a hundred.
+local function reaching(name: string): Harness.Row
+    return Harness.row({
+        name = `fanout.{name}`,
+        setup = function(): Run
+            return opened(SIZES[name])
+        end,
+        run = fanned,
+        bytes = Harness.weighs(fanned),
+    })
 end
 
 -- Public --------------------------------------------------------------
 
-return {
-    -- A broadcast with one recipient, which is the base.
-    Harness.row ({
-        name = "fanout.one",
-        setup = function (): Run return opened (ONE) end,
-        run = fanned,
-        bytes = weighs,
-    }),
-
-    -- The same fire reaching ten.
-    Harness.row ({
-        name = "fanout.ten",
-        setup = function (): Run return opened (TEN) end,
-        run = fanned,
-        bytes = weighs,
-    }),
-
-    --[[
-        The same fire reaching a hundred, which is where a per-recipient encode would be impossible
-        to miss.
-    ]]
-    Harness.row ({
-        name = "fanout.hundred",
-        setup = function (): Run return opened (HUNDRED) end,
-        run = fanned,
-        bytes = weighs,
-    }),
-}
+return { reaching("one"), reaching("ten"), reaching("hundred") }

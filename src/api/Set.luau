@@ -2,12 +2,12 @@
 --!optimize 2
 -- The set handle: the server's records, the client's view of them, and the one key that splits.
 
-local Base = require ("@src/codec/Base")
-local Define = require ("@src/api/Define")
-local Handles = require ("@src/runtime/Handles")
-local Serial = require ("@src/shape/Serial")
-local Sync = require ("@src/state/Sync")
-local Types = require ("@src/Types")
+local Base = require("../codec/Base")
+local Define = require("./Define")
+local Handles = require("../runtime/Handles")
+local Serial = require("../shape/Serial")
+local Sync = require("../state/Sync")
+local Types = require("../Types")
 
 local Set = {}
 Set.__index = Set
@@ -15,44 +15,35 @@ Set.__index = Set
 -- Private -------------------------------------------------------------
 
 -- The set this handle mutates. Only the server holds records in one.
-local function owning (self: any, said: string): Sync.Sync
+local function owning(self: any, said: string): Sync.Sync
     local live = self.live
-    return Define.reach (live, said, true):set (live.id :: number)
+    return Define.reach(live, said, true):set(live.id :: number)
 end
 
---[[
-    The set this handle reads, or nothing where its namespace has not opened one.
-
-    Nothing rather than a refusal, because a read is what a caller does to find out whether there is
-    anything there, and a set before start holds nothing in exactly the way an empty one does.
-]]
-local function viewing (self: any): Sync.Sync?
+-- The set this handle reads, or nothing where its namespace has not opened one, since a set
+-- before start holds nothing in exactly the way an empty one does.
+local function viewing(self: any): Sync.Sync?
     local live = self.live
     local session = live.session
     if session == nil then return nil end
-
-    return session:set (live.id :: number)
+    return session:set(live.id :: number)
 end
 
--- What a set that has not opened iterates, so a walk before start is a walk and not a refusal.
-local function barren (): (number?, any) return nil end
+local function barren(): (number?, any)
+    return nil
+end
 
---[[
-    A callback, attached whenever the caller liked.
-
-    Set callbacks attach at any time for the reason listeners do, and the one that most needs it is
-    `onAdded`: a client attaching after start would miss the seeding its own join asked for.
-]]
-local function watches (
+-- A callback attached whenever the caller liked. The one that most needs it is `onAdded`: a
+-- client attaching after start would miss the seeding its own join asked for.
+local function watches(
     self: any,
     attach: (Sync.Sync, any) -> Types.Connection,
     fn: any
 ): Types.Connection
     local live = self.live
-    return Handles.later (
-        live,
-        function (session) return attach (session:set (live.id :: number), fn) end
-    )
+    return Handles.later(live, function(session)
+        return attach(session:set(live.id :: number), fn)
+    end)
 end
 
 -- Public --------------------------------------------------------------
@@ -60,130 +51,102 @@ end
 -- What clears an optional field, since nothing else can.
 Set.NONE = Sync.NONE
 
---[[
-    The key is not here. A set is split by a field a caller names afterwards, and until they do,
-    this declares one that goes whole to everybody.
-]]
-function Set.new <T>(of: Types.Codec<T>): Types.Set<T>
-    --[[
-        Level two is the caller, so a set refused at start is named against the line that declared
-        it rather than against the start that did the refusing.
-    ]]
-    local file, line = debug.info (2, "sl")
+-- A set that goes whole to everybody until a key splits it.
+function Set.new<T>(of: Types.Codec<T>): Types.Set<T>
+    local file, line = debug.info(2, "sl")
     local self = {
         kind = "set" :: "set",
         of = of,
         keyField = nil :: string?,
         at = { file = file, line = line },
-        live = Handles.live (),
+        live = Handles.live(),
     }
-
-    return (setmetatable (self, Set) :: any) :: Types.Set<T>
+    return (setmetatable(self, Set) :: any) :: Types.Set<T>
 end
 
---[[
-    The field records are split by, and what an audience is later assigned against.
-
-    Whether the field exists and whether its codec can be a key is settled at start against the
-    compiled record, since there is no record to look in at the declaration.
-]]
-function Set.keyBy (self: any, field: string): any
-    Define.declaring (self.live, "keyBy")
+-- The field records are split by, and what an audience is later assigned against. Whether it
+-- exists and can be a key is settled at start against the compiled record.
+function Set.keyBy(self: any, field: string): any
+    Define.declaring(self.live, "keyBy")
     self.keyField = field
     return self
 end
 
 -- The full record, under an id nothing else in this set holds.
-function Set.add (self: any, id: number, record: any)
-    local of = owning (self, "add")
-    Sync.add (of, id, record)
+function Set.add(self: any, id: number, record: any)
+    Sync.add(owning(self, "add"), id, record)
 end
 
 -- Only the fields named, and only to whoever can already see the record they are on.
-function Set.update (self: any, id: number, fields: any)
-    local of = owning (self, "update")
-    Sync.update (of, id, fields)
+function Set.update(self: any, id: number, fields: any)
+    Sync.update(owning(self, "update"), id, fields)
 end
 
-function Set.remove (self: any, id: number)
-    local of = owning (self, "remove")
-    Sync.remove (of, id)
+function Set.remove(self: any, id: number)
+    Sync.remove(owning(self, "remove"), id)
 end
 
---[[
-    Everything at once, sent as one marker a partition rather than a removal an id. A listener is
-    still told once a record, under a cause naming the clear that did it.
-]]
-function Set.clear (self: any)
-    local of = owning (self, "clear")
-    Sync.clear (of)
+-- Everything at once, sent as one marker a partition. A listener is still told once a record.
+function Set.clear(self: any)
+    Sync.clear(owning(self, "clear"))
 end
 
---[[
-    Who sees the records under one key. An unkeyed set has no key to say it about.
-
-    Refused rather than ignored: an audience on a set that goes to everybody is a caller who
-    believes they have restricted something and has not.
-]]
-function Set.audience (self: any, key: any, to: Types.Recipient)
-    local of = owning (self, "audience")
+-- Who sees the records under one key. Refused on an unkeyed set rather than ignored, since that
+-- is a caller who believes they restricted something and has not.
+function Set.audience(self: any, key: any, to: Types.Recipient)
+    local of = owning(self, "audience")
     if self.keyField == nil then
-        Define.refuse (
-            "audience is for a set split by keyBy, and this one goes to everybody",
-            Define.naming (self.live, "audience")
-        )
+        local said = "audience is for a set split by keyBy, and this one goes to everybody"
+        Define.refuse(said, Define.naming(self.live, "audience"))
     end
-
-    Sync.audience (of, key, to)
+    Sync.audience(of, key, to)
 end
 
---[[
-    The live record under an id, borrowed rather than copied.
-
-    Nothing where this machine holds no record under it. On a client that is every id its audiences
-    do not reach, as well as every id nobody has added.
-]]
-function Set.get (self: any, id: number): any?
-    local of = viewing (self)
-    if of == nil then return nil end
-
-    return Sync.get (of, id)
+-- The live record under an id, borrowed rather than copied, or nothing where this machine holds
+-- none under it.
+function Set.get(self: any, id: number): any?
+    local of = viewing(self)
+    return if of == nil then nil else Sync.get(of, id)
 end
 
-function Set.__len (self: any): number
-    local of = viewing (self)
-    if of == nil then return 0 end
-
-    return Sync.size (of)
+function Set.__len(self: any): number
+    local of = viewing(self)
+    return if of == nil then 0 else Sync.size(of)
 end
+
+-- The count as a call, for a caller whose language has no length operator to reach `__len` by.
+Set.size = Set.__len
 
 -- Every record this machine holds, in no order a caller may rely on.
-function Set.__iter (self: any): (any, any, any)
-    local of = viewing (self)
+function Set.__iter(self: any): (any, any, any)
+    local of = viewing(self)
     if of == nil then return barren, self, nil end
-
-    return Sync.walk (of), self, nil
+    return Sync.walk(of), self, nil
 end
 
-function Set.onAdded (self: any, fn: (number, any) -> ()): Types.Connection
-    return watches (self, Sync.onAdded, fn)
+-- The same walk as a call, for a caller whose language reaches `__iter` through no syntax of
+-- its own.
+Set.entries = Set.__iter
+
+function Set.onAdded(self: any, fn: (number, any) -> ()): Types.Connection
+    return watches(self, Sync.onAdded, fn)
 end
 
-function Set.onChanged (self: any, fn: (number, any, any?) -> ()): Types.Connection
-    return watches (self, Sync.onChanged, fn)
+function Set.onChanged(self: any, fn: (number, any, any?) -> ()): Types.Connection
+    return watches(self, Sync.onChanged, fn)
 end
 
-function Set.onRemoved (self: any, fn: (number, Types.Cause) -> ()): Types.Connection
-    return watches (self, Sync.onRemoved, fn)
+function Set.onRemoved(self: any, fn: (number, Types.Cause) -> ()): Types.Connection
+    return watches(self, Sync.onRemoved, fn)
 end
 
 -- The field this set keys by, and the record standing under it.
-function Set.describe (self: any): string
-    return Serial.frame ({
+function Set.describe(self: any): string
+    return Serial.frame({
         kind = "set",
-        of = { cell = Base.cell (self.of) },
+        of = { cell = Base.cell(self.of) },
         keyField = self.keyField,
     })
 end
 
-return table.freeze (Set)
+return table.freeze(Set)

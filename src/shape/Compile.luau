@@ -2,22 +2,22 @@
 --!optimize 2
 -- A namespace of declarations as the frozen records every layer above reads it by.
 
-local Base = require ("@src/codec/Base")
-local Frames = require ("@src/shape/Frames")
-local Legality = require ("@src/shape/Legality")
-local Log = require ("@src/kernel/Log")
-local Order = require ("@src/shape/Order")
-local Serial = require ("@src/shape/Serial")
-local Shape = require ("@src/shape")
-local Types = require ("@src/Types")
-local Wide = require ("@src/kernel/Wide")
+local Base = require("../codec/Base")
+local Frames = require("./Frames")
+local Legality = require("./Legality")
+local Log = require("../kernel/Log")
+local Order = require("./Order")
+local Serial = require("./Serial")
+local Shape = require("../shape")
+local Types = require("../Types")
+local Wide = require("../kernel/Wide")
 
 local Compile = {}
 
 -- Constants -----------------------------------------------------------
 
 -- What a template holds in every field, which is a place rather than a value.
-const PLACE = false
+local PLACE = false
 
 -- Types ---------------------------------------------------------------
 
@@ -37,11 +37,8 @@ export type Packet = {
     read timestamped: boolean,
 }
 
---[[
-    A query holds two builds and one id, and its response is that id and one. A frame carries a
-    single axis and no kind bit, so which half arrived is read off whether the id is the one the
-    record carries, a comparison the router already holds both sides of.
-]]
+-- A query holds two builds and takes two ids, its response the id after its request. A frame
+-- carries no kind bit, so which half arrived is read off which id it came under.
 export type Query = {
     read id: number,
     read name: string,
@@ -58,12 +55,8 @@ export type Query = {
     read blockBytes: number,
 }
 
---[[
-    A set is its fields, so what it carries is per field and in one order. The record's own cell is
-    here and its own build is not, since a section never writes a whole record and the cell is all
-    the descriptor ever wanted. Which fields may hold nothing and which may only climb are beside
-    the builds, because reading either off a cell at the call would be `state` reading a codec.
-]]
+-- A set is its fields, so what it carries is per field and in one order. The record's own cell is
+-- here and its own build is not, since a section never writes a whole record.
 export type Set = {
     read id: number,
     read name: string,
@@ -83,21 +76,15 @@ export type Set = {
     read fieldCount: number,
     read newestFields: { number },
     read optionalFields: { boolean },
-    read climbingFields: { boolean },
-    read climbs: boolean,
     read template: { [string]: any },
     read site: Shape.Site,
 }
 
--- The marker vocabulary, re-exported rather than reached for.
 export type Marker = Base.Marker
 
 export type Def = Packet | Query | Set
 
---[[
-    A namespace, compiled. `count` is how many ids were handed out rather than how many definitions
-    there are, because a defId is a ranged int over exactly that and a query took two.
-]]
+-- A namespace compiled. `count` is how many ids were handed out, since a query took two.
 export type Compiled = {
     read space: string,
     read descriptor: string,
@@ -115,7 +102,6 @@ type Fields = {
     built: { Shape.Built },
     newest: { number },
     optional: { boolean },
-    climbs: { boolean },
     template: { [string]: any },
     site: Shape.Site,
     bytes: number,
@@ -124,161 +110,134 @@ type Fields = {
 -- Private -------------------------------------------------------------
 
 -- A handle as the declaration it carries.
-local function declared (of: Types.Definition): Legality.Declared return of :: any end
+local function declared(of: Types.Definition): Legality.Declared
+    return of :: any
+end
 
--- A set's fields, in the order their columns are indexed by.
-local function columns (name: string, cell: Base.Cell): Fields
+-- A set's fields in the order their columns are indexed by, built against one site so a section
+-- over every field numbers its paths and references together.
+local function columns(name: string, cell: Base.Cell): Fields
     local fields = cell.children :: { [string]: Base.Cell }
-    local names = Order.names (fields)
+    local names = Order.names(fields)
     local reach = #names
-
-    local built = table.create (reach) :: { Shape.Built }
-    local place: { [string]: number } = {}
+    local built = table.create(reach) :: { Shape.Built }
+    local index: { [string]: number } = {}
     local newest: { number } = {}
-    local optional = table.create (reach) :: { boolean }
-    local climbs = table.create (reach) :: { boolean }
+    local optional = table.create(reach) :: { boolean }
     local template: { [string]: any } = {}
+    local site = Shape.site()
     local bytes = 0
 
-    --[[
-        One site for the whole set rather than one a field, everything in it numbered from
-        nothing. A section is one block over every field and a boundary holds the definition, so
-        fields numbering into tables of their own would each start again at one.
-    ]]
-    local site: Shape.Site = {
-        paths = Serial.interner (),
-        expected = Serial.interner (),
-        sidecar = { refs = {}, slotOf = {}, bears = false },
-    }
-
-    for index, field in names do
+    for place, field in names do
         local held = fields[field]
-        local one = Shape.build (Base.codec (held), Serial.under (name, field), site)
-
-        built[index] = one
-        place[field] = index
+        local one = Shape.build(Base.codec(held), Serial.under(name, field), site)
+        built[place] = one
+        index[field] = place
         bytes += one.maxBytes
         template[field] = PLACE
-        optional[index] = held.kind == "optional"
-        climbs[index] = held.marker == "monotonic"
-
-        if held.marker == "newest" then table.insert (newest, index) end
+        optional[place] = held.kind == "optional"
+        if held.marker == "newest" then table.insert(newest, place) end
     end
 
     return {
-        names = table.freeze (names),
-        index = table.freeze (place),
-        built = table.freeze (built),
-        newest = table.freeze (newest),
-        optional = table.freeze (optional),
-        climbs = table.freeze (climbs),
-        template = table.freeze (template),
+        names = table.freeze(names),
+        index = table.freeze(index),
+        built = table.freeze(built),
+        newest = table.freeze(newest),
+        optional = table.freeze(optional),
+        template = table.freeze(template),
         site = site,
         bytes = bytes,
     }
 end
 
--- One declaration as the record it becomes, at the id and under the count it was given.
-local function made (name: string, id: number, over: number, of: Legality.Declared): Def
-    local at = of.at
+-- A newest packet's block is a different form: it carries a sequence and never a continuation,
+-- since its senders coalesce to one value before it is sequenced.
+local function packet(name: string, id: number, over: number, of: Legality.Packet): Packet
+    local built = Shape.build(of.of, name)
+    local lane = Legality.delivery(of)
+    local head = if lane == "newest"
+        then Frames.newest(over, of.isTimestamped)
+        elseif of.isTimestamped then Frames.stamped(over)
+        else Frames.running(over)
+    local bytes = Frames.block(head, built.maxBytes)
+    Legality.block(name, of, bytes)
+    return table.freeze({
+        id = id,
+        name = name,
+        kind = "packet" :: "packet",
+        maxBytes = built.maxBytes,
+        file = of.at.file,
+        line = of.at.line,
+        built = built,
+        head = head,
+        blockBytes = bytes,
+        delivery = lane,
+        hz = of.hz,
+        timestamped = of.isTimestamped,
+    })
+end
 
-    if of.kind == "packet" then
-        local built = Shape.build (of.of, name)
-        local lane = Legality.delivery (of)
+-- Two blocks at two ids under one running head, costing the wider of them. Neither is held to a
+-- ceiling: both ride the reliable lane, which is bounded by the budget rather than by one fire.
+local function query(name: string, id: number, over: number, of: Legality.Query): Query
+    local request = Shape.build(of.of, Serial.under(name, Legality.REQUEST))
+    local response = Shape.build(of.reply, Serial.under(name, Legality.RESPONSE))
+    local head = Frames.running(over)
+    return table.freeze({
+        id = id,
+        name = name,
+        kind = "query" :: "query",
+        maxBytes = math.max(request.maxBytes, response.maxBytes),
+        file = of.at.file,
+        line = of.at.line,
+        request = request,
+        response = response,
+        asks = head,
+        answers = head,
+        asking = Frames.asking(),
+        answering = Frames.answering(),
+        blockBytes = Frames.block(head, math.max(request.maxBytes, response.maxBytes)),
+    })
+end
 
-        --[[
-            A newest packet's block is a different form rather than the same one differently filled:
-            it carries a sequence and never a continuation, because its senders coalesce to one
-            value before it is sequenced and a bit saying so would never be anything else.
-        ]]
-        local head = if lane == "newest"
-            then Frames.newest (over, of.isTimestamped)
-            elseif of.isTimestamped then Frames.stamped (over)
-            else Frames.running (over)
-
-        local bytes = Frames.block (head, built.maxBytes)
-        Legality.block (name, of, bytes)
-
-        return table.freeze ({
-            id = id,
-            name = name,
-            kind = "packet" :: "packet",
-            maxBytes = built.maxBytes,
-            file = at.file,
-            line = at.line,
-            built = built,
-            head = head,
-            blockBytes = bytes,
-            delivery = lane,
-            hz = of.hz,
-            timestamped = of.isTimestamped,
-        })
-    end
-
-    --[[
-        A query is two blocks at two ids, so it is two heads, and what one costs is the wider of
-        them. Neither is held to a ceiling: both ride the reliable lane, which is never split and is
-        bounded by the budget rather than by what one fire carries.
-    ]]
-    if of.kind == "query" then
-        local request = Shape.build (of.of, Serial.under (name, Legality.REQUEST))
-        local response = Shape.build (of.reply, Serial.under (name, Legality.RESPONSE))
-
-        local asks = Frames.running (over)
-        local answers = Frames.running (over)
-
-        return table.freeze ({
-            id = id,
-            name = name,
-            kind = "query" :: "query",
-            maxBytes = math.max (request.maxBytes, response.maxBytes),
-            file = at.file,
-            line = at.line,
-            request = request,
-            response = response,
-            asks = asks,
-            answers = answers,
-            asking = Frames.asking (),
-            answering = Frames.answering (),
-            blockBytes = math.max (
-                Frames.block (asks, request.maxBytes),
-                Frames.block (answers, response.maxBytes)
-            ),
-        })
-    end
-
-    local cell = Base.cell (of.of)
-    local held = columns (name, cell)
+local function set(name: string, id: number, over: number, of: Legality.Set): Set
+    local cell = Base.cell(of.of)
+    local held = columns(name, cell)
     local key = of.keyField
-
-    return table.freeze ({
+    return table.freeze({
         id = id,
         name = name,
         kind = "set" :: "set",
         maxBytes = held.bytes,
-        file = at.file,
-        line = at.line,
+        file = of.at.file,
+        line = of.at.line,
         cell = cell,
-        head = Frames.section (over),
-        stream = Frames.stream (over, #held.names),
-        follow = Frames.follow (#held.names),
+        head = Frames.section(over),
+        stream = Frames.stream(over, #held.names),
+        follow = Frames.follow(#held.names),
         keyField = key,
         keyIndex = if key == nil then nil else held.index[key],
         fieldNames = held.names,
         fieldIndex = held.index,
         fieldBuilt = held.built,
-        site = held.site,
         fieldCount = #held.names,
         newestFields = held.newest,
         optionalFields = held.optional,
-        climbingFields = held.climbs,
-        climbs = next (held.climbs) ~= nil,
         template = held.template,
+        site = held.site,
     })
 end
 
+-- One declaration as the record it becomes, at the id and under the count it was given.
+local function made(name: string, id: number, over: number, of: Legality.Declared): Def
+    if of.kind == "packet" then return packet(name, id, over, of) end
+    if of.kind == "query" then return query(name, id, over, of) end
+    return set(name, id, over, of)
+end
+
 -- A definition as the descriptor writes it.
-local function framed (of: Def): Serial.Frame
+local function framed(of: Def): Serial.Frame
     if of.kind == "packet" then
         return {
             kind = "packet",
@@ -288,7 +247,6 @@ local function framed (of: Def): Serial.Frame
             timestamped = of.timestamped,
         }
     end
-
     if of.kind == "query" then return { kind = "query", of = of.request, reply = of.response } end
     return { kind = "set", of = { cell = of.cell }, keyField = of.keyField }
 end
@@ -296,54 +254,47 @@ end
 -- Public --------------------------------------------------------------
 
 -- A namespace's declarations, refused or compiled, as one frozen record.
-function Compile.build (space: string, specs: Types.Definitions): Compiled
-    local why = Legality.named (space)
-    if why ~= nil then Log.refuse (`the namespace {space} {why}`) end
-
-    local names = Order.names (specs)
+function Compile.build(space: string, specs: Types.Definitions): Compiled
+    local why = Legality.named(space)
+    if why ~= nil then Log.refuse(`the namespace {space} {why}`) end
 
     -- How many ids there are, before any of them is handed out.
+    local names = Order.names(specs)
     local over = 0
     for _, name in names do
-        over += if declared (specs[name]).kind == "query" then 2 else 1
+        over += if declared(specs[name]).kind == "query" then 2 else 1
     end
 
-    local list = table.create (#names) :: { Def }
+    local list = table.create(#names) :: { Def }
     local byName: { [string]: Def } = {}
     local byId: { [number]: Def } = {}
     local frames: { [string]: Serial.Frame } = {}
-
     local at = 0
     for _, name in names do
-        local of = declared (specs[name])
-        Legality.definition (name, of)
-
-        local def = made (name, at, over, of)
-        table.insert (list, def)
+        local of = declared(specs[name])
+        Legality.definition(name, of)
+        local def = made(name, at, over, of)
+        table.insert(list, def)
         byName[name] = def
-        frames[name] = framed (def)
-
+        frames[name] = framed(def)
         byId[at] = def
-        if def.kind ~= "query" then
+        at += 1
+        if def.kind == "query" then
+            byId[at] = def
             at += 1
-            continue
         end
-
-        byId[at + 1] = def
-        at += 2
     end
 
-    local descriptor = Serial.namespace (space, frames)
-
-    return table.freeze ({
+    local descriptor = Serial.namespace(space, frames)
+    return table.freeze({
         space = space,
         descriptor = descriptor,
-        hash = Serial.hash (descriptor),
+        hash = Serial.hash(descriptor),
         count = over,
-        list = table.freeze (list),
-        byName = table.freeze (byName),
-        byId = table.freeze (byId),
+        list = table.freeze(list),
+        byName = table.freeze(byName),
+        byId = table.freeze(byId),
     })
 end
 
-return table.freeze (Compile)
+return table.freeze(Compile)

@@ -30,40 +30,20 @@ jobs:
       # The release gate is the merge gate. Nothing ships that would not merge.
       - run: lune run scripts/run.luau verify
       - run: lune run scripts/run.luau check
+      - run: lune run scripts/run.luau bench
 
-      # wally.toml is the one home of the version, and every other file is a copy
-      # the versions check already holds to it.
+      # wally.toml is the one home of the version.
       - id: version
-        run: echo "value=$(grep -m1 '^version' wally.toml | sed -E 's/.*\"(.*)\".*/\1/')" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(grep -m1 '^version' wally.toml | sed -E 's/.*"(.*)".*/\1/')" >> "$GITHUB_OUTPUT"
 
       - run: lune run scripts/run.luau build
-      - run: lune run scripts/run.luau test
-      - run: lune run scripts/run.luau bench
-      - run: lune run scripts/run.luau dist
 
-      # What was verified, kept so a published package can be held against it. Publishing
-      # happens from a machine somebody is signed in on rather than from here.
-      - uses: actions/upload-artifact@v7.0.1
-        with:
-          name: dist
-          path: dist/
-          retention-days: 7
-          if-no-files-found: error
-
-      # The names a person downloads, which the readme names and every release before this used.
-      # The build names say which project made them, and say nothing to whoever is fetching one.
-      - run: |
-          mv build/default.rbxm build/Lync.rbxm
-          mv build/test.rbxl build/Lync-dev.rbxl
-          mv build/bench.rbxl build/Lync-bench.rbxl
-
+      # The model a person downloads. Publishing to the registries happens from a machine
+      # somebody is signed in on, with wally publish and npm publish at the repository root.
       - uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: v${{ steps.version.outputs.value }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: Cut against ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          files: |
-            build/Lync.rbxm
-            build/Lync-dev.rbxl
-            build/Lync-bench.rbxl
+          files: build/Lync.rbxm

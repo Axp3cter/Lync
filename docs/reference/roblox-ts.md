@@ -1,8 +1,25 @@
 # roblox-ts
 
+The API is the same as in Luau, apart from the differences below.
+
+| | Luau | roblox-ts |
+| --- | --- | --- |
+| Calls | `set:add(id, record)` | `set.add(id, record)` |
+| Count | `#set` | `set.size()` |
+| Records | `for id, record in set` | `for (const [id, record] of set.entries())` |
+| Members | `for _, player in group` | `for (const player of group.players())` |
+| Type helpers | `Types.Infer<C>` | `Lync.Infer<C>` |
+| Instance class | `Lync.inst("Player")` | `Lync.inst<Player>()` |
+| Audience key | Untyped | Typed from the `keyBy` field, so calling `audience` on a set without `keyBy` is a compile error. |
+
+The package is scoped under `@axpecter`, so add that scope to the type roots and to the Rojo
+project alongside `@rbxts`.
+
 ```json title="tsconfig.json"
 "typeRoots": ["node_modules/@rbxts", "node_modules/@axpecter"]
 ```
+
+A schema, its inferred type, and iteration over a set and a group.
 
 ```ts
 import Lync from "@axpecter/lync";
@@ -22,19 +39,13 @@ const Net = Lync.define("arena", {
     Who: Lync.packet(Lync.inst<Player>()),
 });
 
-Net.Fighters.audience("red", Lync.all);     // typed: "red" | "blue"
-for (const [id, record] of Net.Fighters.entries()) print(id, record.name);
-for (const player of Lync.group().players()) print(player.UserId);
+Net.Fighters.audience("red", Lync.all);
+
+for (const [id, record] of Net.Fighters.entries()) {
+    print(id, record.name);
+}
+
+for (const player of Lync.group().players()) {
+    print(player.UserId);
+}
 ```
-
-| | Luau | roblox-ts |
-| --- | --- | --- |
-| calls | `set:add(id, r)` | `set.add(id, r)` |
-| count | `#set` | `set.size()` |
-| records | `for id, r in set` | `for (const [id, r] of set.entries())` |
-| members | `for _, p in group` | `for (const p of group.players())` |
-| helpers | `Types.Infer<C>` | `Lync.Infer<C>` |
-| instance class | `Lync.inst("Player")` | `Lync.inst<Player>()` |
-| audience key | untyped | typed, so `audience` before `keyBy` is a compile error |
-
-Add both folders to your Rojo project file as well as both type roots, since the package is scoped.

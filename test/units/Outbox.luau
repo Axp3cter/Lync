@@ -163,4 +163,33 @@ return {
             Outbox.fire(link)
         end, `past the {Protocol.MAX_FIRE}`)
     end),
+
+    -- A run of blocks past the ceiling goes out as several frames, cut between blocks, each
+    -- under the ceiling and all in order, and the queue is empty after.
+    Harness.case("outbox.splits-past-the-ceiling", function()
+        local link, wire, seen = rigged()
+        local each = ROOM - 48
+        local count = Protocol.MAX_FIRE // each + 3
+        for index = 1, count do
+            local text = string.format("%05d", index) .. string.rep("b", each - 5)
+            Outbox.shared(link, block(link, text, Blocks.PACKET))
+        end
+        Outbox.fire(link)
+        wire:deliver()
+
+        Expect.holds(#seen > 1, `a run of {count * each} bytes went out as one frame`)
+        local carried, expected = 0, 1
+        for _, frame in seen do
+            Expect.equal(frame.at, "reliable")
+            Expect.holds(#frame.text <= Protocol.MAX_FIRE, `a frame of {#frame.text} bytes`)
+            Expect.equal(#frame.text % each, 0)
+            for at = 1, #frame.text, each do
+                Expect.equal(tonumber(string.sub(frame.text, at, at + 4)), expected)
+                expected += 1
+            end
+            carried += #frame.text
+        end
+        Expect.equal(carried, count * each)
+        Expect.equal(#link.shared[Blocks.PACKET], 0)
+    end),
 }

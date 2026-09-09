@@ -1,38 +1,70 @@
 # Lifecycle
 
+The server and each client make the same three calls.
+
 ```lua
-Lync.start()                                   -- once per side, after every definition
-RunService.PostSimulation:Connect(Lync.flush)  -- one frame per client
-game:BindToClose(Lync.close)                   -- open requests end as "shutdown"
+Lync.start()
+RunService.PostSimulation:Connect(Lync.flush)
+game:BindToClose(Lync.close)
 ```
 
-A second `start` throws. A flush before `start` throws. A second `close` does nothing.
+| Call | |
+| --- | --- |
+| `Lync.start()` | Locks the definitions and responders and creates the remotes. Call once per side, after every definition. |
+| `Lync.flush(budget?)` | Sends everything buffered since the last flush, one frame per client. A flush with nothing buffered costs nothing. |
+| `Lync.flush(name, budget?)` | The same for one namespace, on its own cadence. |
+| `Lync.close()` | Flushes one last time, ends open requests with the `shutdown` code, and destroys the remotes. |
+
+| Out of order | |
+| --- | --- |
+| A second `start` | Throws. |
+| A flush before `start` | Throws. |
+| A second `close` | Does nothing. |
 
 ## Budgets
 
-```lua
-Lync.flush(8192)           -- every namespace, at most 8 KB of set state per client
-Lync.flush("arena", 8192)  -- one namespace, on its own cadence
-Lync.flush("bulk")         -- default budget, 32 KB per second per client
-```
+A budget limits how many bytes of set state one flush sends to each client. State beyond the
+budget is sent in later flushes, in order. Packets, requests and replies are not limited by it.
 
-A budget throttles set state only. Packets and requests always send in full. State over the
-budget waits for the next flush, in order. Under 1024 throws.
+| Call | Budget |
+| --- | --- |
+| `Lync.flush()` | The default, 32 KB per second per client. |
+| `Lync.flush(8192)` | At most 8 KB of state per client, every namespace. |
+| `Lync.flush("arena", 8192)` | The same for one namespace. |
+| `Lync.flush(512)` | Throws. 1024 is the floor. |
 
 !!! note
-    Namespaces never queue behind each other. Flush a latency critical one every frame and a bulk
-    one a few times a second.
+    Namespaces flush independently of each other. A namespace with latency critical traffic can
+    flush every frame while a bulkier one flushes a few times a second with a larger budget.
 
 ## Groups
 
+A group is a set of players. It can be passed anywhere a recipient is accepted.
+
 ```lua
-local red = Lync.group()
-red:add(player)
-red:remove(player)
-red:has(player)
-for _, member in red do end  -- #red
-red:destroy()                -- any later use throws
+local redTeam = Lync.group()
+
+redTeam:add(player)
+redTeam:remove(player)
+
+if redTeam:has(player) then
+    greet(player)
+end
+
+for _, member in redTeam do
+    greet(member)
+end
+
+redTeam:destroy()
 ```
 
-A group goes anywhere a recipient does and thins out as players leave. Audiences and `except`
-hold the group itself.
+| Call | |
+| --- | --- |
+| `add(player)` `remove(player)` | Adding a player twice has no further effect. |
+| `has(player)` | |
+| `#group`, `for _, player in group` | Count and walk the members. |
+| `destroy()` | Empties the group and frees it. Any call after that throws. |
+
+Players who leave the game are removed from every group. Audiences and `Lync.except` keep a
+reference to the group rather than a copy, so a change in membership takes effect on the next
+flush without calling `audience` again.

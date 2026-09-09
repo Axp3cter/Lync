@@ -4,6 +4,7 @@
 
 local Listeners = require("../kernel/Listeners")
 local Log = require("../kernel/Log")
+local Threads = require("../kernel/Threads")
 local Types = require("../Types")
 
 local Dispatch = {}
@@ -73,11 +74,18 @@ function Dispatch.packets(
     Listeners.fanBatch(heard, count, values, ...)
 end
 
--- A decoded request, run, and whether there is anything to send back.
-function Dispatch.request(of: Wiring, id: number, ...: any): (boolean, any)
+-- A decoded request, run on a thread of its own so a responder that yields holds up nothing read
+-- after it, and whatever it came to handed to `done`: whether it answered, and the answer. One
+-- with no responder is done at once.
+function Dispatch.request(of: Wiring, id: number, done: (boolean, any) -> (), ...: any)
     local fn = of.answering[id]
-    if fn == nil then return false, nil end
-    return Log.call(fn, ...)
+    if fn == nil then
+        done(false, nil)
+        return
+    end
+    Threads.spawn(function(...)
+        done(Log.call(fn, ...))
+    end, ...)
 end
 
 return table.freeze(Dispatch)

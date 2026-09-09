@@ -1,95 +1,124 @@
 # Codecs
 
-A codec says how one value validates, encodes and decodes. Out of range throws on the way out and
-drops on the way in.
+A codec defines how a value is validated, encoded and decoded. Sending a value outside the
+codec's bounds throws. Receiving one drops it.
 
 ## Numbers
 
-| | Type | |
+| Codec | Type | |
 | --- | --- | --- |
 | `int(min, max)` | `number` | Whole, bounded. |
-| `quant(min, max, step)` | `number` | Rounded onto a grid. |
-| `angle(degrees)` | `number` | Cyclic, wraps at a whole turn. |
+| `quant(min, max, step)` | `number` | Rounded onto a grid of `step`. |
+| `angle(degrees)` | `number` | Cyclic, wraps at a whole turn, at that precision. |
 | `f32()` `f64()` | `number` | Roughly 7 and 15 digits. |
 | `vlq()` `vli()` | `number` | Unbounded integers exact to 2^53, unsigned and signed. |
 | `bool()` | `boolean` | One bit. |
 | `empty()` | `nil` | No payload. |
 
-```lua
-Lync.int(0, 100)            -- 7 bits
-Lync.quant(-512, 512, 0.1)  -- 14 bits
-Lync.angle(1)               -- 9 bits
-Lync.f32()                  -- 32 bits
-```
+The wire size of some examples.
+
+| Codec | Bits |
+| --- | --- |
+| `int(0, 100)` | 7 |
+| `quant(-512, 512, 0.1)` | 14 |
+| `angle(1)` | 9 |
+| `f32()` | 32 |
 
 ## Text
 
-| | Type | |
+| Codec | Type | |
 | --- | --- | --- |
 | `str(min, max)` | `string` | Byte length bounded. |
-| `str.alphabet(symbols, min, max)` | `string` | Only those characters. Smaller set, fewer bits per character. |
-| `buffer(min, max)` | `buffer` | Opaque bytes. |
+| `str.alphabet(symbols, min, max)` | `string` | Only the given characters are allowed. A smaller set takes fewer bits per character. |
+| `buffer(min, max)` | `buffer` | Opaque bytes, length bounded. |
+
+A 32 character hex string. Each character takes 4 bits, so the whole string takes 16 bytes.
 
 ```lua
-Lync.str.alphabet("0123456789abcdef", 32, 32)  -- 4 bits a character, 16 bytes total
+Lync.str.alphabet("0123456789abcdef", 32, 32)
 ```
 
 ## Roblox
 
-| | Type | |
+| Codec | Type | |
 | --- | --- | --- |
-| `vec2(c?)` `vec3(c?)` | `Vector2` `Vector3` | `f32` per component, or one codec for each. |
-| `vec3.unit(degrees)` | `Vector3` | A direction. Any nonzero vector normalizes at encode. |
-| `cframe(position, rotation)` | `CFrame` | A position codec with a rotation codec. |
-| `rotation.none()` `.quat(degrees)` | `CFrame` | No degrees of freedom, or three. |
-| `color3()` `.rgb565()` | `Color3` | Floats, or one 16 bit word. |
-| `inst(class?)` | `Instance?` | Always optional. A receiver that cannot see it gets nil. |
+| `vec2(component?)` `vec3(component?)` | `Vector2` `Vector3` | `f32` per component, or one codec for every component. |
+| `vec3.unit(degrees)` | `Vector3` | A direction at the given precision. Any nonzero vector is normalized when encoded. |
+| `cframe(position, rotation)` | `CFrame` | A position codec paired with a rotation codec. |
+| `rotation.none()` | `CFrame` | No rotation at all. |
+| `rotation.quat(degrees)` | `CFrame` | Any rotation, at that precision. |
+| `color3()` | `Color3` | Three floats. |
+| `color3.rgb565()` | `Color3` | One 16 bit word. |
+| `inst(class?)` | `Instance?` | Always optional. If the instance is not replicated to the receiver, it receives nil. |
+
+A CFrame with the position quantised to 0.1 and the rotation to half a degree, and a reference to
+a part.
 
 ```lua
 Lync.cframe(Lync.vec3(Lync.quant(-512, 512, 0.1)), Lync.rotation.quat(0.5))
 Lync.inst("BasePart")
 ```
 
-UDim2, Region3, Ray and the rest go over with `:as`.
+Other Roblox types such as UDim2, Region3 and Ray can be sent through `:as`, described below.
 
 ## Composites
 
-| | Type | |
+| Codec | Type | |
 | --- | --- | --- |
-| `struct({ k = c })` | `{ k: ... }` | An undeclared field throws on encode. |
-| `array(c, min, max)` | `{ T }` | Count bounded. |
-| `map(k, v, min, max)` | `{ [K]: V }` | Count bounded. |
-| `optional(c)` | `T?` | |
-| `tagged(field, { k = c })` | union | One struct per variant, the name in `field`. |
-| `enum({ "a", "b" })` | `string` | |
-| `bitfield({ "a", "b" })` | `{ a: boolean }` | One bit each. |
+| `struct({ name = codec })` | `{ name: T }` | Named fields. A field that is not declared throws when encoded. |
+| `array(codec, min, max)` | `{ T }` | Count bounded. |
+| `map(key, value, min, max)` | `{ [K]: V }` | Count bounded. |
+| `optional(codec)` | `T?` | May be absent. |
+| `tagged(field, { name = struct })` | union | One struct per variant. The variant's name is stored in `field`. |
+| `enum({ "a", "b" })` | `"a" \| "b"` | One of a fixed set. |
+| `bitfield({ "a", "b" })` | `{ a: boolean, b: boolean }` | One bit per flag. |
+
+A tagged union, and a value that matches its `hit` variant.
 
 ```lua
-Lync.tagged("kind", {
+Outcome = Lync.tagged("kind", {
     hit  = Lync.struct({ target = Lync.int(0, 255) }),
     miss = Lync.struct({ at = Lync.vec3() }),
-})
--- { kind = "hit", target = 4 }
+}),
+```
+
+```lua
+Net.Outcome:fireClient(player, { kind = "hit", target = 4 })
 ```
 
 ## Modifiers
 
-| | Scope | |
+A modifier returns a new codec. The codec it was called on is not changed.
+
+| Modifier | Scope | |
 | --- | --- | --- |
-| `:validate(fn)` | any | `fn(value, ctx)` returns nil to pass or a reason to drop. |
-| `:as(to, from)` | any | The wire type to and from your own. |
-| `:newest(hz?)` | set fields | Only the latest matters. `hz` caps the rate. |
+| `:validate(fn)` | any | Adds a check. `fn(value, context)` returns nil to accept or a string to reject. See [Validation](../guide/validation.md). |
+| `:as(lift, lower)` | any | Converts between the wire type and a type of your own. |
+| `:newest(hz?)` | set fields | Only the latest value is delivered. `hz` limits the send rate. |
+
+`:as` takes two functions. The first converts a decoded wire value to your type. The second
+converts your type back to the wire value.
 
 ```lua
-local Fraction = Lync.int(0, 255):as(
-    function(byte) return byte / 255 end,  -- wire to yours
-    function(fraction) return math.round(fraction * 255) end
-)
-
-local UDim = Lync.struct({ s = Lync.f32(), o = Lync.int(-4096, 4096) }):as(
-    function(w) return UDim.new(w.s, w.o) end,
-    function(u) return { s = u.Scale, o = u.Offset } end
-)
+Fraction = Lync.int(0, 255):as(
+    function(byte)
+        return byte / 255
+    end,
+    function(fraction)
+        return math.round(fraction * 255)
+    end
+),
 ```
 
-A modifier answers a new codec. A set marker inside a packet or query throws at start.
+```lua
+UDim = Lync.struct({ scale = Lync.f32(), offset = Lync.int(-4096, 4096) }):as(
+    function(wire)
+        return UDim.new(wire.scale, wire.offset)
+    end,
+    function(udim)
+        return { scale = udim.Scale, offset = udim.Offset }
+    end
+),
+```
+
+Using a set only modifier such as `:newest` inside a packet or query throws at `start`.

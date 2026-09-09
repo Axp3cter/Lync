@@ -68,13 +68,20 @@ return {
     end),
 
     -- A query gets one responder, a second is refused, and a request without one answers nothing.
+    -- Every answer comes through the callback, at once for a responder that does not yield.
     Harness.case("dispatch.responds", function()
         local of = Dispatch.wiring()
-        Expect.equal({ Dispatch.request(of, ID, 5) }, { false, nil })
+        local came: { any } = {}
+        local function done(ok: boolean, value: any)
+            table.insert(came, { ok, value })
+        end
+        Dispatch.request(of, ID, done, 5)
+        Expect.equal(came, { { false, nil } })
         Dispatch.respond(of, ID, NAME, function(value: number, who: any)
             return value * 2, who
         end)
-        Expect.equal({ Dispatch.request(of, ID, 5, "alice") }, { true, 10 })
+        Dispatch.request(of, ID, done, 5, "alice")
+        Expect.equal(came[2], { true, 10 })
         Expect.throws(function()
             Dispatch.respond(of, ID, NAME, function(): any
                 return nil
@@ -84,7 +91,30 @@ return {
         Dispatch.respond(of, ID + 1, "Ask", function(): any
             return error("a responder's own mistake")
         end)
-        local ok = Dispatch.request(of, ID + 1)
-        Expect.equal(ok, false)
+        Dispatch.request(of, ID + 1, done)
+        Expect.equal(came[3], { false, nil })
+    end),
+
+    -- A responder that yields answers when it returns, and a request read after it is not held
+    -- behind it.
+    Harness.case("dispatch.responder-yields", function()
+        local of = Dispatch.wiring()
+        local order: { string } = {}
+        Dispatch.respond(of, ID, NAME, function(value: number)
+            task.wait(0.02)
+            return value * 2
+        end)
+        Dispatch.respond(of, ID + 1, "Quick", function(value: number)
+            return value + 1
+        end)
+        Dispatch.request(of, ID, function(ok: boolean, value: any)
+            table.insert(order, `slow {tostring(ok)} {tostring(value)}`)
+        end, 5)
+        Dispatch.request(of, ID + 1, function(ok: boolean, value: any)
+            table.insert(order, `quick {tostring(ok)} {tostring(value)}`)
+        end, 5)
+        Expect.equal(order, { "quick true 6" })
+        task.wait(0.05)
+        Expect.equal(order, { "quick true 6", "slow true 10" })
     end),
 }

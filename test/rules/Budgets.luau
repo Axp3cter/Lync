@@ -203,17 +203,33 @@ return {
         Expect.equal(holding(of, ARENA), RECORDS)
     end),
 
-    -- A frame assembled past what one fire may carry, since nothing above the outbox bounds a loop
-    -- that fires and never flushes.
+    -- A flush assembled past what one fire may carry goes out as several fires in order, every
+    -- payload arrives once, and the namespace keeps working after.
     Harness.case("ns.frame-ceiling", function()
         local of = paired()
-        local block = string.rep(FILLER, HEAVIEST)
-        for _ = 1, math.ceil(Protocol.MAX_FIRE / HEAVIEST) + 1 do
-            of[ARENA].server.defs[HEAVY]:fireClient(of[ARENA].player, block)
+        local heard: { number } = {}
+        of[ARENA].client.defs[HEAVY]:onClient(function(text: string)
+            table.insert(heard, #text)
+        end)
+        local count = math.ceil(Protocol.MAX_FIRE / HEAVIEST) + 1
+        for index = 1, count do
+            local text = string.rep(FILLER, HEAVIEST - index)
+            of[ARENA].server.defs[HEAVY]:fireClient(of[ARENA].player, text)
         end
-        Expect.throws(function()
-            of[ARENA].server.session:flush()
-        end, "one fire takes")
+        local before = frames(of, ARENA)
+        drains(of, ARENA)
+        Expect.holds(
+            frames(of, ARENA) - before > 1,
+            "a flush past the ceiling went out as one fire"
+        )
+        Expect.equal(#heard, count)
+        for index = 1, count do
+            Expect.equal(heard[index], HEAVIEST - index)
+        end
+
+        of[ARENA].server.defs[HEAVY]:fireClient(of[ARENA].player, "after")
+        drains(of, ARENA)
+        Expect.equal(heard[count + 1], 5)
     end),
 
     -- A client that arrived after the records did, caught up under a budget: the backlog goes over

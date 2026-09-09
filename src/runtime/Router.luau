@@ -9,6 +9,7 @@ local Compile = require("../shape/Compile")
 local Dispatch = require("./Dispatch")
 local Frames = require("../shape/Frames")
 local Ir = require("../shape/Ir")
+local Log = require("../kernel/Log")
 local Pending = require("./Pending")
 local Protocol = require("../wire/Protocol")
 local Sequence = require("../wire/Sequence")
@@ -198,13 +199,18 @@ local function asked(
         local ends, value = Boundary.ran(boundary, def, request, request.read, b, pos)
         if ends == nil then return nil end
         if boundary.took then
-            local ok, answer
-            if from == nil then
-                ok, answer = Dispatch.request(of.heard, def.id, value)
-            else
-                ok, answer = Dispatch.request(of.heard, def.id, value, from)
+            -- An answer the reply codec refuses is the responder's fault: reported with its
+            -- trace like any raise of theirs, and the request ends unanswered.
+            local asked = id
+            local function done(ok: boolean, answer: any)
+                if ok and Log.call(of.answered, def, asked, from, true, answer) then return end
+                of.answered(def, asked, from, false, nil)
             end
-            of.answered(def, id, from, ok, answer)
+            if from == nil then
+                Dispatch.request(of.heard, def.id, done, value)
+            else
+                Dispatch.request(of.heard, def.id, done, value, from)
+            end
         end
         pos = ends
     end

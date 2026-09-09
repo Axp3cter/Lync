@@ -11,7 +11,7 @@ Documentation: [axp3cter.github.io/Lync](https://axp3cter.github.io/Lync/)
 
 ```toml
 [dependencies]
-Lync = "axp3cter/lync@4.0.0"
+Lync = "axp3cter/lync@4.0.1"
 ```
 
 ```bash

@@ -4,6 +4,7 @@
 -- and too many of them at once.
 
 local Codecs = require("@src/codec")
+local Packet = require("@src/api/Packet")
 local Protocol = require("@src/wire/Protocol")
 local Query = require("@src/api/Query")
 local Types = require("@src/Types")
@@ -200,19 +201,27 @@ return {
         Expect.equal((done[1].data :: Types.OutcomeData).definition, PLAIN)
     end),
 
-    -- A responder answering with a value its own response codec does not own is a programmer
-    -- error, thrown for on the machine that answered.
+    -- A responder answering with a value its own response codec does not own is the responder's
+    -- fault: reported with its trace on the machine that answered, and the request ends
+    -- unanswered rather than waiting out its deadline.
     Harness.case("query.reply-out-of-range", function()
         local of = opened(SPACE)
         local done = asking(of, NARROW)
         of.server.session:flush()
-        Expect.throws(function()
+        local held = Records.made(function()
             of.wire:settle()
         end)
-        pcall(function()
-            of.wire:settle()
-        end)
+        Expect.holds(#held > 0, "the refused reply was not reported")
+        Expect.equal(held[1].kind, "error")
+        Expect.holds(
+            string.find(held[1].message, "expected", 1, true) ~= nil,
+            `the report does not name the codec: {held[1].message}`
+        )
         Expect.equal(#done, 0)
+        exchanged(of)
+        Expect.equal(#done, 1)
+        Expect.equal(done[1].ok, false)
+        Expect.equal(done[1].code, UNANSWERED)
     end),
 
     -- A second responder wired onto one query through the session's own guard.
@@ -360,6 +369,54 @@ return {
 
         Expect.equal(theirs, THEIRS + 1)
         Expect.equal(mine, MINE + 1)
+    end),
+
+    -- A responder that yields runs on a thread of its own: what the frame carried after its
+    -- request is read at once, and its answer lands when it returns, behind answers to requests
+    -- asked after it.
+    Harness.case("query.yielding-responder-stalls-nothing", function()
+        local heard: { number } = {}
+        local of = Replica.paired({
+            space = BESIDE,
+            defined = function(): any
+                return {
+                    [COUNTED] = Query.new(Codecs.int(0, WIDE), Codecs.int(0, WIDE)),
+                    [PLAIN] = Packet.new(Codecs.int(0, WIDE)),
+                }
+            end,
+            label = SENDER,
+            wires = function(defs: any, side: string)
+                if side ~= "server" then return end
+                defs[COUNTED]:onServer(function(value: number): number
+                    if value % 2 == 1 then task.wait(0.03) end
+                    return value + 1
+                end)
+                defs[PLAIN]:onServer(function(value: number)
+                    table.insert(heard, value)
+                end)
+            end,
+        })
+
+        local answers: { [number]: number } = {}
+        for value = 1, 4 do
+            task.spawn(function()
+                answers[value] = select(2, of.client.defs[COUNTED]:request(value))
+            end)
+        end
+        of.client.defs[PLAIN]:fireServer(9)
+        of.client.session:flush()
+        of.wire:settle()
+
+        -- The packet behind four requests, two of them parked, was heard in the same settle.
+        Expect.equal(heard, { 9 })
+        of.server.session:flush()
+        of.wire:settle()
+        Expect.equal(answers, { [2] = 3, [4] = 5 })
+
+        task.wait(0.06)
+        of.server.session:flush()
+        of.wire:settle()
+        Expect.equal(answers, { [1] = 2, [2] = 3, [3] = 4, [4] = 5 })
     end),
 
     -- A burst where every other question comes apart, so a run carrying one bit for all of its

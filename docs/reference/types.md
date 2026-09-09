@@ -1,31 +1,44 @@
 # Types
 
-Handlers, records and replies are typed from the schema. Nothing is annotated.
+Handler arguments, records and replies get their types from the schema. No annotations are
+needed.
+
+Three type functions convert a codec into the Luau type of the value it carries. They are
+exported from the `Types` module next to `Lync`.
 
 ```lua
 local Types = require(game.ReplicatedStorage.Lync.Types)
 
-local Fighter = Lync.struct({ name = Lync.str(1, 20), score = Lync.int(0, 1000000) })
+local Fighter = Lync.struct({
+    name = Lync.str(1, 20),
+    score = Lync.int(0, 1000000),
+})
 
-type Fighter = Types.Infer<typeof(Fighter)>      -- { name: string, score: number }
-type Roster  = Types.Schema<typeof(fields)>      -- a table of codecs as its record
-type Patch   = Types.Update<Fighter, Lync.None>  -- what a set update takes
+type Fighter = Types.Infer<typeof(Fighter)>
+type Roster = Types.Schema<typeof(fields)>
+type Patch = Types.Update<Fighter, Lync.None>
 ```
 
-```lua
-local codec: Lync.Codec<number>
-local packet: Lync.Packet<Vector3>
-local query: Lync.Query<Order, Receipt>
-local set: Lync.Set<Fighter>
-local group: Lync.Group
-local conn: Lync.Connection
-local to: Lync.Recipient           -- All | Player | { Player } | Group | Except
-local kind: Lync.LogKind           -- "warn" | "error"
-local cause: Lync.Cause            -- "removed" | "cleared"
-local code: Lync.OutcomeCode       -- "timeout" | "unanswered" | "leave" | "shutdown"
-local ctx: Lync.ValidateContext    -- player, now, last
-local log: Lync.LogData            -- file, line, player?, definition?
-local why: Lync.OutcomeData        -- definition, elapsed?
-local done: Lync.Outcome<Receipt>  -- a server request's completion callback
-local clear: Lync.None             -- the type of Lync.none
-```
+| Type function | Answers |
+| --- | --- |
+| `Infer<C>` | The type of the value a codec carries. `{ name: string, score: number }` in the example. |
+| `Schema<F>` | The record type described by a table of codecs. |
+| `Update<T, None>` | The argument type of a set update: any subset of `T`, with `Lync.none` allowed on optional fields. |
+
+The remaining types are exported from `Lync`, for annotating your own function signatures.
+
+| Type | Holds |
+| --- | --- |
+| `Lync.Codec<T>` | A codec carrying `T`. |
+| `Lync.Packet<T>` `Lync.Query<Q, R>` `Lync.Set<T>` | The three definitions. |
+| `Lync.Group` | A group. |
+| `Lync.Connection` | The value returned by every `on*` method. |
+| `Lync.Recipient` | `Lync.All`, a `Player`, `{ Player }`, a `Group`, or `Lync.Except`. |
+| `Lync.LogKind` | `"warn"` or `"error"`. |
+| `Lync.Cause` | `"removed"` or `"cleared"`. |
+| `Lync.OutcomeCode` | `"timeout"`, `"unanswered"`, `"leave"` or `"shutdown"`. |
+| `Lync.ValidateContext` | `player`, `now`, `last`. |
+| `Lync.LogData` | `file`, `line`, and `player` and `definition` when present. |
+| `Lync.OutcomeData` | `definition`, and `elapsed` when the request ended. |
+| `Lync.Outcome<R>` | A server request's completion callback. |
+| `Lync.None` | The type of `Lync.none`. |

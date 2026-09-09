@@ -129,6 +129,19 @@ return {
         end)
     end),
 
+    -- An add naming a field the record does not declare is refused the same way, since a set
+    -- stores fields by column and would otherwise drop the typo without a word.
+    Harness.case("set.add-unknown-field", function()
+        settled(function()
+            local extra = record(40)
+            extra.nothere = 1
+            Expect.throws(function()
+                roster:add(IDS.unknown, extra)
+            end, "has no field named nothere")
+            Expect.equal(roster:get(IDS.unknown), nil)
+        end)
+    end),
+
     -- An update naming a field the record does not declare, which catches a typo for the untyped
     -- caller.
     Harness.case("set.update-unknown-field", function()

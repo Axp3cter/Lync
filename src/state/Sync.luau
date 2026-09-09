@@ -433,6 +433,11 @@ end
 function Sync.add(of: Sync, id: number, record: any)
     identified(of, id)
     if of.partOf[id] ~= nil then refuse(of, "already holds", id) end
+    for name in record do
+        if of.place[name] == nil then
+            Log.error(`{of.def.name} has no field named {name}`, { definition = of.def.name })
+        end
+    end
     local field = of.def.keyField
     local part = partition(of, if field == nil then nil else record[field])
     local slot = Store.bind(part.store, id)

@@ -10,8 +10,10 @@ codec's bounds throws. Receiving one drops it.
 | `int(min, max)` | `number` | Whole, bounded. |
 | `quant(min, max, step)` | `number` | Rounded onto a grid of `step`. |
 | `angle(degrees)` | `number` | Cyclic, wraps at a whole turn, at that precision. |
-| `f32()` `f64()` | `number` | Roughly 7 and 15 digits. |
-| `vlq()` `vli()` | `number` | Unbounded integers exact to 2^53, unsigned and signed. |
+| `f32()` | `number` | Roughly 7 digits. |
+| `f64()` | `number` | Roughly 15 digits. |
+| `vlq()` | `number` | Unsigned integer, exact to 2^53. |
+| `vli()` | `number` | Signed integer, exact to 2^53. |
 | `bool()` | `boolean` | One bit. |
 | `empty()` | `nil` | No payload. |
 
@@ -42,7 +44,8 @@ Lync.str.alphabet("0123456789abcdef", 32, 32)
 
 | Codec | Type | |
 | --- | --- | --- |
-| `vec2(component?)` `vec3(component?)` | `Vector2` `Vector3` | `f32` per component, or one codec for every component. |
+| `vec2(component?)` | `Vector2` | `f32` per component, or one codec for every component. |
+| `vec3(component?)` | `Vector3` | The same. |
 | `vec3.unit(degrees)` | `Vector3` | A direction at the given precision. Any nonzero vector is normalized when encoded. |
 | `cframe(position, rotation)` | `CFrame` | A position codec paired with a rotation codec. |
 | `rotation.none()` | `CFrame` | No rotation at all. |

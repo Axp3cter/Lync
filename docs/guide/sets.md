@@ -57,7 +57,8 @@ end
 | Either side | |
 | --- | --- |
 | `get(id)` | The current record, or nil. This is the library's own table, so do not modify it, and copy it if you keep it. |
-| `#set`, `for id, record in set` | The number of records this side holds, and iteration over them. |
+| `#set` | The number of records this side holds. |
+| `for id, record in set` | Iteration over them. |
 | `onAdded(fn)` | `fn(id, record)` when a record first becomes visible to this side: an add, a late join, or an audience change. |
 | `onChanged(fn)` | `fn(id, record, old)` with the record after the flush and the record before it. |
 | `onRemoved(fn)` | `fn(id, cause)` with `"removed"` or `"cleared"`. |

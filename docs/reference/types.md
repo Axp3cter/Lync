@@ -30,13 +30,15 @@ The remaining types are exported from `Lync`, for annotating your own function s
 | Type | Holds |
 | --- | --- |
 | `Lync.Codec<T>` | A codec carrying `T`. |
-| `Lync.Packet<T>` `Lync.Query<Q, R>` `Lync.Set<T>` | The three definitions. |
+| `Lync.Packet<T>` | A packet definition. |
+| `Lync.Query<Q, R>` | A query definition. |
+| `Lync.Set<T>` | A set definition. |
 | `Lync.Group` | A group. |
 | `Lync.Connection` | The value returned by every `on*` method. |
-| `Lync.Recipient` | `Lync.All`, a `Player`, `{ Player }`, a `Group`, or `Lync.Except`. |
+| `Lync.Recipient` | Anything `to` accepts. |
 | `Lync.LogKind` | `"warn"` or `"error"`. |
 | `Lync.Cause` | `"removed"` or `"cleared"`. |
-| `Lync.OutcomeCode` | `"timeout"`, `"unanswered"`, `"leave"` or `"shutdown"`. |
+| `Lync.OutcomeCode` | One of the four request endings. |
 | `Lync.ValidateContext` | `player`, `now`, `last`. |
 | `Lync.LogData` | `file`, `line`, and `player` and `definition` when present. |
 | `Lync.OutcomeData` | `definition`, and `elapsed` when the request ended. |

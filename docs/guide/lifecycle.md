@@ -62,7 +62,8 @@ redTeam:destroy()
 | --- | --- |
 | `add(player)` `remove(player)` | Adding a player twice has no further effect. |
 | `has(player)` | |
-| `#group`, `for _, player in group` | Count and walk the members. |
+| `#group` | The number of members. |
+| `for _, player in group` | Iteration over them. |
 | `destroy()` | Empties the group and frees it. Any call after that throws. |
 
 Players who leave the game are removed from every group. Audiences and `Lync.except` keep a

@@ -14,7 +14,9 @@ All methods, grouped by object. The guide pages show them in use.
 | `all` | Every client, as a recipient. |
 | `except(target)` | Everyone but a player, a list, or a group. |
 | `none` | The sentinel that clears an optional field in `update`. |
-| `start()` `flush(name?, budget?)` `close()` | See [Lifecycle](../guide/lifecycle.md). |
+| `start()` | See [Lifecycle](../guide/lifecycle.md). |
+| `flush(name?, budget?)` | |
+| `close()` | |
 | `onLog(fn)` | The log listener. Returns a connection. |
 | `console` | The built-in log listener that prints to the output. A connection. |
 
@@ -22,7 +24,9 @@ All methods, grouped by object. The guide pages show them in use.
 
 | Call | Side | |
 | --- | --- | --- |
-| `:unreliable()` `:newest(hz?)` `:timestamped()` | declaration | Delivery. |
+| `:unreliable()` | declaration | Delivery. |
+| `:newest(hz?)` | declaration | |
+| `:timestamped()` | declaration | |
 | `:fireServer(payload)` | client | |
 | `:fireClient(to, payload)` | server | |
 | `:onServer(fn)` | server | `fn(payload, player, sent?)` |
@@ -35,7 +39,8 @@ All methods, grouped by object. The guide pages show them in use.
 | --- | --- | --- |
 | `:request(value, timeout?)` | client | Yields. Returns `ok, reply, detail`. |
 | `:request(client, value, fn, timeout?)` | server | `fn(ok, reply, detail)` on completion. |
-| `:onServer(fn)` `:onClient(fn)` | either | The one responder for that side. |
+| `:onServer(fn)` | server | The single responder on the server. |
+| `:onClient(fn)` | client | The single responder on the client. |
 | `:describe()` | either | |
 
 ## Set
@@ -43,10 +48,14 @@ All methods, grouped by object. The guide pages show them in use.
 | Call | Side | |
 | --- | --- | --- |
 | `:keyBy(field)` | declaration | Audiences split on `field`. |
-| `:add(id, record)` `:update(id, fields)` `:remove(id)` `:clear()` | server | |
+| `:add(id, record)` | server | |
+| `:update(id, fields)` | server | |
+| `:remove(id)` | server | |
+| `:clear()` | server | |
 | `:audience(key, to)` | server | Keyed sets only. |
 | `:get(id)` | either | The live record or nil. |
-| `:size()` `:entries()` | either | Count and iterator. `#set` and `for id, record in set` do the same. |
+| `:size()` | either | The count. Same as `#set`. |
+| `:entries()` | either | An iterator. Same as `for id, record in set`. |
 | `:onAdded(fn)` | either | `fn(id, record)` |
 | `:onChanged(fn)` | either | `fn(id, record, old)` |
 | `:onRemoved(fn)` | either | `fn(id, cause)` |
@@ -56,8 +65,11 @@ All methods, grouped by object. The guide pages show them in use.
 
 | Call | |
 | --- | --- |
-| `:add(player)` `:remove(player)` `:has(player)` | |
-| `:size()` `:players()` | Count and iterator. `#group` and `for _, player in group` do the same. |
+| `:add(player)` | |
+| `:remove(player)` | |
+| `:has(player)` | |
+| `:size()` | The count. Same as `#group`. |
+| `:players()` | An iterator. Same as `for _, player in group`. |
 | `:destroy()` | Empties and releases. Any later use throws. |
 
 ## Connection

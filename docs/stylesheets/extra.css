@@ -1,0 +1,4 @@
+/* A code span in a table never breaks across lines. The prose column wraps instead. */
+.md-typeset table:not([class]) code {
+    white-space: nowrap;
+}

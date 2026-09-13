@@ -4,7 +4,9 @@ The server and each client make the same three calls.
 
 ```lua
 Lync.start()
-RunService.PostSimulation:Connect(Lync.flush)
+RunService.PostSimulation:Connect(function()
+    Lync.flush()
+end)
 game:BindToClose(Lync.close)
 ```
 
@@ -20,6 +22,7 @@ game:BindToClose(Lync.close)
 | A second `start` | Throws. |
 | A flush before `start` | Throws. |
 | A second `close` | Does nothing. |
+| `flush` connected to a signal directly | Throws. The signal passes the frame time as the first argument, and it is read as a budget under the floor. Connect a function that calls `flush` with no arguments. |
 
 ## Budgets
 

@@ -49,7 +49,9 @@ The server and client code for this namespace.
     Net.Fighters:add(userId, { name = "Ada", team = "red", score = 0, pos = at })
 
     Lync.start()
-    RunService.PostSimulation:Connect(Lync.flush)
+    RunService.PostSimulation:Connect(function()
+        Lync.flush()
+    end)
     ```
 
 === "Client"
@@ -60,7 +62,9 @@ The server and client code for this namespace.
     end)
 
     Lync.start()
-    RunService.PostSimulation:Connect(Lync.flush)
+    RunService.PostSimulation:Connect(function()
+        Lync.flush()
+    end)
 
     Net.Strike:fireServer(aim())
 

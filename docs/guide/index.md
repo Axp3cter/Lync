@@ -6,7 +6,7 @@
 
     ```toml
     [dependencies]
-    Lync = "axp3cter/lync@4.0.1"
+    Lync = "axp3cter/lync@4.0.2"
     ```
 
 === "npm"
@@ -46,7 +46,9 @@ Net.Ping:onServer(function(_, player)
 end)
 
 Lync.start()
-RunService.PostSimulation:Connect(Lync.flush)
+RunService.PostSimulation:Connect(function()
+    Lync.flush()
+end)
 game:BindToClose(Lync.close)
 ```
 
@@ -61,7 +63,9 @@ Net.Chat:onClient(function(text)
 end)
 
 Lync.start()
-RunService.PostSimulation:Connect(Lync.flush)
+RunService.PostSimulation:Connect(function()
+    Lync.flush()
+end)
 
 Net.Ping:fireServer()
 ```
@@ -71,7 +75,7 @@ Rules that apply to every setup.
 | | |
 | --- | --- |
 | `start` runs once per side | Call it after the last definition. Adding a definition or responder after it throws. |
-| Nothing is sent without `flush` | Fires, requests and set changes are buffered until the next flush. |
+| Nothing is sent without `flush` | Fires, requests and set changes are buffered until the next flush. Call it from a function of your own, since a signal connected to it directly passes the frame time as a budget. |
 | The bootstrap is the same on both sides | If you have a shared startup module, put `start`, the flush connection and `close` there. |
 
 ## Bounds are the compression

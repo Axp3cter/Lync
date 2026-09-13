@@ -120,6 +120,12 @@ local function budgeted(self: Session, asked: number?, now: number): number
     if asked ~= nil then
         if asked < FLOOR then
             local said = `a flush of {asked} bytes is under the floor of {FLOOR}`
+            -- A frame time is what a RunService signal hands a listener, which is what a flush
+            -- connected to one straight is given as its budget.
+            if asked < 1 then
+                local hint = "A RunService signal passes the frame time as the first argument,"
+                said = `{said}. {hint} so connect a function that calls flush with no arguments`
+            end
             Log.error(said, { definition = self.space.space })
         end
         return asked

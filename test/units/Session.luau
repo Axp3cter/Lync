@@ -305,6 +305,12 @@ return {
         Expect.throws(function()
             rig.clients[alice]:flush(10)
         end, "under the floor")
+
+        -- A frame time, which is what a RunService signal hands a flush connected to it straight,
+        -- is refused with the cause named.
+        Expect.throws(function()
+            rig.clients[alice]:flush(1 / 60)
+        end, "frame time")
         local quiet = 0
         local link = Log.onLog(function()
             quiet += 1

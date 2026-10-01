@@ -70,8 +70,10 @@ plugins:
 nav:
   - Home: index.md
   - Guide:
-      - Setup: guide/index.md
+      - Getting started: guide/index.md
+      - Codecs: guide/codecs.md
       - Packets: guide/packets.md
+      - Recipients and groups: guide/recipients.md
       - Queries: guide/queries.md
       - Sets: guide/sets.md
       - Lifecycle: guide/lifecycle.md

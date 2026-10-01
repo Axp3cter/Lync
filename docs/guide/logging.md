@@ -1,35 +1,58 @@
 # Errors and logging
 
-Failures fall into four classes, and each class is handled differently.
+Lync sorts every failure into one of four kinds and handles each differently.
 
-| What | Examples | Handling |
+| Kind | Examples | Handling |
 | --- | --- | --- |
-| Programmer error | A call on the wrong side, a second responder, a second `start`, a field the record does not declare. | Throws on the spot. |
-| Dropped input | A validate reason, a payload the schema rejects. | Logged as a warning. Not thrown. |
-| Environmental | A listener or responder that throws. | Logged as an error with a stack trace. Other listeners still run. |
-| Transport | A timeout, a player leaving, a shutdown. | Returned as an outcome code. Not thrown. |
+| Your mistake | A send before `start`, the other side's send call, a second responder, an undeclared field, a value that doesn't fit | Throws at the call. |
+| Dropped input | A value its codec or a `:validate` refused | Logged, not thrown. |
+| A fault in your code | A listener or responder that throws | Logged with a stack trace. Other listeners still run. |
+| Transport | A timeout, a player leaving, a shutdown | Returned as a [request outcome](queries.md#when-there-is-no-reply). |
 
-All log output goes through `onLog`. Decide what to do from the fields in `data`, not from the
-message text, which can change between versions.
+Registering a listener for the other side, such as `onServer` on a client, logs a warning and
+attaches nothing. So one shared module can register both sides' listeners.
+
+## onLog
+
+All log output goes through `onLog`. Branch on the fields of `data`, not on the message, which can
+change between versions.
 
 ```lua
 Lync.onLog(function(kind, message, data)
-    if data.player ~= nil then
-        flagSuspicious(data.player, data)
+    if data.code == "drop.validate" and data.player ~= nil then
+        print("suspicious", data.player, data.reason)
     end
 end)
 ```
 
-| Argument | |
+| Argument | Holds |
 | --- | --- |
-| `kind` | `"warn"` for dropped input, `"error"` for a caught fault. |
+| `kind` | `"warn"` or `"error"`. A drop on the server is a warning. A drop on a client, or a fault, is an error. |
 | `message` | The text the default printer writes. |
-| `data.file`, `data.line` | Where the definition was declared. Always present. |
-| `data.player` | Who sent the value, when a sender is involved. |
-| `data.definition` | Which definition, when one is involved. |
+| `data.file`, `data.line` | Where the definition was declared, or a place inside Lync when no definition is involved. Always present. |
+| `data.player` | The sender, when there is one. |
+| `data.definition` | The definition, when there is one. |
+| `data.code` | For a drop, which kind. See below. |
 
-`Lync.console` is the built-in listener that prints to the output. Disconnect it to handle log
-records yourself.
+## Codes
+
+| `data.code` | Means | Extra fields |
+| --- | --- | --- |
+| `drop.validate` | A `:validate` refused the value. | `reason`, `path` |
+| `drop.tag`, `drop.count`, `drop.varint`, `drop.pad`, `drop.map-order`, `drop.sidecar` | A value broke its codec's bounds. | `path`, `expected`, `got` |
+| `drop.bounds`, `drop.section`, `drop.defid` | A frame was malformed. | `said` or `expected`, `got` |
+| `drop.hello` | The handshake remote carried something that is not a handshake. | |
+| `drop.unready` | A client received more early frames than it holds while joining. | |
+| `drop.mismatch` | The two sides' schemas differ. | `ours`, `theirs` |
+
+When a client passes the drop limit, the extra drops of one code become a single record with
+`data.suppressed`, the number left unrecorded. It is logged when the 10-second window reopens or
+the player leaves.
+
+## The console
+
+`Lync.console` is the built-in listener that prints to the output. Disconnect it to handle records
+yourself.
 
 ```lua
 Lync.console:disconnect()
@@ -37,14 +60,12 @@ Lync.console:disconnect()
 
 ## Connections
 
-Every `on*` returns a connection.
+Every `on*` method except a query responder returns a connection.
 
 ```lua
-local connection = Net.Chat:onClient(function(text)
-    feed:push(text)
+local connection = Net.Notice:onClient(function(text)
+    print(text)
 end)
 
 connection:disconnect()
 ```
-
-When a player leaves, every pending request to or from them ends with the `leave` code.

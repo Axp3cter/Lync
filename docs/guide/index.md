@@ -1,4 +1,6 @@
-# Setup
+# Getting started
+
+How to install Lync, declare a schema, and wire the server and client.
 
 ## Install
 
@@ -15,34 +17,48 @@
     npm install @axpecter/lync
     ```
 
+    Then see [roblox-ts](../reference/roblox-ts.md) for the `tsconfig.json` change.
+
 === "Model"
 
     Take `Lync.rbxm` from the [latest release](https://github.com/Axp3cter/Lync/releases) and
     place it in `ReplicatedStorage`.
 
-## One module, both sides
+## Declare a namespace
 
-Put every definition in one module and require that module from the server and from every
-client.
+Every definition lives in a namespace. Declare it with `define`, in a module the server and every
+client require.
 
 ```lua title="ReplicatedStorage/Net.luau"
-local Lync = require(game.ReplicatedStorage.Lync)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Lync)
 
-return Lync.define("arena", {
+return Lync.define("lobby", {
     Ping = Lync.packet(Lync.empty()),
-    Chat = Lync.packet(Lync.str(1, 200)),
+    Notice = Lync.packet(Lync.str(1, 200)),
 })
 ```
 
-On the server, attach listeners, call `start`, and connect `flush` to a fixed step.
+- The name is how the two sides find each other. Each namespace gets its own remotes.
+- `define` returns the same table, frozen.
+- When a client joins, its schema is compared with the server's. A client whose schema differs is
+  refused with an error.
+
+A game can have one namespace or several. Separate namespaces can be [flushed on their own
+schedules](lifecycle.md#one-namespace-at-a-time).
+
+## Wire both sides
+
+Each side attaches its listeners, calls `start` once, and calls `flush` every frame.
 
 ```lua title="ServerScriptService/Net.server.luau"
-local Lync = require(game.ReplicatedStorage.Lync)
-local Net = require(game.ReplicatedStorage.Net)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Lync = require(ReplicatedStorage.Lync)
+local Net = require(ReplicatedStorage.Net)
 
--- An empty payload arrives as nil, so the player is the second argument.
 Net.Ping:onServer(function(_, player)
-    Net.Chat:fireClient(player, "pong")
+    Net.Notice:fireClient(player, "pong")
 end)
 
 Lync.start()
@@ -52,13 +68,13 @@ end)
 game:BindToClose(Lync.close)
 ```
 
-The client is wired the same way.
-
 ```lua title="StarterPlayerScripts/Net.client.luau"
-local Lync = require(game.ReplicatedStorage.Lync)
-local Net = require(game.ReplicatedStorage.Net)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Lync = require(ReplicatedStorage.Lync)
+local Net = require(ReplicatedStorage.Net)
 
-Net.Chat:onClient(function(text)
+Net.Notice:onClient(function(text)
     print(text)
 end)
 
@@ -70,25 +86,15 @@ end)
 Net.Ping:fireServer()
 ```
 
-Rules that apply to every setup.
+## The order of things
 
-| | |
+| Rule | Why |
 | --- | --- |
-| `start` runs once per side | Call it after the last definition. Adding a definition or responder after it throws. |
-| Nothing is sent without `flush` | Fires, requests and set changes are buffered until the next flush. Call it from a function of your own, since a signal connected to it directly passes the frame time as a budget. |
-| The bootstrap is the same on both sides | If you have a shared startup module, put `start`, the flush connection and `close` there. |
+| Require every module that calls `define` before `start`. | `start` opens the namespaces that exist. A `define` after it throws. |
+| Register query responders before `start`. | `start` seals them. Packet and set listeners can attach at any time. |
+| Send after `start`. | Fires, requests, set writes and audiences throw before it. |
+| Flush every frame, from your own function. | Nothing is sent until a flush. A signal connected to `flush` directly passes the frame time, which `flush` reads as a byte budget and refuses. |
+| Bind `close` on the server only. | `BindToClose` is a server API. A client needs no shutdown call. |
 
-## Bounds are the compression
-
-Every codec is bounded, and the bound decides how many bits a value takes. Pick bounds that match
-the ranges the game actually uses.
-
-| Codec | Bits | |
-| --- | --- | --- |
-| `Lync.f32()` | 32 | Any float. |
-| `Lync.int(0, 100)` | 7 | 101 throws on send and drops on arrival. |
-| `Lync.quant(0, 1, 0.01)` | 7 | Rounded to the nearest 0.01. |
-| `Lync.bool()` | 1 | |
-| `Lync.bitfield({ "a", "b", "c" })` | 3 | Three flags as one table. |
-
-All codecs are listed under [Codecs](../reference/codecs.md).
+[Lifecycle](lifecycle.md) covers `start`, `flush` and `close` in full. The rest of the guide
+assumes both sides are wired as above, and marks the lines that must run after `start`.

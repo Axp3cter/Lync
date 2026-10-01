@@ -6,59 +6,80 @@ hide:
 
 # Lync
 
-Lync is a networking library for Roblox. You describe each packet, query and replicated set once,
-as a schema of codecs, and both the server and the client require that one module. A value sent
-from one side is decoded by the same definition on the other, and its Luau type is inferred from
-the schema, so handlers, records and replies are typed without annotations. Every value is packed
-at the bit, an `int(0, 100)` costs seven bits, and everything sent during a frame is batched into
-one remote call per client when you flush.
+Typed buffer networking for Roblox, in Luau and roblox-ts.
 
-One namespace with all three primitives.
+You declare packets, queries and replicated sets once, in a module both sides require. Lync packs
+every value to the bit from that schema and infers your handler types from it. Everything sent in
+a frame is batched per client when you flush.
 
 ```lua title="ReplicatedStorage/Net.luau"
-return Lync.define("arena", {
-    Strike = Lync.packet(Lync.vec3(Lync.quant(-512, 512, 0.1))):unreliable(),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Lync)
 
-    Sell = Lync.query(
-        Lync.struct({ item = Lync.enum({ "sword", "shield" }) }),
-        Lync.struct({ earned = Lync.int(0, 1000000) })
-    ),
+return Lync.define("game", {
+    Chat = Lync.packet(Lync.str(1, 200)),
 
-    Fighters = Lync.replicate(Lync.struct({
-        name  = Lync.str(1, 20),
-        team  = Lync.enum({ "red", "blue" }),
+    Sell = Lync.query(Lync.enum({ "sword", "shield" }), Lync.int(0, 1000)),
+
+    Scores = Lync.replicate(Lync.struct({
+        name = Lync.str(1, 20),
         score = Lync.int(0, 1000000),
-        pos   = Lync.vec3(Lync.quant(-512, 512, 0.1)):newest(10),
-    })):keyBy("team"),
+    })),
 })
 ```
-
-The server and client code for this namespace.
 
 === "Server"
 
     ```lua
-    Net.Strike:onServer(function(position, player)
-        resolveHit(player, position)
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
+    local Lync = require(ReplicatedStorage.Lync)
+    local Net = require(ReplicatedStorage.Net)
+
+    local PRICES = { sword = 100, shield = 60 }
+
+    Net.Chat:onServer(function(text, player)
+        Net.Chat:fireClient(Lync.except(player), text)
     end)
 
-    Net.Sell:onServer(function(request, player)
-        return { earned = price(request.item) }
+    Net.Sell:onServer(function(item, player)
+        return PRICES[item]
     end)
-
-    Net.Fighters:add(userId, { name = "Ada", team = "red", score = 0, pos = at })
 
     Lync.start()
     RunService.PostSimulation:Connect(function()
         Lync.flush()
+    end)
+    game:BindToClose(Lync.close)
+
+    local function joined(player: Player)
+        Net.Scores:add(player.UserId, { name = player.Name, score = 0 })
+    end
+
+    Players.PlayerAdded:Connect(joined)
+    for _, player in Players:GetPlayers() do
+        joined(player)
+    end
+    Players.PlayerRemoving:Connect(function(player)
+        Net.Scores:remove(player.UserId)
     end)
     ```
 
 === "Client"
 
     ```lua
-    Net.Fighters:onChanged(function(id, record, old)
-        board:set(id, record.score)
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
+    local Lync = require(ReplicatedStorage.Lync)
+    local Net = require(ReplicatedStorage.Net)
+
+    Net.Chat:onClient(function(text)
+        print(text)
+    end)
+
+    Net.Scores:onChanged(function(id, record)
+        print(record.name, record.score)
     end)
 
     Lync.start()
@@ -66,20 +87,23 @@ The server and client code for this namespace.
         Lync.flush()
     end)
 
-    Net.Strike:fireServer(aim())
+    Net.Chat:fireServer("hello")
 
-    local ok, receipt = Net.Sell:request({ item = "sword" })
+    local ok, price = Net.Sell:request("sword")
     if ok then
-        wallet:add(receipt.earned)
+        print("sold for", price)
     end
     ```
 
-`record.score` and `receipt.earned` are typed as `number` without any annotation.
+`record.score` is typed `number` with no annotation, because the schema says so.
 
-| | | |
-| --- | --- | --- |
-| [Setup](guide/index.md) | Installing, the shared definition module, wiring both sides. | |
-| [Packets](guide/packets.md) | One way messages, delivery modes, recipients. | |
-| [Queries](guide/queries.md) | Requests and replies, and how a request can end without one. | |
-| [Sets](guide/sets.md) | Server owned records replicated to the clients allowed to see them. | |
-| [Codecs](reference/codecs.md) | Every value type and its size on the wire. | |
+## Where to go
+
+| Page | Answers |
+| --- | --- |
+| [Getting started](guide/index.md) | How do I install Lync and wire both sides? |
+| [Codecs](guide/codecs.md) | How do I describe a value, and what does it cost? |
+| [Packets](guide/packets.md) | How do I send a one-way message? |
+| [Queries](guide/queries.md) | How do I ask for an answer? |
+| [Sets](guide/sets.md) | How do I replicate state, and to whom? |
+| [Limits](reference/limits.md) | What can't I do, and what can I change? |

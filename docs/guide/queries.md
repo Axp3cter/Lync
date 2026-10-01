@@ -1,8 +1,6 @@
 # Queries
 
-A query sends a request and returns the reply.
-
-The first codec is the request, the second the reply.
+A query sends a request and gets one reply. The first codec is the request, the second the reply.
 
 ```lua
 Sell = Lync.query(
@@ -11,59 +9,62 @@ Sell = Lync.query(
 ),
 ```
 
-The server registers one responder. Its return value is sent back as the reply.
+## Answer
+
+The answering side registers one responder, before `start`. What it returns is the reply.
 
 ```lua
+local PRICES = { sword = 100, shield = 60 }
+
 Net.Sell:onServer(function(request, player)
-    if not inventory:has(player, request.item) then
-        return { sold = false, earned = 0 }
-    end
-    local earned = inventory:sell(player, request.item)
-    return { sold = true, earned = earned }
+    return { sold = true, earned = PRICES[request.item] }
 end)
 ```
 
-On the client, `request` yields until a reply arrives or the request ends for another reason.
+Each request runs its responder on its own thread, so a responder may yield. The reply is sent
+when it returns.
+
+## Ask
+
+A client's `request` yields until the reply arrives or the request ends.
 
 ```lua
-local ok, reply, detail = Net.Sell:request({ item = "sword" }, 3)
+-- After Lync.start():
+local ok, reply = Net.Sell:request({ item = "sword" })
 if ok and reply.sold then
-    wallet:add(reply.earned)
+    print("earned", reply.earned)
 end
 ```
 
-The server can also send requests to a client. It passes a callback instead of yielding.
+The server can ask one client. It cannot yield on a client, so it passes a callback.
 
 ```lua
-Net.Confirm:request(player, { text = "rematch?" }, function(ok, reply, detail)
+-- After Lync.start():
+Net.Confirm:request(player, { text = "rematch?" }, function(ok, reply)
     if ok then
-        lobby:answer(player, reply.yes)
+        print(player.Name, reply.yes)
     end
 end)
 ```
 
-| Side | Call | |
-| --- | --- | --- |
-| client | `request(value, timeout?)` | Yields. Returns `ok, reply, detail`. |
-| server | `request(client, value, fn, timeout?)` | `fn(ok, reply, detail)` on completion. |
-| server | `onServer(fn)` | The single responder. Registering a second one throws. |
-| client | `onClient(fn)` | The single responder for requests sent by the server. |
+- Both forms take an optional timeout in seconds as the last argument. The default is 10.
+- The request value is checked at the call, which throws if it doesn't fit.
+- Only the asked player's answer counts. A reply from anyone else is ignored.
 
-The timeout is in seconds and defaults to 10. Responders may yield. Each runs on its own thread,
-and the reply is sent when it returns. If a responder returns a value the reply codec rejects, the
-error is logged and the request ends with the `unanswered` code.
+## When there is no reply
 
-## Endings
-
-A request that gets no reply does not throw. Instead `ok` is false, `reply` is one of four codes,
-and `detail.elapsed` is the time waited in seconds.
+A request never throws once sent. If it ends without a reply, `ok` is false, `reply` is one of
+four codes, and the third value, `detail`, holds `elapsed`, the seconds waited.
 
 | `reply` | When |
 | --- | --- |
-| `"timeout"` | No reply arrived before the deadline. A request rejected by validation on the other side also ends this way. |
-| `"unanswered"` | The other side has no responder registered, or its responder threw. |
-| `"leave"` | The player on the other side left the game. |
-| `"shutdown"` | `Lync.close()` ran before the reply. |
+| `"timeout"` | No reply in time. A request dropped by the other side's validation ends this way. |
+| `"unanswered"` | No responder, a responder that threw or returned a value the reply codec refuses, a client still joining, or a client with too many requests running. |
+| `"leave"` | The player on the other side left. |
+| `"shutdown"` | `Lync.close()` ran first. |
 
-The `sold` field in the example is part of the reply, not one of these codes. Put application
-level failures, such as a missing item, in the reply codec so the client can read them.
+These codes report transport failures. Put your game's failures, such as a missing item, in the
+reply codec, like `sold` above, so the asker can read them.
+
+A client may have 64 requests running at once in each namespace. See
+[Limits](../reference/limits.md#requests).

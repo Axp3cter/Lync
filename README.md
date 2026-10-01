@@ -2,8 +2,8 @@
 
 <p align="center">Typed buffer networking for Roblox: packets, queries, and replicated sets.</p>
 
-Write the schema once. Both sides require it, the Luau types fall out of it, and every value packs
-into bit level buffers that batch into one frame per client on flush.
+Declare your schema once, in a module both sides require. Lync packs every value to the bit,
+infers your handler types from the schema, and batches everything per client when you flush.
 
 Documentation: [axp3cter.github.io/Lync](https://axp3cter.github.io/Lync/)
 

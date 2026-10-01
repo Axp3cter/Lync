@@ -529,8 +529,12 @@ function Leaf.slot(
     local refs, slotOf = side.refs, side.slotOf
     side.bears = true
 
+    -- Held to the class before the shared slot table is asked, since another leaf may have filed
+    -- the same instance under a wider class, and the reader refuses the whole frame for it.
     local function write(b: buffer, pos: number, value: any): number
         if value == nil then return Varint.write(b, pos, NO_SLOT) end
+        if typeof(value) ~= "Instance" then refuse(at, value) end
+        if class ~= nil and not (value :: Instance):IsA(class) then refuse(at, value) end
         local slot = slotOf[value]
         if slot == nil then
             slot = #refs + 1

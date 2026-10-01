@@ -75,6 +75,9 @@ function Pending.open(
     timeout: number?,
     complete: Types.Outcome<any>
 ): number
+    if timeout ~= nil and not (timeout > 0 and timeout < math.huge) then
+        Log.refuse(`a request waits a positive, finite number of seconds, not {timeout}`)
+    end
     if self.count == CAP then
         Log.refuse(`{self.namespace} has {CAP} requests in flight, which is the ceiling`)
     end
@@ -91,6 +94,17 @@ function Pending.open(
     self.count += 1
     self.deadlines:push(at, id)
     return id
+end
+
+-- A request let go without an outcome, which is one whose asking raised before it was sent.
+function Pending.forget(self: Pending, id: number)
+    taken(self, id)
+end
+
+-- Whether `from` is who a request is waiting on, so nobody else can answer it.
+function Pending.owes(self: Pending, id: number, from: Player?): boolean
+    local entry = self.live[id]
+    return entry ~= nil and entry.player == from
 end
 
 -- The reply arrived. Answers whether anybody was waiting, since an id nobody waits on is a reply

@@ -58,6 +58,9 @@ function Composites.map<K, V>(
     max: number
 ): Types.Codec<{ [K]: V }>
     Legality.bare("map", "key", key)
+    if Base.cell(key).kind == "inst" then
+        Log.refuse("map takes no inst for key, since one the receiver cannot see comes back as nil")
+    end
     Legality.bare("map", "value", value)
     Legality.counts("map", min, max)
     return Base.make("map", { min = min, max = max }, { key = key, value = value })

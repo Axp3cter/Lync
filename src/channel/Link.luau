@@ -44,6 +44,11 @@ export type Link = {
     sending: boolean,
     read audience: { Player },
     read ready: Recipients.Ready,
+
+    -- How many are admitted and how many are present, which a broadcast needs to agree.
+    admitted: number,
+    read present: (() -> number)?,
+
     read shared: { { Blocks.Block } },
     read divergent: { [Player]: { { Blocks.Block } } },
     read sharedLossy: { Blocks.Block },
@@ -63,12 +68,13 @@ end
 
 -- Public --------------------------------------------------------------
 
--- An endpoint, before its remotes exist.
+-- An endpoint, before its remotes exist. Without `present`, everyone present counts as admitted.
 function Link.new(
     name: string,
     side: Transport.Side,
     room: number,
-    transport: Transport.Transport
+    transport: Transport.Transport,
+    present: (() -> number)?
 ): Link
     return {
         name = name,
@@ -92,6 +98,8 @@ function Link.new(
         sending = side == "server",
         audience = {},
         ready = {},
+        admitted = 0,
+        present = present,
         shared = buckets(),
         divergent = {},
         sharedLossy = {},
@@ -105,13 +113,18 @@ end
 
 -- A client this endpoint may now send to, and the two queues its targeted blocks wait in.
 function Link.admit(of: Link, player: Player)
+    if of.ready[player] then return end
     of.ready[player] = true
+    of.admitted += 1
     of.divergent[player] = buckets()
     of.divergentLossy[player] = {}
 end
 
 -- A client gone, and everything queued for them let go.
 function Link.drop(of: Link, player: Player)
+    if of.ready[player] then
+        of.admitted -= 1
+    end
     of.ready[player] = nil
     local held = of.divergent[player]
     if held ~= nil then

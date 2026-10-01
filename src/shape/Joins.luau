@@ -20,7 +20,9 @@ export type Field = {
 function Joins.grid(of: Base.Cell): Grid.Grid?
     local kind, params = of.kind, of.params
     if kind == "bool" then return Grid.flag() end
-    if kind == "int" then return Grid.of(params.min :: number, params.max :: number, 1) end
+    if kind == "int" then
+        return Grid.of(params.min :: number, params.max :: number, 1, nil, true)
+    end
     if kind == "quant" then
         return Grid.of(params.min :: number, params.max :: number, params.step :: number)
     end
@@ -49,12 +51,13 @@ end
 
 -- A bitfield's pair reads and writes by name, so nothing about a record's own key order reaches
 -- the wire. A name the record lacks is false, and a name it carries has to carry a truth, since
--- a truthiness test would let `{ dead = "no" }` write that the thing is dead.
+-- a truthiness test would let `{ dead = "no" }` write that the thing is dead. A name it does not
+-- declare is refused, as a record's is, since the flag it meant would arrive as nothing.
 local function bitfieldPair(
     names: { string }
 ): ((any, { number }, number) -> boolean, ({ number }, number) -> any)
     local reach = #names
-    local blank = {}
+    local blank: { [string]: boolean } = {}
     for _, name in names do
         blank[name] = false
     end
@@ -62,6 +65,9 @@ local function bitfieldPair(
 
     local function pull(value: any, into: { number }, opens: number): boolean
         if type(value) ~= "table" then return false end
+        for name in value do
+            if blank[name] == nil then return false end
+        end
         for place = 1, reach do
             local held = value[names[place]]
             if held == true then
@@ -107,6 +113,33 @@ function Joins.of(of: Base.Cell, tag: Ir.Tag, at: number, key: string?, nest: nu
             tag = tag,
             pull = pull,
             push = push,
+        },
+    }
+end
+
+-- A field seen through its declaration's transform, its leaves unmoved. One grid that is the whole
+-- mapping takes the pair on the grid, and a field with a pair of its own has the two composed.
+function Joins.lifted(field: Field, lift: (wire: any) -> any, lower: (domain: any) -> any): Field
+    local join = field.join
+    local pull, push = join.pull, join.push
+    if pull == nil or push == nil then
+        return { leaves = { Grid.lifted(field.leaves[1], lift, lower) }, join = join }
+    end
+    local pulling, pushing = pull, push
+    return {
+        leaves = field.leaves,
+        join = {
+            at = join.at,
+            count = join.count,
+            key = join.key,
+            nest = join.nest,
+            tag = join.tag,
+            pull = function(value: any, into: { number }, at: number): boolean
+                return pulling(lower(value), into, at)
+            end,
+            push = function(from: { number }, at: number): any
+                return lift(pushing(from, at))
+            end,
         },
     }
 end

@@ -33,11 +33,6 @@ local function fromFraction(fraction: number): number
     return math.round(fraction * 255)
 end
 
--- A decode-time invariant that holds, so the field round-trips and the path is walked.
-local function stepOfFive(value: number): string?
-    return if value % 5 == 0 then nil else "not a step of five"
-end
-
 -- Types ---------------------------------------------------------------
 
 -- One representative value and the name its goldens are filed under: `empty`, `one`, `typical`
@@ -241,7 +236,6 @@ Schemas.everything = fixture(
         cheap = Codecs.color3.rgb565(),
         source = Codecs.inst(),
 
-        checked = Codecs.int(0, 100):validate(stepOfFive),
         scaled = Codecs.int(0, 255):as(toFraction, fromFraction),
         carry = Codecs.vec3(Codecs.quant(-1024, 1024, 0.05)):newest(),
     }),
@@ -274,7 +268,6 @@ Schemas.everything = fixture(
             turn = CFrame.identity,
             tint = Color3.new(0, 0, 0),
             cheap = Color3.new(0, 0, 0),
-            checked = 0,
             scaled = 0,
             carry = Vector3.zero,
         }),
@@ -306,7 +299,6 @@ Schemas.everything = fixture(
             turn = CFrame.fromAxisAngle(Vector3.zAxis, QUARTER),
             tint = Color3.new(0.5, 0.25, 0.75),
             cheap = Color3.new(16 / 31, 32 / 63, 8 / 31),
-            checked = 45,
             scaled = 128 / 255,
             carry = Vector3.new(1.25, 0.5, -2.75),
         }),
@@ -339,7 +331,6 @@ Schemas.everything = fixture(
             turn = CFrame.fromAxisAngle(Vector3.zAxis, QUARTER),
             tint = Color3.new(0.5, 0.25, 0.75),
             cheap = Color3.new(1, 1, 1),
-            checked = 100,
             scaled = 255 / 255,
             carry = Vector3.new(-1024, 1024, -1024),
         }),

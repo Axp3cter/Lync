@@ -36,6 +36,7 @@ local SURFACE: { Part } = table.freeze({
     part("the definition builders", "function", false, { "packet", "query", "replicate", "group" }),
     part("the sentinels", "table", false, { "all", "none" }),
     part("the recipient builder", "function", false, { "except" }),
+    part("the standalone codec", "function", false, { "encode", "decode" }),
     part("the log", "function", false, { "onLog" }),
     part("the log's own connection", "table", false, { "console" }),
     part("the scalar codecs", "function", true, {
@@ -78,7 +79,7 @@ local CARRIERS: { Carrier } = table.freeze({
 })
 
 -- What the names, the codec constructors among them, and the forms they come to have to count to.
-local NAMES = 37
+local NAMES = 39
 local CONSTRUCTORS = 24
 local FORMS = 28
 

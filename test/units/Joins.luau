@@ -143,7 +143,7 @@ return {
         Expect.equal(table.concat(one, " "), table.concat(two, " "))
     end),
 
-    -- A name a record leaves out reads as false, and a name the declaration lacks is nothing to it.
+    -- A name a record leaves out reads as false, and a name the declaration lacks is refused.
     Harness.case("joins.pull-missing-is-false", function()
         local of = Codecs.bitfield(FLAGS)
         local pull = field(of).join.pull :: (any, { number }, number) -> boolean
@@ -158,9 +158,8 @@ return {
             Expect.equal(table.concat(into, " "), table.concat(wanted, " "))
         end
 
-        local other = {}
-        Expect.equal(pull({ [ABSENT] = true }, other, 1), true)
-        Expect.equal(table.concat(other, " "), "0 0 0")
+        Expect.equal(pull({ [ABSENT] = true }, {}, 1), false)
+        Expect.equal(pull({ [names[1]] = true, [ABSENT] = false }, {}, 1), false)
     end),
 
     -- A string is what a truthiness test would write as the flag being set.

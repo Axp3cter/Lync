@@ -8,6 +8,7 @@ local Blocks = require("../channel/Blocks")
 local Catchup = require("./Catchup")
 local Coalesce = require("./Coalesce")
 local Compile = require("../shape/Compile")
+local Explain = require("../kernel/Explain")
 local Link = require("../channel/Link")
 local Listeners = require("../kernel/Listeners")
 local Log = require("../kernel/Log")
@@ -77,6 +78,7 @@ export type Sync = {
     read parts: { [any]: Partition },
     read order: { any },
     read partOf: { [number]: any },
+    read gone: { [Player]: true },
     read place: { [string]: number },
     read streams: boolean,
     read bits: { Wide.Word },
@@ -84,6 +86,7 @@ export type Sync = {
     read row: { any },
     read listed: { Wide.Word },
     read one: { Player },
+    read trial: buffer,
     at: number,
 }
 
@@ -121,11 +124,36 @@ local function partition(of: Sync, key: any): Partition
     return made
 end
 
+-- A caller's value as the store's own copy, so a table they change and hand back again reads as
+-- changed rather than as the very table already held.
+local function owned(value: any): any
+    if type(value) ~= "table" or getmetatable(value) ~= nil then return value end
+    local copy = {}
+    for key, held in value do
+        copy[key] = owned(held)
+    end
+    return copy
+end
+
+-- A value its field's codec writes, refused at the call rather than at the flush that would
+-- send it, since a value held that the flush cannot write would hold back the whole namespace.
+local function fits(of: Sync, field: number, id: number, value: any)
+    local def = of.def
+    local ok, thrown = pcall(def.fieldBuilt[field].write, of.trial, 0, value)
+    local side = def.site.sidecar
+    table.clear(side.refs)
+    table.clear(side.slotOf)
+    if not ok then
+        local said = Explain(thrown, def.site)
+        Log.error(`{def.name} cannot hold record {id}: {said}`, { definition = def.name })
+    end
+end
+
 -- Every field of a record into the store, which is the whole of what a bind leaves to say.
 local function written(of: Sync, store: Store.Store, slot: number, id: number, record: any)
     local names = of.def.fieldNames
     for field = 1, of.def.fieldCount do
-        store.writers[field](slot, id, record[names[field]])
+        store.writers[field](slot, id, owned(record[names[field]]))
     end
 end
 
@@ -377,6 +405,14 @@ local function alike(was: any, now: any): boolean
     return true
 end
 
+-- Whether a partition is only a departed player's: empty, owing nothing to anyone, and seen by
+-- them alone. Kept, every player who ever had one would be walked by every flush after.
+local function forgotten(of: Sync, part: Partition): boolean
+    if part.store.count > 0 or part.dirt.cleared or next(part.dirt.ops) ~= nil then return false end
+    local to = of.seen.of[under(part.key)]
+    return typeof(to) == "Instance" and of.gone[to :: Player] == true
+end
+
 -- Whether a partition is open to everyone, settled by `resolved` before the flush began.
 local function sees(of: Sync, at: any): boolean
     return Audience.everyone(of.seen, under(at))
@@ -404,6 +440,14 @@ function Sync.new(def: Compile.Set): Sync
     end
     local layout = Sections.of(def)
     local lane = Newest.of(layout)
+    local widest = 1
+    for _, built in def.fieldBuilt do
+        widest = math.max(widest, built.maxBytes)
+    end
+
+    -- A set with no key is one partition, and it goes to everybody.
+    local seen = Audience.new()
+    if def.keyField == nil then Audience.assign(seen, WHOLE, Recipients.ALL) end
     return {
         def = def,
         layout = layout,
@@ -413,7 +457,7 @@ function Sync.new(def: Compile.Set): Sync
         streams = lane.streams,
         bits = table.freeze(bits),
         whole = Wide.borAll(NOTHING, bits, 1, reach),
-        seen = Audience.new(),
+        seen = seen,
         owed = Catchup.new(),
         heard = Apply.heard(),
         added = Listeners.list(Log.spawn :: Arriving, Log.spawnRows :: Listeners.Batch),
@@ -422,9 +466,11 @@ function Sync.new(def: Compile.Set): Sync
         parts = {},
         order = {},
         partOf = {},
+        gone = setmetatable({}, { __mode = "k" }) :: any,
         row = table.create(reach),
         listed = table.create(reach) :: { Wide.Word },
         one = table.create(1) :: { Player },
+        trial = buffer.create(widest),
         at = 1,
     }
 end
@@ -437,6 +483,10 @@ function Sync.add(of: Sync, id: number, record: any)
         if of.place[name] == nil then
             Log.error(`{of.def.name} has no field named {name}`, { definition = of.def.name })
         end
+    end
+    local names = of.def.fieldNames
+    for field = 1, of.def.fieldCount do
+        fits(of, field, id, record[names[field]])
     end
     local field = of.def.keyField
     local part = partition(of, if field == nil then nil else record[field])
@@ -461,6 +511,7 @@ function Sync.update(of: Sync, id: number, fields: any)
     local listed = of.listed
     local moved = 0
 
+    -- Every field is checked before any is written, so a refused update changes nothing.
     for name, value in fields do
         local field = of.place[name]
         if field == nil then
@@ -471,9 +522,14 @@ function Sync.update(of: Sync, id: number, fields: any)
             local said = `{def.name}.{name} is not optional and cannot be cleared`
             Log.error(said, { definition = def.name })
         end
-        local now = if cleared then nil else value
+        fits(of, field, id, if cleared then nil else value)
+    end
+
+    for name, value in fields do
+        local field = of.place[name]
+        local now = if value == CLEARED then nil else value
         if alike(store.columns[field][slot], now) then continue end
-        store.writers[field](slot, id, now)
+        store.writers[field](slot, id, owned(now))
         if not of.streams or lane.place[field] == nil then
             moved += 1
             listed[moved] = of.bits[field]
@@ -515,8 +571,18 @@ function Sync.clear(of: Sync)
     table.clear(of.partOf)
 end
 
--- Who a key's records are for, replacing whoever it was for.
+-- Who a key's records are for, replacing whoever it was for. A key the key field cannot write is
+-- refused here, since every later section naming its partition would fail to.
 function Sync.audience(of: Sync, key: any, to: Types.Recipient)
+    local def = of.def
+    local field = def.keyIndex
+    if field ~= nil then
+        local built = def.fieldBuilt[field]
+        if not pcall(built.write, buffer.create(built.maxBytes), 0, key) then
+            local said = `{def.name}.{def.keyField} cannot hold {tostring(key)}, so no audience`
+            Log.error(`{said} can be keyed by it`, { definition = def.name })
+        end
+    end
     partition(of, key)
     Audience.assign(of.seen, under(key), to)
 end
@@ -552,16 +618,20 @@ function Sync.walk(of: Sync): () -> (number?, any)
     end
 end
 
--- A client that has just become ready, owed every record it can already see. Apart from the
--- audience diff, since a join changed nothing about who sees what.
+-- A client that has just become ready, owed every record it can already see, and marked as
+-- holding each key it is owed, so an audience that drops it before the next diff is told as a
+-- loss and the backlog goes with it.
 function Sync.joined(of: Sync, who: Player)
     local one = of.one
     one[1] = who
     for _, at in of.order do
         local part = of.parts[at]
         if part.store.count == 0 then continue end
-        local to = of.seen.of[at]
-        if to ~= nil and not Recipients.holds(to, who) then continue end
+        if not sees(of, at) then
+            local to = of.seen.of[at]
+            if to == nil or not Recipients.holds(to, who) then continue end
+        end
+        Audience.seeded(of.seen, at, who)
         Catchup.gained(of.owed, at, one, part.store)
     end
 end
@@ -569,6 +639,7 @@ end
 -- A link that has closed, which is every backlog its client was carrying and nothing else.
 function Sync.left(of: Sync, who: Player)
     Catchup.dropped(of.owed, who)
+    of.gone[who] = true
 end
 
 -- Whether anything at all is catching up, which is what the shared plan holds a reserve for.
@@ -579,6 +650,15 @@ end
 -- Every partition's audience, worked out before the flush decides anything about itself, and
 -- every record withdrawn from whoever stopped seeing it.
 function Sync.resolved(of: Sync, link: Link.Link, ready: Recipients.Ready)
+    for index = #of.order, 1, -1 do
+        local at = of.order[index]
+        if forgotten(of, of.parts[at]) then
+            of.parts[at] = nil
+            table.remove(of.order, index)
+            Audience.forget(of.seen, at)
+            Catchup.cleared(of.owed, at)
+        end
+    end
     for _, at in of.order do
         local part = of.parts[at]
         diffed(of, part, ready)
@@ -613,7 +693,9 @@ function Sync.shared(
     of.at = of.at % reach + 1
 end
 
--- What a client is owed, in chunks, queued for that client alone until the room runs out.
+-- What a client is owed, in chunks, queued for that client alone until the room runs out. A
+-- partition with changes the shared stream has not sent yet waits for them, since a keyframe is
+-- the store as it is now and those changes would arrive on top of it a second time.
 function Sync.behind(of: Sync, link: Link.Link, who: Player, room: number): number
     if of.owed.any == 0 then return 0 end
     local held = of.owed.owed[who]
@@ -622,6 +704,7 @@ function Sync.behind(of: Sync, link: Link.Link, who: Player, room: number): numb
     for _, at in of.order do
         if held[at] == nil then continue end
         local part = of.parts[at]
+        if next(part.dirt.ops) ~= nil then continue end
         while true do
             local ends =
                 Catchup.next(of.owed, of.layout, part.store, who, at, link.scratch, 0, room)

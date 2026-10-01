@@ -120,6 +120,29 @@ return {
         Expect.equal(nobody.rc, 0)
     end),
 
+    -- While a player is present but not admitted, what everybody gets goes to each admitted
+    -- client by name, since a broadcast would reach the stranger too.
+    Harness.case("outbox.strangers", function()
+        local roster = Doubles.roster()
+        local wire = Doubles.wire()
+        local alice = roster:join("alice")
+        roster:join("bob")
+        local link = Link.new("Arena", "server", ROOM, wire:server(), function(): number
+            return #roster:all()
+        end)
+        Link.open(link)
+        Link.admit(link, alice)
+        local seen: { Player? } = {}
+        wire:watch(function(frame: Doubles.Carried)
+            table.insert(seen, frame.to or false :: any)
+        end)
+        Outbox.shared(link, block(link, "r", Blocks.PACKET))
+        Outbox.loose(link, block(link, "u", Blocks.LOOSE))
+        Outbox.fire(link)
+        wire:deliver()
+        Expect.equal(seen, { alice, alice })
+    end),
+
     -- The lossy lane splits a queue into fires under the cap, shared and per client apart, and a
     -- frame with an instance carries its refs beside it.
     Harness.case("outbox.lossy", function()

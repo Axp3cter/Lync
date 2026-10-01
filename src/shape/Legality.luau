@@ -5,7 +5,6 @@
 local Base = require("../codec/Base")
 local Folds = require("./Folds")
 local Grid = require("./Grid")
-local Joins = require("./Joins")
 local Log = require("../kernel/Log")
 local Order = require("./Order")
 local Protocol = require("../wire/Protocol")
@@ -23,9 +22,25 @@ local FIELDS = Protocol.MAX_FIELDS
 local CEILING = Protocol.BIT_CEILING
 local REACH = Protocol.EXACT
 local CAP = Protocol.UNRELIABLE_CAP
+local FIRE = Protocol.MAX_FIRE
 
 -- The punctuation the descriptor separates a namespace with, which no name may hold.
 local SPELLED = table.freeze({ ";", "=" })
+
+-- Keys that compare exactly, as a table key does. A lossy kind would file two values the wire
+-- spells as one under two partitions, and a record past the audience of the one it lands in.
+local EXACT_KEYS = table.freeze({
+    bool = true,
+    int = true,
+    enum = true,
+    vlq = true,
+    vli = true,
+    str = true,
+}) :: { [string]: boolean }
+
+-- What a stream section carries for its one record at least, past its header and its key: the
+-- count, the slot, and the generation, a byte each.
+local RECORD = 3
 
 -- Types ---------------------------------------------------------------
 
@@ -132,6 +147,18 @@ local function imprecision(of: Base.Cell, at: string): string?
     return nil
 end
 
+-- The first node declaring a check, in the order a walk visits children in.
+local function checked(of: Base.Cell, at: string): string?
+    if #of.validates > 0 then return at end
+    local children = of.children
+    if children == nil then return nil end
+    for _, name in Order.names(children) do
+        local where = checked(children[name], Serial.under(at, name))
+        if where ~= nil then return where end
+    end
+    return nil
+end
+
 -- A tree carrying no state between frames, which is every tree outside a set.
 local function stateless(name: string, at: Site, what: string, of: Base.Cell, root: string)
     local where, mark = marked(of, root)
@@ -171,6 +198,16 @@ local function replicated(name: string, at: Site, of: Set)
     local why = imprecision(cell, name)
     if why ~= nil then refuse(name, at, why) end
 
+    local where = checked(cell, name)
+    if where ~= nil then
+        refuse(
+            name,
+            at,
+            `declares a validate at {where}, and a set's values come from the server, which is \z
+            the side that checks`
+        )
+    end
+
     local key = of.keyField
     if key == nil then return end
     local held = fields[key]
@@ -178,8 +215,21 @@ local function replicated(name: string, at: Site, of: Set)
     if held.marker == "newest" then
         refuse(name, at, `is keyed by {key} and declares newest on it, and a key has to arrive`)
     end
-    if Joins.grid(held) == nil then
-        refuse(name, at, `is keyed by {key}, and its {held.kind} is not one number to partition by`)
+    if not EXACT_KEYS[held.kind] then
+        refuse(
+            name,
+            at,
+            `is keyed by {key}, and its {held.kind} is not a value to partition by, since a key \z
+            must compare exactly`
+        )
+    end
+    if held.lift ~= nil then
+        refuse(
+            name,
+            at,
+            `is keyed by {key} and declares as on it, and a key is partitioned by what the wire \z
+            spells`
+        )
     end
 end
 
@@ -196,14 +246,34 @@ function Legality.delivery(of: Packet): Serial.Delivery
     return "reliable"
 end
 
+-- A worst case one remote call could not carry, refused before anything is sized for it.
+function Legality.fits(name: string, at: Site, bytes: number)
+    if bytes <= FIRE then return end
+    refuse(name, at, `can take {bytes} bytes at worst, past the {FIRE} one remote call carries`)
+end
+
 -- A block that has to fit one fire, refused where it cannot.
 function Legality.block(name: string, of: Packet, bytes: number)
+    Legality.fits(name, of.at, bytes)
     local lane = Legality.delivery(of)
     if lane == "reliable" or bytes <= CAP then return end
     refuse(
         name,
         of.at,
         `is {lane} and its widest block is {bytes} bytes, past the {CAP} one fire carries`
+    )
+end
+
+-- A newest field of a set, whose section of one record has to fit one fire, refused where it
+-- cannot. `opening` is the stream header and the key the section leads with.
+function Legality.stream(name: string, of: Set, field: string, opening: number, bytes: number)
+    local spent = opening + RECORD + bytes
+    if spent <= CAP then return end
+    refuse(
+        name,
+        of.at,
+        `declares newest at {Serial.under(name, field)} and one record of it is {spent} bytes, \z
+        past the {CAP} one fire carries`
     )
 end
 
@@ -215,6 +285,11 @@ function Legality.named(name: string): string?
         end
     end
     return nil
+end
+
+-- A codec encoded on its own, which keeps no state between messages, as a packet does not.
+function Legality.codec(name: string, at: Site, of: Types.Codec<any>)
+    stateless(name, at, "a codec on its own", Base.cell(of), name)
 end
 
 -- One definition, refused on the first thing wrong with it.

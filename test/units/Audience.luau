@@ -42,21 +42,20 @@ local function set(...: string): { [string]: boolean }
 end
 
 return {
-    -- A key nobody assigned is everybody's: its diff keeps no list and reports no change.
+    -- A key nobody assigned is nobody's: its diff holds no one and reports no change.
     Harness.case("audience.open", function()
         local of = Audience.new()
         local who = cast()
-        Expect.equal(Audience.everyone(of, KEY), true)
+        Expect.equal(Audience.everyone(of, KEY), false)
         Audience.diff(of, KEY, who.ready)
         Expect.equal(#Audience.members(of, KEY), 0)
         Expect.equal(#of.gained, 0)
         Expect.equal(#of.lost, 0)
-        Expect.equal(of.at, 0)
     end),
 
-    -- A key nobody diffed yet was everybody's, so narrowing it loses the others and gains nobody.
-    -- Diffing again with nothing moved changes nothing, and a member no longer ready drops out
-    -- without being reported lost.
+    -- A key nobody held yet gains whoever it is first assigned to and loses nobody. Diffing again
+    -- with nothing moved changes nothing, and a member no longer ready drops out without being
+    -- reported lost.
     Harness.case("audience.narrows", function()
         local of = Audience.new()
         local who = cast()
@@ -64,8 +63,8 @@ return {
         Expect.equal(Audience.everyone(of, KEY), false)
         Audience.diff(of, KEY, who.ready)
         Expect.equal(names(Audience.members(of, KEY)), set("alice", "bob"))
-        Expect.equal(#of.gained, 0)
-        Expect.equal(names(of.lost), set("carol"))
+        Expect.equal(names(of.gained), set("alice", "bob"))
+        Expect.equal(#of.lost, 0)
 
         Audience.diff(of, KEY, who.ready)
         Expect.equal(#of.gained, 0)
@@ -78,13 +77,14 @@ return {
     end),
 
     -- Reassigning reports who gained and who lost, and a key assigned to everybody before its
-    -- first diff changes nothing, since everybody already held it.
+    -- first diff is gained by everybody, since nobody held it.
     Harness.case("audience.moves", function()
         local of = Audience.new()
         local who = cast()
         Audience.assign(of, KEY, who.by.alice)
         Audience.diff(of, KEY, who.ready)
-        Expect.equal(names(of.lost), set("bob", "carol"))
+        Expect.equal(names(of.gained), set("alice"))
+        Expect.equal(#of.lost, 0)
         Audience.assign(of, KEY, { who.by.bob, who.by.carol })
         Audience.diff(of, KEY, who.ready)
         Expect.equal(names(of.gained), set("bob", "carol"))
@@ -93,7 +93,7 @@ return {
         local fresh = Audience.new()
         Audience.assign(fresh, KEY, Recipients.ALL)
         Audience.diff(fresh, KEY, who.ready)
-        Expect.equal(#fresh.gained, 0)
+        Expect.equal(names(fresh.gained), set("alice", "bob", "carol"))
         Expect.equal(#fresh.lost, 0)
         Audience.assign(fresh, KEY, who.by.carol)
         Audience.diff(fresh, KEY, who.ready)

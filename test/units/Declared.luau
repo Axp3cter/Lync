@@ -80,8 +80,8 @@ return {
         refuses(SET, replicating(Codecs.int(0, 1)), "and a set replicates records")
     end),
 
-    -- A key is what a set partitions by, so every record has to answer it with one number that
-    -- always arrives.
+    -- A key is what a set partitions by, so every record has to answer it with one value that
+    -- compares as a table key does and always arrives.
     Harness.case("declared.set-keys", function()
         local of = Codecs.struct({ held = Codecs.bool(), team = Codecs.int(0, 3) })
         Legality.definition(SET, replicating(of, "held"))
@@ -91,8 +91,17 @@ return {
         local late = Codecs.struct({ team = Codecs.int(0, 3):newest() })
         refuses(SET, replicating(late, "team"), "a key has to arrive")
 
-        local wordy = Codecs.struct({ team = Codecs.str(0, 4) })
-        refuses(SET, replicating(wordy, "team"), "not one number to partition by")
+        local loose = Codecs.struct({
+            owner = Codecs.vlq(),
+            delta = Codecs.vli(),
+            zone = Codecs.str(0, 4),
+        })
+        Legality.definition(SET, replicating(loose, "owner"))
+        Legality.definition(SET, replicating(loose, "delta"))
+        Legality.definition(SET, replicating(loose, "zone"))
+
+        local floating = Codecs.struct({ team = Codecs.f32() })
+        refuses(SET, replicating(floating, "team"), "not a value to partition by")
     end),
 
     -- One dirty mask covers a fixed number of fields.

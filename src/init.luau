@@ -4,6 +4,7 @@
 
 local Codecs = require("@self/codec")
 local Define = require("@self/api/Define")
+local Encoding = require("@self/api/Encoding")
 local Group = require("@self/channel/Group")
 local Lifecycle = require("@self/api/Lifecycle")
 local Log = require("@self/kernel/Log")
@@ -47,6 +48,8 @@ local Lync = {
     query = Query.new,
     replicate = Set.new,
     group = Group.new,
+    encode = Encoding.encode,
+    decode = Encoding.decode,
 
     all = Recipients.ALL,
     except = Recipients.except,

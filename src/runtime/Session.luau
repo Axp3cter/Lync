@@ -54,17 +54,19 @@ local ANSWERS = 3
 local FLOOR = Protocol.BUDGET_FLOOR
 local RATE = Protocol.BUDGET_RATE
 local WINDOW = Protocol.DETECTOR_WINDOW
+local EARLY = Protocol.EARLY_FRAMES
 
 -- Types ---------------------------------------------------------------
 
--- Who is here. A namespace walks the roster at start and listens for a leave, admitting a client
--- from the handshake rather than from a join.
+-- Who is here. A namespace counts the roster and listens for a leave, admitting a client from the
+-- handshake rather than from a join.
 export type Roster = {
     read all: (self: Roster) -> { Player },
     read onRemoving: (self: Roster, take: (Player) -> ()) -> () -> (),
 }
 
--- One newest packet, between the fires it took and the one transmission they come to.
+-- One newest packet toward one recipient, between the fires it took and the one transmission
+-- they come to.
 type Latest = {
     held: boolean,
     value: any,
@@ -91,7 +93,7 @@ export type Session = typeof(setmetatable(
         order: { number },
         rings: { [number]: number },
         newest: { number },
-        latest: { [number]: Latest },
+        latest: { [number]: { [any]: Latest } },
         reserve: number,
         purse: { [Player]: number },
         fields: { number },
@@ -103,12 +105,19 @@ export type Session = typeof(setmetatable(
         armed: number?,
         owed: string?,
         arms: number,
+        early: { { any } },
         plan: Plan.Budget,
     },
     {} :: typeof(Session)
 ))
 
 -- Private -------------------------------------------------------------
+
+-- Whether a recipient is the same one from fire to fire, so what was last sent to it can be
+-- kept. A list or an exclusion is a new table each time, and is let go once sent.
+local function lasting(to: Types.Recipient?): boolean
+    return to == nil or to == Recipients.ALL or typeof(to) == "Instance" or Group.is(to)
+end
 
 -- The clock a stamp is measured against, which is the one both machines can read.
 local function reading(): number
@@ -219,9 +228,11 @@ local function shipped(self: Session)
     link.toward = nil
     link.last = 0
 
-    -- A fire may name an audience. A question and an answer go to exactly whoever they name.
+    -- A fire may name an audience. A question and an answer go to exactly whoever they name, and
+    -- to nobody where that client is not admitted.
     if kind == FIRES then return posted(self, to, loose, block) end
     if to == nil then return Outbox.shared(link, block) end
+    if not link.ready[to :: Player] then return Blocks.release(block) end
     local audience = link.audience
     audience[1] = to :: Player
     Outbox.targeted(link, audience, 1, block)
@@ -339,6 +350,9 @@ local function departed(self: Session, who: Player)
     end
     Link.drop(self.link, who)
     self.purse[who] = nil
+    for _, held in self.latest do
+        held[who] = nil
+    end
 end
 
 -- Every newest packet held this flush, as the one transmission each comes to, unless its rate
@@ -347,52 +361,71 @@ local function latest(self: Session, now: number)
     local link = self.link
     local scratch = link.scratch
     for _, id in self.newest do
-        local one = self.latest[id]
-        if not one.held then continue end
         local def = self.space.byId[id] :: Compile.Packet
         local hz = def.hz
-        if hz ~= nil and now - one.at < 1 / hz then continue end
+        local held = self.latest[id]
+        for key, one in held do
+            if not one.held then continue end
+            if hz ~= nil and now - one.at < 1 / hz then continue end
 
-        local head = def.head
-        local ends = def.built.write(scratch, head.bytes, one.value)
-        local payload = buffer.readstring(scratch, head.bytes, ends - head.bytes)
-        local side = def.built.sidecar
-        one.held, one.value = false, nil
-        if payload == one.sent then
-            table.clear(side.refs)
-            table.clear(side.slotOf)
-            continue
-        end
-        one.sent, one.at = payload, now
+            local head = def.head
+            local ends = def.built.write(scratch, head.bytes, one.value)
+            local payload = buffer.readstring(scratch, head.bytes, ends - head.bytes)
+            local side = def.built.sidecar
+            one.held, one.value = false, nil
+            if not lasting(one.to) then held[key] = nil end
+            if payload == one.sent then
+                table.clear(side.refs)
+                table.clear(side.slotOf)
+                continue
+            end
+            one.sent, one.at = payload, now
 
-        local fields = self.fields
-        fields[WHOSE] = def.id
-        local at = 1
-        if def.timestamped then
-            at += 1
-            fields[at] = Clock.stamp(Clock.elapsed(now, self.router.epoch))
+            local fields = self.fields
+            fields[WHOSE] = def.id
+            local at = 1
+            if def.timestamped then
+                at += 1
+                fields[at] = Clock.stamp(Clock.elapsed(now, self.router.epoch))
+            end
+            local ring = Sequence.next(self.rings[id] or 0)
+            self.rings[id] = ring
+            fields[at + 1] = ring
+            head.write(scratch, 0, fields)
+            posted(self, one.to, true, sealed(link, scratch, ends, Blocks.LOOSE, def.built))
         end
-        local ring = Sequence.next(self.rings[id] or 0)
-        self.rings[id] = ring
-        fields[at + 1] = ring
-        head.write(scratch, 0, fields)
-        posted(self, one.to, true, sealed(link, scratch, ends, Blocks.LOOSE, def.built))
     end
 end
 
--- One frame in, on whichever lane it arrived. A frame this endpoint may not read yet is recorded
--- rather than swallowed, and a frame over is settled the way a sender settles its own.
+-- One frame in, on whichever lane it arrived. A server drops anything from a client it has not
+-- admitted. A reliable frame this endpoint may not read yet is recorded rather than swallowed,
+-- and a lossy one may overtake the verdict, so it goes quietly. A frame over is settled the way a
+-- sender settles its own.
+-- One frame read, and every set settled after it. Whatever its bytes make the reader raise is
+-- about that frame alone.
+local function read(self: Session, from: Player?, lossy: boolean, bytes: buffer, refs: any)
+    local ok, thrown = pcall(Router.frame, self.router, from, lossy, bytes, refs, reading())
+    if not ok then Boundary.lost(self.boundary, Catalog.BOUNDS, { said = tostring(thrown) }) end
+    for _, id in self.order do
+        Sync.settle(self.sets[id])
+    end
+end
+
 local function arrived(self: Session, lossy: boolean): Transport.Received
     return function(from: Player?, bytes: buffer, refs: Transport.Sidecar?)
-        if not self.link.sending then
-            local facts: Log.Facts = { code = Catalog.UNREADY }
-            Log.warn(Log.format(Catalog.UNREADY, facts), facts)
+        if typeof(bytes) ~= "buffer" then return end
+        if from ~= nil and not self.link.ready[from] then return end
+        if self.link.sending then return read(self, from, lossy, bytes, refs) end
+
+        -- The verdict rides a remote of its own, so a reliable frame sent after it can land first.
+        -- It is kept until the verdict and read then. A lossy one may go, as it always may.
+        if lossy then return end
+        if #self.early < EARLY then
+            table.insert(self.early, { bytes, refs })
             return
         end
-        Router.frame(self.router, from, lossy, bytes, refs, reading())
-        for _, id in self.order do
-            Sync.settle(self.sets[id])
-        end
+        local facts: Log.Facts = { code = Catalog.UNREADY }
+        Log.warn(Log.format(Catalog.UNREADY, facts), facts)
     end
 end
 
@@ -402,18 +435,33 @@ end
 local function greeted(self: Session): Transport.Received
     if self.isServer then
         return function(from: Player?, bytes: buffer)
-            local said, ok = Handshake.verdict(self.space.hash, self.router.epoch, bytes)
+            if typeof(bytes) ~= "buffer" then return end
+            -- A hello is the one thing a client sends before it is admitted, so it is throttled
+            -- like any other drop of theirs.
+            local function heeds(code: Catalog.Code): boolean
+                return Boundary.heeds(self.boundary, from, code, reading())
+            end
+            local said, ok = Handshake.verdict(self.space.hash, self.router.epoch, bytes, heeds)
             if said == nil then return end
             self.transport:fire(HANDSHAKE, from, said)
-            if ok and from ~= nil and not self.link.ready[from] then admitted(self, from) end
+            if not ok or from == nil or self.link.ready[from] then return end
+            -- A hello handled after its sender left would admit nobody, and count them forever.
+            if table.find(self.roster:all(), from) == nil then return end
+            admitted(self, from)
         end
     end
     return function(_: Player?, bytes: buffer)
+        if typeof(bytes) ~= "buffer" then return end
         local epoch = Handshake.judged(self.space.hash, bytes)
         if epoch == nil then return end
         self.router.epoch = epoch
         self.link.sending = true
         self.at = reading()
+        local early = self.early
+        self.early = {}
+        for _, held in early do
+            read(self, nil, false, held[1], held[2])
+        end
     end
 end
 
@@ -433,7 +481,7 @@ function Session.new(
     local order: { number } = {}
     local layouts: { Sections.Layout } = {}
     local newest: { number } = {}
-    local held: { [number]: Latest } = {}
+    local held: { [number]: { [any]: Latest } } = {}
     local widest = Protocol.SECTION_BYTES
     local named = 0
 
@@ -443,7 +491,7 @@ function Session.new(
             widest = math.max(widest, def.blockBytes)
             if def.delivery == LATEST then
                 table.insert(newest, def.id)
-                held[def.id] = { held = false, value = nil, to = nil, sent = nil, at = 0 }
+                held[def.id] = {}
             end
         elseif def.kind == "query" then
             named = math.max(named, def.asks.fields, def.answers.fields)
@@ -458,18 +506,27 @@ function Session.new(
         end
     end
 
-    local link = Link.new(space, side, widest, transport)
+    local present = if side == "server"
+        then function(): number
+            return #roster:all()
+        end
+        else nil
+    local link = Link.new(space, side, widest, transport, present)
     local boundary = Boundary.new(space)
     local heard = Dispatch.wiring()
     local pending = Pending.new(space)
     local router = Router.wiring(compiled, boundary, heard, pending)
-    for _, id in order do
-        local sync = sets[id]
-        router.sections[id] = function(b, pos, ctx)
-            return Sync.taken(sync, b, pos, ctx), nil
-        end
-        router.streams[id] = function(b, pos, ctx)
-            return Sync.stream(sync, b, pos, ctx), nil
+    -- Only a client reads state off the wire. A server's sets are its own, so a section arriving
+    -- there finds no reader and closes the frame.
+    if side == "client" then
+        for _, id in order do
+            local sync = sets[id]
+            router.sections[id] = function(b, pos, ctx)
+                return Sync.taken(sync, b, pos, ctx), nil
+            end
+            router.streams[id] = function(b, pos, ctx)
+                return Sync.stream(sync, b, pos, ctx), nil
+            end
         end
     end
 
@@ -499,6 +556,7 @@ function Session.new(
         armed = nil,
         owed = nil,
         arms = 0,
+        early = {},
         plan = Plan.budget(0),
     }, Session) :: Session
 
@@ -536,9 +594,6 @@ function Session.start(self: Session)
         departed(self, who)
     end)
     table.insert(self.unhook, unhook)
-    for _, who in self.roster:all() do
-        admitted(self, who)
-    end
 end
 
 -- A listener on a definition, and the connection that ends it.
@@ -563,8 +618,22 @@ function Session.fire(self: Session, def: Compile.Packet, to: Types.Recipient?, 
     local link = self.link
     local delivery = def.delivery
     if delivery == LATEST then
-        local one = self.latest[def.id]
-        one.held, one.value, one.to = true, value, to
+        -- Written once here to refuse a bad value at the call, since held it would refuse every
+        -- flush after.
+        def.built.write(link.scratch, def.head.bytes, value)
+        local side = def.built.sidecar
+        table.clear(side.refs)
+        table.clear(side.slotOf)
+        local held = self.latest[def.id]
+        -- Everybody is held under the table itself, which no recipient can be.
+        local key = if to == nil then held else to
+        local one = held[key]
+        if one == nil then
+            local made: Latest = { held = false, value = nil, to = to, sent = nil, at = 0 }
+            one = made
+            held[key] = made
+        end
+        one.held, one.value = true, value
         return arming(self, def)
     end
 
@@ -599,16 +668,27 @@ function Session.ask(
 )
     local id = self.pending:open(reading(), def.name, to, timeout, complete)
     local link = self.link
+    -- A client not yet admitted has nothing listening for the question.
+    if to ~= nil and not link.ready[to] then
+        return self.pending:fail(id, "unanswered", reading())
+    end
     local holds = opened(self, ASKS, def, to, false, id)
+    local at = link.wrote
     if holds == 0 then
         self.asked[1] = id
-        def.asking.write(link.pending, link.wrote, self.asked)
-        link.wrote += def.asking.bytes
+        def.asking.write(link.pending, at, self.asked)
+        at += def.asking.bytes
     else
-        link.wrote = Varint.write(link.pending, link.wrote, id - link.last)
+        at = Varint.write(link.pending, at, id - link.last)
     end
-    link.last = id
-    local wrote = def.request.write(link.pending, link.wrote, value)
+    -- Nothing about the run moves until the value is written, so a value the codec refuses
+    -- leaves the run as it was and the request as never asked.
+    local ok, wrote = pcall(def.request.write, link.pending, at, value)
+    if not ok then
+        self.pending:forget(id)
+        error(wrote, 0)
+    end
+    link.wrote, link.last = at, id
     arming(self, def)
     extended(self, holds, wrote)
 end

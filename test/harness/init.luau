@@ -17,6 +17,8 @@ Harness.BUDGETS = table.freeze({
     encode = 10000,
     decode = 15000,
     model = 1000,
+    -- A whole game per case, so far fewer of them: each is dozens of operations and settles.
+    stateful = 300,
 })
 
 -- Types ---------------------------------------------------------------

@@ -239,22 +239,28 @@ return {
         end)
     end),
 
-    -- A field carrying a value its own bound does not, refused at the flush, since a bound belongs
-    -- to the codec and a set reaches its codec at the flush.
+    -- A field carrying a value its own bound does not is refused at the call that set it, naming
+    -- the field, and leaves the set as it was, so nothing it holds can stop a flush.
     Harness.case("set.field-off-grid", function()
         settled(function()
-            roster:add(IDS.strayed, record(BEYOND))
             local ok, thrown = pcall(function()
-                server:flush()
+                roster:add(IDS.strayed, record(BEYOND))
             end)
-            roster:remove(IDS.strayed)
-            Expect.holds(not ok, "a record no field of it can encode flushed")
-
+            Expect.holds(not ok, "a record no field of it can encode was added")
+            Expect.equal(roster:get(IDS.strayed), nil)
             local said = tostring(thrown)
             Expect.holds(
                 string.find(said, "score", 1, true) ~= nil,
                 `the refusal did not name the field that carried it: {said}`
             )
+
+            roster:add(IDS.strayed, record(0))
+            Expect.holds(not pcall(function()
+                roster:update(IDS.strayed, { score = BEYOND })
+            end), "an update no field of it can encode was taken")
+            Expect.equal(roster:get(IDS.strayed).score, 0)
+            roster:remove(IDS.strayed)
+            server:flush()
         end)
     end),
 }

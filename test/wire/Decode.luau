@@ -330,9 +330,10 @@ return {
     -- varint that never ends, and each is refused.
     Harness.case("total.sidecar-holds", function()
         for _, of in { Turns.built(Codecs.inst()), Turns.built(Codecs.inst("Player")) } do
+            -- The writer refuses a table itself, so the sender's slot one is filled by hand.
             local out = buffer.create(math.max(of.maxBytes, 1))
-            of.write(out, 0, PRETEND)
-            Expect.equal(typeof(of.sidecar.refs[1]), "table")
+            buffer.writeu8(out, 0, 1)
+            of.sidecar.refs[1] = PRETEND
             Expect.holds(not pcall(of.read, out, 0, Turns.CTX), "a reference answered a table")
         end
 

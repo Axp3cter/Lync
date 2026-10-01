@@ -100,6 +100,52 @@ local function fielded(read: Ir.Read, of: Ir.Group): Ir.Read
     end
 end
 
+-- The transforms and checks of the records that dissolved into a group, wrapped round the reads
+-- of its fields. Deepest first, so each record is lifted whole and every one above it is still
+-- the table its fields were read into.
+local function nesting(read: Ir.Read, of: Ir.Group): Ir.Read
+    local nests = of.nests
+    local marked: { number } = {}
+    local above: { { string } } = {}
+    local checks = false
+    for index = #nests, 1, -1 do
+        local nest = nests[index]
+        if nest.lift == nil and nest.tag.checks == nil then continue end
+        local chain: { string } = {}
+        local at = nest.under
+        while at ~= nil do
+            table.insert(chain, 1, nests[at].key)
+            at = nests[at].under
+        end
+        table.insert(marked, index)
+        table.insert(above, chain)
+        if nest.tag.checks ~= nil then checks = true end
+    end
+    if #marked == 0 then return read end
+
+    if checks then
+        wrapped += 1
+    end
+    return function(b: buffer, pos: number, ctx: Types.ValidateContext): (number, any)
+        local at, value = read(b, pos, ctx)
+        for index, place in marked do
+            local nest = nests[place]
+            local up = value
+            for _, name in above[index] do
+                up = up[name]
+            end
+            local one = up[nest.key]
+            local lift = nest.lift
+            if lift ~= nil then
+                one = lift(one)
+                up[nest.key] = one
+            end
+            if nest.tag.checks ~= nil then checked(nest.tag, one, ctx) end
+        end
+        return at, value
+    end
+end
+
 -- The pairs of every child, in order.
 local function children(shapes: { Ir.Shape }, at: Site): ({ Ir.Write }, { Ir.Read })
     local writes = table.create(#shapes) :: { Ir.Write }
@@ -156,7 +202,7 @@ local function made(of: Ir.Shape, at: Site): (Ir.Write, Ir.Read)
         pack, unpack, solo = Word.emit(of.word, paths, expected)
     end
     local write, read = Block.group(of, pack, unpack, solo, writes, reads, paths, expected)
-    return write, fielded(read, of)
+    return write, nesting(fielded(read, of), of)
 end
 
 -- The read that clears the parked reason before a payload and raises it after, put round a root

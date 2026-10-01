@@ -5,6 +5,7 @@
 local Catalog = require("@src/kernel/Catalog")
 local Codecs = require("@src/codec")
 local Packet = require("@src/api/Packet")
+local Protocol = require("@src/wire/Protocol")
 local Session = require("@src/runtime/Session")
 local Set = require("@src/api/Set")
 local Shape = require("@src/shape")
@@ -43,6 +44,9 @@ local HANDSHAKE: Doubles.Channel = "handshake"
 
 -- The bytes a sweep writes over a position: none of the bits, the low seven, and all of them.
 local HOSTILE = table.freeze({ 0x00, 0x7F, 0xFF })
+
+-- How many frames a client keeps before its verdict.
+local KEPT = Protocol.EARLY_FRAMES
 
 -- Two machines on one lane, and the handles the server sends through.
 type Run = {
@@ -150,8 +154,16 @@ local function refused(seen: { [string]: boolean }, of: any, text: string)
     if code ~= nil then seen[code] = true end
 end
 
--- Every codec in the fixture corpus, read back from bytes that are nearly its own.
+-- Every codec in the fixture corpus, read back from bytes that are nearly its own, and a value a
+-- validate turns away.
 local function sweeps(seen: { [string]: boolean })
+    local checked = Shape.build(
+        Codecs.int(0, 100):validate(function(value: number): string?
+            return if value % 5 == 0 then nil else "not a step of five"
+        end),
+        "checked"
+    )
+    refused(seen, checked, Turns.text(checked, 3))
     for _, fixture in Schemas.all do
         local of = Shape.build(fixture.codec, fixture.name)
         for _, one in fixture.cases do
@@ -167,7 +179,7 @@ local function sweeps(seen: { [string]: boolean })
     end
 end
 
--- A client mid-join, handed one frame before its verdict has come back.
+-- A client mid-join, handed more frames before its verdict than it keeps for after it.
 local function joining(bytes: buffer)
     local wire = Doubles.wire()
     local roster = Doubles.roster()
@@ -178,7 +190,9 @@ local function joining(bytes: buffer)
         mine[name]:onClient(function() end)
     end
     Session.new(SPACE, mine, wire:client(who), roster, "client"):start()
-    wire:hands({ at = RELIABLE, from = nil, to = who, bytes = bytes })
+    for _ = 1, KEPT + 1 do
+        wire:hands({ at = RELIABLE, from = nil, to = who, bytes = bytes })
+    end
 end
 
 -- A namespace of a different shape opened on a lane of its own, as the hello it introduces

@@ -196,6 +196,10 @@ interface Module {
     query<Q, R>(this: void, request: Lync.Codec<Q>, response: Lync.Codec<R>): Lync.Query<Q, R>;
     replicate<T extends object>(this: void, struct: Lync.Codec<T>): Lync.Set<T>;
     group(this: void): Lync.Group;
+    /** The bytes `value` takes, and the instances it names, which `decode` needs back. Not a storage format across Lync versions. */
+    encode<T>(this: void, codec: Lync.Codec<T>, value: T): LuaTuple<[buffer, Instance[] | undefined]>;
+    /** The value `bytes` hold, every validate run. Throws on bytes that are not exactly one value. */
+    decode<T>(this: void, codec: Lync.Codec<T>, bytes: buffer, refs?: Instance[]): T;
 
     readonly all: Lync.All;
     except(this: void, target: Player | ReadonlyArray<Player> | Lync.Group): Lync.Except;

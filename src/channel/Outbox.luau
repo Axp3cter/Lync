@@ -88,6 +88,20 @@ local function diverges(of: Link.Link): boolean
     return false
 end
 
+-- Whether a broadcast would reach a player not yet admitted, who cannot read it.
+local function strangers(of: Link.Link): boolean
+    local present = of.present
+    return present ~= nil and present() > of.admitted
+end
+
+-- Whether anything everybody gets is queued on the reliable lane.
+local function pooled(of: Link.Link): boolean
+    for class = 1, Blocks.CLASSES do
+        if #of.shared[class] > 0 then return true end
+    end
+    return false
+end
+
 -- Everything reliable one client is owed, as one frame where it fits one fire and as many
 -- frames as the ceiling asks for where it does not, cut between blocks and in order. A single
 -- block past the ceiling is a payload nothing could carry, and is refused.
@@ -126,9 +140,10 @@ local function reaches(block: Blocks.Block, count: number): boolean
 end
 
 -- Everything queued on the reliable lane out, one frame per client where any client has blocks
--- of their own and one for everybody where none does, then every bucket emptied.
+-- of their own or a stranger is present, and one for everybody otherwise, then every bucket
+-- emptied.
 local function reliable(of: Link.Link)
-    if of.isServer and diverges(of) then
+    if of.isServer and (diverges(of) or (pooled(of) and strangers(of))) then
         for player in of.ready do
             sent(of, of.divergent[player], player)
         end
@@ -188,8 +203,15 @@ end
 
 -- Everything queued on the lossy lane out, and the queues left empty.
 local function lossy(of: Link.Link)
-    looses(of, of.sharedLossy, nil)
-    Blocks.drain(of.sharedLossy)
+    local shared = of.sharedLossy
+    if #shared > 0 and of.isServer and strangers(of) then
+        for player in of.ready do
+            looses(of, shared, player)
+        end
+    else
+        looses(of, shared, nil)
+    end
+    Blocks.drain(shared)
     for player, held in of.divergentLossy do
         looses(of, held, player)
         Blocks.drain(held)

@@ -77,14 +77,23 @@ return {
     Harness.row({
         name = "throughput.raw-remote",
         setup = function(): any
-            local of = opened()
             local built = Shape.build(Schemas.motion.codec, BEAT)
             local sized = buffer.create(built.maxBytes)
-            local width = built.write(sized, 0, of.value)
+            local width = built.write(sized, 0, Schemas.cased(Schemas.motion, CARRIED))
+
+            -- A receiver that takes the frame and reads nothing of it, since a session listening
+            -- here would decode the bytes, which is the cost this row leaves out.
+            local wire = Doubles.wire()
+            local player = Doubles.roster():join(SENDER)
+            local transport = wire:server()
+            transport:open()
+            local receiver = wire:client(player)
+            receiver:open()
+            receiver:onReceive(ORDERED, function() end)
             return {
-                wire = of.wire,
-                player = of.player,
-                transport = of.wire:server(),
+                wire = wire,
+                player = player,
+                transport = transport,
                 bytes = buffer.create(width),
             }
         end,

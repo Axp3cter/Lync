@@ -184,6 +184,7 @@ local function query(name: string, id: number, over: number, of: Legality.Query)
     local request = Shape.build(of.of, Serial.under(name, Legality.REQUEST))
     local response = Shape.build(of.reply, Serial.under(name, Legality.RESPONSE))
     local head = Frames.running(over)
+    Legality.fits(name, of.at, Frames.block(head, math.max(request.maxBytes, response.maxBytes)))
     return table.freeze({
         id = id,
         name = name,
@@ -205,6 +206,14 @@ local function set(name: string, id: number, over: number, of: Legality.Set): Se
     local cell = Base.cell(of.of)
     local held = columns(name, cell)
     local key = of.keyField
+    local keyIndex = if key == nil then nil else held.index[key]
+    local stream = Frames.stream(over, #held.names)
+    local opening = stream.bytes + if keyIndex == nil then 0 else held.built[keyIndex].maxBytes
+    for _, place in held.newest do
+        Legality.stream(name, of, held.names[place], opening, held.built[place].maxBytes)
+    end
+    local head = Frames.section(over)
+    Legality.fits(name, of.at, head.bytes + held.bytes)
     return table.freeze({
         id = id,
         name = name,
@@ -213,11 +222,11 @@ local function set(name: string, id: number, over: number, of: Legality.Set): Se
         file = of.at.file,
         line = of.at.line,
         cell = cell,
-        head = Frames.section(over),
-        stream = Frames.stream(over, #held.names),
+        head = head,
+        stream = stream,
         follow = Frames.follow(#held.names),
         keyField = key,
-        keyIndex = if key == nil then nil else held.index[key],
+        keyIndex = keyIndex,
         fieldNames = held.names,
         fieldIndex = held.index,
         fieldBuilt = held.built,

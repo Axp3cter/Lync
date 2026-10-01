@@ -37,6 +37,9 @@ Protocol.UNRELIABLE_CAP = 1000
 -- The widest one frame may be.
 Protocol.MAX_FIRE = 1000000
 
+-- How many reliable frames a client keeps while it waits for its verdict.
+Protocol.EARLY_FRAMES = 64
+
 -- Budgets in bytes, and the flush detector window in seconds.
 Protocol.BUDGET_RATE = 32768
 Protocol.BUDGET_FLOOR = 1024
@@ -55,6 +58,17 @@ Protocol.NEWEST_GENS = 4
 -- disagree, hours of room against a lane's latency.
 Protocol.STAMP_BITS = 24
 Protocol.STAMP_RATE = 1000
+
+-- How long before its arrival a client's stamp may say it was sent, in seconds. After it, never.
+Protocol.STAMP_WINDOW = 60
+
+-- How many drops of one code one client may leave a window, and the window in seconds. The rest
+-- are counted and said as one record when the window reopens or the client leaves.
+Protocol.DROP_BURST = 8
+Protocol.DROP_WINDOW = 10
+
+-- How many of one client's requests may be with a responder at once. One past it is unanswered.
+Protocol.RESPONDER_CAP = 64
 
 -- A packed colour's channel widths, least significant first.
 Protocol.RGB565_RED = 5

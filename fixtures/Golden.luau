@@ -20,7 +20,7 @@ Golden.descriptors = table.freeze({
         .. '"slots"=array(0,32){"element"=struct(){"count"=int(1,99);"item"=enum(["potion","'
         .. 'rope","shield","sword"]);};};}',
     everything = 'struct(){"carry"=vec3(components):newest{"component"=quant(-1024,1024,0.05);};"c'
-        .. 'heap"=color3(rgb565);"checked"=int(0,100):validate;"colour"=str("0123456789abcde'
+        .. 'heap"=color3(rgb565);"colour"=str("0123456789abcde'
         .. 'f",6,6);"count"=int(0,1000);"double"=f64();"event"=tagged("kind"){"score"=struct'
         .. '(){"points"=int(0,100);};"spawn"=struct(){"at"=vec3(components);};};"facing"=vec'
         .. '3(unit,1);"fixed"=rotation(none);"flag"=bool();"flat"=vec2();"frame"=cframe(){"p'
@@ -43,7 +43,7 @@ Golden.hashes = table.freeze({
     motion = "8A9F2243D0FE64B4",
     profile = "0D1698C53E50B9A9",
     inventory = "6A613C5F0A00DFEF",
-    everything = "B29331CBB1DD9BBA",
+    everything = "8B423F59BD9E1D48",
 } :: { [string]: string })
 
 -- What each fixture case costs on the wire, in bytes.
@@ -226,15 +226,15 @@ Golden.frames = table.freeze({
             .. "32323232323232323232323232323232323232323232323232323232323232323232323",
     }),
     ["acceptance.keyframe"] = table.freeze({
-        "a reliable 00011001000200005000500050000000000000000000000000000000000000b4b4000"
-            .. "0000000000000000000000000000000000000006b696901000000000000000000000000000000000"
-            .. "00000000000000000000000000000000001000000000000000000000000006b696901",
+        "a reliable 000110010002000050005000500000000000000000000000000000000000b4b4000000000"
+            .. "0000000000000000000000000000000006b6969010000000000000000000000000000000000000000"
+            .. "0000000000000000000000000001000000000000000000000000006b696901",
     }),
     ["acceptance.delta"] = table.freeze({
-        "a reliable 0101fdfcff57ffffff07100110442da1b2c3f403555555555555d53f010000c03f000"
-            .. "00000000020c0010000003f000080be0000c03f00000000000020c0d06ad10207f3026044a46de80"
-            .. "2046c796e63062409038130003c21046c796e630c0000c03f00001040000070c00100f001c413010"
-            .. "000003f80200000003f0000803e0000403f68d1d202",
+        "a reliable 01017dfeffabffffff0110011044a1b2c3f403555555555555d53f010000c03f000000000"
+            .. "00020c0010000003f000080be0000c03f00000000000020c0d06ad10207f3026044a46de802046c79"
+            .. "6e63062409038130003c21046c796e630c0000c03f00001040000070c00100f001c413800000003f8"
+            .. "0200000003f0000803e0000403f68d1d202",
         "a unreliable 000400000110010019500a50c94f",
     }),
     ["acceptance.cleared"] = table.freeze({

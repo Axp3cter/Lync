@@ -148,7 +148,8 @@ end
 -- Public --------------------------------------------------------------
 
 -- Which fold a declaration is, or nothing where it is no region field at all. A vector or colour
--- of floats is not one: every float is a byte field wherever it appears.
+-- of floats is not one: every float is a byte field wherever it appears. Nor is one whose
+-- component checks, which a fold has nowhere to do. A component's transform goes on its grid.
 function Folds.fold(of: Base.Cell): Fold?
     local kind, params = of.kind, of.params
     local form = params.form
@@ -157,9 +158,12 @@ function Folds.fold(of: Base.Cell): Fold?
         if form == "unit" then return pointing(Grid.plane(params.step :: number)) end
         local children = of.children
         local component = if children == nil then nil else children.component
-        if component == nil then return nil end
+        if component == nil or #component.validates > 0 then return nil end
         local single = Joins.grid(component)
-        return if single == nil then nil else spread(single, kind == "vec3")
+        if single == nil then return nil end
+        local lift = component.lift
+        if lift ~= nil then single = Grid.lifted(single, lift, component.lower :: (any) -> any) end
+        return spread(single, kind == "vec3")
     end
 
     if kind == "rotation" then

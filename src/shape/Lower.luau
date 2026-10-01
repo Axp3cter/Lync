@@ -114,9 +114,17 @@ local function hoisted(of: Base.Cell): boolean
 end
 
 -- The word's reading of a child's count. A value of the wrong type or a count off its bounds is
--- stored as nothing and left to the payload, which refuses it in the words it always has.
+-- stored as nothing and left to the payload, which refuses it in the words it always has. A
+-- transformed child is measured lowered, since the lowered value is what the payload writes.
 local function measuring(of: Base.Cell): (any, { number }, number) -> boolean
     local measure = MEASURED[of.kind]
+    local lower = of.lower
+    if lower ~= nil then
+        local raw = measure
+        measure = function(value: any): number?
+            return raw(lower(value))
+        end
+    end
     local low, high = of.params.min :: number, of.params.max :: number
     return function(value: any, into: { number }, at: number): boolean
         local count = measure(value)
@@ -193,7 +201,9 @@ local function recorded(
             key = path[deep],
             under = if deep == 1 then nil else under[spelled(path, deep - 1)],
             allow = allows[index],
-            tag = plain(entry.of, pathed(at, path), site),
+            tag = tagged(entry.of, pathed(at, path), site),
+            lift = entry.of.lift,
+            lower = entry.of.lower,
         }
         under[spelled(path, deep)] = index
     end
@@ -265,6 +275,8 @@ local function recorded(
         local path = entry.at
         local held = tagged(entry.of, pathed(at, path), site)
         local field = fielded(entry.of, held, #leaves + 1, path[#path], inside(path))
+        local lift = entry.of.lift
+        if lift ~= nil then field = Joins.lifted(field, lift, entry.of.lower :: (any) -> any) end
         table.move(field.leaves, 1, #field.leaves, #leaves + 1, leaves)
         table.insert(joins, field.join)
     end
@@ -279,8 +291,8 @@ local function recorded(
         })
     end
 
-    -- An optional's checks ride on the node that may not be reached, so an absent field is one
-    -- they never run on.
+    -- An optional's checks and transform ride on the node that may not be reached, so an absent
+    -- field is one they never run on.
     for _, entry in split.vars do
         local path = entry.at
         local where = pathed(at, path)
@@ -292,6 +304,11 @@ local function recorded(
         else
             local inner = (entry.of.children :: any).inner :: Base.Cell
             local payload = Lower.of(inner, Serial.under(where, "inner"), site)
+            local lift = entry.of.lift
+            if lift ~= nil then
+                local lower = entry.of.lower :: (any) -> any
+                payload = Ir.xform(plain(entry.of, where, site), payload, lift, lower)
+            end
             made = Ir.opt(tagged(entry.of, where, site), place, payload)
         end
         table.insert(parts, { key = path[#path], nest = inside(path), of = made, hoist = hoist })
@@ -359,9 +376,15 @@ local function shaped(
     if kind == "buffer" then return Ir.bytes(tag, counted(params), "buffer", nil, hoist) end
 
     -- A packed run where the element is one leaf that fits, a list of aligned elements otherwise.
+    -- A run has nowhere to check an element, and takes a transform on the grid.
     if kind == "array" then
         local element = (of.children :: any).element :: Base.Cell
-        local grid = if Regions.packs(element) then Joins.grid(element) else nil
+        local unchecked = #element.validates == 0
+        local grid = if unchecked and Regions.packs(element) then Joins.grid(element) else nil
+        local lift = element.lift
+        if grid ~= nil and lift ~= nil then
+            grid = Grid.lifted(grid, lift, element.lower :: (any) -> any)
+        end
         if grid ~= nil then return Ir.run(tag, counted(params), grid, hoist) end
         local elem = Lower.of(element, Serial.under(at, "element"), site)
         return Ir.list(tag, counted(params), elem, hoist)

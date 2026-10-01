@@ -260,9 +260,11 @@ end
 
 -- Public --------------------------------------------------------------
 
--- How many whole records a keyframe of this set fits in the bytes it is handed.
+-- How many whole records a keyframe of this set fits in the bytes it is handed. A record wider
+-- than any section still goes, alone, while any room is left.
 function Plan.keyframes(of: Sections.Layout, bytes: number): number
-    return (math.min(bytes, BOUND) - of.opening) // of.entry
+    if bytes <= 0 then return 0 end
+    return math.max((math.min(bytes, BOUND) - of.opening) // of.entry, 1)
 end
 
 function Plan.of(layout: Sections.Layout): Plan
@@ -371,8 +373,11 @@ function Plan.next(
     if kind == SETTLED then return nil, pos end
     local ends = laid(of, part.store, b, pos, kind, from, count)
     local cost = ends - pos
+    -- A refusal ends the flush, not just this partition, so nothing cheaper behind it overtakes it:
+    -- a keyframe ahead of the removal it follows would land on a slot the removal then frees.
     if budget.took and budget.spent + cost > budget.target then
         of.stage = SETTLED
+        budget.spent = math.max(budget.spent, budget.target)
         return nil, pos
     end
     budget.spent += cost

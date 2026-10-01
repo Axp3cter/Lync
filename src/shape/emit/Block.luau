@@ -83,11 +83,13 @@ function Block.group(
     local unders = table.create(deep, 0)
     local nested = table.create(deep) :: { Ir.Tag }
     local slack = table.create(deep) :: { { [string]: boolean } }
+    local lowers = table.create(deep) :: { ((any) -> any)? }
     for index, nest in of.nests do
         names[index] = nest.key
         unders[index] = nest.under or 0
         nested[index] = nest.tag
         slack[index] = nest.allow
+        lowers[index] = nest.lower
     end
 
     -- Every part, the record it is read off, the bit of the region that says whether it came, and
@@ -205,13 +207,16 @@ function Block.group(
         return plain, plainly
     end
 
-    -- A dissolved record is reached through the record its nest holds, an option is skipped where
-    -- its bit says it did not come, and a keyless part's value is the group's own.
+    -- A dissolved record is reached through the record its nest holds, lowered where it declares a
+    -- transform, an option is skipped where its bit says it did not come, and a keyless part's
+    -- value is the group's own.
     local function write(b: buffer, pos: number, value: any): number
         if allow ~= nil then only(allow, tag, value) end
         for index = 1, deep do
             local under = unders[index]
             local one = (if under == 0 then value else held[under])[names[index]]
+            local lower = lowers[index]
+            if lower ~= nil then one = lower(one) end
             only(slack[index], nested[index], one)
             held[index] = one
         end

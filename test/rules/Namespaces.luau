@@ -58,7 +58,7 @@ return {
         end, "which is what a descriptor separates its own names with")
         Expect.throws(function()
             Define.define(5 :: any, DEFINITIONS :: any)
-        end, "is already named in")
+        end, "named by a string, not a number")
     end),
 
     -- A value in the table that is not a definition: a bare number is the typo, and a bare codec

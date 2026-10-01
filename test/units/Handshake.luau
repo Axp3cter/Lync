@@ -26,6 +26,11 @@ local function warned(call: () -> ...any): ({ string }, ...any)
     return codes, table.unpack(results)
 end
 
+-- A gate that lets every warning through, since throttling is the boundary's to test.
+local function heard(_: any): boolean
+    return true
+end
+
 return {
     -- A hello carrying our hash earns an accepting verdict carrying the epoch, which the client
     -- reads back as that epoch.
@@ -33,7 +38,7 @@ return {
         local hello = Handshake.hello(OURS)
         Expect.equal(buffer.len(hello), Protocol.HELLO_BYTES)
         local codes, verdict, spoken = warned(function()
-            return Handshake.verdict(OURS, EPOCH, hello)
+            return Handshake.verdict(OURS, EPOCH, hello, heard)
         end)
         Expect.equal(codes, {})
         Expect.equal(spoken, true)
@@ -46,7 +51,7 @@ return {
     -- server and raised at the client, both naming the two hashes.
     Harness.case("handshake.rejects", function()
         local codes, verdict, spoken = warned(function()
-            return Handshake.verdict(OURS, EPOCH, Handshake.hello(THEIRS))
+            return Handshake.verdict(OURS, EPOCH, Handshake.hello(THEIRS), heard)
         end)
         Expect.equal(codes, { Catalog.MISMATCH })
         Expect.equal(spoken, false)
@@ -65,7 +70,7 @@ return {
     -- Bytes neither message could be are warned under one code and answered with nothing.
     Harness.case("handshake.unspoken", function()
         local codes, verdict, spoken = warned(function()
-            return Handshake.verdict(OURS, EPOCH, buffer.create(3))
+            return Handshake.verdict(OURS, EPOCH, buffer.create(3), heard)
         end)
         Expect.equal(codes, { Catalog.HELLO })
         Expect.equal({ verdict, spoken }, { nil, false })

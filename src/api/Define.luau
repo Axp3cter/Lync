@@ -93,6 +93,9 @@ end
 -- The table handed over is the one handed back, frozen, so a caller who edited it afterwards
 -- cannot leave the two machines agreeing at different times.
 function Define.define<T>(name: string, defs: T & Types.Definitions): T
+    if type(name) ~= "string" then
+        refuse(`a namespace is named by a string, not a {typeof(name)}`, tostring(name))
+    end
     if sealed then refuse(`{name} was defined after start, and start opens what there is`, name) end
     if spaces[name] ~= nil then refuse(`{name} has already been defined`, name) end
     local why = Legality.named(name)

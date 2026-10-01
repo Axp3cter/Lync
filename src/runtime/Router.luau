@@ -32,9 +32,15 @@ local ANSWERED = 0
 local NEWEST: Serial.Delivery = "newest"
 local RATE = Protocol.STAMP_RATE
 
+-- How long before its arrival a client's stamp may say it was sent.
+local STALE = Protocol.STAMP_WINDOW
+
 -- Why a request that reached nobody resolves the way it does: the answer arrived and said the
 -- responder threw, so it is not a timeout.
 local THREW: Types.OutcomeCode = "unanswered"
+
+-- How far a request id runs, which is as far as either end hands them out.
+local IDS = Protocol.QUERY_CAP * 2
 
 -- Types ---------------------------------------------------------------
 
@@ -93,10 +99,13 @@ local function latest(of: Wiring, from: Player): { [number]: number }
     return held
 end
 
--- A stamp off the wire as the instant it was sent, on the clock both machines share.
-local function stamped(of: Wiring, stamp: number): number
-    local elapsed = Clock.elapsed(of.boundary.ctx.now, of.epoch)
-    return of.epoch + Clock.unwrap(stamp, elapsed) / RATE
+-- A stamp off the wire as the instant it was sent, on the clock both machines share. A client's is
+-- a claim, held to the window before the frame arrived, since nothing is sent after it arrives.
+local function stamped(of: Wiring, stamp: number, from: Player?): number
+    local now = of.boundary.ctx.now
+    local sent = of.epoch + Clock.unwrap(stamp, Clock.elapsed(now, of.epoch)) / RATE
+    if from == nil then return sent end
+    return math.clamp(sent, now - STALE, now)
 end
 
 -- Whether a newest block lost the race with one this machine already has, in which case the whole
@@ -125,7 +134,7 @@ local function packets(
     if not holds(of, head, at, len, def.name) then return nil end
     head.read(b, at, of.head)
 
-    local sent: number? = if def.timestamped then stamped(of, of.head[SECOND]) else nil
+    local sent: number? = if def.timestamped then stamped(of, of.head[SECOND], from) else nil
     local skipped = stale(of, def, from)
     local pos = at + head.bytes
     local built = def.built
@@ -140,15 +149,18 @@ local function packets(
             if from == nil then
                 Dispatch.packet(of.heard, def.id, def.name, value, sent)
             else
-                Dispatch.packet(of.heard, def.id, def.name, value, from, sent)
+                Dispatch.packetFrom(of.heard, def.id, def.name, value, from, sent)
             end
         end
         return ends
     end
 
+    -- Every payload after the first is stamped as one more arrival, so `last` is the value before
+    -- it from this sender and a run cannot slip past a rate a validate holds it to.
     local values = table.create(held)
     local taken = 0
-    for _ = 1, held do
+    for index = 1, held do
+        if index > 1 then Boundary.stamped(boundary, from, def.id, boundary.ctx.now) end
         local ends, value = Boundary.ran(boundary, def, built, built.read, b, pos)
         if ends == nil then return nil end
         if not skipped and boundary.took then
@@ -161,7 +173,7 @@ local function packets(
         if from == nil then
             Dispatch.packets(of.heard, def.id, def.name, taken, values, sent)
         else
-            Dispatch.packets(of.heard, def.id, def.name, taken, values, from, sent)
+            Dispatch.packetsFrom(of.heard, def.id, def.name, taken, values, from, sent)
         end
     end
     return pos
@@ -188,6 +200,7 @@ local function asked(
 
     for index = 1, held do
         if index == 1 then
+            if not holds(of, def.asking, pos, len, def.name) then return nil end
             def.asking.read(b, pos, of.head)
             id = of.head[WHOSE]
             pos += def.asking.bytes
@@ -195,6 +208,12 @@ local function asked(
             local step, after = Varint.read(b, pos)
             id += step
             pos = after
+            Boundary.stamped(boundary, from, def.id, boundary.ctx.now)
+        end
+        if id >= IDS then
+            local facts = { expected = `a request id under {IDS}`, got = tostring(id) }
+            Boundary.lost(boundary, Catalog.DEFID, facts)
+            return nil
         end
         local ends, value = Boundary.ran(boundary, def, request, request.read, b, pos)
         if ends == nil then return nil end
@@ -203,13 +222,18 @@ local function asked(
             -- trace like any raise of theirs, and the request ends unanswered.
             local asked = id
             local function done(ok: boolean, answer: any)
+                if from ~= nil then Boundary.finished(boundary, from) end
                 if ok and Log.call(of.answered, def, asked, from, true, answer) then return end
                 of.answered(def, asked, from, false, nil)
             end
             if from == nil then
                 Dispatch.request(of.heard, def.id, done, value)
-            else
+            elseif Boundary.began(boundary, from) then
                 Dispatch.request(of.heard, def.id, done, value, from)
+            else
+                -- A client with as many running as one may is answered as a raise would be, so a
+                -- responder that yields cannot be made to hold threads without bound.
+                of.answered(def, asked, from, false, nil)
             end
         end
         pos = ends
@@ -218,10 +242,11 @@ local function asked(
 end
 
 -- A response block: which question each answers, whether it is one, and what it says, the bit
--- folded into the step after the first.
+-- folded into the step after the first. An answer from anyone but who was asked is read past.
 local function answered(
     of: Wiring,
     def: Query,
+    from: Player?,
     b: buffer,
     at: number,
     len: number,
@@ -238,6 +263,7 @@ local function answered(
     for index = 1, held do
         local outcome
         if index == 1 then
+            if not holds(of, def.answering, pos, len, def.name) then return nil end
             def.answering.read(b, pos, of.head)
             id = of.head[WHOSE]
             outcome = of.head[def.answering.fields]
@@ -247,14 +273,16 @@ local function answered(
             id += step
             outcome = bit
             pos = after
+            Boundary.stamped(boundary, from, def.id + 1, boundary.ctx.now)
         end
+        local owed = pending:owes(id, from)
         if outcome ~= ANSWERED then
-            pending:fail(id, THREW, now)
+            if owed then pending:fail(id, THREW, now) end
             continue
         end
         local ends, value = Boundary.ran(boundary, def, response, response.read, b, pos)
         if ends == nil then return nil end
-        if boundary.took then pending:answer(id, value) end
+        if owed and boundary.took then pending:answer(id, value) end
         pos = ends
     end
     return pos
@@ -339,7 +367,7 @@ function Router.frame(
             ends = asked(of, def, from, b, at, len)
         else
             taken = paired(def.response.sidecar, refs, taken)
-            ends = answered(of, def, b, at, len, now)
+            ends = answered(of, def, from, b, at, len, now)
         end
         if ends == nil then return end
         if ends <= at then return lost(of, "a block that reads forward", def.name) end

@@ -109,6 +109,11 @@ function Query.request(self: any, first: any, second: any, third: any, fourth: a
         local said = "request without a completion is a client's call, and this is the server"
         Define.refuse(said, Define.naming(self.live, "request"))
     end
+    -- A server asks one player. Anything else would reach every client as a question.
+    if typeof(first) ~= "Instance" then
+        local said = `request asks one player, got {typeof(first)}`
+        Define.refuse(said, Define.naming(self.live, "request"))
+    end
     session:ask(self.live.def, first, second, fourth, third)
     return
 end

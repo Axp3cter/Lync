@@ -41,6 +41,13 @@ local function said(kind: Types.LogKind, message: string, facts: Facts, file: st
     Listeners.fan(records, kind, message, data :: Types.LogData)
 end
 
+-- A raise as the rejection it is, or nothing where it is no rejection this catalogue lists.
+local function rejected(thrown: unknown): Rejection?
+    if typeof(thrown) ~= "table" then return nil end
+    local rejection = thrown :: Rejection
+    return if Catalog.entries[rejection.code] ~= nil then rejection else nil
+end
+
 -- Taken where the call raised, the only moment a line inside a listener can still be read.
 local function traced(thrown: any): string
     return debug.traceback(tostring(thrown), 2)
@@ -158,8 +165,8 @@ end
 -- reads as a bounds fault carrying what was said.
 function Log.drop(thrown: unknown, about: Facts, kind: Types.LogKind?)
     local facts = table.clone(about)
-    local rejection = if typeof(thrown) == "table" then thrown :: Rejection else nil
-    if rejection ~= nil and Catalog.entries[rejection.code] ~= nil then
+    local rejection = rejected(thrown)
+    if rejection ~= nil then
         for name, value in rejection.facts do
             facts[name] = value
         end
@@ -174,6 +181,18 @@ function Log.drop(thrown: unknown, about: Facts, kind: Types.LogKind?)
     local file = if typeof(facts.file) == "string" then facts.file :: string else "Lync"
     local line = if typeof(facts.line) == "number" then facts.line :: number else 1
     said(kind or "warn", Log.format(facts.code :: Catalog.Code, facts), facts, file, line)
+end
+
+-- The code a drop of this raise is recorded under, read without composing the record.
+function Log.coded(thrown: unknown): Catalog.Code
+    local rejection = rejected(thrown)
+    return if rejection ~= nil then rejection.code else Catalog.BOUNDS
+end
+
+-- The drops of one code a sender's flood left unrecorded, said once as how many.
+function Log.quieted(code: Catalog.Code, count: number, player: Player)
+    local facts: Facts = { code = code, player = player, suppressed = count }
+    said("warn", `{count} more {code} from {player} went unrecorded`, facts, "Lync", 1)
 end
 
 function Log.onLog(

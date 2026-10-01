@@ -440,8 +440,8 @@ return {
         Expect.equal(#bob.seen, 2)
     end),
 
-    -- A key granted to somebody: only they hold the records under it, and a key nobody narrowed
-    -- is still everybody's, so this is a grant and not a fence.
+    -- A key granted to somebody: only they hold the records under it, and a key nobody granted
+    -- reaches nobody, so a forgotten audience hides records rather than leaks them.
     Harness.case("key.audience-grants", function()
         local of = opened(Schemas.roster)
         local set = Replica.ours(of)
@@ -453,8 +453,8 @@ return {
 
         Expect.holds(alice.set:get(ID) ~= nil, "the grantee is missing its own key's record")
         Expect.equal(bob.set:get(ID), nil)
-        Expect.holds(alice.set:get(OTHER) ~= nil, "an ungranted key stopped reaching alice")
-        Expect.holds(bob.set:get(OTHER) ~= nil, "an ungranted key stopped reaching bob")
+        Expect.equal(alice.set:get(OTHER), nil)
+        Expect.equal(bob.set:get(OTHER), nil)
     end),
 
     -- A key granted twice: the second call is what the audience is, so whoever held it before is

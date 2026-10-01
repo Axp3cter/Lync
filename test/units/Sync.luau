@@ -228,6 +228,7 @@ return {
         local rig = rigged("team")
         Sync.add(rig.server, 1, { team = 1, hp = 1, pos = Vector3.zero })
         Sync.add(rig.server, 2, { team = 2, hp = 2, pos = Vector3.zero })
+        Sync.audience(rig.server, 1, Recipients.ALL)
         Sync.audience(rig.server, 2, rig.bob)
         flushed(rig)
         Expect.equal(Sync.get(rig.client, 1) ~= nil, true)

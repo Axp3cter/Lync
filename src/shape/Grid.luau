@@ -84,7 +84,8 @@ local function cyclic(min: number, step: number, span: number, width: number): G
 end
 
 -- A grid from zero at a whole step is its own index, so a run of them turns in one crossing.
-local function plain(span: number, width: number, under: number, over: number): Grid
+-- An exact grid is off between its points rather than rounded onto one.
+local function plain(span: number, width: number, under: number, over: number, exact: boolean): Grid
     return {
         span = span,
         width = width,
@@ -93,6 +94,7 @@ local function plain(span: number, width: number, under: number, over: number): 
         toIndex = function(value: any): number?
             if type(value) ~= "number" then return nil end
             if not (value >= under and value <= over) then return nil end
+            if exact and value % 1 ~= 0 then return nil end
             return math.min(math.max(0, math.round(value)), span)
         end,
         fromIndex = function(index: number): any
@@ -103,6 +105,7 @@ local function plain(span: number, width: number, under: number, over: number): 
                 local one = values[place]
                 if type(one) ~= "number" then return place end
                 if not (one >= under and one <= over) then return place end
+                if exact and one % 1 ~= 0 then return place end
                 into[place] = math.min(math.max(0, math.round(one)), span)
             end
             return nil
@@ -116,7 +119,8 @@ local function stepped(
     span: number,
     width: number,
     under: number,
-    over: number
+    over: number,
+    exact: boolean
 ): Grid
     return {
         span = span,
@@ -126,6 +130,7 @@ local function stepped(
         toIndex = function(value: any): number?
             if type(value) ~= "number" then return nil end
             if not (value >= under and value <= over) then return nil end
+            if exact and value % 1 ~= 0 then return nil end
             return math.min(math.max(0, math.round((value - min) / step)), span)
         end,
         fromIndex = function(index: number): any
@@ -154,15 +159,36 @@ end
 
 -- A midpoint rounds up, which is arbitrary and pinned, since two machines splitting one
 -- differently disagree about the bytes. A reading is clamped because a range holding two and a
--- half steps rounds its top to three and the grid has two.
-function Grid.of(min: number, max: number, step: number, wraps: boolean?): Grid
+-- half steps rounds its top to three and the grid has two. An exact grid takes its points alone,
+-- which is an int: whole numbers, and a fraction refused rather than rounded.
+function Grid.of(min: number, max: number, step: number, wraps: boolean?, exact: boolean?): Grid
     local span = spanned(min, max, step)
     local width = Bits.width(span)
     if wraps then return cyclic(min, step, span, width) end
 
     local room = allowed(min, max, step, READING)
-    if min == 0 and step == 1 then return plain(span, width, -room, max + room) end
-    return stepped(min, step, span, width, min - room, max + room)
+    local only = exact == true
+    if min == 0 and step == 1 then return plain(span, width, -room, max + room, only) end
+    return stepped(min, step, span, width, min - room, max + room, only)
+end
+
+-- A grid seen through a transform: the same points, each value lowered on the way in and lifted on
+-- the way out. Nothing may skip the pair, so it is never plain and offers no bulk form.
+function Grid.lifted(of: Grid, lift: (wire: any) -> any, lower: (domain: any) -> any): Grid
+    local toIndex, fromIndex = of.toIndex, of.fromIndex
+    return {
+        span = of.span,
+        width = of.width,
+        wrap = of.wrap,
+        plain = false,
+        whole = of.whole,
+        toIndex = function(value: any): number?
+            return toIndex(lower(value))
+        end,
+        fromIndex = function(index: number): any
+            return lift(fromIndex(index))
+        end,
+    }
 end
 
 -- One bit and the two values it is. A flag fills its bit, so a run of them refuses nothing.

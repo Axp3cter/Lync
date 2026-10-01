@@ -39,12 +39,15 @@ export type Sidecar = {
     bears: boolean,
 }
 
--- A record that dissolved into the one holding it, and the key its fields are read out of.
+-- A record that dissolved into the one holding it, and the key its fields are read out of. Its
+-- transform is undone before its fields are reached and redone once they are all read.
 export type Nest = {
     read key: string,
     read under: number?,
     read allow: { [string]: boolean },
     read tag: Tag,
+    read lift: ((wire: any) -> any)?,
+    read lower: ((domain: any) -> any)?,
 }
 
 -- The inclusive bounds a count runs between, a ranged int of no bits where the two meet.
@@ -259,9 +262,12 @@ local function counted(of: Span, hoist: Hoist?): number
 end
 
 -- Whether a value is one reading on a grid, which lets a column of them lie end to end in bits.
+-- One with checks of its own is read alone, so they run.
 local function running(value: Shape): Grid.Grid?
     local of: any = value
-    if of.op ~= "word" or #of.leaves ~= 1 or #of.joins ~= 1 then return nil end
+    if of.op ~= "word" or of.tag.checks ~= nil or #of.leaves ~= 1 or #of.joins ~= 1 then
+        return nil
+    end
     local join = of.joins[1]
     if join.key ~= nil or join.pull ~= nil or join.push ~= nil or join.count ~= 1 then
         return nil

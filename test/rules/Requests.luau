@@ -244,6 +244,29 @@ return {
         end, "is a client's call, and this is the server")
     end),
 
+    -- A server asks one player, and no other target can turn a question into a broadcast.
+    Harness.case("query.server-asks-one", function()
+        local of = opened(SPACE)
+        Expect.throws(function()
+            of.server.defs[PLAIN]:request(nil, CARRIED, function() end)
+        end, "request asks one player, got nil")
+        for _, target in { {}, "everyone" } do
+            Expect.throws(function()
+                of.server.defs[PLAIN]:request(target, CARRIED, function() end)
+            end, "request asks one player")
+        end
+    end),
+
+    -- A timeout is a positive, finite number of seconds, and anything else is refused at the call.
+    Harness.case("query.timeout-checked", function()
+        local of = opened(SPACE)
+        for _, bad in { 0, -1, math.huge, 0 / 0 } do
+            Expect.throws(function()
+                of.server.defs[PLAIN]:request(of.player, CARRIED, function() end, bad)
+            end, "a positive, finite number of seconds")
+        end
+    end),
+
     Harness.case("query.wrong-side-client", function()
         local of = opened(SPACE)
         Expect.throws(function()

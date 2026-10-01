@@ -50,10 +50,29 @@ function Audience.assign(of: Audience, key: any, to: Types.Recipient)
     of.moved[key] = true
 end
 
--- Whether a key goes to everybody, which is what puts its sections on the shared list.
+-- A key let go of entirely, as if it had never been assigned.
+function Audience.forget(of: Audience, key: any)
+    of.of[key] = nil
+    of.held[key] = nil
+    of.wide[key] = nil
+    of.moved[key] = nil
+    of.now[key] = nil
+end
+
+-- A player seeded into a narrowed key between diffs, held so the next diff tells their losing it.
+function Audience.seeded(of: Audience, key: any, who: Player)
+    local held = of.held[key]
+    if held == nil then
+        held = {}
+        of.held[key] = held
+    end
+    held[who] = BEFORE
+end
+
+-- Whether a key goes to everybody, which is what puts its sections on the shared list. A key
+-- nobody was assigned goes to nobody, so a forgotten audience hides records rather than leaks them.
 function Audience.everyone(of: Audience, key: any): boolean
-    local to = of.of[key]
-    return to == nil or to == Recipients.ALL
+    return of.of[key] == Recipients.ALL
 end
 
 -- Who holds a key, as the diff that ran this flush worked it out.
@@ -84,7 +103,7 @@ function Audience.diff(of: Audience, key: any, ready: Recipients.Ready)
         held = {}
         of.held[key] = held
     end
-    if of.wide[key] ~= false then
+    if of.wide[key] == true then
         for player in ready do
             held[player] = BEFORE
         end
@@ -94,7 +113,12 @@ function Audience.diff(of: Audience, key: any, ready: Recipients.Ready)
 
     local at = of.at + 1
     of.at = at
-    Recipients.resolve(now, if wide then Recipients.ALL else of.of[key], ready)
+    local to = if wide then Recipients.ALL else of.of[key]
+    if to == nil then
+        table.clear(now)
+    else
+        Recipients.resolve(now, to, ready)
+    end
     for _, player in now do
         if held[player] == nil then table.insert(of.gained, player) end
         held[player] = at

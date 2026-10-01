@@ -68,9 +68,12 @@ function Packet.unreliable(self: any): any
     return self
 end
 
--- Lossy, latest wins, and rate capped where a rate is named.
+-- Lossy, latest wins, and rate capped where a rate is named. The rate is held as a field's is.
 function Packet.newest(self: any, hz: number?): any
     Define.declaring(self.live, "newest")
+    if hz ~= nil and not (type(hz) == "number" and hz > 0 and hz < math.huge) then
+        Log.refuse(`newest takes a rate above zero, not {hz}`)
+    end
     self.isNewest = true
     self.hz = hz
     return self

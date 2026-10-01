@@ -40,9 +40,14 @@ function Handshake.hello(ours: Wide.Word): buffer
 end
 
 -- The verdict a hello has earned, and whether the machine that sent it may be spoken to.
-function Handshake.verdict(ours: Wide.Word, epoch: number, bytes: buffer): (buffer?, boolean)
+function Handshake.verdict(
+    ours: Wide.Word,
+    epoch: number,
+    bytes: buffer,
+    heeds: (code: Catalog.Code) -> boolean
+): (buffer?, boolean)
     if buffer.len(bytes) ~= HELLO then
-        unspoken()
+        if heeds(Catalog.HELLO) then unspoken() end
         return nil, false
     end
     local theirs = Wide.read(bytes, 0)
@@ -52,7 +57,7 @@ function Handshake.verdict(ours: Wide.Word, epoch: number, bytes: buffer): (buff
         buffer.writef64(out, FIELD, epoch)
         return out, true
     end
-    Log.warn(mismatch(ours, theirs))
+    if heeds(Catalog.MISMATCH) then Log.warn(mismatch(ours, theirs)) end
     buffer.writeu8(out, 0, Protocol.VERDICT_REJECT)
     Wide.write(out, FIELD, ours)
     return out, false

@@ -10,6 +10,7 @@ local Protocol = require("@src/wire/Protocol")
 local Recipients = require("@src/channel/Recipients")
 local Session = require("@src/runtime/Session")
 local Sync = require("@src/state/Sync")
+local Varint = require("@src/wire/Varint")
 
 local Doubles = require("@fixtures/Doubles")
 
@@ -139,7 +140,7 @@ return {
             other:settle()
         end)
         Expect.equal(client.link.sending, false)
-        Expect.equal(server.link.ready[bob], true)
+        Expect.equal(server.link.ready[bob], nil)
 
         -- A verdict of the wrong length is recorded and leaves the client where it was: silent,
         -- and stamping against the epoch it started with rather than one read off junk.
@@ -318,5 +319,231 @@ return {
         rig.clients[alice]:flush()
         link:disconnect()
         Expect.equal(quiet, 0)
+    end),
+
+    -- Nothing aimed at a client that is not admitted reaches the outbox: a question to one still
+    -- loading ends unanswered, and an answer to one who left is let go, neither breaking a flush.
+    Harness.case("session.unadmitted-targets", function()
+        local rig = rigged({ "alice" })
+        local alice = rig.roster:named("alice") :: Player
+        local ping, hit = rig.def("Ping"), rig.def("Hit")
+        local carol = rig.roster:join("carol")
+        local told: { any } = {}
+        rig.server:ask(ping, carol, 1, nil, function(ok, code)
+            table.insert(told, { ok, code })
+        end)
+        rig.server:flush(4096)
+        Expect.equal(told, { { false, "unanswered" } })
+
+        local parked: thread? = nil
+        rig.server:respond(ping.id, "Ping", function(): string
+            parked = coroutine.running()
+            return coroutine.yield()
+        end)
+        rig.clients[alice]:ask(ping, nil, 3, nil, function() end)
+        pumped(rig)
+        rig.roster:leave(alice)
+        task.spawn(parked :: thread, "late")
+        rig.server:fire(hit, nil, 1)
+        rig.server:flush(4096)
+    end),
+
+    -- Frames from a client that never handshook are ignored, a payload that is no buffer is
+    -- ignored, and a hello handled after its sender left admits nobody.
+    Harness.case("session.hostile-frames", function()
+        local rig = rigged({ "alice" })
+        local alice = rig.roster:named("alice") :: Player
+        local hit = rig.def("Hit")
+        local ears = heard(rig.server, hit)
+        local captured: buffer? = nil
+        rig.wire:watch(function(frame: Doubles.Carried)
+            if frame.from == alice and frame.at == "reliable" then captured = frame.bytes end
+        end)
+        rig.clients[alice]:fire(hit, nil, 7)
+        pumped(rig)
+        Expect.equal(ears, { { 7, alice } })
+
+        local mallory = rig.roster:join("mallory")
+        rig.wire:hands({ at = "reliable", from = mallory, bytes = captured :: buffer })
+        rig.wire:hands({ at = "reliable", from = alice, bytes = "junk" :: any })
+        rig.wire:hands({ at = "handshake", from = alice, bytes = 5 :: any })
+        Expect.equal(#ears, 1)
+
+        local bob = rig.roster:join("bob")
+        rig.roster:leave(bob)
+        local hello = Handshake.hello(rig.server.space.hash)
+        rig.wire:hands({ at = "handshake", from = bob, bytes = hello })
+        Expect.equal(rig.server.link.ready[bob], nil)
+    end),
+
+    -- A server's sets are its own: a state frame sent up by a client is dropped, and a request
+    -- block cut short or naming an id past the id space is dropped without raising.
+    Harness.case("session.client-cannot-write", function()
+        local rig = rigged({ "alice" })
+        local alice = rig.roster:named("alice") :: Player
+        local team = rig.server:set(rig.def("Team").id)
+        local state: { buffer } = {}
+        rig.wire:watch(function(frame: Doubles.Carried)
+            if frame.from == nil and frame.at == "reliable" then
+                table.insert(state, frame.bytes)
+            end
+        end)
+        Sync.add(team, 99, { hp = 13, name = "evil" })
+        rig.server:flush(4096)
+        rig.wire:settle()
+        Sync.remove(team, 99)
+        rig.server:flush(4096)
+        rig.wire:settle()
+        rig.wire:hands({ at = "reliable", from = alice, bytes = state[1] })
+        Expect.equal(Sync.get(team, 99), nil)
+
+        local ping = rig.def("Ping")
+        local short = buffer.create(ping.asks.bytes)
+        ping.asks.write(short, 0, { ping.id, 0 })
+        rig.wire:hands({ at = "reliable", from = alice, bytes = short })
+
+        local far = buffer.create(ping.asks.bytes + 16)
+        ping.asks.write(far, 0, { ping.id, 1 })
+        local at = ping.asks.bytes
+        ping.asking.write(far, at, { 0 })
+        at += ping.asking.bytes
+        buffer.writeu8(far, at, 1)
+        at = Varint.write(far, at + 1, 2 ^ 52)
+        rig.wire:hands({ at = "reliable", from = alice, bytes = far })
+        pumped(rig)
+    end),
+
+    -- Every payload in a run is its own arrival, so a validate holding a sender to a rate sees the
+    -- one before it as `last`, and a run of thirty in one frame delivers one.
+    Harness.case("session.rate-per-payload", function()
+        local roster = Doubles.roster()
+        local wire = Doubles.wire()
+        local function rated(): any
+            local check = function(_: number, ctx: any): string?
+                if ctx.last ~= nil and ctx.now - ctx.last < 0.1 then return "too fast" end
+                return nil
+            end
+            return { Rated = packet(Codecs.int(0, 100):validate(check)) }
+        end
+        local server = Session.new(SPACE, rated(), wire:server(), roster, "server")
+        server:start()
+        local alice = roster:join("alice")
+        local client = Session.new(SPACE, rated(), wire:client(alice), roster, "client")
+        client:start()
+        wire:settle()
+        local def = server.space.byName.Rated :: any
+        local ears = heard(server, def)
+        for value = 1, 30 do
+            client:fire(def, nil, value)
+        end
+        client:flush(4096)
+        wire:settle()
+        Expect.equal(#ears, 1)
+    end),
+
+    -- A value its codec refuses is refused at the call and leaves nothing half written: a request
+    -- joining an open run keeps the run whole, and a newest packet does not wedge later flushes.
+    Harness.case("session.refused-at-call", function()
+        local rig = rigged({ "alice" })
+        local alice = rig.roster:named("alice") :: Player
+        local ping, look, hit = rig.def("Ping"), rig.def("Look"), rig.def("Hit")
+        local client = rig.clients[alice]
+        local asked: { number } = {}
+        rig.server:respond(ping.id, "Ping", function(value: number): string
+            table.insert(asked, value)
+            return "ok"
+        end)
+        client:ask(ping, nil, 1, nil, function() end)
+        Expect.throws(function()
+            client:ask(ping, nil, 999, nil, function() end)
+        end, "expected int(0,100)")
+        client:ask(ping, nil, 3, nil, function() end)
+        pumped(rig)
+        Expect.equal(asked, { 1, 3 })
+
+        Expect.throws(function()
+            rig.server:fire(look, nil, 999)
+        end, "expected int(0,100)")
+        local ears = heard(client, hit)
+        rig.server:fire(hit, nil, 4)
+        pumped(rig)
+        Expect.equal(ears, { { 4 } })
+    end),
+
+    -- A reliable frame that lands before the verdict, which rides a remote of its own, is kept and
+    -- read once the verdict arrives rather than dropped.
+    Harness.case("session.early-frame-kept", function()
+        local rig = rigged({ "alice" })
+        local alice = rig.roster:named("alice") :: Player
+        local hit = rig.def("Hit")
+        local captured: buffer? = nil
+        rig.wire:watch(function(frame: Doubles.Carried)
+            if frame.to == alice and frame.at == "reliable" then captured = frame.bytes end
+        end)
+        rig.server:fire(hit, alice, 6)
+        pumped(rig)
+
+        local carol = rig.roster:join("carol")
+        local client =
+            Session.new(SPACE, definitions(), rig.wire:client(carol), rig.roster, "client")
+        local ears = heard(client, hit)
+        local warned = 0
+        local hook = Log.onLog(function(_, _, data)
+            if data.code == "drop.unready" then
+                warned += 1
+            end
+        end)
+        client:start()
+        rig.wire:hands({ at = "reliable", to = carol, bytes = captured :: buffer })
+        Expect.equal(#ears, 0)
+        rig.wire:settle()
+        hook:disconnect()
+        Expect.equal(ears, { { 6 } })
+        Expect.equal(warned, 0)
+    end),
+
+    -- An answer counts only from the client that was asked.
+    Harness.case("session.forged-answer", function()
+        local rig = rigged({ "alice", "bob" })
+        local alice = rig.roster:named("alice") :: Player
+        local bob = rig.roster:named("bob") :: Player
+        local ping = rig.def("Ping")
+        rig.clients[bob]:respond(ping.id, "Ping", function(): string
+            return "real"
+        end)
+        local told: { any } = {}
+        rig.server:ask(ping, bob, 1, nil, function(ok, reply)
+            table.insert(told, { ok, reply })
+        end)
+        rig.server:flush(4096)
+        rig.clients[alice].router.answered(ping, 0, nil, true, "forged")
+        rig.clients[alice]:flush(4096)
+        rig.wire:settle()
+        pumped(rig)
+        Expect.equal(told, { { true, "real" } })
+    end),
+
+    -- A newest packet holds a value per recipient, so two players in one flush each get theirs,
+    -- and a value one already got still reaches the other.
+    Harness.case("session.newest-per-recipient", function()
+        local rig = rigged({ "alice", "bob" })
+        local alice = rig.roster:named("alice") :: Player
+        local bob = rig.roster:named("bob") :: Player
+        local look = rig.def("Look")
+        local ears =
+            { alice = heard(rig.clients[alice], look), bob = heard(rig.clients[bob], look) }
+        rig.server:fire(look, alice, 1)
+        rig.server:fire(look, bob, 2)
+        pumped(rig)
+        Expect.equal(ears, { alice = { { 1 } }, bob = { { 2 } } })
+
+        rig.server:fire(look, alice, 5)
+        pumped(rig)
+        local began = os.clock()
+        while os.clock() - began < PAUSE do
+        end
+        rig.server:fire(look, bob, 5)
+        pumped(rig)
+        Expect.equal(ears.bob, { { 2 }, { 5 } })
     end),
 }

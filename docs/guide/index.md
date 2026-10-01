@@ -8,7 +8,7 @@ How to install Lync, declare a schema, and wire the server and client.
 
     ```toml
     [dependencies]
-    Lync = "axp3cter/lync@4.0.2"
+    Lync = "axp3cter/lync@4.0.3"
     ```
 
 === "npm"

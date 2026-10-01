@@ -27,8 +27,8 @@ next to `@rbxts`.
 | Instance class | `Lync.inst("Player")` | `Lync.inst<Player>("Player")`. The type argument only sets the static type, so pass the class name too to have it checked. |
 | Audience key | Untyped | Typed from the `keyBy` field. `audience` on a set without `keyBy` is a compile error. |
 
-The `keyBy` type accepts any boolean, number or string field. At run time, `start` still refuses a
-key that is not `bool`, `int`, `enum`, `vlq`, `vli` or `str`.
+The `keyBy` type accepts any boolean, number or string field. At run time, `start` also refuses a
+key that is not `bool`, `int`, `enum`, `vlq`, `vli` or `str`, or that uses `:newest` or `:as`.
 
 ## Example
 

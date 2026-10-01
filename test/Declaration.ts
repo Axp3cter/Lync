@@ -113,8 +113,8 @@ const _enumCall = Lync.enum(["red", "blue"] as const);
 const _enumIsUnion: Exact<Lync.Infer<typeof _enumCall>, "red" | "blue"> = true;
 
 const _profile = Lync.struct({ coins: Lync.vlq() });
-const [_bytes, _refs] = Lync.encode(_profile, { coins: 5 });
-const _back = Lync.decode(_profile, _bytes, _refs);
+const [_encoded, _encodedRefs] = Lync.encode(_profile, { coins: 5 });
+const _back = Lync.decode(_profile, _encoded, _encodedRefs);
 const _decodedIsRecord: Exact<typeof _back, { coins: number }> = true;
 
 // Every rejection lives in Rejections.ts, which only tsc reads: the roblox-ts compiler refuses a

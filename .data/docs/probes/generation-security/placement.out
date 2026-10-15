@@ -1,0 +1,109 @@
+Function 0 (small):
+R0: buffer [argument]
+K0: 'buffer'
+K1: 'writeu16'
+K2: buffer.writeu16
+REMARK builtin buffer.writeu16/3
+    7: 	buffer.writeu16(b, 0, 1234)
+LOADN R3 0
+LOADN R4 1234
+FASTCALL3 70 R0 R3 R4 L0
+MOVE R2 R0
+GETIMPORT R1 2 [buffer.writeu16]
+CALL R1 3 0
+    8: end
+L0: RETURN R0 0
+
+Function 1 (large):
+R0: buffer [argument]
+R1: number [argument]
+K0: 1819895653
+K1: 'bit32'
+K2: 'bxor'
+K3: bit32.bxor
+REMARK builtin bit32.bxor/2
+   12: 	return bit32.bxor(x, 0x6c796765)
+FASTCALL2K 32 R1 K0 L0 [1819895653]
+MOVE R3 R1
+LOADK R4 K0 [1819895653]
+GETIMPORT R2 3 [bit32.bxor]
+CALL R2 2 1
+L0: RETURN R2 1
+
+Function 2 (folded):
+R0: buffer [argument]
+R1: number [argument]
+K0: 2118988061
+K1: 'bit32'
+K2: 'bxor'
+K3: bit32.bxor
+REMARK builtin bit32.bxor/2
+   17: 	return bit32.bxor(x, bit32.bxor(0x6c796765, 0x12345678))
+FASTCALL2K 32 R1 K0 L0 [2118988061]
+MOVE R3 R1
+LOADK R4 K0 [2118988061]
+GETIMPORT R2 3 [bit32.bxor]
+CALL R2 2 1
+L0: RETURN R2 1
+
+Function 3 (upvalue):
+R0: buffer [argument]
+R1: number [argument]
+K0: 'bit32'
+K1: 'bxor'
+K2: bit32.bxor
+REMARK builtin bit32.bxor/2
+   24: 	return bit32.bxor(x, k)
+GETUPVAL R4 U0
+FASTCALL2 32 R1 R4 L0
+MOVE R3 R1
+GETIMPORT R2 2 [bit32.bxor]
+CALL R2 2 1
+L0: RETURN R2 1
+
+Function 4 (??):
+K0: function small
+K1: 'small'
+K2: function large
+K3: 'large'
+K4: function folded
+K5: 'folded'
+K6: 305419896
+K7: 195948557
+K8: 'bit32'
+K9: 'bxor'
+K10: bit32.bxor
+K11: function upvalue
+K12: 'upvalue'
+REMARK allocation: table hash 4
+    3: local M = {}
+NEWTABLE R0 4 0
+    6: function M.small(b: buffer)
+DUPCLOSURE R1 K0 ['small']
+SETTABLEKS R1 R0 K1 ['small']
+   11: function M.large(b: buffer, x: number): number
+DUPCLOSURE R1 K2 ['large']
+SETTABLEKS R1 R0 K3 ['large']
+   16: function M.folded(b: buffer, x: number): number
+DUPCLOSURE R1 K4 ['folded']
+SETTABLEKS R1 R0 K5 ['folded']
+REMARK allocation: table array 2
+   21: local seed = { 0x12345678, 0x0badf00d }
+NEWTABLE R1 0 2
+LOADK R2 K6 [305419896]
+LOADK R3 K7 [195948557]
+SETLIST R1 R2 2 [1]
+REMARK builtin bit32.bxor/2
+   22: local k = bit32.bxor(seed[1], seed[2])
+GETTABLEN R3 R1 1
+GETTABLEN R4 R1 2
+FASTCALL2 32 R3 R4 L0
+GETIMPORT R2 10 [bit32.bxor]
+CALL R2 2 1
+   23: function M.upvalue(b: buffer, x: number): number
+L0: DUPCLOSURE R3 K11 ['upvalue']
+CAPTURE VAL R2
+SETTABLEKS R3 R0 K12 ['upvalue']
+   27: return M
+RETURN R0 1
+

@@ -56,6 +56,9 @@ local function median(xs)
 end
 
 local function deepEqual(a, b)
+	if type(a) == "buffer" and type(b) == "buffer" then
+		return buffer.tostring(a) == buffer.tostring(b)
+	end
 	if type(a) ~= "table" or type(b) ~= "table" then
 		return a == b
 	end

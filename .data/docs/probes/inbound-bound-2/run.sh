@@ -49,7 +49,7 @@ if has build; then
 fi
 
 if has gen; then
-	rm -rf "$W/gen"; mkdir -p "$W/gen"; (cd "$W" && "$B/luau" -O2 gen.luau | awk '/^--@@FILE /{f=$2; next} {print > f}')
+	rm -rf "$W/gdefs"; mkdir -p "$W/gdefs"; (cd "$W" && "$B/luau" -O2 gen.luau | awk '/^--@@FILE /{f=$2; next} {print > f}')
 fi
 
 timed() {

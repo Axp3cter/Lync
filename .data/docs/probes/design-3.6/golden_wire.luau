@@ -5,8 +5,8 @@
 -- u8 (D0). Id permutation: Fisher-Yates with HalfSipHash-1-3 draws under a 64-bit space key. Adds G4c, PERM, DERIVE,
 -- ROT (per-build draws of v5-integrity.md section 2.2 at a nonzero rotationSeed), W1, W2, S0-S3 and SIZES.
 -- Consistency pass (wire, 2026-10-15): the option slot acked after sealed (collections take it; absent 00 for every
--- event and request), so G6, G7 and S0 change; the first WELCOME's two report bits (report.injectedFrames,
--- report.selfCheck) between callerProbe.maxProbesPerSecond and clock.beaconSeconds, so G10 changes; SIZES gains the
+-- event and request), so G6, G7 and S0 change; the first WELCOME's two report bits (report.checkListenerCaller,
+-- report.checkOwnTables) between callerProbe.maxProbesPerSecond and clock.beaconSeconds, so G10 changes; SIZES gains the
 -- REPORT with a self-check failure at item 202, case 3. Option names follow the naming review (timeoutSeconds,
 -- reliablePerSecond, ackEveryFrame, sealed.maxOutstanding); names are not hashed, so they change no byte.
 -- Design draft 3.1: milestone 1 and 2 golden frames, built from draft 3.1's rules (v5.md §3.3, §4).
@@ -335,7 +335,7 @@ do
 	w:u(15, 1024)                              -- tag.cover
 	w:u(32, 0)                                 -- permutation nonce
 	w:u(8, 0); w:u(6, 0)                       -- callsPerProbe, maxProbesPerSecond
-	w:u(1, 0); w:u(1, 0)                       -- report.injectedFrames, report.selfCheck
+	w:u(1, 0); w:u(1, 0)                       -- report.checkListenerCaller, report.checkOwnTables
 	w:u(4, 0)                                  -- clock.beaconSeconds (tenths)
 	print("G10", hex(bytesOf(w)))
 end

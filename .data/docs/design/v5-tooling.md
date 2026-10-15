@@ -100,11 +100,11 @@ They have no run-time effect unless the developer opts a definition in (`check.i
 
 `lync build` and `lync watch` write it; `lync weave` rewrites it with the same `buildId`, adding the weave fields.
 It must never ship, since it holds `rotationSeed`: an `output.manifest` path inside a folder the sourcemap maps into
-the place is `outputPathMisplaced`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`, split
-into children `Part1` … of at most 200,000 characters each when longer (the `StringValue` cap is unverified, §8).
-`ServerStorage` never replicates, but anyone holding the place file reads the `rotationSeed` there. Studio edit-time
-regenerations run at the identity build (`buildId` 0, `rotationSeed` 0) and rewrite this manifest; only "Prepare
-release" draws a pair (§4.2).
+the place is `outputPathMisplaced`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`,
+split into children `Part1` … of at most 200,000 characters each when longer (the `StringValue` cap is unverified,
+§8). `ServerStorage` never replicates, but anyone holding the place file reads the `rotationSeed` there. Studio
+edit-time regenerations run at the identity build (`buildId` 0, `rotationSeed` 0) and rewrite this manifest; only
+"Prepare release" draws a pair (§4.2).
 
 **Decision: no debug map.**
 - *Problem.* Offline decoding (`lync replay`, a capture in the inspector, `lync diff`) needs each layout. Under
@@ -217,7 +217,7 @@ an integer multiple of the table's `cellSize` (`v5-collections.md` §8.5).
 `[generation-methods M7]` `[interest-rewind §13.4]`.
 
 **Validation.** The CLI and the plugin check the text against the JSON Schema, then each range above, including
-ranges that name another key or the sourcemap; findings are the `config*` codes of §3.4. The schema bounds every
+ranges that name another key or the sourcemap; findings are the configuration codes of §3.4. The schema bounds every
 integer to 0–2^32 − 1 and allows no datetimes, where TOML parsers disagree `[client-security-build §5.2]`. The
 vendored TOML parser uses no `const`, whose availability in Studio scripts is unverified.
 
@@ -231,8 +231,9 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
   constructor records; columns by searching that line for the option key or codec name. A finding on an instance
   with no file (place-only content) takes the place file's `uri`, range 0:0, and `data.instance`.
 - **Renderings**, `--format`:
-  - `human` (default): `error[definitionOptionUnknown]: arena.chat has no option "rtae"`, the `-->` location, the source line
-    with a caret, `= help:` when there is exactly one fix, and `run lync explain <code>` once per distinct code;
+  - `human` (default): `error[definitionOptionUnknown]: arena.chat has no option "rtae"`, the `-->` location, the
+    source line with a caret, `= help:` when there is exactly one fix, and `run lync explain <code>` once per
+    distinct code;
   - `json`: JSON Lines, one Diagnostic plus `uri` per line (it streams under `watch`);
   - `github`: `::error file=…,line=…,col=…,title=lync <code>::<message>`, plus the human report in
     `$GITHUB_STEP_SUMMARY`, since Actions shows at most 10 annotations per step.
@@ -266,8 +267,8 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
 
 - **One lexer pass** per run: the core's token-level, pure-Luau lexer, in every host, so the CLI and the plugin
   compute the same sets and the server shard's reachability lists don't depend on the host. A parser-based rule in
-  the Rust host could qualify callees by module and drop some `dynamicAccessFound` sites `[build-checks §2.5]`; it is not
-  used, since two hosts would then write different shards for one project. Comments are not scanned; string
+  the Rust host could qualify callees by module and drop some `dynamicAccessFound` sites `[build-checks §2.5]`; it is
+  not used, since two hosts would then write different shards for one project. Comments are not scanned; string
   literals are. Throughput, detector included: 11.0–12.3 MB/s interpreted, 19.4–20.1 MB/s native (Luau 0.742 CLI),
   6.9–14.3 MB/s inside Lune `[build-checks §2.6]`.
 - **Script sets.**
@@ -343,55 +344,56 @@ shards and no manifest, so none of these codes applies to it.
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `rawRemote` | a method call `:FireServer(`, `:InvokeServer(`, `:FireClient(`, `:FireAllClients(` or `:InvokeClient(` in any script of the all-scripts set | `method` | `[check]`, `"warn"` | the game's own remotes; packages firing their own remotes (Knit, Cmdr); a raw call on Lync's own remotes, which then fails the tag (`tagMismatch`) | 3 |
-| `foreignRemote` | an instance of class `RemoteEvent`, `UnreliableRemoteEvent` or `RemoteFunction` anywhere in the place, except exactly `ReplicatedStorage.Lync.Reliable` of class `RemoteEvent` and `ReplicatedStorage.Lync.Unreliable` of class `UnreliableRemoteEvent` (a same-named instance of another class is listed); not raised for paths in `check.knownRemotes` | `class`, `instance`, `replicates` (1 when its top-level service is replicating, §3.3, else 0), `runtime` (1 when found by the plugin's play-test walk) | `[check]`, `"warn"` | the game's own remotes from before Lync or kept on purpose; a Toolbox model or gear carrying a remote inside a `Tool`; a remote in `ServerStorage` that game code clones into a replicated container (`replicates` 0); remotes frameworks and the legacy chat system create at run time (`runtime` 1). Not listed: remotes created after the play test ends, or inserted from assets at run time `[build-checks §1.5]` | 3; `runtime` 6 |
-| `remoteCreation` | in the all-scripts set, `Instance.new(` whose first argument is one string literal naming one of `foreignRemote`'s classes (`literal` 1), or is not a string literal (`literal` 0) | `class` (empty when `literal` 0), `literal` | `[check]`, `"warn"` | Knit's Comm (`literal` 1); Cmdr's helper `Instance.new(className)` (`literal` 0); forked legacy chat scripts; a `literal` 0 site whose helper creates only other classes `[build-checks §1.2]` | 3 |
-| `foreignBindable` | an instance of class `BindableEvent` or `BindableFunction` anywhere in the place | `class`, `instance`, `replicates` | `[check]`, `"off"` | every bindable is game code's own signal; a client fires only its own, never the server's `[build-checks §1.2]` | 3 |
-| `lyncHeaderMismatch` | a `ModuleScript` whose first line is `-- Lync <version> runtime` in a subtree whose modules don't all match the generator's runtime digests; the subtree is scanned | `path`, `version` (from the header) | warning | a vendored copy of another Lync version inside a package; an edited runtime | 3 |
-| `dynamicAccess` | in the client scan set, a dynamic access of a namespace value as `v5-integrity.md` §3 defines it: `kind` 1 an index whose key is not one string literal, 2 iteration (`for … in`, `pairs`, `ipairs`, `next`), 3 a hand-off the scan cannot follow by name | `namespace`, `kind`, `binding` (uri and range of the binding source) | `[check]`, `"warn"`; severity only, never whether the namespace is incomplete, and no per-site suppression (`check.reachability = false` is the opt-out) | kind 1: a generic helper `Net[name]:fire(v)`; kind 2: a client loop connecting every event, even one that fires nothing; kind 3: a framework registering the namespace with package code the scan has no definition for; any kind: following by name, which binds the parameter of every same-named function (`X.new(Net)` binds the first parameter of every `new`) and follows shadowing locals `[build-checks §2.5]` | 5 |
-| `solverOff` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code under the old solver, the default in Roblox and luau-lsp, where its types degrade to error types; a project on the new solver, whose setting no tool can read (`NotScriptable`, `v5.md` §3.2), which sets `check.solverOff = "off"` | 3 |
-| `freeFormField` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > `check.freeFormCodes`, `t.number` or `t.vector3` with more than `check.freeFormCodes` codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. Not found: claims in input-shaped codecs (`t.bool`, `t.int(1, 500)`) and below the threshold (`t.number(0, 600, 0.01)`): the rule is syntax and can't recognise outcomes `[checks-telemetry C5]` | 3 |
-| `decoyRef` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormField` walks it, whose codec serialises (`v5.md` §4.7) identically to C's `key` codec; and, for that definition, no `:field("<path>"):refers(` whose argument is an expression ending in `.C`, with `<path>` the leaf's top-level field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
-| `unscopedRef` | a server-sent event or request whose `data` holds a field whose codec serialises identically to some collection's `key` codec, with no `:field("<path>"):about(` call on that definition whose argument is an expression ending in `.C`, for that field and collection C, in the all-scripts set | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
-| `stagedReplicated` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps anywhere other than under `ServerStorage` or `ServerScriptService` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
-| `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains, as a string literal or as a path expression (a chain of `.Name`, `:WaitForChild("Name")` or `:FindFirstChild("Name")` rooted at `game:GetService("X")` or `game.X`), the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, either as built under `ServerStorage` or as released (the same path below `ReplicatedStorage`), or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
-| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least `check.stagedNameBytes` bytes long, occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
-| `streamingOff` | the place read with `--place` has `Workspace.StreamingEnabled = false`, and the project has a staged namespace or an `:interest(` call in the all-scripts set | place path | `[check]`, `"warn"` | a game that streams nothing on purpose; with streaming off, all of `Workspace` reaches every client at join, whatever `interest` withholds `[interest-rewind §12.1]` | 3 |
+| `remoteCallFound` | a method call `:FireServer(`, `:InvokeServer(`, `:FireClient(`, `:FireAllClients(` or `:InvokeClient(` in any script of the all-scripts set | `method` | `[check]`, `"warn"` | the game's own remotes; packages firing their own remotes (Knit, Cmdr); a raw call on Lync's own remotes, which then fails the tag (`tagMismatch`) | 3 |
+| `remoteInstanceFound` | an instance of class `RemoteEvent`, `UnreliableRemoteEvent` or `RemoteFunction` anywhere in the place, except exactly `ReplicatedStorage.Lync.Reliable` of class `RemoteEvent` and `ReplicatedStorage.Lync.Unreliable` of class `UnreliableRemoteEvent` (a same-named instance of another class is listed); not raised for paths in `check.knownRemotes` | `class`, `instance`, `replicates` (1 when its top-level service is replicating, §3.3, else 0), `foundAtRunTime` (1 when found by the plugin's play-test walk) | `[check]`, `"warn"` | the game's own remotes from before Lync or kept on purpose; a Toolbox model or gear carrying a remote inside a `Tool`; a remote in `ServerStorage` that game code clones into a replicated container (`replicates` 0); remotes frameworks and the legacy chat system create at run time (`foundAtRunTime` 1). Not listed: remotes created after the play test ends, or inserted from assets at run time `[build-checks §1.5]` | 3; `foundAtRunTime` 6 |
+| `remoteCreationFound` | in the all-scripts set, `Instance.new(` whose first argument is one string literal naming one of `remoteInstanceFound`'s classes (`classLiteral` 1), or is not a string literal (`classLiteral` 0) | `class` (empty when `classLiteral` 0), `classLiteral` | `[check]`, `"warn"` | Knit's Comm (`classLiteral` 1); Cmdr's helper `Instance.new(className)` (`classLiteral` 0); forked legacy chat scripts; a `classLiteral` 0 site whose helper creates only other classes `[build-checks §1.2]` | 3 |
+| `bindableInstanceFound` | an instance of class `BindableEvent` or `BindableFunction` anywhere in the place | `class`, `instance`, `replicates` | `[check]`, `"off"` | every bindable is game code's own signal; a client fires only its own, never the server's `[build-checks §1.2]` | 3 |
+| `lyncPackageDigestMismatch` | a `ModuleScript` whose first line is `-- Lync <version> runtime` in a subtree whose modules don't all match the generator's runtime digests; the subtree is scanned | `path`, `version` (from the header) | warning | a vendored copy of another Lync version inside a package; an edited runtime | 3 |
+| `dynamicAccessFound` | in the client scan set, a dynamic access of a namespace value as `v5-integrity.md` §3 defines it: `case` 1 an index whose key is not one string literal, 2 iteration (`for … in`, `pairs`, `ipairs`, `next`), 3 a hand-off the scan cannot follow by name | `namespace`, `case`, `binding` (uri and range of the binding source) | `[check]`, `"warn"`; severity only, never whether the namespace is incomplete, and no per-site suppression (`check.inferReachability = false` is the opt-out) | case 1: a generic helper `Net[name]:fire(v)`; case 2: a client loop connecting every event, even one that fires nothing; case 3: a framework registering the namespace with package code the scan has no definition for; any case: following by name, which binds the parameter of every same-named function (`X.new(Net)` binds the first parameter of every `new`) and follows shadowing locals `[build-checks §2.5]` | 5 |
+| `runtimePathCallFound` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code under the old solver, the default in Roblox and luau-lsp, where its types degrade to error types; a project on the new solver, whose setting no tool can read (`NotScriptable`, `v5.md` §3.2), which sets `check.runtimePathCallFound = "off"` | 3 |
+| `freeFormRoleMissing` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > `check.freeFormCodes`, `t.number` or `t.vector3` with more than `check.freeFormCodes` codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. Not found: claims in input-shaped codecs (`t.bool`, `t.int(1, 500)`) and below the threshold (`t.number(0, 600, 0.01)`): the rule is syntax and can't recognise outcomes `[checks-telemetry C5]` (`v5-checks.md` §7.1, §7.4) | 3 |
+| `refersMissing` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormRoleMissing` walks it, whose codec equals C's `key` codec (`v5.md` §3.3's codec equality); and, for that definition, no `.fields.<f>:refers(` or `.fields["<f>"]:refers(` whose argument is an expression ending in `.C`, with `<f>` the leaf's top-level field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
+| `aboutMissing` | a server-sent event whose `data` holds a field whose codec equals some collection C's `key` codec (`v5.md` §3.3's codec equality), with no `.fields.<f>:about(` or `.fields["<path>"]:about(` call on that definition, for that field, whose argument is an expression ending in `.C`, in the all-scripts set. Requests are not checked: `about` scopes events only (`v5-collections.md` §10) | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
+| `stagedPathMisplaced` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps anywhere other than under `ServerStorage` or `ServerScriptService` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
+| `stagedReferenceFound` | a script of the client scan set, or a released namespace's schema, contains, as a string literal or as a path expression (a chain of `.Name`, `:WaitForChild("Name")` or `:FindFirstChild("Name")` rooted at `game:GetService("X")` or `game.X`), the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, either as built under `ServerStorage` or as released (the same path below `ReplicatedStorage`), or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
+| `stagedNameFound` | a definition name, field name, union variant or enum item of a staged namespace, at least `check.minStagedNameBytes` bytes long, occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
+| `streamingDisabled` | the place read with `--place` has `Workspace.StreamingEnabled = false`, and the project has a staged namespace or an `:interest(` call in the all-scripts set | place path | `[check]`, `"warn"` | a game that streams nothing on purpose; with streaming off, all of `Workspace` reaches every client at join, whatever `interest` withholds `[interest-rewind §12.1]` | 3 |
 
 **Weaving** (§5; each at its site's line, or line 1 of its script):
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `weaveArgument` | a resolved site of a record definition whose argument is not a table constructor | definition | `[check]`, `"warn"` | a payload built elsewhere and passed by name; a roblox-ts spread | 6 |
-| `weaveKeys` | a resolved site whose table constructor's keys are not exactly the record's field set, or not all constant strings | definition, the differing key | `[check]`, `"warn"` | an optional field left out; a computed key | 6 |
-| `weaveShadowed` | a free name the site's fragment references (a builtin such as `buffer`, `math`, `type`, `Enum` or `Vector3`, or a name with prefix `__lync_`) is bound by a local in scope at the site | definition, the name | `[check]`, `"warn"` | a game local named `type`, `vector` or `Enum` | 6 |
-| `weaveCompile` | a woven script that fails to compile; the script stays unwoven | script, compiler message | `[check]`, `"warn"` | woven imports pushing a function past 200 locals or 200 upvalues `[generation-security §4.2]` | 6 |
-| `weaveUnparsed` | a script the Luau parser, at the version the host pins, refuses; it stays unwoven | script, parser message | `[check]`, `"warn"` | syntax newer than the pinned parser | 6 |
-| `weaveLiteralRefused` | with `weave.literals`, a literal site whose constant the codec refuses; the site stays unwoven and throws `valueRefused` when it runs, as unwoven | definition, field path, the value | `[check]`, `"warn"` | the call in code that never runs | 6 |
+| `weaveArgumentUnsupported` | a resolved site of a record definition whose argument is not a table constructor | definition | `[check]`, `"warn"` | a payload built elsewhere and passed by name; a roblox-ts spread | 6 |
+| `weaveKeysMismatch` | a resolved site whose table constructor's keys are not exactly the record's field set, or not all constant strings | definition, the differing key | `[check]`, `"warn"` | an optional field left out; a computed key | 6 |
+| `weaveBuiltinShadowed` | a free name the site's fragment references (a builtin such as `buffer`, `math`, `type`, `Enum` or `Vector3`, or a name with prefix `__lync_`) is bound by a local in scope at the site | definition, the name | `[check]`, `"warn"` | a game local named `type`, `vector` or `Enum` | 6 |
+| `weaveCompileFailed` | a woven script that fails to compile; the script stays unwoven | script, compiler message | `[check]`, `"warn"` | woven imports pushing a function past 200 locals or 200 upvalues `[generation-security §4.2]` | 6 |
+| `weaveParseFailed` | a script the Luau parser, at the version the host pins, refuses; it stays unwoven | script, parser message | `[check]`, `"warn"` | syntax newer than the pinned parser | 6 |
+| `weaveLiteralRefused` | with `weave.foldLiterals`, a literal site whose constant the codec refuses; the site stays unwoven and throws `valueRefused` when it runs, as unwoven | definition, field path, the value | `[check]`, `"warn"` | the call in code that never runs | 6 |
 
 **Published place** (`lync check --published`, §4.3; `[refusals-rejudged-1 R11]`):
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `publishedShardDiffers` | a shard or variant part in the published version whose `Source` digest differs from the manifest's (`wovenDigest` when present, else `digest`) | `path`, `part`, `expectedBuild`, `foundBuild` (the body's `buildId`, which the task returns for parts) | error | a Studio publish after the plugin regenerated shards; a hand edit published from Studio; the manifest of another CI run passed to the check | 6 |
+| `publishedShardMismatch` | a shard part or variant module in the published version whose `Source` digest differs from the manifest's (`wovenDigest` when present, else `digest`) | `path`, `part`, `expectedBuild`, `foundBuild` (the body's `buildId`, which the task returns for parts) | error | a Studio publish after the plugin regenerated shards; a hand edit published from Studio; the manifest of another CI run passed to the check | 6 |
 | `publishedShardMissing` | a shard part the manifest lists, absent at its path in the published version | `path`, `part` | error | a Studio publish from a place copy without it; a shard moved after the build | 6 |
-| `publishedWovenDiffers` | at a path in `wovenScripts`, the published scripts' digests differ, as a multiset, from the manifest's | `path` | error | a Studio publish, which carries the developer's unwoven source | 6 |
-| `publishedScriptChanged` | at a path of the client scan set that Lync didn't write, the published version's scripts differ from the `--place` file's: a digest present in one and not the other (`change` 1), a path only in the published version (2), or only in the file (3); paths are compared as multisets of digests, so same-path siblings need no order | `path`, `change` | warning | any edit published after the CI build; this is the developer's own code | 6 |
+| `publishedWovenMismatch` | at a path in `wovenScripts`, the published scripts' digests differ, as a multiset, from the manifest's | `path` | error | a Studio publish, which carries the developer's unwoven source | 6 |
+| `publishedScriptMismatch` | at a path of the client scan set that Lync didn't write, the published version's scripts differ from the `--place` file's: a digest present in one and not the other (`change` 1), a path only in the published version (2), or only in the file (3); paths are compared as multisets of digests, so same-path siblings need no order | `path`, `change` | warning | any edit published after the CI build; this is the developer's own code | 6 |
 
 **Costs**, build time only, zero at run time and on the wire: SHA-256 0.04 ms per 64 KB part, CRLF normalisation
-0.6–0.9 ms per 64 KB in Lune `[build-checks §3.5]`; the tree walk for `foreignRemote` and `foreignBindable` 3 µs per
-instance after reading the place (1.36 s for 100,003 instances and 7.4 MB of source, scan included, in Lune)
-`[build-checks §1.6]`; the shared lexer pass of §3.3; one codec-tree walk per client-sent payload for
-`freeFormField` and `decoyRef`, and one codec comparison per leaf per collection with decoys (or per server-sent
-field per collection for `unscopedRef`) `[checks-telemetry C5]` `[decoy-challenge-facts §3]`; one Luau Execution
-task and one SHA-256 per walked script for `--published` (§4.3).
+0.6–0.9 ms per 64 KB in Lune `[build-checks §3.5]`; the tree walk for `remoteInstanceFound` and
+`bindableInstanceFound` 3 µs per instance after reading the place (1.36 s for 100,003 instances and 7.4 MB of
+source, scan included, in Lune) `[build-checks §1.6]`; the shared lexer pass of §3.3; one codec-tree walk per
+client-sent payload for `freeFormRoleMissing` and `refersMissing`, and one codec comparison per leaf per collection
+with decoys (or per server-sent event field per collection for `aboutMissing`) `[checks-telemetry C5]`
+`[decoy-challenge-facts §3]`; one Luau Execution task and one SHA-256 per walked script for `--published` (§4.3).
 
 ### 3.5 Exit codes
 
 0 no errors; 1 one or more errors outside exit 2's codes; 2 usage (an unknown command, flag or argument, printed as
-plain text) or a configuration or environment code; 3 `internal`, a Lync bug (a failed generator invariant, a woven
-script whose line count changed, a woven site failing the gate's differential, §5.4), printed with a request to file
-an issue. When codes of several classes occur in one run, 3 takes precedence over 2, and 2 over 1.
+plain text) or a configuration or environment code; 3 `internal`, a Lync bug (a failed generator invariant, a
+self-check item failing against the emitted shard, §1.1; a woven script whose line count changed, a woven site
+failing the gate's differential, §5.4), printed with a request to file an issue. When codes of several classes
+occur in one run, 3 takes precedence over 2, and 2 over 1.
 
 ## 4. Hosts
 
@@ -399,13 +401,13 @@ an issue. When codes of several classes occur in one run, 3 takes precedence ove
 
 | Command | What it does | M |
 |---|---|---|
-| `lync build [--place <file>]` | draws one (`buildId`, `rotationSeed`) and plans every namespace once with it; writes shards, `.d.ts`, the manifest and the report; runs every check of §3.4 except `staleShard`, `unpairedShard`, `staleManifest` (it rewrites all three artefacts), the weaving codes and the `published*` codes, and runs `editedShard` before overwriting; runs each `[[pvs]]` bake | 3; bakes 4 |
-| `lync watch` | `lync build` again on each change to `lync.toml`, a schema module, the sourcemap or a scanned script; under `build.seed = "release"` each rebuild draws a new pair | 3 |
+| `lync build [--place <file>]` | draws one (`buildId`, `rotationSeed`) and plans every namespace once with it; writes shards, `.d.ts`, the manifest and the report; runs every check of §3.4 except `shardSchemaMismatch`, `shardPairMismatch`, `shardPartMissing`, `shardPartUnknown` and `manifestShardMismatch` (it rewrites shards and manifest), the weaving codes and the `published*` codes, and runs `shardDigestMismatch` before overwriting; runs each `[[pvs]]` bake | 3; bakes 4 |
+| `lync watch` | `lync build` again on each change to `lync.toml`, a schema module, the sourcemap or a scanned script; under `build.rotationSeed = "release"` each rebuild draws a new pair | 3 |
 | `lync check [--place <file>] [--published <universe>/<place>[/<version>]] [--manifest <path>]` | every check of `lync build` plus the drift codes, writing nothing; with `--published`, which requires `--place` (the file that was published), the published-place codes | 3; `--published` 6 |
 | `lync explain <code>` | prints the code's registry page | 3 |
 | `lync weave <place> -o <file> [--manifest <path>]` | §5 | 6 |
 | `lync diff <old> <new>` | compares two manifests at seed 0 and lists each definition whose ids or codecs changed; differences that come only from the two builds' pairs (field order, offsets) are listed apart | 6 |
-| `lync replay <capture> [--manifest <path>]` | decodes a capture (its frames with their `HELLO` and `WELCOME`) using the layouts and keys the planner reproduces from the manifest (§1.2); refuses with `replayMismatch` when the capture's `buildId` or `idTableHash` isn't the manifest's | 6 |
+| `lync replay <capture> [--manifest <path>]` | decodes a capture (its frames with their `HELLO` and `WELCOME`) using the layouts and keys the planner reproduces from the manifest (§1.2); refuses with `captureBuildMismatch` when the capture's `buildId` or `idTableHash` isn't the manifest's | 6 |
 
 `--manifest` defaults to `output.manifest`. `watch` is in milestone 3 because, outside Studio-only projects, it is
 the only regenerate-on-edit path.
@@ -433,15 +435,16 @@ the only regenerate-on-edit path.
 ### 4.2 Studio plugin (milestone 6)
 
 - **Diagnostics** through `ScriptEditorService:RegisterScriptAnalysisCallback` (PluginSecurity), with `code` and
-  `href`, attached to scripts only; instance findings (`foreignRemote`, `foreignBindable`) appear in the plugin's
-  own widget `[build-checks §1.3]`.
-- **Drift.** `staleShard`, `editedShard` and `unpairedShard` on open, on `TextDocumentDidChange` of a shard and in
+  `href`, attached to scripts only; instance findings (`remoteInstanceFound`, `bindableInstanceFound`) appear in the
+  plugin's own widget `[build-checks §1.3]`.
+- **Drift.** `shardSchemaMismatch`, `shardDigestMismatch`, `shardPairMismatch`, `shardPartMissing` and
+  `shardPartUnknown` on open, on `TextDocumentDidChange` of a shard and in
   "Prepare release", hashing `Source` with `EncodingService:ComputeStringHash(source, Enum.HashAlgorithm.Sha256)`
   (security None, thread-safe) `[build-checks §3.4]`; its speed in Studio is unmeasured (§8).
 - **Generation.** It regenerates on schema edit only when the configuration lives in `ServerStorage.Lync.Config`;
   with a filesystem `lync.toml`, `lync watch` is the one writer. Edit-time regeneration builds at the identity
-  build (`buildId` 0, `rotationSeed` 0) and rewrites `ServerStorage.Lync.Manifest`; it runs `editedShard`
-  (`regenerated` 0) first and overwrites nothing while it holds. Shards are written with `UpdateSourceAsync` inside
+  build (`buildId` 0, `rotationSeed` 0) and rewrites `ServerStorage.Lync.Manifest`; it runs `shardDigestMismatch`
+  (`byRegeneration` 0) first and overwrites nothing while it holds. Shards are written with `UpdateSourceAsync` inside
   one `ChangeHistoryService` recording `[security-tooling §3]`.
 - **"Prepare release"** draws a new pair from two `HttpService:GenerateGUID(false)` calls (security None):
   dropping each GUID's dashes, its version digit (the 13th hex digit) and its variant digit (the 17th), it takes
@@ -483,22 +486,22 @@ woven scripts in their editor `[codecs-in-scripts §2]`. Studio-only projects st
 
 **`--published`** creates one Luau Execution task on the versioned endpoint
 (`…/places/{p}/versions/{v}/luau-execution-session-tasks`; 5 task creations per minute per key owner, at most 5 min
-per task, return values at most 4 MB). The task walks the published version's client scan set, every shard and
-variant part and every `wovenScripts` path, reads each `Source`, hashes it with `EncodingService:ComputeStringHash`
-after CRLF-to-LF replacement, and returns `{ path, digest, buildId? }` as JSON, `buildId` read from a part's body
-constant. The CLI walks the `--place` file the same way and compares path by path, each path's scripts as a
-multiset of digests; parts and woven copies are also compared with the manifest. The API key, with scope
-`universe.place.luau-execution-session:write`, comes from the environment variable `LYNC_OPEN_CLOUD_KEY`, never from
-`lync.toml`. Cost: zero at run time and on the wire; one task and one SHA-256 per walked script per check
-`[refusals-rejudged-1 R11]`.
+per task, return values at most 4 MB). The task walks the published version's client scan set, every shard part
+and variant module and every `wovenScripts` path, reads each `Source`, hashes it with
+`EncodingService:ComputeStringHash` after CRLF-to-LF replacement, and returns `{ path, digest, buildId? }` as JSON,
+`buildId` read from a part's body constant. The CLI walks the `--place` file the same way and compares path by
+path, each path's scripts as a multiset of digests; parts and woven copies are also compared with the manifest.
+The API key, with scope `universe.place.luau-execution-session:write`, comes from the environment variable
+`LYNC_OPEN_CLOUD_KEY`, never from `lync.toml`. Cost: zero at run time and on the wire; one task and one SHA-256 per
+walked script per check `[refusals-rejudged-1 R11]`.
 
 - **Decision: what `--published` does when the task can't read `Source`.**
   - *Problem.* Whether a Luau Execution task's thread holds `PluginOrOpenCloud`, which reading `Source` needs, is
     unverified `[refusals-rejudged-1 R11]`.
   - *Options:* fall back to `require`-ing each client shard part in the task and comparing its identity constants;
-    **report `publishedUnreadable` and compare nothing.**
+    **report `publishedSourceReadFailed` and compare nothing.**
   - *Choice: report.* The fallback finds only a published pair from another run, which every join already reports
-    as `schemaMismatch` (`seedDiffers` 1) under the default `"release"` seed, and it runs client shards on a server.
+    as `buildMismatch` (`buildIdMismatch` 1) under the default `"release"` seed, and it runs client shards on a server.
     Hand edits are what only a `Source` read finds.
 
 Not in the release pipeline: a per-build key or seed record written to a DataStore `[security-tooling §4]`, since
@@ -533,8 +536,8 @@ server-observed report on definitions every unmodified client reaches only throu
 `generatorMismatch` (exit 2) when its generator's `coreDigest` differs from the manifest's. It plans once at the
 manifest's `rotationSeed`, taking the scan result the manifest records (reachability lists and completeness)
 rather than rescanning, regenerates the shards and compares them with the place's: a place whose shards are from
-another run, or edited, fails with `editedShard` (`regenerated` 1) and nothing is written. Fragments, site table
-and shards therefore come from one planner run `[codecs-in-scripts §8]`. It scans the place itself only for sites
+another run, or edited, fails with `shardDigestMismatch` (`byRegeneration` 1) and nothing is written. Fragments, site
+table and shards therefore come from one planner run `[codecs-in-scripts §8]`. It scans the place itself only for sites
 and closure. It writes the output place with the woven scripts and rewritten shards (the server shard gains the
 site table and site decoders; with `weave.dropClosed`, the client shard loses closed encoders), rewrites line 1 of
 every part it changes with the new digest, which it records as `wovenDigest` `[build-checks §3.2]`, and rewrites
@@ -553,9 +556,9 @@ which exists only after `rojo build`.
   the shard with the `weave*` code of §3.4 that names why. A **literal site** has every field value
   constant.
 - **Forms** `[codecs-in-scripts §6]`:
-  - client sites in statement context: inline (W2) when the definition has at most `weave.inlineMaxSites` woven
+  - client sites in statement context: inline (W2) when the definition has at most `weave.maxInlineSites` woven
     client sites in the place, else a call into the shard's scalar entry with the fields as arguments (W3); with
-    `weave.literals`, a literal site is folded at build time into one run header, one reserve and one constant
+    `weave.foldLiterals`, a literal site is folded at build time into one run header, one reserve and one constant
     write, whatever the count;
   - client sites in expression context, every request (`invoke` yields and returns a result) included: W3, a call
     that is valid wherever the original call was `[codecs-in-scripts §4.1]`;
@@ -574,24 +577,24 @@ which exists only after `rojo build`.
 
 ### 5.4 Closure and the gate
 
-- **Closed definition:** its namespace is complete (§3.3's predicate, the one `v5-integrity.md` §3 defines: aliases,
-  fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in the client
-  scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site or of an alias declaration whose uses
-  are all woven `[codecs-in-scripts §4.2]`. Closure is exact relative to the scan set and nothing more, as
-  `unreferenced` is (§1.2): the manifest and report list every closed definition; a generic-id message on one is
-  reported at run time only for definitions the developer opts in (`check.reachability`, `v5-integrity.md` §3), and
-  site ids, constant elision and woven speed don't depend on that opt-in. The scope is the client scan set, as for the
-  unreferenced list: server handlers name every definition they handle, so a scope of all scripts would close none. A
-  declared trap that no client code names is closed like any such definition; with `weave.dropClosed` its encoder goes
-  too, so a driver calling it raises at the caller and sends nothing: the developer's trade-off, stated in the
-  option's row.
+- **Closed definition:** its namespace is complete (§3.3's predicate, the one `v5-integrity.md` §3 defines:
+  aliases, fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in
+  the client scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site that passed the gate below
+  or of an alias declaration whose uses are all such sites `[codecs-in-scripts §4.2]`; a site the gate leaves unwoven
+  keeps its definition open. Closure is exact relative to the scan set and nothing more, as `unreferenced` is (§1.2):
+  the manifest and report list every closed definition; a generic-id message on one is reported at run time only for
+  definitions the developer opts in (`check.inferReachability`, `v5-integrity.md` §3), and site ids, constant elision
+  and woven speed don't depend on that opt-in. The scope is the client scan set, as for the unreferenced list: server
+  handlers name every definition they handle, so a scope of all scripts would close none. A declared trap that no
+  client code names is closed like any such definition; with `weave.dropClosed` its encoder goes too, so a driver
+  calling it raises at the caller and sends nothing: the developer's trade-off, stated in the option's row.
 - **Gate**, per script, before anything is written `[codecs-in-scripts §4.3]`:
 
   | Check | On failure |
   |---|---|
-  | parses with the pinned Luau parser | script unwoven, `weaveUnparsed` |
-  | no shadowed builtin at a site | site unwoven, `weaveShadowed` |
-  | the woven script compiles | script unwoven, `weaveCompile` |
+  | parses with the pinned Luau parser | script unwoven, `weaveParseFailed` |
+  | no shadowed builtin at a site | site unwoven, `weaveBuiltinShadowed` |
+  | the woven script compiles | script unwoven, `weaveCompileFailed` |
   | line count unchanged | `internal` (exit 3) |
   | differential, for 200 value sets per site drawn by xorshift32 seeded with the site's canonical index plus 1 (never 0, xorshift32's fixed point), at the build's own `[build]` settings and `rotationSeed`, under the identity permutation and under permutation seed 1: with `weave.ids = "generic"`, the woven bytes equal the shard encoder's; otherwise the woven id is the site table's id for that site, and the server shard's site decoder gives from the woven bytes the value the generic decoder gives from the shard encoder's bytes `[codecs-in-scripts §7.3]`; in every mode a refused value raises the same message | `internal` (exit 3) |
 
@@ -606,13 +609,13 @@ which exists only after `rojo build`.
   client site, `"definition"` one per woven definition, after the generic ids, in canonical order by (script
   instance path, ordinal, line, column of the call's first token) (§1); they are permuted per server like every id.
   A site id's layout is its definition's layout minus the fields the site writes as constants (`"site"` with
-  `weave.literals` only; with `weave.literals = false` a site writes no constants and its layout is its
-  definition's), so a fully literal site sends no payload bits. A site-id message is delivered as a
-  message of its definition: the same `limit`, `validate`, handlers and element charge `[codecs-in-scripts §7.1]`.
-  A message on the generic id of a closed definition is the fact `v5-integrity.md` §3 specifies.
+  `weave.foldLiterals` only; with `weave.foldLiterals = false` a site writes no constants and its layout is its
+  definition's), so a fully literal site sends no payload bits. A site-id message is delivered as a message of its
+  definition: the same `limit`, `validate`, handlers and `inbound.elements` charge `[codecs-in-scripts §7.1]`.
+  A message on the generic id of a closed definition is the fact `genericIdMessageReceived` (`v5-integrity.md` §3).
 - **Decision: what the up-id table's hash covers, and its name.**
-  - *Problem.* Two weaves at one fixed `build.seed` can differ in their id modes and site tables, which set which
-    up ids exist and what each delivers; `buildId` and the schema hash don't pin them, and a disagreement decodes
+  - *Problem.* Two weaves at one fixed `build.rotationSeed` can differ in their id modes and site tables, which set
+    which up ids exist and what each delivers; `buildId` and the schema hash don't pin them, and a disagreement decodes
     wrong values silently.
   - *Options:* a hash of the site table alone (`weaveHash`, `[codecs-in-scripts §7.3]`), which misses the id mode
     and the constants; **a hash of everything the two shards must agree on beyond `buildId` and the schema hash**
@@ -626,17 +629,18 @@ which exists only after `rojo build`.
     per-server permutation seed. It is 0 exactly when the id mode is `"generic"`; otherwise it is the hash, with 0
     replaced by 1. Named **`idTableHash`**, for the table it pins: `weaveHash` would misname a field the protocol
     always carries, and `layoutHash` collides with the `layout` field and option of the runtime path. `HELLO`
-    carries it at protocol version 2, so G7 is re-cut with `idTableHash` 0 (`v5.md` §4.6, §4.10), and a mismatch is
-    refused.
+    carries it at protocol version 1, since no protocol has been released (`v5.md` §4.6); G7 is a version-1 vector
+    with `idTableHash` 0 (`v5.md` §4.10); a mismatch is refused as `buildMismatch` (`idTableHashMismatch` 1).
 
 ### 5.6 Composition
 
 - Per-build values reach woven sites from the same IR as the shard: field order and offsets (folded into the
   constant word at a literal site); the tag is computed at flush and never woven `[generation-methods M16]`.
-- Per-player variants compose only in tag scope: woven scripts in starter containers are copied to every player, so
-  `build.playerVariantScope = "upstream"` with `lync weave` is `configRange` `[codecs-in-scripts §8]`.
-- The schema hash, `staleShard` and the unwoven golden vectors other than G7 (re-cut, §5.5) are unchanged; woven
-  fixture vectors (a site id; a fully literal site with no payload bits) join the golden set (`v5.md` §4.10).
+- Per-player variants compose with weaving: a variant is a mask on the tag alone (`v5-integrity.md` §2.4), and the
+  tag is computed at flush, so woven scripts, which every player shares, carry no variant data.
+- The schema hash, `shardSchemaMismatch` and the unwoven golden vectors (G7 carries `idTableHash` 0, §5.5) are
+  unchanged by weaving; woven fixture vectors (a site id; a fully literal site with no payload bits) join the golden
+  set (`v5.md` §4.10).
 
 ### 5.7 Options
 
@@ -644,24 +648,24 @@ Read only by `lync weave`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `weave.inlineMaxSites` | integer | woven client sites per definition | 0–65,535 (0: never inline) | 2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3; a measured phone load cost per KB would change it) | per site, mean over the measured mix at `-g1`: an unwoven site 124 B, W3 177 B, W2 654 B; client time per call (interpreted, median): `move6` W2 437 ns, W3 562 ns; `strike` 663 and 676; `chat` 144 and 164 `[codecs-in-scripts §6.1, §6.3]` |
-| `weave.literals` | boolean | — | — | `true` (derived: no run-time cost; 85–165 ns less per literal call) | a literal site's checks move to the build; a refused literal is `weaveLiteralRefused` |
+| `weave.maxInlineSites` | integer | woven client sites per definition | 0–65,535 (0: never inline) | 2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3; a measured phone load cost per KB would change it) | per site, mean over the measured mix at `-g1`: an unwoven site 124 B, W3 177 B, W2 654 B; client time per call (interpreted, median): `move6` W2 437 ns, W3 562 ns; `strike` 663 and 676; `chat` 144 and 164 `[codecs-in-scripts §6.1, §6.3]` |
+| `weave.foldLiterals` | boolean | — | — | `true` (derived: no run-time cost; 85–165 ns less per literal call) | a literal site's checks move to the build; a refused literal is `weaveLiteralRefused` |
 | `weave.server` | `"off"` \| `"call"` | — | — | `"call"` (derived: W3 is faster than the shard entry on the server with no correctness cost) | +53 B per server site (W3, the client mix's mean); server time per call `move6` 291 against 453 ns, `strike` 333 against 471, `chat` 115 against 176 (native shard, interpreted script) |
 | `weave.ids` | `"generic"` \| `"definition"` \| `"site"` | — | — | `"site"` (chosen: the only mode with constant elision and per-site ids) | `"site"`: ⌈log2(D + S)⌉ − ⌈log2 D⌉ bits per upstream run (D = 20: +1 at S = 20, +2 at 60–100, +4 at 300; +1 bit is 9–18 B/s per player at 70 upstream frames/s), the closed-generic fact, constant elision (1–8 bits per message at the measured shapes, the whole payload at a fully literal site); `"definition"`: at most +1 bit per run and the fact; `"generic"`: no wire change |
 | `weave.dropClosed` | boolean | — | — | `false` (derived: with `true`, code outside the build calling a closed definition raises at the caller instead of sending, so an unmodified client running such code breaks, and a declared trap no client code names loses its encoder, so a driver calling it sends nothing) | `true`: the client shard drops closed definitions' encoders (0.43× unwoven bytes at 1 site per definition); the server still decodes and reports the generic id |
-| `weave.handlers` | boolean | — | — | `false` (derived: it is the one transform whose result the byte differential can't check) | per delivered message of an unpacked definition: client 419 → 342 ns, server 355 → 262 ns `[codecs-in-scripts §6.4]`; build time to prove the precondition (unmeasured) |
+| `weave.unpackHandlers` | boolean | — | — | `false` (derived: it is the one transform whose result the byte differential can't check) | per delivered message of an unpacked definition: client 419 → 342 ns, server 355 → 262 ns `[codecs-in-scripts §6.4]`; build time to prove the precondition (unmeasured) |
 
-### 5.8 Handler unpacking (`weave.handlers`)
+### 5.8 Handler unpacking (`weave.unpackHandlers`)
 
 A function literal passed to `connect`, `validate` or `handle` at a resolved binding or alias is rewritten to take
 the record's top-level fields as arguments when every occurrence of its value parameter is a read `param.f`, with
 `f` a constant field name of the record: never written, passed, returned, compared, captured by a closure, given to
 `#`, `next` or `typeof`, or indexed by a non-constant. The parameter is replaced in place by one parameter
 `__lync_<i>` per top-level field, i its 1-based index in field order (field names need not be identifiers), and each
-`param.f` by its `__lync_<i>`, so every line keeps its number. The rewritten call
-registers through the shard's fields entry; the delivery passes the decoded locals to fields-form functions and
-builds the payload table only when a table-form function is also registered for the definition, so handlers from
-outside the place still receive the table.
+`param.f` by its `__lync_<i>`, so every line keeps its number. The rewritten call registers through the shard's
+unpacked-handler entry (not a view's `fields` table of handles, `v5.md` §3.4); the delivery passes the decoded
+locals to unpacked functions and builds the payload table only when a table-form function is also registered for
+the definition, so handlers from outside the place still receive the table.
 
 ### 5.9 Cost
 
@@ -683,7 +687,7 @@ outside the place still receive the table.
   observer, live frames decoded with the running shards' own decoders, capture, and replay of a capture with the
   layouts and keys the planner reproduces from the manifest (§1.2).
 - **PacketProfiler adapter:** registers Lync as a traffic layer `[landscape §5]`.
-- **MicroProfiler labels** with `profile = true` (`v5.md` §7.5).
+- **MicroProfiler labels** with `labelProfiler = true` (`v5.md` §7.5).
 
 ## 7. Repo tooling
 

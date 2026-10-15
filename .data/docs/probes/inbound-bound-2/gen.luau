@@ -290,7 +290,7 @@ local HAS_INSTANCES = {}
 local NAMES = {}
 ]==]
 
--- the driver module: header, toc, run headers, chunks; each definition's runs are in their own module (gen/dN.luau),
+-- the driver module: header, toc, run headers, chunks; each definition's runs are in their own module (gdefs/dN.luau),
 -- so that the CLI's native code generator compiles each (one module of every definition is not compiled natively)
 local driver = { "--@@FILE gen_decoders.luau", HEAD }
 local function defModuleHead()
@@ -732,7 +732,7 @@ for _, def in IR.definitions do
 	return 0
 end]], cf, sc, sc, rf)
 	end
-	emit(string.format("--@@FILE gen/d%d.luau", index))
+	emit(string.format("--@@FILE gdefs/d%d.luau", index))
 	emit(defModuleHead())
 	emit(string.format("-- %s", def.name))
 	for _, d in decls do emit(d) end
@@ -742,7 +742,7 @@ end]], cf, sc, sc, rf)
 	local rule = ROOT(def, count)
 	return rule, P, S, BUDGET, N
 end]])
-	table.insert(driver, string.format("DECODE[%d] = require(\"./gen/d%d\")", index, index))
+	table.insert(driver, string.format("DECODE[%d] = require(\"./gdefs/d%d\")", index, index))
 	table.insert(driver, string.format("UNRELIABLE[%d] = %s", index, tostring(def.lane == "unreliable")))
 	table.insert(driver, string.format("HAS_INSTANCES[%d] = %s", index, tostring(def.hasInstances)))
 	table.insert(driver, string.format("NAMES[%d] = %q", index, def.name))

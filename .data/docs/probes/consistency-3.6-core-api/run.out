@@ -1,0 +1,11 @@
+== result_arms_renamed.luau --solver=old (luau-analyze 0.740)
+./result_arms_renamed.luau(9,2): TypeError: Expected this to be 'number', but got 'number?'
+./result_arms_renamed.luau(27,8): TypeError: Expected this to be 'number', but got 'number?'
+== result_arms_renamed.luau --solver=new (luau-analyze 0.740)
+./result_arms_renamed.luau(9,20): TypeError: Expected this to be 'number', but got 'number?'; 
+`nil` is not a subtype of `number`
+./result_arms_renamed.luau(27,8): TypeError: Operator '+' could not be applied to operands of types nil and number; there is no corresponding overload for __add
+== result_arms_renamed.ts tsc --strict
+Version 6.0.2
+result_arms_renamed.ts(12,8): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.

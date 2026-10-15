@@ -72,7 +72,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a60b226001890347a` | architect (Opus) | consistency: `v5-integrity.md` | `design/v5-3.6-consistency-integrity.md` | running |
 | `abde9d80edeb18314` | architect (Opus) | consistency: `v5-collections.md` | `design/v5-3.6-consistency-collections.md` | running |
 | `a73892475d245bd6b` | architect (Opus) | consistency: `v5-checks.md`; empties or removes `v5-extensions.md` | `design/v5-3.6-consistency-checks.md` | running |
-| `aebc577709fa651ed` | architect (Opus) | consistency: `v5-tooling.md` | `design/v5-3.6-consistency-tooling.md` | running |
+| `aebc577709fa651ed` | architect (Opus) | consistency: `v5-tooling.md` | `design/v5-3.6-consistency-tooling.md` | done on Opus 5.5 (stopped once by mistake, resumed): 32 items (24 applied, 5 in place, 2 superseded, 1 rejected), about 63 renames, `pvs` byte format defined, 4 open |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

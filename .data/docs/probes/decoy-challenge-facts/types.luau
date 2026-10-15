@@ -1,6 +1,9 @@
 --!strict
 -- Typing probe for the U11/U14 server API shapes, as a generated server shard would declare them.
 -- Lines marked EXPECT must produce exactly one type error each, on both solvers; nothing else may.
+-- No `read` modifiers: the old solver rejects them ("read keyword is illegal here", first run of this probe), so
+-- shards typed for both solvers declare plain fields and freeze at run time.
+-- MISSED marks an error neither solver reports (an extra key in a table literal passed to a sealed table type).
 -- Run: luau-analyze --solver=new --mode=strict types.luau ; luau-analyze --solver=old --mode=strict types.luau
 
 type Player = { UserId: number } -- stand-in: the probe runs without Roblox definitions
@@ -13,8 +16,8 @@ export type ChallengeClosed =
 	| { outcome: "timeout" | "cancelled" | "left" | "shutdown", after: nil, attempts: number, minPing: number, definition: nil }
 
 export type Challenge = {
-	read token: number,
-	read deadline: number,
+	token: number,
+	deadline: number,
 	wait: (self: Challenge) -> ChallengeClosed,
 	extend: (self: Challenge, seconds: number) -> (),
 	cancel: (self: Challenge) -> (),
@@ -52,19 +55,19 @@ elseif closed.outcome == "timeout" then
 	local after: number = closed.after -- EXPECT: after is nil when nothing closed the challenge
 	print(after)
 end
-Lync.challenge(player, { within = 120, attemps = 3 }) -- EXPECT: misspelled option
+Lync.challenge(player, { within = 120, attemps = 3 }) -- MISSED: misspelled option; the runtime must throw for unknown keys
 
 -- U11 ---------------------------------------------------------------------------------------------------
 type Fighter = { position: vector, health: number }
-type Perceived = { read tick: number, read exact: boolean }
+type Perceived = { tick: number, exact: boolean }
 type Rewound = { ok: true, value: Fighter } | { ok: false, error: "expired" | "notHeld" | "unknownKey" }
 type FightersServerView = {
-	held: (self: FightersServerView, seen: Perceived) -> { read number },
+	held: (self: FightersServerView, seen: Perceived) -> { number },
 	rewound: (self: FightersServerView, seen: Perceived, key: number) -> Rewound,
 	reportInteraction: (self: FightersServerView, player: Player, key: number, kind: number) -> (),
 }
 local fighters: FightersServerView = {
-	held = function(_self: FightersServerView, _seen: Perceived): { read number } return {} end,
+	held = function(_self: FightersServerView, _seen: Perceived): { number } return {} end,
 	rewound = function(_self: FightersServerView, _seen: Perceived, _key: number): Rewound
 		return { ok = false, error = "unknownKey" }
 	end,

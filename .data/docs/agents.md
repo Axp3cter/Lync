@@ -36,6 +36,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
 | `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | append to `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a10703eb41a07ff5b` | researcher (Opus) | unit 6c: consolidates `generation-methods.md` (M7 vs M13, Summary M1–M16, one Implications list, checklist); no new methods or numbers | `research/generation-methods.md` | done on Opus 5.5: 15 edits, no number changed; M1–M16 consistent, one Summary and one Implications list; retired |
+| `a476c0bb5505e0898` | researcher (Opus) | unit 9: U3 beacon window rules, U4 `roundTrip`/`ping` on request results | `research/clock-facts.md`, `probes/clock-facts/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -64,7 +65,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   6b. ~~`methods, part 2b`~~ done.
   7. `server facts A`: U9, U10 → `research/server-facts.md` (on `a37cd6952a2f7bad9`).
   8. `server facts B`: U11, U14 → `research/decoy-challenge-facts.md` (on `a3a196cb42882d70c`).
-  9. `clock and timing`: U3 beacon window rules, U4 `roundTrip`/`ping` → `research/clock-facts.md`.
+  9. `clock and timing`: U3, U4 → `research/clock-facts.md` (on `a476c0bb5505e0898`).
   10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
       tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and
       the `v5-changes.md` section.

@@ -30,7 +30,7 @@ Roblox's server build is not measured. Probes type-check clean (luau-analyze 0.7
 ## Checklist
 
 - [x] U9. `derive`: re-derivation of a claimed outcome
-- [ ] U10. `reactsTo`: response before stimulus, and the reaction floor
+- [x] U10. `reactsTo`: response before stimulus, and the reaction floor
 - [ ] Implications (U9, U10)
 - [ ] U11 (later unit)
 - [ ] U14 (later unit)
@@ -241,3 +241,205 @@ Caller errors (CT C0's family): `unknownField`, `checkKind`, `checkOption`.
 - Runtime path, new solver: a type function from the literal path to the field type; old solver: `T` is `unknown`.
 - roblox-ts: overloads, `derive(path: "landing", options: DeriveOptions<ShotData, Vector3>): void;` per path, with
   `this: void` dot calls as in `v5.md` §3.6.
+
+---
+
+## U10. `reactsTo`: response before stimulus, and the reaction floor
+
+### U10.1 What it is, what it protects
+
+- **Mechanism.** A client-sent definition declares, on the server view, which server-sent definition it answers:
+  `Net.collect:reactsTo("coins", { key = "coin" })`. For each response, the server finds the stimulus it answers
+  and reports a fact when the response arrived before that stimulus could have reached the client, or sooner after
+  it than a declared floor (AC §4.3).
+- **What it prices.**
+  - Response before stimulus: a client acting on data Lync hadn't delivered, which leaves three sources. It predicted
+    the stimulus (a bot pre-firing a timed prompt). It got the data by another path (engine replication, a leak). Or
+    it fires the response blind, without a stimulus (an auto-collector firing "collect" on every key). AC §4.3 calls
+    this strong when the data exists only in Lync.
+  - The floor: responses faster than a human could make them, on definitions only a human should answer.
+- **Defeated by** (capability class): a client that waits for the stimulus and then answers at a human-looking
+  delay. The fact prices speed, not automation. A modified Lync runtime can also misstate the receipt (§U10.2); the
+  time rule still bounds it.
+
+### U10.2 Decision: how the server knows when the stimulus reached the client
+
+| Source | What it says | Exact? | Exists today | Cost |
+|---|---|---|---|---|
+| **Time** | the stimulus left at t_s (Lync's flush); the response was decoded at t_r; any response needs at least the round trip, so elapsed = t_r − t_s is at least the path | no: bounded by a ping estimate | yes: `earlyAnswer` uses it (INT §7) | none on the wire |
+| **State-frame acks** | the newest `:newest()` state frame received, with a 16-bit history (`v5.md` §4.1); IR §11.3 makes every frame carrying a `perceived` message carry a full ack | yes, for state frames | yes | 28 bits per carrying frame (IR §11.3) |
+| **Reliable receipt** (new) | how many downstream reliable frames the client had decoded when it built this frame | yes, for reliable stimuli answered on the reliable lane | no: reliable frames are not acked (`v5-collections.md` §1, IR §11.8) | 1 B per upstream reliable frame |
+
+- State-frame acks don't help here. A stimulus is a discrete event or a record's add, and both travel on the reliable
+  lane (`v5-collections.md` §1: structure and reliable fields are reliable, with no acks). `:newest()` rows are
+  continuous state, not stimuli.
+- **Choice: time always, plus the reliable receipt.** Time works on every lane and needs nothing new. The receipt
+  makes "before stimulus" exact for reliable stimuli: no ping estimate, no smoothing error. In `reaction_sim.out` it
+  catches every response sent before the stimulus arrived, where the time rule catches only those fired before
+  the stimulus left the server (table in §U10.6).
+- **The receipt, exactly.** `header (up, reliable) := ack rcv:u8`, where rcv is the client's count of downstream
+  reliable frames decoded (refused frames included), mod 256, when it builds the frame. The server extends it to
+  the value in (S − 256, S], where S is its count of reliable frames sent to that player (`FireAllClients` frames
+  count for each recipient; each split frame counts).
+  - It is on **every** upstream reliable frame, so it shows nothing about which definitions are watched.
+  - Aliasing (a client more than 255 frames behind, a stall over 4.2 s at 60 frames a second) extends upward. A
+    stimulus then reads as received, which can only miss a fact, never make one.
+  - It is client-stated. A modified runtime can overstate it, and then only the time rule applies. Bots driving the
+    unmodified runtime through its API (the common case, INT §1) can't.
+  - It changes the upstream reliable header of `v5.md` §4.1. That is milestone 2's frame format and golden set,
+    so it lands there, or in milestone 5 with a protocol version change.
+  - Side benefit: IR §11.8 returns reliable fields at Q, "on the assumption that the reliable lane is as current as
+    state frames … Lync can't tell". The receipt tells it.
+
+### U10.3 Declaring, and pairing a response with its stimulus
+
+```luau
+-- server view
+Net.collect:reactsTo("coins", { key = "coin", floor = 0.12 })   -- a collection: the record's add to this viewer
+Net.answer:reactsTo("prompt", { key = "id", floor = 0.15 })      -- an event: data.id equals the prompt's data.id
+Net.dodge:reactsTo("telegraph", { key = { response = "attack", stimulus = "attackId" } })
+```
+
+- **Response:** a client-sent event or request ask. **Stimulus:** a server-sent event (either lane) or a collection
+  (the stimulus is the record's add to that viewer). A server request as stimulus is `checkKind`: `earlyAnswer`
+  covers it. A field change as stimulus (a door's `open` turning true) isn't designed here.
+- **`key` is required.** Without a key a response can only be paired with "the newest stimulus", and with frequent
+  stimuli and a slow answer that is the wrong one: the estimate comes out short and the floor fires on an
+  unmodified client. A key pairs exactly. For a collection it is the response field holding the record key, the
+  same shape as `refers` (INT §8). For an event it is a path present in both (`"id"`), or two paths. The two codecs
+  must be equal, else `checkKind`.
+- **Candidates.** Events: the stimuli with that key among the last `track` sent to the player. Collections: the
+  record's **first** add to this viewer in its current incarnation (a re-add after a remove keeps the first).
+  Whenever several candidates qualify, Lync uses the **oldest**: it gives the longest elapsed time, so pairing
+  errors can only miss facts.
+- Like `:trap()` and `:refers()`, it is a server-view declaration: not in the shared schema, not hashed, invisible
+  to the client.
+
+### U10.4 Triggers, exactly
+
+All times are server `os.clock()`. t_s is the flush that handed the stimulus's frame to the engine (for a held
+send, the flush that released it). t_r is the decode of the response's frame. bound is the path lower bound below.
+1. **Case 3, never sent** (collections only): the key names a live record whose current incarnation was never
+   added to this viewer.
+2. **Case 1, before stimulus:**
+   - exact: the response came in a reliable frame, every candidate is a reliable stimulus, and every candidate's
+     frame number is greater than the extended receipt;
+   - else by time: t_r − t_s of the oldest candidate < `factor` × bound.
+3. **Case 2, below the floor:** `floor` > 0 and (t_r − t_s) − bound < `floor`, measured to the oldest candidate
+   the receipt shows received (or the oldest candidate, without a receipt).
+4. Otherwise nothing. A key with no candidate (an event stimulus outside the ring, a record no longer live) counts
+   `reactionsUnmatched` and raises no fact.
+
+**bound**, per player: the minimum, over the last 10 s, of `Player:GetNetworkPing()` samples (one at each stimulus
+send to the player) and of Lync's own ack round trips where state frames flow (IR §11.3). Engine ping "doesn't
+involve data deserialization or processing" (documented, `Player.yaml`), so it sits below the full path, which errs
+toward missing. The ack round trip includes client hold time and isn't smoothed, so it tracks a latency drop within
+one state frame. The estimate is reaction = elapsed − bound ≥ the true reaction whenever bound ≤ the true path
+(§U10.6). The same bound should replace `earlyAnswer`'s ping-only minimum (INT §7), so the two agree.
+
+### U10.5 Where it runs, and the fact
+
+**Pipeline** (`v5.md` §6.1): step 5's report-only checks of milestone 5, beside `decoyReferenced` and
+`canaryEchoed`, after `limit` and the `checks` block. The message is **always delivered**: R25 refuses
+library-applied drops for timing facts. Stimuli are recorded in the flush, where each player's frame is built.
+
+| Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
+|---|---|---|---|---|
+| `earlyReaction` | §U10.4 case 1, 2 or 3 for a message of a definition with `reactsTo` | delivered | `case` (1 before stimulus, 2 below floor, 3 never sent), `exact` (1 decided by the receipt or by never-sent, 0 by time), `elapsed` (s, t_r − t_s; −1 in case 3), `minPing` (s, the bound used), `floor` (s, 0 when off), `behind` (frames: candidate frame − receipt in exact case 1, else 0) | below |
+
+The code follows `earlyAnswer`'s name and `slotConflict`'s `case` pattern. Evidence is numbers only and narrows on
+`reason` alone (`v5.md` §7.3).
+
+**Known causes on an unmodified client:**
+- **Every case:** game code acting on the same information delivered another way: the entity replicated through
+  Workspace, another remote, or a client timer that knows when the stimulus comes (a round countdown).
+- **Case 1, exact:** a key the game reuses for more than `track` stimuli while an older one is still being
+  answered, which leaves only newer candidates; a Lync bug.
+- **Case 1, by time:** the causes above, plus a bound above the true path: `GetNetworkPing` is smoothed and lags a
+  sudden latency drop (INT §10, by how much is unmeasured) where no ack round trip is available. On `v5.md` §9's
+  default network it fired 0 times in 200,000 instant responses at bounds 0.10 s and 0.12 s.
+- **Case 2:**
+  - game code answering without a human (a response fired from the stimulus handler);
+  - stimuli a player can predict;
+  - humans faster than the floor. The floor is the game's: athletics treats a reaction under 0.100 s to the
+    starting gun as a false start (World Athletics TR16.6, quoted by FinishLynx, reported), and visual reactions
+    are slower;
+  - a bound above the true path: at 0.02 s above it, the estimate fell up to 0.018 s below the true reaction, and
+    1.35% of 0.10 s reactions read under a 0.10 s floor.
+- **Case 3:** as "every case": the game shows the entity by another path while the viewer's audience, or
+  `interest` relevancy, excludes the record from Lync.
+
+### U10.6 What the triggers catch, and their noise (simulated)
+
+`reaction_sim.out`, `v5.md` §9's default network (latency 0.05 s, jitter 0.02 s, 0.3 s stalls at 0.05 per s),
+60 Hz client and server steps, 200,000 trials per line.
+
+| Responder | Slack (estimate − true reaction): min / p1 / p50 / p99 | Below a 0.10 s floor |
+|---|---|---|
+| unmodified, reaction 0 (automatic), bound 0.10 s (= the true minimum path) | 0.004 / 0.019 / 0.045 / 0.240 s | 97.6% |
+| unmodified, reaction 0.15 s, bound 0.10 s | 0.005 / 0.019 / 0.046 / 0.246 s | 0% |
+| unmodified, reaction 0.10 s, bound 0.12 s (0.02 above the true path) | −0.018 / −0.001 / 0.025 / 0.223 s | 1.35% |
+
+| Fires at L after the stimulus left, without waiting for it | Case 1 by time (factor 0.5) | Case 1 by receipt | Floor 0.10 s |
+|---|---|---|---|
+| L = −0.20 s | 99.3% | 100% | 100% |
+| L = 0 | 0% | 100% | 99.2% |
+| L = +0.03 s | 0% | 100% | 98.9% |
+| L = +0.06 s | 0% | 16.3% | 98.8% |
+
+- With bound at or below the true path, slack is never negative: a fact implies a true reaction below the floor.
+  Stalls give the long positive tail, so 2.4% of automatic responses escape a 0.10 s floor.
+- Flush and step granularity (up to 1/60 s each at the client's dispatch, the client's flush and the server's
+  decode) and processing time only lengthen elapsed, so they only miss facts.
+
+### U10.7 Cost
+
+Measured (`server_facts_cost.out`, 2 runs per mode):
+
+| Operation | Native | Interpreted | When |
+|---|---|---|---|
+| record a stimulus: ring push (key, frame, time) | 8.6–10.2 ns | 77.4–78.7 ns | per recipient per event stimulus (100 recipients ≈ 1 µs native) |
+| response to an event: scan 8 entries, tests | 34.7–38.1 ns | 178.5–181.6 ns | per response |
+| response to a collection add: slot frame, frame time, tests | 8.2–8.3 ns | 49.2–54.5 ns | per response |
+| bound: record a ping sample | 7.9–8.1 ns | 46.2–47.5 ns | per stimulus sent |
+| bound: minimum of 10 one-second buckets | 45.4–46.0 ns | 191.9–193.3 ns | per response (can be cached per second) |
+
+- Plus one `GetNetworkPing` call per stimulus sent (cost on Roblox unmeasured), 20.5 ns per fact occurrence
+  (DIAG §5.2), and for collections one u32 write per add to each viewer.
+- **Memory:** event ring 24 B × `track` per (player, declaration) (192 B at 8; string keys add a reference); per
+  watched collection 4 B per (viewer, slot), 4 KB per viewer at 1024 slots, 400 KB at 100 viewers; per player a
+  ring of the last 256 reliable frames' send times (2 KB; an add older than it can't be fast, so it raises no fact)
+  and 40 B of ping buckets.
+- **Wire:** the receipt, 1 B per upstream reliable frame: at most 120 B/s at the default reliable frame budget,
+  60 B/s at 60 automatic flushes. Nothing else.
+
+### U10.8 Least work for the game developer
+
+- One server line per response definition. The key usually exists already: a record key, a prompt id. The shared
+  schema doesn't change.
+- Leave `floor` at 0 (only cases 1 and 3) unless the response is human-gated. When it is, the docs' rule: floor ≤
+  the fastest human reaction the game accepts, minus 0.02 s for bound error.
+- Read `elapsed` and `minPing` over real sessions before setting a floor. Aggregated, they are a distribution
+  feature (AC §4.3), not a per-event verdict.
+
+### U10.9 Options
+
+`Net.<response>:reactsTo(stimulus, options)`, server view.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `stimulus` | string | — | a server-sent event or a collection of the namespace (`unknownField` otherwise, as `refers`) | required | collections: 4 B per (viewer, slot) |
+| `key` | string, or `{ response: string, stimulus: string }` | — | field paths with equal codecs (`checkKind`) | required | none |
+| `floor` | number (real) | s | 0 (off) or 0.01–2 | 0 | none beyond the response test |
+| `factor` | number (real) | fraction of the bound | 0 (off) to 1 | 0.5 (as `earlyAnswer.factor`) | none |
+| `track` | integer | event stimuli remembered per player | 1–64 | 8 | 24 B per entry per player; the response scan is linear in it (35–38 ns native at 8) |
+
+Constants: bound window 10 s (as `earlyAnswer`); frame-time ring 256 frames per player. Counter:
+`reactionsUnmatched`. Caller errors: `unknownField`, `checkKind`, `checkOption` (CT C0).
+
+**Types.** Generated Luau shard: one overload per stimulus name, each taking only the key paths whose codec matches
+that stimulus's key, e.g. `((self, stimulus: "prompt", options: ReactsToOptions<"id">) -> ()) & ((self, stimulus:
+"coins", options: ReactsToOptions<"coin">) -> ())`, with `ReactsToOptions<K>` = `{ key: K | { response: K,
+stimulus: string }, floor: number?, factor: number?, track: number? }`. roblox-ts: the same as overloads with
+`this: void`. Runtime path: strings checked at the call. Old-solver overload selection by literal is milestone 3's
+typing proof, as for `derive`.

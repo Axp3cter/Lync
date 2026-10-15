@@ -1,0 +1,5 @@
+# Knit Comm (Sleitnick/RbxUtil main: modules/comm/Server/RemoteSignal.luau, init.luau) and Cmdr (evaera/Cmdr master: Cmdr/init.luau), fetched 2026-10-15
+foreignRemotes kind=2 RemoteSignal.luau:35:40 UnreliableRemoteEvent
+foreignRemotes kind=2 RemoteSignal.luau:35:83 RemoteEvent
+foreignRemotes kind=2 CommServer.luau:46:13 RemoteFunction
+foreignRemotes kind=3 Cmdr.luau:24:17 Instance.new(<non-literal>)

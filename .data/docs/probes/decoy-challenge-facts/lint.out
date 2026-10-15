@@ -1,0 +1,5 @@
+warning[decoyRef]: arena.sweep data.items[] has the key codec of pickups, which has decoys, and no :refers("items", "pickups")
+warning[decoyRef]: arena.tip data.to has the key codec of fighters, which has decoys, and no :refers("to", "fighters")
+warning[decoyRef]: arena.trade data.offers[].item has the key codec of pickups, which has decoys, and no :refers("offers", "pickups"); not declarable by :refers (not a top-level key, optional key or array of keys): report it with reportInteraction
+warning[decoyRef]: arena.score data.points has the key codec of fighters, which has decoys, and no :refers("points", "fighters")
+reports	4

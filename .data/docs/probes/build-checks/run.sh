@@ -3,9 +3,10 @@
 #   LUNE: Lune 0.11.0; ROJO: Rojo 7.7.1; LUAU: the luau CLI built from .data/projects/luau (0.742);
 #   WORK_DIR: scratch (places, corpus module); CORPUS_LIST: one .luau path per line (the run used the 219 files of
 #   1-64 KB under .data/projects/{luau/tests,lute,roblox-ts/include,rojo}, of which 217 are UTF-8: 1,648,210 B).
-# Fetched third-party files (Knit Comm, Cmdr) are scanned from WORK_DIR/real and never stored here.
+# REAL_DIR: optional; holds RemoteSignal.luau and CommServer.luau (Sleitnick/RbxUtil main, modules/comm/Server/
+#   RemoteSignal.luau and init.luau) and Cmdr.luau (evaera/Cmdr master, Cmdr/init.luau), fetched to scratch, never stored here.
 set -e
-LUNE=$1; ROJO=$2; LUAU=$3; W=$4; LIST=$5
+LUNE=$1; ROJO=$2; LUAU=$3; W=$4; LIST=$5; REAL=$6
 mkdir -p "$W/bench"
 "$LUNE" run fixture_place.luau "$W/fixture.rbxl" > /dev/null
 "$LUNE" run check.luau "$W/fixture.rbxl" > check_fixture.out
@@ -28,4 +29,5 @@ cp lex.luau scan.luau bench_scan.luau "$W/bench/" && python3 -I corpus_module.py
 ( cd "$W/bench" && for r in 1 2 3; do taskset -c 3 "$LUAU" -O2 bench_scan.luau; done; \
   for r in 1 2 3; do taskset -c 3 "$LUAU" -O2 --codegen bench_scan.luau; done ) > bench_scan.out
 taskset -c 3 "$LUNE" run drift.luau ../codecs-in-scripts/woven_Weapon.luau.txt > drift.out
-if [ -d "$W/real" ]; then "$LUNE" run scan_files.luau "$W/real/RemoteSignal.luau" "$W/real/CommServer.luau" "$W/real/Cmdr.luau" > real_creation.out; fi
+if [ -n "$REAL" ]; then { echo "# Knit Comm (Sleitnick/RbxUtil main: modules/comm/Server/RemoteSignal.luau, init.luau) and Cmdr (evaera/Cmdr master: Cmdr/init.luau), fetched 2026-10-15"; \
+  "$LUNE" run scan_files.luau "$REAL/RemoteSignal.luau" "$REAL/CommServer.luau" "$REAL/Cmdr.luau"; } > real_creation.out; fi

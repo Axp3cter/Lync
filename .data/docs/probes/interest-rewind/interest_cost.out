@@ -1,0 +1,10 @@
+## interpreted -O2
+classes owner/team/threshold/seen     1.535 ms/pass    96.0 ns/pair  (sink 3)
+pvs bit test                          0.986 ms/pass    61.6 ns/pair  (sink 4)
+relevancy counters (per viewer)       0.003 ms/pass     0.2 ns/pair  (sink 0)
+pvs bitset bytes for 4096 cells: 2097152
+## native -O2 --codegen
+classes owner/team/threshold/seen     0.314 ms/pass    19.6 ns/pair  (sink 3)
+pvs bit test                          0.173 ms/pass    10.8 ns/pair  (sink 4)
+relevancy counters (per viewer)       0.001 ms/pass     0.1 ns/pair  (sink 0)
+pvs bitset bytes for 4096 cells: 2097152

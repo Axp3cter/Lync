@@ -1,0 +1,15 @@
+{
+	"name": "weave-fixture",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"Shared": { "$path": "src/shared" }
+		},
+		"StarterPlayer": {
+			"$className": "StarterPlayer",
+			"StarterPlayerScripts": { "$className": "StarterPlayerScripts", "Client": { "$path": "src/client" } }
+		},
+		"ServerScriptService": { "$className": "ServerScriptService", "Server": { "$path": "src/server" } }
+	}
+}

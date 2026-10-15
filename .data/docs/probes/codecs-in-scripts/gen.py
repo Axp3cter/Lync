@@ -217,6 +217,9 @@ function RT.reserve(n: number): (buffer, number)
 end
 function RT.tail(s: string) tailN += 1 tailList[tailN] = s end
 function RT.mark() return pos * 65536 + tailN end
+function RT.snapshot(): string -- bits written so far, then the tail, for differential checks
+	return buffer.readstring(buf, 0, (pos + 7) // 8) .. "|" .. table.concat(tailList, ",", 1, tailN)
+end
 function RT.rollback(m: number) pos = m // 65536 tailN = m % 65536 end
 function RT.fail(code: string, path: string, got: any): never
 	error(string.format("[Lync] %s: %s must be in range, got %s", code, path, tostring(got)), 0)

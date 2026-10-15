@@ -106,6 +106,16 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       integrity, collections, checks; pending research goes to the owning unit by message. Then one consistency
       unit applies every "Needs elsewhere" list and merges the change records into `v5-changes.md`.
   10b. Each area's architect then applies its critic review and its scope-audit findings together, in one pass.
+  10c. Consistency phase, small units, after collections' `acked`/`inputs` pass and the field-typing and inbound-bound
+       provers land (each result first goes to its owning architect):
+       - one unit per target file (`v5.md` §0–§3 and §5.2; §4; §5–§10; `v5-integrity.md`; `v5-collections.md`;
+         `v5-checks.md`; `v5-tooling.md`): apply every "Needs elsewhere" item addressed to that text from all seven
+         change records, then the naming table's renames for that text; record each item's outcome;
+       - one unit empties `v5-extensions.md` (or deletes it if nothing remains) and fixes references to it;
+       - one unit merges the seven change records into a "Draft 3.5 to 3.6" section of `v5-changes.md`;
+       - the naming critic re-checks every name against its convention;
+       - one end-to-end critic traces one message from schema to wire to facts across all files;
+       - apply, and repeat until no blocking or major finding remains.
   11. Critic per area as each architect unit finishes (`reviews/v5-3.6-<unit>.md`); the same architect applies it. Then one critic over the merged draft.
   - R40 Studio trap line → the integrity architect unit.
   - Lead decision: one rule for every game callback Lync runs (collections callbacks, check functions, the validator): a reused runner thread, three outcomes (returned, threw, yielded), and on a yield `task.cancel` then the declared fallback or drop. An abandoned thread can be resumed later by the engine and run game code against stale state.

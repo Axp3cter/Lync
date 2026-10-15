@@ -16,6 +16,8 @@ local HalfSipHash = require("../../src/wire/halfsiphash")
 local Ints = require("../../src/wire/ints")
 local Ir = require("../../src/plan/ir")
 local Lync = require("../../src")
+local Rows = require("../../src/codec/rows")
+local Run = require("../../src/codec/run")
 
 -- Module ------------------------------------------------------------------------------------------
 
@@ -25,6 +27,16 @@ local Frame = {}
 
 --- One toc segment: a namespace index and how many chunks of the list's kind it holds.
 export type Segment = { namespace: number, chunks: number }
+
+--[=[
+	A run's payloads decoded as a frame's last chunk.
+
+	@field rule   0, or the v5.md §4.8 rule that refuses them; 4 when the bits and the tail don't
+	              meet
+	@field values the decoded values
+	@field misses the values the receiver can't resolve
+]=]
+export type Decoded = { rule: number, values: { any }, misses: { Rows.Miss } }
 
 --- A downstream reliable tick: unchanged (`'0'`), the last plus one (`'10'`), or a u16 (`'11'`).
 export type Tick = "unchanged" | "next" | number
@@ -128,6 +140,59 @@ function Frame.checkTag(frame: buffer, count: number, lane: number, instanceCoun
 	end
 
 	return body
+end
+
+--[=[
+	Decodes a run's payloads that fill a buffer, as the last chunk of a frame, in one chunk.
+
+	@param  bytes         the payloads
+	@param  codec         the messages' codec
+	@param  count         how many messages
+	@param  list          the chunk's instances; an unreplicated one is nil
+	@param  instanceCount the chunk's instance count, `#list` when nil
+	@param  budget        the decode element allowance, unlimited when nil
+	@return the rule, the values and the misses
+]=]
+function Frame.decodeRun(
+	bytes: buffer,
+	codec: Ir.Codec,
+	count: number,
+	list: { Instance? },
+	instanceCount: number?,
+	budget: number?
+): Decoded
+	local r = Bits.reader(bytes, nil, nil, budget)
+	local chunk = Rows.beginChunk(list, 0, instanceCount or #list)
+	local values = {}
+	local misses = {}
+	local rule = Run.decode(r, codec, count, chunk, misses, values)
+	if rule == 0 then
+		rule = Rows.endChunk(chunk)
+	end
+	if rule == 0 and not Bits.meets(r) then
+		rule = 4
+	end
+
+	return { rule = rule, values = values, misses = misses }
+end
+
+--[=[
+	Encodes a run's payloads alone, its instances collected first.
+
+	@param  codec  the messages' codec
+	@param  values the messages' values
+	@param  count  how many messages
+	@return the payloads, aligned, with their tail
+	@return the chunk's instances
+	@error  valueRefused, from `data`
+]=]
+function Frame.encodeRun(codec: Ir.Codec, values: { any }, count: number): (buffer, { Instance })
+	local instances: Rows.Instances = { list = {}, index = {}, count = 0 }
+	Run.collect(codec, values, count, instances)
+	local w = Bits.writer()
+	Run.encode(w, codec, values, count, instances, "test.run:fire", "data")
+
+	return Bits.finish(w), instances.list
 end
 
 --[=[

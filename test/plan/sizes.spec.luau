@@ -18,6 +18,7 @@ local Column = require("../../src/wire/column")
 local Gen = require("../support/gen")
 local Ints = require("../../src/wire/ints")
 local Lync = require("../../src")
+local Rows = require("../../src/codec/rows")
 local Run = require("../../src/codec/run")
 
 -- Constants ---------------------------------------------------------------------------------------
@@ -171,11 +172,11 @@ return {
 			local codec = definition.data
 			for message = 1, MESSAGES_PER_DEFINITION do
 				local value = Gen.value(codec, math.huge, Gen.style(instances))
-				local listed = { list = {}, index = {} }
+				local listed = { list = {}, index = {}, count = 0 }
 				Run.collect(codec, { value }, 1, listed)
 
 				local w = Bits.writer()
-				Run.encode(w, codec, { value }, 1, listed, `sizes.{definition.name}`)
+				Run.encode(w, codec, { value }, 1, listed, `sizes.{definition.name}`, "data")
 				local bits = w.bit
 				local tail = w.tailBytes
 				Check.expect(
@@ -188,8 +189,14 @@ return {
 				)
 
 				local out = {}
-				local rule = Run.decode(Bits.reader(Bits.finish(w)), codec, 1, listed.list, out)
+				local chunk = Rows.beginChunk(listed.list, 0, #listed.list)
+				local rule = Run.decode(Bits.reader(Bits.finish(w)), codec, 1, chunk, {}, out)
 				Check.expectEqual(rule, 0, `{definition.name} {message} decodes`)
+				Check.expectEqual(
+					Rows.endChunk(chunk),
+					0,
+					`{definition.name} {message} references every instance`
+				)
 
 				local elements = 1 + elementsIn(codec, out[1])
 				Check.expect(

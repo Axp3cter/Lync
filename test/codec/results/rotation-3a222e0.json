@@ -1,0 +1,6 @@
+{"bench":"rotationDecode","bits":9,"mode":"interpreted","check":false,"ns":427.1}
+{"bench":"rotationDecode","bits":9,"mode":"interpreted","check":true,"ns":1092.3}
+{"bench":"rotationDecode","bits":9,"mode":"interpreted","checkRatio":2.56}
+{"bench":"rotationDecode","bits":9,"mode":"native","check":false,"ns":134.4}
+{"bench":"rotationDecode","bits":9,"mode":"native","check":true,"ns":357.9}
+{"bench":"rotationDecode","bits":9,"mode":"native","checkRatio":2.66}

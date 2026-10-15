@@ -10,10 +10,13 @@
 
 -- Imports -----------------------------------------------------------------------------------------
 
+local process = require("@lune/process")
+
 local Bits = require("../../src/wire/bits")
 local Check = require("../support/check")
 local Column = require("../../src/wire/column")
 local Columns = require("../../src/codec/columns")
+local Frame = require("../support/frame")
 local Gen = require("../support/gen")
 local Ints = require("../../src/wire/ints")
 local Ir = require("../../src/plan/ir")
@@ -25,34 +28,66 @@ local Run = require("../../src/codec/run")
 -- Constants ---------------------------------------------------------------------------------------
 
 const SUBJECT = "gen.e:fire"
+const RUNS = 400
+const FULL_RUNS = 30_000
 
 local t = Lync.types
 
 -- Private -----------------------------------------------------------------------------------------
 
 local function newInstances(): Rows.Instances
-	return { list = {}, index = {} }
+	return { list = {}, index = {}, count = 0 }
 end
 
 local function encode(codec: Ir.Codec, values: { any }): (buffer, { Instance })
-	local instances = newInstances()
-	Run.collect(codec, values, #values, instances)
-	local w = Bits.writer()
-	Run.encode(w, codec, values, #values, instances, SUBJECT)
-
-	return Bits.finish(w), instances.list
+	return Frame.encodeRun(codec, values, #values)
 end
 
--- Decodes a payload that fills its buffer, as a frame's last chunk does: the rule, or 4 when
--- the bits and the tail do not meet.
+-- Decodes a payload that fills its buffer, as a frame's last chunk does: the rule, 4 when the
+-- bits and the tail do not meet.
 local function ruleOf(bytes: buffer, codec: Ir.Codec, count: number, list: { Instance? }): number
-	local r = Bits.reader(bytes)
-	local rule = Run.decode(r, codec, count, list, {})
-	if rule ~= 0 then
-		return rule
+	return Frame.decodeRun(bytes, codec, count, list).rule
+end
+
+-- Whether a decoded value holds an array or map written as a column block.
+local function hasBlock(codec: Ir.Codec, value: any): boolean
+	if value == nil then
+		return false
 	end
 
-	return if Bits.meets(r) then 0 else 4
+	if codec.kind == "array" then
+		if #value >= Column.MIN_ROWS then
+			return true
+		end
+		for _, element in value do
+			if hasBlock(codec.inner, element) then
+				return true
+			end
+		end
+	elseif codec.kind == "map" then
+		local count = 0
+		for _, element in value do
+			count += 1
+			if hasBlock(codec.value, element) then
+				return true
+			end
+		end
+		return count >= Column.MIN_ROWS
+	elseif codec.kind == "optional" then
+		return hasBlock(codec.inner, value)
+	elseif codec.kind == "record" then
+		for _, field in codec.fields do
+			if hasBlock(field.codec, value[field.name]) then
+				return true
+			end
+		end
+	elseif codec.kind == "union" then
+		return hasBlock(codec.variants[codec.byName[value.kind] + 1].record, value)
+	elseif codec.kind == "convert" then
+		return hasBlock(codec.base, codec.encode(value))
+	end
+
+	return false
 end
 
 local function withBit(bytes: buffer, bit: number): buffer
@@ -96,7 +131,7 @@ return {
 		for _, count in { 1, Column.MIN_ROWS } do
 			local codec, values = strikes(count)
 			local w = Bits.writer()
-			Run.encode(w, codec, values, count, newInstances(), SUBJECT)
+			Run.encode(w, codec, values, count, newInstances(), SUBJECT, "data")
 			local usedBits = w.bit
 			local bytes = Bits.finish(w)
 			Check.expect(usedBits % 8 ~= 0, "the payload must end inside a byte")
@@ -328,8 +363,84 @@ return {
 
 			return { codec = planned, bytes = bytes, count = count, list = list }
 		end, function(case)
-			local ok, result = pcall(ruleOf, case.bytes, case.codec, case.count, case.list)
-			Check.expect(ok, `decoding raised: {result}`)
-		end, { runs = 400 })
+			local ok, decoded =
+				pcall(Frame.decodeRun, case.bytes, case.codec, case.count, case.list)
+			Check.expect(ok, `decoding raised: {decoded}`)
+
+			-- In single rows an accepted payload has one encoding; a column block's mode, k, base and
+			-- width are free (v5.md §4.8).
+			if decoded.rule ~= 0 or #decoded.misses > 0 or case.count >= Column.MIN_ROWS then
+				return
+			end
+
+			for i = 1, case.count do
+				if hasBlock(case.codec, decoded.values[i]) then
+					return
+				end
+			end
+
+			local again = Frame.encodeRun(case.codec, decoded.values, case.count)
+			Check.expectEqual(buffer.tostring(again), buffer.tostring(case.bytes), "re-encoded")
+		end, { runs = if process.env.LYNC_FULL == "1" then FULL_RUNS else RUNS })
+	end,
+
+	["a non-canonical direction is rule 6"] = function()
+		local codec = Gen.plan(t.direction(8))
+		local function row(xCode: number, yCode: number): buffer
+			return payloadOf(function(w)
+				Bits.write(w, 8, xCode)
+				Bits.write(w, 8, yCode)
+			end)
+		end
+
+		Check.expectEqual(ruleOf(row(0, 0), codec, 1, {}), 6, "(0, 0)")
+		Check.expectEqual(ruleOf(row(255, 255), codec, 1, {}), 0, "(255, 255)")
+		Check.expectEqual(ruleOf(row(128, 128), codec, 1, {}), 0, "(128, 128)")
+
+		local values = table.create(Column.MIN_ROWS, Vector3.zAxis)
+		local block = payloadOf(function(w)
+			Columns.write(w, codec, values, 1, #values, newInstances())
+		end)
+		Check.expectEqual(ruleOf(block, codec, #values, {}), 0, "block")
+	end,
+
+	["honest directions are never refused"] = function()
+		math.randomseed(7)
+		local values = {}
+		for i = 1, 4000 do
+			local z = 2 * math.random() - 1
+			local angle = 2 * math.pi * math.random()
+			local radius = math.sqrt(1 - z * z)
+			values[i] = Vector3.new(radius * math.cos(angle), radius * math.sin(angle), z)
+		end
+		for _, edge in
+			{
+				Vector3.new(0, 0, -1),
+				Vector3.new(1, 0, -1),
+				Vector3.new(0, -1, -1),
+				Vector3.new(-1, 1, -0.5),
+				Vector3.new(0.5, -0.5, -1e-9),
+				Vector3.xAxis,
+				-Vector3.yAxis,
+			}
+		do
+			table.insert(values, edge)
+		end
+
+		for _, bits in { 8, 10, 16 } do
+			local codec = Gen.plan(t.direction(bits))
+			for _, value in values do
+				Check.expectEqual(
+					ruleOf(encode(codec, { value }), codec, 1, {}),
+					0,
+					`{bits} bits, {value}`
+				)
+			end
+			Check.expectEqual(
+				ruleOf(encode(codec, values), codec, #values, {}),
+				0,
+				`{bits} bits, block`
+			)
+		end
 	end,
 }

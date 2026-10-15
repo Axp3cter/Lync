@@ -290,6 +290,22 @@ function Gen.custom(): any
 end
 
 --[=[
+	Returns the direction that a code pair stands for, canonicalised: the decoding of the code the
+	encoder gives the pair's direction.
+
+	@param  xCode the x code
+	@param  yCode the y code
+	@param  bits  the bits per code
+	@return the direction
+]=]
+function Gen.direction(xCode: number, yCode: number, bits: number): Vector3
+	local raw = Vector3.new(Quant.undirection(xCode, yCode, bits))
+	local x, y = Quant.direction(raw.X, raw.Y, raw.Z, bits)
+
+	return Leaves.directionOf(x, y, bits) :: Vector3
+end
+
+--[=[
 	Plans a codec as the data of an event.
 
 	@param  codec the codec or record
@@ -364,7 +380,7 @@ function Gen.value(codec: Ir.Codec, size: number, style: Style): any
 		return positionOf(codec)
 	elseif codec.kind == "direction" then
 		local maxCode = 2 ^ codec.bits
-		return Leaves.directionOf(codeBelow(maxCode), codeBelow(maxCode), codec.bits)
+		return Gen.direction(codeBelow(maxCode), codeBelow(maxCode), codec.bits)
 	elseif codec.kind == "rotation" then
 		return rotationOf(codec.bits)
 	elseif codec.kind == "cframe" then

@@ -236,7 +236,7 @@ local function snapshotOf(w: Bits.Writer): string
 end
 
 local function newInstances(): Rows.Instances
-	return { list = {}, index = {} }
+	return { list = {}, index = {}, count = 0 }
 end
 
 local function checkCase(name: string, case: Case, codec: Ir.Codec, count: number)
@@ -251,7 +251,7 @@ local function checkCase(name: string, case: Case, codec: Ir.Codec, count: numbe
 	Run.collect(codec, values, count, instances)
 	local line = debug.info(1, "l") + 2
 	Check.expectThrow(function()
-		Run.encode(w, codec, values, count, instances, SUBJECT)
+		Run.encode(w, codec, values, count, instances, SUBJECT, "data")
 	end, { code = "valueRefused", at = `{SOURCE}:{line}`, subject = SUBJECT, path = case.path })
 
 	local after = snapshotOf(w)
@@ -274,10 +274,13 @@ for name, case in casesOf() do
 
 		local w = newWriter()
 		local before = snapshotOf(w)
+		local instances = newInstances()
+		Rows.collect(codec, { v = case.value }, instances)
 		local line = debug.info(1, "l") + 2
 		Check.expectThrow(function()
-			Rows.encodeValue(w, codec, { v = case.value }, newInstances(), SUBJECT)
+			Rows.encodeValue(w, codec, { v = case.value }, instances, SUBJECT, "data")
 		end, { code = "valueRefused", at = `{SOURCE}:{line}`, subject = SUBJECT, path = case.path })
+		Check.expectEqual(instances.list, {}, "the instances listed for the refused value")
 		Check.expectEqual(snapshotOf(w), before, "the writer")
 	end
 end
@@ -297,7 +300,8 @@ tests["valueRefused: arena.strike data.aim, a zero direction"] = function()
 			codec,
 			{ target = 5, aim = Vector3.zero },
 			newInstances(),
-			"arena.strike"
+			"arena.strike",
+			"data"
 		)
 	end, { code = "valueRefused", subject = "arena.strike", path = "data.aim" })
 end
@@ -306,7 +310,7 @@ tests["an accepted value leaves the writer extended"] = function()
 	local codec = Gen.plan({ v = t.int(0, 3) })
 	local w = newWriter()
 	local before = w.bit
-	Rows.encodeValue(w, codec, { v = 3 }, newInstances(), SUBJECT)
+	Rows.encodeValue(w, codec, { v = 3 }, newInstances(), SUBJECT, "data")
 	Check.expectEqual(w.bit, before + 2, "bits")
 end
 

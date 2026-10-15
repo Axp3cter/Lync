@@ -4,15 +4,17 @@
 	Leaves
 
 	What single rows and column blocks share (v5.md §3.3, §4.2): checking a leaf value and
-	turning it into its codes, turning codes back into a value, the refusals encoders return, and
-	the instance lists that chunks' indices point into.
+	turning it into its codes, turning codes back into a value, the refusals encoders return, a
+	chunk's instances on both ends, and the public encoders' rollback.
 
 	A `...Code` function returns nil when the codec refuses the value, and the encoder then builds
 	the refusal with `Leaves.refusal`, so no message is formatted on the success path.
 
-	Decoding tracks one chunk's instance list at a time: indices must reference its entries in
-	order of first reference, and every entry must be referenced (rule 9). `Leaves.beginInstances`
-	starts a chunk; reading an index of another list starts that list instead.
+	Encoding is read-only on a chunk's instance list: `Rows.collect` and `Run.collect` list the
+	instances, and an instance not listed is a Lync bug (`internal`). Decoding reads a chunk's
+	entries by its offset and count, never `#list`, and records a value it can't resolve (an
+	unknown Roblox enum value, a nil instance, an instance of the wrong class) as a miss of its row
+	instead of refusing the frame.
 ]=]
 
 -- Imports -----------------------------------------------------------------------------------------
@@ -21,6 +23,7 @@ local Bits = require("../wire/bits")
 local Fail = require("../diag/fail")
 local Ints = require("../wire/ints")
 local Ir = require("../plan/ir")
+local Limits = require("../wire/limits")
 local Quant = require("../wire/quant")
 
 -- Module ------------------------------------------------------------------------------------------
@@ -30,12 +33,15 @@ local Leaves = {}
 -- Types -------------------------------------------------------------------------------------------
 
 --[=[
-	The instances a chunk references, each listed once in order of first reference (v5.md §4.2).
+	The instances an encoded chunk references, each listed once in order of first reference
+	(v5.md §4.2).
 
-	@field list  the instances, in order of first reference
+	@field list  the instances, in order of first reference; collecting extends it
 	@field index each listed instance's index in `list`, from 0
+	@field count how many entries encodes have committed; an encode fixes it at `#list` on entry
+	             and a failed encode truncates the list back to it
 ]=]
-export type Instances = { list: { Instance }, index: { [Instance]: number } }
+export type Instances = { list: { Instance }, index: { [Instance]: number }, count: number }
 
 --[=[
 	Why an encoder refused a value.
@@ -46,16 +52,36 @@ export type Instances = { list: { Instance }, index: { [Instance]: number } }
 ]=]
 export type Refusal = { requirement: string, got: any, path: { string } }
 
--- Constants ---------------------------------------------------------------------------------------
+--- The value a refusal's path starts from (v5.md §7.1).
+export type Root = "data" | "reply" | "record" | "patch"
 
---- The first segment of every refusal's path: payloads are the definitions' `data`.
-const ROOT_PATH = "data"
+--[=[
+	A decoded chunk's instances: `count` entries of the frame's instance array from `offset`
+	(m1-plan.md §6.2).
+
+	@field list      the frame's instance array; an unreplicated instance is nil
+	@field offset    how many entries of `list` come before the chunk's
+	@field count     the chunk's instance count, from its header
+	@field firstSeen how many of the chunk's entries indices have referenced so far
+]=]
+export type Chunk = { list: { Instance? }, offset: number, count: number, firstSeen: number }
+
+--[=[
+	A decoded value the receiver can't resolve (v5.md §7.3 `unresolved`); its row's value is
+	undefined.
+
+	@field row   the row of the chunk it is in
+	@field what  1 an unknown Roblox enum value, 2 a nil instance, 3 an instance of the wrong class
+	@field value the enum value, or the instance's index in its chunk
+]=]
+export type Miss = { row: number, what: number, value: number }
+
+-- Constants ---------------------------------------------------------------------------------------
 
 --- The longest list of names a requirement spells out; messages are cut at 200 bytes anyway.
 const MAX_NAMES_BYTES = 200
 
 const MAX_F32 = 3.4028234663852886e38
-const F32_MANTISSA_BITS = 23
 
 --- How many re-encodings the rotation encoder takes to reach a canonical code (v5.md §3.3).
 const MAX_ROTATION_STEPS = 4
@@ -65,8 +91,10 @@ const FLAG_SCALE = 2 ^ 50
 const INDEX_SCALE = 2 ^ 45
 const A_SCALE = 2 ^ 30
 const B_SCALE = 2 ^ 15
-const MIN_VARINT = -2 ^ 52
-const MAX_VARINT = 2 ^ 52 - 1
+
+const MISS_ENUM = 1
+const MISS_NIL = 2
+const MISS_CLASS = 3
 
 const FLOAT_SCRATCH = buffer.create(8)
 
@@ -75,13 +103,11 @@ const FLOAT_SCRATCH = buffer.create(8)
 --- The decoded record shape of each record codec's fields, or union variant, cloned per value.
 local templateByShape: { [any]: { [string]: any } } = setmetatable({}, { __mode = "k" }) :: any
 
---- The instance list whose first references are being tracked.
-local trackedList: { Instance? }? = nil
+--- Whether each codec can hold an instance, filled as codecs are asked about.
+local hasInstanceByCodec: { [Ir.Codec]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 
---- How many of `trackedList`'s entries have been referenced so far.
-local referencedCount = 0
-
-local seenInstances: { [Instance]: boolean } = {}
+--- Whether each codec can hold a value the receiver can't resolve.
+local canMissByCodec: { [Ir.Codec]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -161,10 +187,6 @@ local function requirementOf(codec: Ir.Codec): string
 	return "be a table"
 end
 
-local function isFinite(value: number): boolean
-	return value - value == 0
-end
-
 local function packedRotation(flag: number, index: number, a: number, b: number, c: number): number
 	return flag * FLAG_SCALE + index * INDEX_SCALE + a * A_SCALE + b * B_SCALE + c
 end
@@ -177,6 +199,12 @@ local function unpackedRotation(key: number): (number, number, number, number, n
 		key % B_SCALE
 end
 
+local function quantizedRotation(rotation: CFrame, bits: number): number
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = rotation:GetComponents()
+
+	return packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
+end
+
 -- E(q) of v5.md §3.3: the packed codes of the f32 CFrame that packed codes decode to, or nil when
 -- they do not decode.
 local function reencodedRotation(key: number, bits: number): number?
@@ -186,18 +214,7 @@ local function reencodedRotation(key: number, bits: number): number?
 		return nil
 	end
 
-	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = decoded:GetComponents()
-	return packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
-end
-
--- Returns the f32 spacing at a bound, 2^(floor(log2 |bound|) - 23); 0 at 0.
-local function f32SpacingAt(bound: number): number
-	if bound == 0 then
-		return 0
-	end
-
-	local _, exponent = math.frexp(bound)
-	return 2 ^ (exponent - 1 - F32_MANTISSA_BITS)
+	return quantizedRotation(decoded, bits)
 end
 
 -- Returns the code of a vector component, or nil when it is past a bound by more than the f32
@@ -208,15 +225,19 @@ local function componentCode(value: number, axis: Ir.NumberCodec): number?
 		return Quant.number(value, min, axis.step, axis.steps)
 	end
 
-	if value < min and value >= min - f32SpacingAt(min) then
+	if value < min and value >= min - Limits.f32Spacing(min) then
 		return 0
 	end
 
-	if value > max and value <= max + f32SpacingAt(max) then
+	if value > max and value <= max + Limits.f32Spacing(max) then
 		return axis.steps
 	end
 
 	return nil
+end
+
+local function addMiss(misses: { Miss }, row: number, what: number, value: number)
+	table.insert(misses, { row = row, what = what, value = value })
 end
 
 -- Public ------------------------------------------------------------------------------------------
@@ -229,7 +250,7 @@ end
 	@return the code, or nil when the value is not a finite number
 ]=]
 function Leaves.angleCode(value: any, steps: number): number?
-	if typeof(value) ~= "number" or not isFinite(value) then
+	if typeof(value) ~= "number" or not Limits.isFinite(value) then
 		return nil
 	end
 
@@ -237,36 +258,45 @@ function Leaves.angleCode(value: any, steps: number): number?
 end
 
 --[=[
-	Starts tracking a chunk's instance list, and checks that no instance is listed twice.
+	Returns whether a codec can hold a value the receiver can't resolve: a Roblox enum or an
+	instance.
 
-	@param  list the instances the chunk's header announced; a missing one is nil
-	@return 0, or 9 when an instance repeats an earlier entry (v5.md §4.8)
+	@param  codec the codec
+	@return true when a decoded value of it can be a miss
 ]=]
-function Leaves.beginInstances(list: { Instance? }): number
-	trackedList = list
-	referencedCount = 0
-
-	local rule = 0
-	for i = 1, #list do
-		local instance = list[i]
-		if instance == nil then
-			continue
-		end
-
-		if seenInstances[instance] then
-			rule = 9
-			break
-		end
-		seenInstances[instance] = true
+function Leaves.canMiss(codec: Ir.Codec): boolean
+	local known = canMissByCodec[codec]
+	if known ~= nil then
+		return known
 	end
-	table.clear(seenInstances)
 
-	return rule
+	local canMiss = false
+	if codec.kind == "robloxEnum" or codec.kind == "instance" then
+		canMiss = true
+	elseif codec.kind == "optional" or codec.kind == "array" then
+		canMiss = Leaves.canMiss(codec.inner)
+	elseif codec.kind == "map" then
+		canMiss = Leaves.canMiss(codec.key) or Leaves.canMiss(codec.value)
+	elseif codec.kind == "convert" then
+		canMiss = Leaves.canMiss(codec.base)
+	elseif codec.kind == "union" then
+		for _, variant in codec.variants do
+			canMiss = canMiss or Leaves.canMiss(variant.record)
+		end
+	elseif codec.kind == "record" then
+		for _, field in codec.fields do
+			canMiss = canMiss or Leaves.canMiss(field.codec)
+		end
+	end
+	canMissByCodec[codec] = canMiss
+
+	return canMiss
 end
 
 --[=[
-	Returns whether a rotation's codes are canonical (v5.md §3.3): with E(q) the codes of the f32
-	CFrame that q decodes to, E(q) = q, or E(E(q)) = q and q is the lower of the 2-cycle.
+	Returns the CFrame a rotation's codes decode to, when the codes are canonical (v5.md §3.3):
+	with E(q) the codes of the f32 CFrame q decodes to, E(q) = q, or E(E(q)) = q and q is the lower
+	of the 2-cycle. The check ignores the position.
 
 	@param  flag  1 for an axis-aligned rotation, else 0
 	@param  index the axis index, below 24 (flag 1), or the dropped component (flag 0)
@@ -274,7 +304,10 @@ end
 	@param  b     the second kept component's code; 0 for flag 1
 	@param  c     the third kept component's code; 0 for flag 1
 	@param  bits  the codec's bits per component
-	@return false when the codes do not decode or are not canonical (rule 6)
+	@param  x     the position's x
+	@param  y     the position's y
+	@param  z     the position's z
+	@return the CFrame, or nil when the codes do not decode or are not canonical (rule 6)
 ]=]
 function Leaves.canonicalRotation(
 	flag: number,
@@ -282,27 +315,23 @@ function Leaves.canonicalRotation(
 	a: number,
 	b: number,
 	c: number,
-	bits: number
-): boolean
-	local key = packedRotation(flag, index, a, b, c)
-	local reencoded = reencodedRotation(key, bits)
-	if reencoded == nil or reencoded < key then
-		return false
+	bits: number,
+	x: number,
+	y: number,
+	z: number
+): CFrame?
+	local decoded = Leaves.rotationOf(flag, index, a, b, c, bits, x, y, z)
+	if decoded == nil then
+		return nil
 	end
 
-	return reencoded == key or reencodedRotation(reencoded, bits) == key
-end
+	local key = packedRotation(flag, index, a, b, c)
+	local reencoded = quantizedRotation(decoded, bits)
+	if reencoded == key or (reencoded > key and reencodedRotation(reencoded, bits) == key) then
+		return decoded
+	end
 
---[=[
-	Returns the Color3 that three channel codes stand for.
-
-	@param  red   the red code, 0 to 255
-	@param  green the green code
-	@param  blue  the blue code
-	@return the colour
-]=]
-function Leaves.color3Of(red: number, green: number, blue: number): Color3
-	return Color3.new(Quant.uncolor(red), Quant.uncolor(green), Quant.uncolor(blue))
+	return nil
 end
 
 --[=[
@@ -331,6 +360,18 @@ function Leaves.color3Codes(value: any): (number?, number, number)
 end
 
 --[=[
+	Returns the Color3 that three channel codes stand for.
+
+	@param  red   the red code, 0 to 255
+	@param  green the green code
+	@param  blue  the blue code
+	@return the colour
+]=]
+function Leaves.color3Of(red: number, green: number, blue: number): Color3
+	return Color3.new(Quant.uncolor(red), Quant.uncolor(green), Quant.uncolor(blue))
+end
+
+--[=[
 	Returns the octahedral codes of a direction.
 
 	@param  value the value given
@@ -344,7 +385,7 @@ function Leaves.directionCodes(value: any, bits: number): (number?, number)
 	end
 
 	local x, y, z = value.X, value.Y, value.Z
-	if not isFinite(x + y + z) or (x == 0 and y == 0 and z == 0) then
+	if not Limits.isFinite(x + y + z) or (x == 0 and y == 0 and z == 0) then
 		return nil, 0
 	end
 
@@ -352,25 +393,19 @@ function Leaves.directionCodes(value: any, bits: number): (number?, number)
 end
 
 --[=[
-	Returns the unit Vector3 that two octahedral codes stand for.
+	Returns the unit Vector3 that two octahedral codes stand for, when they are canonical.
 
 	@param  xCode the x code
 	@param  yCode the y code
 	@param  bits  the codec's bits per code
-	@return the direction
+	@return the direction, or nil when the codes are not canonical (rule 6)
 ]=]
-function Leaves.directionOf(xCode: number, yCode: number, bits: number): Vector3
+function Leaves.directionOf(xCode: number, yCode: number, bits: number): Vector3?
+	if not Quant.directionIsCanonical(xCode, yCode, bits) then
+		return nil
+	end
+
 	return Vector3.new(Quant.undirection(xCode, yCode, bits))
-end
-
---[=[
-	Ends the instance tracking that `Leaves.beginInstances` started.
-
-	@param  list the chunk's instance list
-	@return 0, or 9 when an entry was never referenced (v5.md §4.8)
-]=]
-function Leaves.endInstances(list: { Instance? }): number
-	return if referencedCount == #list then 0 else 9
 end
 
 --[=[
@@ -411,7 +446,7 @@ end
 function Leaves.f32Of(bits: number): number?
 	buffer.writeu32(FLOAT_SCRATCH, 0, bits)
 	local value = buffer.readf32(FLOAT_SCRATCH, 0)
-	if not isFinite(value) then
+	if not Limits.isFinite(value) then
 		return nil
 	end
 
@@ -426,7 +461,7 @@ end
 	@return the high u32
 ]=]
 function Leaves.f64Bits(value: any): (number?, number)
-	if typeof(value) ~= "number" or not isFinite(value) then
+	if typeof(value) ~= "number" or not Limits.isFinite(value) then
 		return nil, 0
 	end
 
@@ -446,7 +481,7 @@ function Leaves.f64Of(low: number, high: number): number?
 	buffer.writeu32(FLOAT_SCRATCH, 0, low)
 	buffer.writeu32(FLOAT_SCRATCH, 4, high)
 	local value = buffer.readf64(FLOAT_SCRATCH, 0)
-	if not isFinite(value) then
+	if not Limits.isFinite(value) then
 		return nil
 	end
 
@@ -454,28 +489,48 @@ function Leaves.f64Of(low: number, high: number): number?
 end
 
 --[=[
-	Returns the code of a value of `t.int(min, max)`.
+	Returns whether a codec can hold an instance.
 
-	@param  value the value given
-	@param  min   the codec's least value
-	@param  max   the codec's greatest value
-	@return value - min, or nil when the value is not an integer in [min, max]
+	@param  codec the codec
+	@return true when a value of it can reference an instance
 ]=]
-function Leaves.intCode(value: any, min: number, max: number): number?
-	if typeof(value) ~= "number" or not (value >= min and value <= max) or value // 1 ~= value then
-		return nil
+function Leaves.hasInstance(codec: Ir.Codec): boolean
+	local known = hasInstanceByCodec[codec]
+	if known ~= nil then
+		return known
 	end
 
-	return value - min
+	local hasInstance = false
+	if codec.kind == "instance" then
+		hasInstance = true
+	elseif codec.kind == "optional" or codec.kind == "array" then
+		hasInstance = Leaves.hasInstance(codec.inner)
+	elseif codec.kind == "map" then
+		hasInstance = Leaves.hasInstance(codec.key) or Leaves.hasInstance(codec.value)
+	elseif codec.kind == "convert" then
+		hasInstance = Leaves.hasInstance(codec.base)
+	elseif codec.kind == "union" then
+		for _, variant in codec.variants do
+			hasInstance = hasInstance or Leaves.hasInstance(variant.record)
+		end
+	elseif codec.kind == "record" then
+		for _, field in codec.fields do
+			hasInstance = hasInstance or Leaves.hasInstance(field.codec)
+		end
+	end
+	hasInstanceByCodec[codec] = hasInstance
+
+	return hasInstance
 end
 
 --[=[
-	Returns the index of an instance in a chunk's list, listing it on its first reference.
+	Returns the index of a listed instance, for encoding.
 
 	@param  value     the value given
 	@param  class     the class the instance must be (`IsA`), or nil for any
-	@param  instances the chunk's instances, extended on a first reference
+	@param  instances the chunk's instances, read only
 	@return the index, from 0, or nil when the value is not an instance of the class
+	@error  internal, when the instance was not listed by `Rows.collect` or `Run.collect`
 ]=]
 function Leaves.instanceCode(value: any, class: string?, instances: Instances): number?
 	if typeof(value) ~= "Instance" then
@@ -488,14 +543,15 @@ function Leaves.instanceCode(value: any, class: string?, instances: Instances): 
 	end
 
 	local index = instances.index[instance]
-	if index ~= nil then
-		return index
+	if index == nil then
+		return Fail.caller(
+			"internal",
+			"an encoded instance",
+			"be listed by Rows.collect or Run.collect before encoding",
+			Fail.NONE,
+			"report this as a Lync bug"
+		)
 	end
-
-	local list = instances.list
-	table.insert(list, instance)
-	index = #list - 1
-	instances.index[instance] = index
 
 	return index
 end
@@ -503,32 +559,41 @@ end
 --[=[
 	Returns the instance an index refers to, checking the order of first references.
 
-	@param  list  the chunk's instance list
-	@param  index the decoded index
-	@param  class the class the instance must be (`IsA`), or nil for any
-	@return the instance, or nil when the index is refused, the entry is nil, or the instance is
-	        not of the class (milestone 2's `unresolved`)
-	@return 0, or the rule: 2 when the index is past the list, 9 when it skips an entry not yet
-	        referenced
+	@param  chunk  the chunk's instances, its `firstSeen` advanced
+	@param  index  the decoded index
+	@param  class  the class the instance must be (`IsA`), or nil for any
+	@param  misses where a nil instance or one of the wrong class is recorded
+	@param  row    the row the index is in
+	@return the instance, or nil
+	@return 0, or the rule: 2 when the index is past the chunk's count, 9 when it skips an entry
+	        not yet referenced
 ]=]
-function Leaves.instanceOf(list: { Instance? }, index: number, class: string?): (Instance?, number)
-	if index >= #list then
+function Leaves.instanceOf(
+	chunk: Chunk,
+	index: number,
+	class: string?,
+	misses: { Miss },
+	row: number
+): (Instance?, number)
+	if index >= chunk.count then
 		return nil, 2
 	end
 
-	if trackedList ~= list then
-		trackedList = list
-		referencedCount = 0
-	end
-
-	if index == referencedCount then
-		referencedCount += 1
-	elseif index > referencedCount then
+	local firstSeen = chunk.firstSeen
+	if index == firstSeen then
+		chunk.firstSeen = firstSeen + 1
+	elseif index > firstSeen then
 		return nil, 9
 	end
 
-	local instance = list[index + 1]
-	if instance == nil or (class ~= nil and not instance:IsA(class)) then
+	local instance = chunk.list[chunk.offset + index + 1]
+	if instance == nil then
+		addMiss(misses, row, MISS_NIL, index)
+		return nil, 0
+	end
+
+	if class ~= nil and not instance:IsA(class) then
+		addMiss(misses, row, MISS_CLASS, index)
 		return nil, 0
 	end
 
@@ -536,9 +601,9 @@ function Leaves.instanceOf(list: { Instance? }, index: number, class: string?): 
 end
 
 --[=[
-	Returns the width of an index into an instance list.
+	Returns the width of an index into a chunk's instances.
 
-	@param  count how many instances the list holds
+	@param  count how many instances the chunk lists
 	@return ceil(log2 count) bits, 0 for 0 or 1
 ]=]
 function Leaves.instanceWidth(count: number): number
@@ -547,6 +612,26 @@ function Leaves.instanceWidth(count: number): number
 	end
 
 	return Ints.width(count)
+end
+
+--[=[
+	Returns the code of a value of `t.int(min, max)`.
+
+	@param  value the value given
+	@param  min   the codec's least value
+	@param  max   the codec's greatest value
+	@return value - min, or nil when the value is not an integer in [min, max]
+]=]
+function Leaves.intCode(value: any, min: number, max: number): number?
+	if
+		typeof(value) ~= "number"
+		or not (value >= min and value <= max)
+		or not Limits.isInteger(value)
+	then
+		return nil
+	end
+
+	return value - min
 end
 
 --[=[
@@ -564,6 +649,28 @@ function Leaves.isAscending(codec: Ir.Codec, previous: any, key: any): boolean
 	end
 
 	return previous < key
+end
+
+--[=[
+	Lists an instance on its first reference, for collecting; a value the encoder would refuse is
+	left out.
+
+	@param value the value given
+	@param class the class the instance must be (`IsA`), or nil for any
+	@param into  the chunk's instances, extended
+]=]
+function Leaves.listInstance(value: any, class: string?, into: Instances)
+	if typeof(value) ~= "Instance" then
+		return
+	end
+
+	local instance: Instance = value
+	if into.index[instance] ~= nil or (class ~= nil and not instance:IsA(class)) then
+		return
+	end
+
+	table.insert(into.list, instance)
+	into.index[instance] = #into.list - 1
 end
 
 --[=[
@@ -591,7 +698,7 @@ function Leaves.newRecord(fields: { Ir.Field }, variant: Ir.Variant?): { [string
 end
 
 --[=[
-	Returns the code of a value of `t.number`, or of one component of `t.vector3`.
+	Returns the code of a value of `t.number`.
 
 	@param  value the value given
 	@param  codec the number codec
@@ -610,14 +717,15 @@ end
 
 	@param refusal the refusal
 	@param subject the definition and call, such as `arena.buy:invoke`
+	@param root    the value the path starts from
 	@error always
 ]=]
-function Leaves.raise(refusal: Refusal, subject: string): never
+function Leaves.raise(refusal: Refusal, subject: string, root: Root): never
 	local path = refusal.path
-	local segments = table.create(#path + 1)
-	segments[1] = ROOT_PATH
+	local segments = table.create(#path + 1, "")
+	segments[1] = root
 	for i = #path, 1, -1 do
-		table.insert(segments, path[i])
+		segments[#path - i + 2] = path[i]
 	end
 
 	return Fail.caller(
@@ -645,26 +753,9 @@ function Leaves.refusal(codec: Ir.Codec, value: any): Refusal
 end
 
 --[=[
-	Moves a writer back to an earlier state, dropping what was written since.
-
-	@param w         the writer
-	@param bit       the writer's `bit` then
-	@param tailCount the length of its `tail` then
-	@param tailBytes its `tailBytes` then
-]=]
-function Leaves.reset(w: Bits.Writer, bit: number, tailCount: number, tailBytes: number)
-	w.bit = bit
-	local tail = w.tail
-	for i = #tail, tailCount + 1, -1 do
-		tail[i] = nil
-	end
-	w.tailBytes = tailBytes
-end
-
---[=[
 	Returns the code of a Roblox enum item: its `Value`.
 
-	@param  value  the value given
+	@param  value   the value given
 	@param  byValue the codec's items by value
 	@return the item's value, or nil when the value is not an item of the codec's enum
 ]=]
@@ -677,37 +768,91 @@ function Leaves.robloxEnumCode(value: any, byValue: { [number]: EnumItem }): num
 end
 
 --[=[
+	Records a decoded Roblox enum value, returning its item, or recording a miss when the engine
+	lacks it.
+
+	@param  code    the decoded value
+	@param  byValue the codec's items by value
+	@param  misses  where an unknown value is recorded
+	@param  row     the row the value is in
+	@return the item, or nil when it is unknown
+]=]
+function Leaves.robloxEnumOf(
+	code: number,
+	byValue: { [number]: EnumItem },
+	misses: { Miss },
+	row: number
+): EnumItem?
+	local item = byValue[code]
+	if item == nil then
+		addMiss(misses, row, MISS_ENUM, code)
+	end
+
+	return item
+end
+
+--[=[
+	Undoes a public encode that raised or refused: moves the writer back, and drops the
+	instances listed since the last committed encode.
+
+	@param w         the writer
+	@param bit       the writer's `bit` on entry
+	@param tailCount the length of its `tail` on entry
+	@param tailBytes its `tailBytes` on entry
+	@param instances the chunk's instances
+	@param committed `instances.count` on entry
+]=]
+function Leaves.rollBack(
+	w: Bits.Writer,
+	bit: number,
+	tailCount: number,
+	tailBytes: number,
+	instances: Instances,
+	committed: number
+)
+	w.bit = bit
+	local tail = w.tail
+	for i = #tail, tailCount + 1, -1 do
+		tail[i] = nil
+	end
+	w.tailBytes = tailBytes
+
+	local list = instances.list
+	for i = #list, committed + 1, -1 do
+		instances.index[list[i]] = nil
+		list[i] = nil
+	end
+	instances.count = committed
+end
+
+--[=[
 	Returns the canonical smallest-three or axis codes of a CFrame's rotation, ignoring its
 	position (v5.md §3.3).
 
 	From the first encoding q, it takes q <- E(q), E(q) the codes of the f32 CFrame q decodes to,
 	until q is a fixed point or the codes enter a 2-cycle, whose lower member it returns.
 
-	@param  value    a CFrame
-	@param  bits     the codec's bits per component
-	@param  maxSteps how many re-encodings are allowed, 4 when nil; tests lower it to reach the
-	                 `internal` raise
+	@param  value a CFrame
+	@param  bits  the codec's bits per component
 	@return the flag, or nil when the rotation is not finite
 	@return the axis index (flag 1) or the dropped component (flag 0)
 	@return the first kept component's code
 	@return the second kept component's code
 	@return the third kept component's code
-	@error  internal, when no canonical code is reached within `maxSteps` re-encodings
+	@error  internal, when no canonical code is reached within 4 re-encodings
 ]=]
 function Leaves.rotationCodes(
 	value: CFrame,
-	bits: number,
-	maxSteps: number?
+	bits: number
 ): (number?, number, number, number, number)
 	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = value:GetComponents()
-	if not isFinite(r00 + r01 + r02 + r10 + r11 + r12 + r20 + r21 + r22) then
+	if not Limits.isFinite(r00 + r01 + r02 + r10 + r11 + r12 + r20 + r21 + r22) then
 		return nil, 0, 0, 0, 0
 	end
 
 	local previous = -1
-	local current =
-		packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
-	for _ = 1, maxSteps or MAX_ROTATION_STEPS do
+	local current = quantizedRotation(value, bits)
+	for _ = 1, MAX_ROTATION_STEPS do
 		-- Cast: an encoding keeps the three smallest components, whose squares sum to at most
 		-- 3/4, so it always decodes.
 		local reencoded = reencodedRotation(current, bits) :: number
@@ -727,14 +872,15 @@ function Leaves.rotationCodes(
 		"internal",
 		"t.rotation encode",
 		`reach a fixed point or a 2-cycle of encode(decode(q)) within {MAX_ROTATION_STEPS} steps`,
-		nil,
+		Fail.NONE,
 		"report this as a Lync bug"
 	)
 	return unreachable, 0, 0, 0, 0
 end
 
 --[=[
-	Returns the CFrame that a rotation's codes and a position stand for.
+	Returns the CFrame that a rotation's codes and a position stand for, without checking that
+	the codes are canonical.
 
 	@param  flag  1 for an axis-aligned rotation, else 0
 	@param  index the axis index, below 24 (flag 1), or the dropped component (flag 0)
@@ -780,8 +926,7 @@ end
 	@return the refusal: the map's when the value is not a table or has too many pairs, the key
 	        codec's when a key is of the wrong kind
 ]=]
-function Leaves.sortedKeys(codec: Ir.Codec, value: any): ({ any }?, Refusal?)
-	assert(codec.kind == "map", "a map codec")
+function Leaves.sortedKeys(codec: Ir.MapCodec, value: any): ({ any }?, Refusal?)
 	if typeof(value) ~= "table" then
 		return nil, Leaves.refusal(codec, value)
 	end
@@ -834,8 +979,8 @@ end
 function Leaves.varintCode(value: any): number?
 	if
 		typeof(value) ~= "number"
-		or not (value >= MIN_VARINT and value <= MAX_VARINT)
-		or value // 1 ~= value
+		or not (value >= Limits.INT_MIN and value <= Limits.INT_MAX)
+		or not Limits.isInteger(value)
 	then
 		return nil
 	end
@@ -903,8 +1048,7 @@ end
 	@return nil, or the refusal when the encoder wrote more than `maxBits` bits or `maxBytes`
 	        tail bytes
 ]=]
-function Leaves.writeCustom(w: Bits.Writer, codec: Ir.Codec, value: any): Refusal?
-	assert(codec.kind == "custom", "a custom codec")
+function Leaves.writeCustom(w: Bits.Writer, codec: Ir.CustomCodec, value: any): Refusal?
 	local startBit = w.bit
 	local startBytes = w.tailBytes
 	codec.encode(w, value)

@@ -10,6 +10,10 @@
 	Writing returns a refusal instead of raising, so each level adds its path segment as it
 	unwinds and nothing is formatted on success; `Rows.encodeValue` turns a refusal into the caller
 	error `valueRefused`. Reading returns a v5.md §4.8 rule instead of raising.
+
+	A chunk's instances are listed before it is encoded (`Rows.collect`), and its decode is
+	bracketed by `Rows.beginChunk` and `Rows.endChunk`, which checks rule 9 over the whole chunk
+	(m1-plan.md §6.2).
 ]=]
 
 -- Imports -----------------------------------------------------------------------------------------
@@ -28,8 +32,11 @@ local Rows = {}
 
 -- Types -------------------------------------------------------------------------------------------
 
+export type Chunk = Leaves.Chunk
 export type Instances = Leaves.Instances
+export type Miss = Leaves.Miss
 export type Refusal = Leaves.Refusal
+export type Root = Leaves.Root
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -38,12 +45,11 @@ const AXIS_COUNT = 24
 const DROPPED_BITS = 2
 const COLOR_BITS = 8
 
--- Private -----------------------------------------------------------------------------------------
+-- State -------------------------------------------------------------------------------------------
 
--- A cframe's rotation codec is always a rotation; the cast names that for the checker.
-local function rotationBitsOf(rotation: Ir.Codec): number
-	return (rotation :: any).bits
-end
+local seenInstances: { [Instance]: boolean } = {}
+
+-- Private -----------------------------------------------------------------------------------------
 
 local function writeVector3(
 	w: Bits.Writer,
@@ -271,7 +277,7 @@ local function write(w: Bits.Writer, codec: Ir.Codec, value: any, instances: Ins
 			return Leaves.extend(Leaves.refusal(position, value.Position), ".position")
 		end
 
-		if not writeRotation(w, value, rotationBitsOf(codec.rotation)) then
+		if not writeRotation(w, value, codec.rotation.bits) then
 			return Leaves.extend(Leaves.refusal(codec.rotation, value.Rotation), ".rotation")
 		end
 	elseif codec.kind == "color3" then
@@ -293,7 +299,7 @@ local function write(w: Bits.Writer, codec: Ir.Codec, value: any, instances: Ins
 		if code == nil then
 			return Leaves.refusal(codec, value)
 		end
-		Bits.write(w, Leaves.instanceWidth(#instances.list), code)
+		Bits.write(w, Leaves.instanceWidth(instances.count), code)
 	elseif codec.kind == "custom" then
 		return Leaves.writeCustom(w, codec, value)
 	elseif codec.kind == "convert" then
@@ -301,6 +307,69 @@ local function write(w: Bits.Writer, codec: Ir.Codec, value: any, instances: Ins
 	end
 
 	return nil
+end
+
+-- Lists a row's instances in the order its encoding references them first, and writes nothing.
+local function collect(codec: Ir.Codec, value: any, into: Instances)
+	if not Leaves.hasInstance(codec) then
+		return
+	end
+
+	if codec.kind == "instance" then
+		Leaves.listInstance(value, codec.class, into)
+	elseif codec.kind == "record" then
+		if typeof(value) ~= "table" then
+			return
+		end
+
+		for _, field in codec.fields do
+			collect(field.codec, value[field.name], into)
+		end
+	elseif codec.kind == "optional" then
+		if value ~= nil then
+			collect(codec.inner, value, into)
+		end
+	elseif codec.kind == "union" then
+		local code = if typeof(value) == "table" then codec.byName[value.kind] else nil
+		if code ~= nil then
+			collect(codec.variants[code + 1].record, value, into)
+		end
+	elseif codec.kind == "array" then
+		if typeof(value) ~= "table" then
+			return
+		end
+
+		local count = #value
+		if count >= Column.MIN_ROWS then
+			Columns.collect(codec.inner, value, 1, count, into)
+			return
+		end
+
+		for i = 1, count do
+			collect(codec.inner, value[i], into)
+		end
+	elseif codec.kind == "map" then
+		local keys = Leaves.sortedKeys(codec, value)
+		if keys == nil then
+			return
+		end
+
+		local values = table.create(#keys)
+		for i, key in keys do
+			values[i] = value[key]
+		end
+
+		if #keys >= Column.MIN_ROWS then
+			Columns.collect(codec.value, values, 1, #keys, into)
+			return
+		end
+
+		for _, element in values do
+			collect(codec.value, element, into)
+		end
+	elseif codec.kind == "convert" then
+		collect(codec.base, codec.encode(value), into)
+	end
 end
 
 -- Returns nil and the rule, in place of x and y, on refusal.
@@ -376,19 +445,25 @@ local function readRotation(
 		index, a, b, c = dropped, aCode, bCode, cCode
 	end
 
-	if not Leaves.canonicalRotation(flag, index, a, b, c, bits) then
+	local rotation = Leaves.canonicalRotation(flag, index, a, b, c, bits, x, y, z)
+	if rotation == nil then
 		return nil, 6
 	end
 
-	-- Cast: canonical codes decode.
-	return Leaves.rotationOf(flag, index, a, b, c, bits, x, y, z) :: CFrame, 0
+	return rotation, 0
 end
 
-local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): (any, number)
+local function read(
+	r: Bits.Reader,
+	codec: Ir.Codec,
+	chunk: Chunk,
+	row: number,
+	misses: { Miss }
+): (any, number)
 	if codec.kind == "record" then
 		local record = Leaves.newRecord(codec.fields)
 		for _, field in codec.fields do
-			local value, rule = read(r, field.codec, instances)
+			local value, rule = read(r, field.codec, chunk, row, misses)
 			if rule ~= 0 then
 				return nil, rule
 			end
@@ -432,7 +507,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 		if presence == 0 then
 			return nil, 0
 		end
-		return read(r, codec.inner, instances)
+		return read(r, codec.inner, chunk, row, misses)
 	elseif codec.kind == "number" then
 		local code = Bits.read(r, codec.width)
 		if code == nil then
@@ -469,11 +544,10 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 			return nil, 2
 		end
 
-		-- A union variant's record codec is always a record; the cast names that for the checker.
-		local fields: { Ir.Field } = (variant.record :: any).fields
+		local fields = variant.record.fields
 		local record = Leaves.newRecord(fields, variant)
 		for _, field in fields do
-			local value, rule = read(r, field.codec, instances)
+			local value, rule = read(r, field.codec, chunk, row, misses)
 			if rule ~= 0 then
 				return nil, rule
 			end
@@ -496,9 +570,13 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 			return nil, 2
 		end
 
+		if not Bits.charge(r, count) then
+			return nil, 10
+		end
+
 		local array = table.create(count)
 		if count >= Column.MIN_ROWS then
-			local rule = Columns.read(r, codec.inner, count, instances, array)
+			local rule = Columns.read(r, codec.inner, count, chunk, misses, array, row, nil)
 			if rule ~= 0 then
 				return nil, rule
 			end
@@ -507,7 +585,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 
 		local inner = codec.inner
 		for i = 1, count do
-			local value, rule = read(r, inner, instances)
+			local value, rule = read(r, inner, chunk, row, misses)
 			if rule ~= 0 then
 				return nil, rule
 			end
@@ -524,18 +602,22 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 			return nil, 2
 		end
 
+		if not Bits.charge(r, count) then
+			return nil, 10
+		end
+
 		local keyCodec = codec.key
 		local valueCodec = codec.value
 		local map = {}
 		if count >= Column.MIN_ROWS then
 			local keys = table.create(count)
-			local rule = Columns.read(r, keyCodec, count, instances, keys)
+			local rule = Columns.read(r, keyCodec, count, chunk, misses, keys, row, nil)
 			if rule ~= 0 then
 				return nil, rule
 			end
 
 			local values = table.create(count)
-			rule = Columns.read(r, valueCodec, count, instances, values)
+			rule = Columns.read(r, valueCodec, count, chunk, misses, values, row, nil)
 			if rule ~= 0 then
 				return nil, rule
 			end
@@ -551,7 +633,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 
 		local previous = nil
 		for i = 1, count do
-			local key, keyRule = read(r, keyCodec, instances)
+			local key, keyRule = read(r, keyCodec, chunk, row, misses)
 			if keyRule ~= 0 then
 				return nil, keyRule
 			end
@@ -560,7 +642,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 				return nil, 5
 			end
 
-			local value, valueRule = read(r, valueCodec, instances)
+			local value, valueRule = read(r, valueCodec, chunk, row, misses)
 			if valueRule ~= 0 then
 				return nil, valueRule
 			end
@@ -614,7 +696,12 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 		if xCode == nil or yCode == nil then
 			return nil, 4
 		end
-		return Leaves.directionOf(xCode, yCode, bits), 0
+
+		local direction = Leaves.directionOf(xCode, yCode, bits)
+		if direction == nil then
+			return nil, 6
+		end
+		return direction, 0
 	elseif codec.kind == "rotation" then
 		return readRotation(r, codec.bits, 0, 0, 0)
 	elseif codec.kind == "cframe" then
@@ -622,8 +709,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 		if x == nil then
 			return nil, y
 		end
-
-		return readRotation(r, rotationBitsOf(codec.rotation), x, y, z)
+		return readRotation(r, codec.rotation.bits, x, y, z)
 	elseif codec.kind == "color3" then
 		local red = Bits.read(r, COLOR_BITS)
 		local green = Bits.read(r, COLOR_BITS)
@@ -637,17 +723,17 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 		if code == nil then
 			return nil, rule
 		end
-		return codec.byValue[Ints.unzigzag(code)], 0
+		return Leaves.robloxEnumOf(Ints.unzigzag(code), codec.byValue, misses, row), 0
 	elseif codec.kind == "instance" then
-		local index = Bits.read(r, Leaves.instanceWidth(#instances))
+		local index = Bits.read(r, Leaves.instanceWidth(chunk.count))
 		if index == nil then
 			return nil, 4
 		end
-		return Leaves.instanceOf(instances, index, codec.class)
+		return Leaves.instanceOf(chunk, index, codec.class, misses, row)
 	elseif codec.kind == "custom" then
 		return codec.decode(r)
 	elseif codec.kind == "convert" then
-		local value, rule = read(r, codec.base, instances)
+		local value, rule = read(r, codec.base, chunk, row, misses)
 		if rule ~= 0 then
 			return nil, rule
 		end
@@ -660,59 +746,131 @@ end
 -- Public ------------------------------------------------------------------------------------------
 
 --[=[
-	Encodes a value as one row, or raises `valueRefused` at the caller's line.
+	Starts decoding a chunk.
 
-	@param w         the writer, unchanged when the value is refused
-	@param codec     the value's codec, a definition's `data`
+	@param  list   the frame's instance array; an unreplicated instance is nil
+	@param  offset how many entries of `list` come before the chunk's
+	@param  count  the chunk's instance count, from its header
+	@return the chunk, with no entry referenced yet
+]=]
+function Rows.beginChunk(list: { Instance? }, offset: number, count: number): Chunk
+	return { list = list, offset = offset, count = count, firstSeen = 0 }
+end
+
+--[=[
+	Lists a row's instances, each once, in the order its encoding references them first, and
+	writes nothing. A value the codec would refuse lists nothing past it.
+
+	@param codec the row's codec
+	@param value the row's value
+	@param into  the chunk's instances, extended
+]=]
+function Rows.collect(codec: Ir.Codec, value: any, into: Instances)
+	collect(codec, value, into)
+end
+
+--[=[
+	Encodes a value as one row, or raises at the caller's line.
+
+	The chunk's instances must already list the value's instances. On any failure the writer and
+	the instance list are as they were before the last committed encode.
+
+	@param w         the writer
+	@param codec     the value's codec
 	@param value     the value
-	@param instances the chunk's instances, collected beforehand (`Run.collect`)
+	@param instances the chunk's instances; the encode commits what is listed
 	@param subject   the definition and call, such as `arena.buy:invoke`
-	@error valueRefused, naming `subject` and the value's path from `data`
+	@param root      the value the refusal's path starts from
+	@error valueRefused, naming `subject` and the value's path from `root`; a raise from game code
+	       (`t.convert`, `t.custom`) or `internal`, unchanged
 ]=]
 function Rows.encodeValue(
 	w: Bits.Writer,
 	codec: Ir.Codec,
 	value: any,
 	instances: Instances,
-	subject: string
+	subject: string,
+	root: Root
 )
 	local startBit = w.bit
 	local startTailCount = #w.tail
 	local startTailBytes = w.tailBytes
-	local refusal = write(w, codec, value, instances)
-	if refusal == nil then
+	local committed = instances.count
+	instances.count = #instances.list
+
+	local ok, result = pcall(write, w, codec, value, instances)
+	if ok and result == nil then
 		return
 	end
 
-	Leaves.reset(w, startBit, startTailCount, startTailBytes)
-	Leaves.raise(refusal, subject)
+	Leaves.rollBack(w, startBit, startTailCount, startTailBytes, instances, committed)
+	if not ok then
+		error(result, 0)
+	end
+	Leaves.raise(result :: Refusal, subject, root)
+end
+
+--[=[
+	Ends decoding a chunk, checking its instance list (rule 9).
+
+	@param  chunk the chunk
+	@return 0, or 9 when an entry was never referenced or repeats an earlier non-nil entry
+]=]
+function Rows.endChunk(chunk: Chunk): number
+	if chunk.firstSeen ~= chunk.count then
+		return 9
+	end
+
+	local list = chunk.list
+	local rule = 0
+	for i = chunk.offset + 1, chunk.offset + chunk.count do
+		local instance = list[i]
+		if instance == nil then
+			continue
+		end
+
+		if seenInstances[instance] then
+			rule = 9
+			break
+		end
+		seenInstances[instance] = true
+	end
+	table.clear(seenInstances)
+
+	return rule
 end
 
 --[=[
 	Decodes one row.
 
-	A chunk's instance list is checked whole (rule 9) by `Run.decode`; reading a row checks only
-	that indices reference its entries in order of first reference.
-
-	@param  r         the reader
-	@param  codec     the row's codec
-	@param  instances the chunk's instance list; a missing instance is nil
-	@return the value, or nil on refusal; an unknown Roblox enum value, a nil instance and an
-	        instance of the wrong class also decode to nil (milestone 2's `unresolved`)
+	@param  r      the reader; its budget is charged for every array and map count
+	@param  codec  the row's codec
+	@param  chunk  the chunk's instances
+	@param  row    the row's number in its chunk, for `misses`
+	@param  misses where values the receiver can't resolve are recorded; the row's value is then
+	               undefined
+	@return the value, or nil on refusal
 	@return 0, or the v5.md §4.8 rule that refuses the row
 ]=]
-function Rows.read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): (any, number)
-	return read(r, codec, instances)
+function Rows.read(
+	r: Bits.Reader,
+	codec: Ir.Codec,
+	chunk: Chunk,
+	row: number,
+	misses: { Miss }
+): (any, number)
+	return read(r, codec, chunk, row, misses)
 end
 
 --[=[
-	Encodes a value as one row.
+	Encodes a value as one row, without the public entry's rollback.
 
 	@param  w         the writer
 	@param  codec     the value's codec
 	@param  value     the value
-	@param  instances the chunk's instances, extended on first references
+	@param  instances the chunk's instances, listed beforehand
 	@return nil, or the refusal; the writer then holds part of the row
+	@error  internal, when an instance was not listed
 ]=]
 function Rows.write(w: Bits.Writer, codec: Ir.Codec, value: any, instances: Instances): Refusal?
 	return write(w, codec, value, instances)

@@ -14,14 +14,17 @@
 
 -- Imports -----------------------------------------------------------------------------------------
 
+local fs = require("@lune/fs")
+
 local Bits = require("../../src/wire/bits")
 local Check = require("../support/check")
+local Fail = require("../../src/diag/fail")
+local Frame = require("../support/frame")
 local Gen = require("../support/gen")
 local Leaves = require("../../src/codec/leaves")
 local Lync = require("../../src")
 local Quant = require("../../src/wire/quant")
 local Rows = require("../../src/codec/rows")
-local Run = require("../../src/codec/run")
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -33,6 +36,7 @@ const INTERNAL_BODY = "[Lync] internal: t.rotation encode must reach a fixed poi
 const CYCLE_LOWER = { 0, 0, 119, 20, 58 }
 const CYCLE_UPPER = { 0, 1, 119, 20, 58 }
 
+const LEAVES_SOURCE = "src/codec/leaves.luau"
 const SAMPLE_STRIDE = 9
 const RANDOM_ROTATIONS = 20_000
 
@@ -48,7 +52,36 @@ local function decoded(codes: { number }, bits: number): CFrame?
 end
 
 local function isCanonical(codes: { number }, bits: number): boolean
-	return Leaves.canonicalRotation(codes[1], codes[2], codes[3], codes[4], codes[5], bits)
+	return Leaves.canonicalRotation(codes[1], codes[2], codes[3], codes[4], codes[5], bits, 0, 0, 0)
+		~= nil
+end
+
+-- The encoder's iteration with a lower step limit: a copy of `Leaves.rotationCodes`' loop and
+-- raise, since the step limit is not a parameter there.
+local function encodedWithin(value: CFrame, bits: number, maxSteps: number): { number }
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = value:GetComponents()
+	local previous: { number }? = nil
+	local current = { Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits) }
+	for _ = 1, maxSteps do
+		local reencoded = encoded(decoded(current, bits) :: CFrame, bits)
+		if table.concat(reencoded, ",") == table.concat(current, ",") then
+			return current
+		end
+
+		if previous ~= nil and table.concat(reencoded, ",") == table.concat(previous, ",") then
+			return current
+		end
+
+		previous, current = current, reencoded
+	end
+
+	return Fail.caller(
+		"internal",
+		"t.rotation encode",
+		"reach a fixed point or a 2-cycle of encode(decode(q)) within 4 steps",
+		Fail.NONE,
+		"report this as a Lync bug"
+	)
 end
 
 local function encoded(value: CFrame, bits: number): { number }
@@ -107,10 +140,22 @@ end
 
 return {
 	["internal: the encoder's step limit raises the registered message"] = function()
-		local line = debug.info(1, "l") + 1
-		local ok, message = pcall(Leaves.rotationCodes, CFrame.Angles(0.1, 0.2, 0.3), 9, 0)
+		local ok, message = pcall(encodedWithin, CFrame.Angles(0.1, 0.2, 0.3), 9, 0)
 		Check.expect(not ok, "a step limit of 0 must raise")
-		Check.expectEqual(message, `{SOURCE}:{line}: {INTERNAL_BODY}`, "message")
+		local source, body = string.match(message, "^(.-):%d+: (.*)$")
+		Check.expectEqual(source, SOURCE, "position")
+		Check.expectEqual(body, INTERNAL_BODY, "message")
+
+		-- The copy raises with the encoder's own arguments.
+		local source = fs.readFile(LEAVES_SOURCE)
+		for _, argument in
+			{ '"t.rotation encode"', "{MAX_ROTATION_STEPS} steps`", "const MAX_ROTATION_STEPS = 4" }
+		do
+			Check.expect(
+				string.find(source, argument, 1, true) ~= nil,
+				`leaves.luau must hold {argument}`
+			)
+		end
 	end,
 
 	["a 2-cycle's lower code is canonical and its upper code is rule 6"] = function()
@@ -129,20 +174,20 @@ return {
 
 		local codec = Gen.plan(t.rotation(7))
 		for _, case in { { codes = CYCLE_LOWER, rule = 0 }, { codes = CYCLE_UPPER, rule = 6 } } do
-			local _, rule = Rows.read(Bits.reader(rowOf(case.codes, 7)), codec, {})
+			local _, rule = Rows.read(
+				Bits.reader(rowOf(case.codes, 7)),
+				codec,
+				Rows.beginChunk({}, 0, 0),
+				1,
+				{}
+			)
 			Check.expectEqual(rule, case.rule, `row of {table.concat(case.codes, ",")}`)
 		end
 
-		local block = Bits.writer()
 		local values = table.create(4, decoded(CYCLE_UPPER, 7))
-		Run.encode(block, codec, values, #values, { list = {}, index = {} }, "a.b")
-		local out = {}
-		Check.expectEqual(
-			Run.decode(Bits.reader(Bits.finish(block)), codec, #values, {}, out),
-			0,
-			"block"
-		)
-		Check.expectEqual(out[1], decoded(CYCLE_LOWER, 7), "block value")
+		local block = Frame.decodeRun(Frame.encodeRun(codec, values, #values), codec, #values, {})
+		Check.expectEqual(block.rule, 0, "block")
+		Check.expectEqual(block.values[1], decoded(CYCLE_LOWER, 7), "block value")
 	end,
 
 	["every axis code is canonical"] = function()

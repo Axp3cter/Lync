@@ -39,11 +39,6 @@ const COLOR_CODES = 256
 
 -- Private -----------------------------------------------------------------------------------------
 
--- A union variant's record codec is always a record; the cast names that for the checker.
-local function fieldsOf(variant: Ir.Variant): { Ir.Field }
-	return (variant.record :: any).fields
-end
-
 local writeColumns: (
 	w: Bits.Writer,
 	codec: Ir.Codec,
@@ -183,7 +178,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, #instances.list)
+		Column.write(w, codes, 1, count, instances.count)
 	elseif codec.kind == "optional" then
 		local presence: { number } = table.create(count, 0)
 		local present = {}
@@ -246,8 +241,8 @@ function writeColumns(
 				continue
 			end
 
-			local refusal =
-				writeRecords(w, variant.record, fieldsOf(variant), rows, 1, #rows, instances)
+			local record = variant.record
+			local refusal = writeRecords(w, record, record.fields, rows, 1, #rows, instances)
 			if refusal ~= nil then
 				return refusal
 			end
@@ -471,29 +466,154 @@ function writeColumns(
 	return nil
 end
 
+-- Lists the instances of values in column order, the order their encoding references them first.
+local function collectColumns(
+	codec: Ir.Codec,
+	values: { any },
+	first: number,
+	count: number,
+	into: Leaves.Instances
+)
+	if count == 0 or not Leaves.hasInstance(codec) then
+		return
+	end
+
+	local last = first + count - 1
+	if codec.kind == "instance" then
+		for i = first, last do
+			Leaves.listInstance(values[i], codec.class, into)
+		end
+	elseif codec.kind == "record" then
+		for i = first, last do
+			if typeof(values[i]) ~= "table" then
+				return
+			end
+		end
+
+		local fieldValues = table.create(count)
+		for _, field in codec.fields do
+			local name = field.name
+			for i = 1, count do
+				fieldValues[i] = values[first + i - 1][name]
+			end
+			collectColumns(field.codec, fieldValues, 1, count, into)
+		end
+	elseif codec.kind == "optional" then
+		local present = {}
+		for i = first, last do
+			if values[i] ~= nil then
+				table.insert(present, values[i])
+			end
+		end
+		collectColumns(codec.inner, present, 1, #present, into)
+	elseif codec.kind == "union" then
+		local rowsByVariant: { { any } } = {}
+		for i = first, last do
+			local value = values[i]
+			local code = if typeof(value) == "table" then codec.byName[value.kind] else nil
+			if code == nil then
+				return
+			end
+
+			local rows = rowsByVariant[code + 1]
+			if rows == nil then
+				rows = {}
+				rowsByVariant[code + 1] = rows
+			end
+			table.insert(rows, value)
+		end
+
+		for i, variant in codec.variants do
+			local rows = rowsByVariant[i]
+			if rows ~= nil then
+				collectColumns(variant.record, rows, 1, #rows, into)
+			end
+		end
+	elseif codec.kind == "array" then
+		local elements = {}
+		for i = first, last do
+			local value = values[i]
+			if typeof(value) ~= "table" or #value > codec.max then
+				return
+			end
+			table.move(value, 1, #value, #elements + 1, elements)
+		end
+		collectColumns(codec.inner, elements, 1, #elements, into)
+	elseif codec.kind == "map" then
+		local allValues = {}
+		for i = first, last do
+			local value = values[i]
+			local keys = Leaves.sortedKeys(codec, value)
+			if keys == nil then
+				return
+			end
+
+			for _, key in keys do
+				table.insert(allValues, value[key])
+			end
+		end
+		collectColumns(codec.value, allValues, 1, #allValues, into)
+	elseif codec.kind == "convert" then
+		local baseValues = table.create(count)
+		for i = first, last do
+			baseValues[i - first + 1] = codec.encode(values[i])
+		end
+		collectColumns(codec.base, baseValues, 1, count, into)
+	end
+end
+
 local readColumns: (
 	r: Bits.Reader,
 	codec: Ir.Codec,
 	count: number,
-	instances: { Instance? },
-	out: { any }
+	chunk: Leaves.Chunk,
+	misses: { Leaves.Miss },
+	out: { any },
+	row: number,
+	rows: { number }?
 ) -> number
+
+-- Returns, for each element of the rows' arrays or maps, the chunk row it is in, when a value
+-- in the elements can be a miss; nil when every element is in row `row`.
+local function elementRowsOf(
+	counts: { any },
+	count: number,
+	rows: { number }?,
+	elementCodec: Ir.Codec
+): { number }?
+	if rows == nil or not Leaves.canMiss(elementCodec) then
+		return nil
+	end
+
+	local elementRows = {}
+	for i = 1, count do
+		for _ = 1, counts[i] do
+			table.insert(elementRows, rows[i])
+		end
+	end
+
+	return elementRows
+end
 
 local function readRecords(
 	r: Bits.Reader,
-	fields: { Ir.Field },
+	codec: Ir.RecordCodec,
 	variant: Ir.Variant?,
 	count: number,
-	instances: { Instance? },
-	out: { any }
+	chunk: Leaves.Chunk,
+	misses: { Leaves.Miss },
+	out: { any },
+	row: number,
+	rows: { number }?
 ): number
+	local fields = codec.fields
 	for i = 1, count do
 		out[i] = Leaves.newRecord(fields, variant)
 	end
 
 	local column = table.create(count)
 	for _, field in fields do
-		local rule = readColumns(r, field.codec, count, instances, column)
+		local rule = readColumns(r, field.codec, count, chunk, misses, column, row, rows)
 		if rule ~= 0 then
 			return rule
 		end
@@ -507,8 +627,8 @@ local function readRecords(
 	return 0
 end
 
-local function readRaw32(r: Bits.Reader, count: number, out: { any }, first: number): number
-	for i = first, first + count - 1 do
+local function readRaw32(r: Bits.Reader, count: number, out: { any }): number
+	for i = 1, count do
 		local bits = Bits.read(r, 32)
 		if bits == nil then
 			return 4
@@ -528,15 +648,18 @@ function readColumns(
 	r: Bits.Reader,
 	codec: Ir.Codec,
 	count: number,
-	instances: { Instance? },
-	out: { any }
+	chunk: Leaves.Chunk,
+	misses: { Leaves.Miss },
+	out: { any },
+	row: number,
+	rows: { number }?
 ): number
 	if count == 0 then
 		return 0
 	end
 
 	if codec.kind == "record" then
-		return readRecords(r, codec.fields, nil, count, instances, out)
+		return readRecords(r, codec, nil, count, chunk, misses, out, row, rows)
 	elseif codec.kind == "bool" then
 		local rule = Column.read(r, out, 1, count, 0, 2)
 		if rule ~= 0 then
@@ -601,23 +724,24 @@ function readColumns(
 
 		local byValue = codec.byValue
 		for i = 1, count do
-			out[i] = byValue[out[i]]
+			out[i] = Leaves.robloxEnumOf(out[i], byValue, misses, if rows then rows[i] else row)
 		end
 		return 0
 	elseif codec.kind == "instance" then
-		local instanceCount = #instances
-		if instanceCount == 0 then
+		if chunk.count == 0 then
 			return 2
 		end
 
-		local rule = Column.read(r, out, 1, count, 0, instanceCount)
+		local rule = Column.read(r, out, 1, count, 0, chunk.count)
 		if rule ~= 0 then
 			return rule
 		end
 
 		local class = codec.class
 		for i = 1, count do
-			local instance, instanceRule = Leaves.instanceOf(instances, out[i], class)
+			local elementRow = if rows then rows[i] else row
+			local instance, instanceRule =
+				Leaves.instanceOf(chunk, out[i], class, misses, elementRow)
 			if instanceRule ~= 0 then
 				return instanceRule
 			end
@@ -635,8 +759,21 @@ function readColumns(
 			presentCount += out[i]
 		end
 
+		local presentRows: { number }? = nil
+		if rows ~= nil and Leaves.canMiss(codec.inner) then
+			local subset = table.create(presentCount, 0)
+			local j = 0
+			for i = 1, count do
+				if out[i] == 1 then
+					j += 1
+					subset[j] = rows[i]
+				end
+			end
+			presentRows = subset
+		end
+
 		local present = table.create(presentCount)
-		rule = readColumns(r, codec.inner, presentCount, instances, present)
+		rule = readColumns(r, codec.inner, presentCount, chunk, misses, present, row, presentRows)
 		if rule ~= 0 then
 			return rule
 		end
@@ -686,8 +823,31 @@ function readColumns(
 				continue
 			end
 
+			local variantRows: { number }? = nil
+			if rows ~= nil and Leaves.canMiss(variant.record) then
+				local subset = table.create(rowCount, 0)
+				local j = 0
+				for k = 1, count do
+					if out[k] == i - 1 then
+						j += 1
+						subset[j] = rows[k]
+					end
+				end
+				variantRows = subset
+			end
+
 			local records = table.create(rowCount)
-			rule = readRecords(r, fieldsOf(variant), variant, rowCount, instances, records)
+			rule = readRecords(
+				r,
+				variant.record,
+				variant,
+				rowCount,
+				chunk,
+				misses,
+				records,
+				row,
+				variantRows
+			)
 			if rule ~= 0 then
 				return rule
 			end
@@ -713,8 +873,13 @@ function readColumns(
 			elementCount += out[i]
 		end
 
+		if not Bits.charge(r, elementCount) then
+			return 10
+		end
+
+		local elementRows = elementRowsOf(out, count, rows, codec.inner)
 		local elements = table.create(elementCount)
-		rule = readColumns(r, codec.inner, elementCount, instances, elements)
+		rule = readColumns(r, codec.inner, elementCount, chunk, misses, elements, row, elementRows)
 		if rule ~= 0 then
 			return rule
 		end
@@ -739,19 +904,25 @@ function readColumns(
 			pairCount += out[i]
 		end
 
-		local keys = table.create(pairCount)
-		rule = readColumns(r, codec.key, pairCount, instances, keys)
-		if rule ~= 0 then
-			return rule
-		end
-
-		local values = table.create(pairCount)
-		rule = readColumns(r, codec.value, pairCount, instances, values)
-		if rule ~= 0 then
-			return rule
+		if not Bits.charge(r, pairCount) then
+			return 10
 		end
 
 		local keyCodec = codec.key
+		local keyRows = elementRowsOf(out, count, rows, keyCodec)
+		local keys = table.create(pairCount)
+		rule = readColumns(r, keyCodec, pairCount, chunk, misses, keys, row, keyRows)
+		if rule ~= 0 then
+			return rule
+		end
+
+		local valueRows = elementRowsOf(out, count, rows, codec.value)
+		local values = table.create(pairCount)
+		rule = readColumns(r, codec.value, pairCount, chunk, misses, values, row, valueRows)
+		if rule ~= 0 then
+			return rule
+		end
+
 		local position = 0
 		for i = 1, count do
 			local map = {}
@@ -794,12 +965,12 @@ function readColumns(
 	elseif codec.kind == "vector3f32" then
 		local ys: { number } = table.create(count, 0)
 		local zs: { number } = table.create(count, 0)
-		local rule = readRaw32(r, count, out, 1)
+		local rule = readRaw32(r, count, out)
 		if rule == 0 then
-			rule = readRaw32(r, count, ys, 1)
+			rule = readRaw32(r, count, ys)
 		end
 		if rule == 0 then
-			rule = readRaw32(r, count, zs, 1)
+			rule = readRaw32(r, count, zs)
 		end
 		if rule ~= 0 then
 			return rule
@@ -839,7 +1010,11 @@ function readColumns(
 		end
 
 		for i = 1, count do
-			out[i] = Leaves.directionOf(out[i], yCodes[i], bits)
+			local direction = Leaves.directionOf(out[i], yCodes[i], bits)
+			if direction == nil then
+				return 6
+			end
+			out[i] = direction
 		end
 		return 0
 	elseif codec.kind == "rotation" then
@@ -892,19 +1067,18 @@ function readColumns(
 				a, b, c = aCodes[otherRow], bCodes[otherRow], cCodes[otherRow]
 			end
 
-			if not Leaves.canonicalRotation(flag, index, a, b, c, bits) then
+			local rotation = Leaves.canonicalRotation(flag, index, a, b, c, bits, 0, 0, 0)
+			if rotation == nil then
 				return 6
 			end
-
-			-- Cast: canonical codes decode.
-			out[i] = Leaves.rotationOf(flag, index, a, b, c, bits, 0, 0, 0) :: CFrame
+			out[i] = rotation
 		end
 		return 0
 	elseif codec.kind == "cframe" then
 		local positions = table.create(count)
-		local rule = readColumns(r, codec.position, count, instances, positions)
+		local rule = readColumns(r, codec.position, count, chunk, misses, positions, row, nil)
 		if rule == 0 then
-			rule = readColumns(r, codec.rotation, count, instances, out)
+			rule = readColumns(r, codec.rotation, count, chunk, misses, out, row, nil)
 		end
 		if rule ~= 0 then
 			return rule
@@ -915,7 +1089,7 @@ function readColumns(
 		end
 		return 0
 	elseif codec.kind == "f32" then
-		return readRaw32(r, count, out, 1)
+		return readRaw32(r, count, out)
 	elseif codec.kind == "f64" then
 		for i = 1, count do
 			local low = Bits.read(r, 32)
@@ -942,7 +1116,7 @@ function readColumns(
 		end
 		return 0
 	elseif codec.kind == "convert" then
-		local rule = readColumns(r, codec.base, count, instances, out)
+		local rule = readColumns(r, codec.base, count, chunk, misses, out, row, rows)
 		if rule ~= 0 then
 			return rule
 		end
@@ -960,23 +1134,49 @@ end
 -- Public ------------------------------------------------------------------------------------------
 
 --[=[
+	Lists the instances of values written as a column block, each once, in the order the block
+	references them first, and writes nothing.
+
+	@param codec  the values' codec
+	@param values the values, at `first` to `first + count - 1`
+	@param first  the index of the first value
+	@param count  how many values
+	@param into   the chunk's instances, extended
+]=]
+function Columns.collect(
+	codec: Ir.Codec,
+	values: { any },
+	first: number,
+	count: number,
+	into: Leaves.Instances
+)
+	collectColumns(codec, values, first, count, into)
+end
+
+--[=[
 	Reads a column block of values.
 
-	@param  r         the reader
-	@param  codec     the values' codec
-	@param  count     how many values
-	@param  instances the chunk's instance list
-	@param  out       where the values are stored, at 1 to `count`
+	@param  r      the reader; its budget is charged for every array and map count
+	@param  codec  the values' codec
+	@param  count  how many values, already charged by the caller
+	@param  chunk  the chunk's instances
+	@param  misses where values the receiver can't resolve are recorded
+	@param  out    where the values are stored, at 1 to `count`
+	@param  row    the chunk row of every value, when `rows` is nil
+	@param  rows   the chunk row of each value, or nil
 	@return 0, or the v5.md §4.8 rule that refuses the block
 ]=]
 function Columns.read(
 	r: Bits.Reader,
 	codec: Ir.Codec,
 	count: number,
-	instances: { Instance? },
-	out: { any }
+	chunk: Leaves.Chunk,
+	misses: { Leaves.Miss },
+	out: { any },
+	row: number,
+	rows: { number }?
 ): number
-	return readColumns(r, codec, count, instances, out)
+	return readColumns(r, codec, count, chunk, misses, out, row, rows)
 end
 
 --[=[
@@ -987,9 +1187,10 @@ end
 	@param  values    the values, at `first` to `first + count - 1`
 	@param  first     the index of the first value
 	@param  count     how many values; 0 writes nothing
-	@param  instances the chunk's instances, extended on first references
+	@param  instances the chunk's instances, listed beforehand
 	@return nil, or the refusal of the first value the codec refuses; the writer then holds part
 	        of the block
+	@error  internal, when an instance was not listed
 ]=]
 function Columns.write(
 	w: Bits.Writer,

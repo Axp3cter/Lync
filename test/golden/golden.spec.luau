@@ -38,8 +38,19 @@ local function hexOf(bytes: buffer): string
 	return table.concat(digits, " ")
 end
 
+-- Decodes a run chunk with no instances: its payloads, then the chunk's rule 9 check.
+local function decode(r: Bits.Reader, codec: Ir.Codec, count: number, out: { any }): number
+	local chunk = Rows.beginChunk({}, 0, 0)
+	local rule = Run.decode(r, codec, count, chunk, {}, out)
+	if rule ~= 0 then
+		return rule
+	end
+
+	return Rows.endChunk(chunk)
+end
+
 local function newInstances(): Rows.Instances
-	return { list = {}, index = {} }
+	return { list = {}, index = {}, count = 0 }
 end
 
 -- Writes a run chunk: its header, then its payloads through `Run`.
@@ -54,7 +65,7 @@ local function writeRun(
 	local instances = newInstances()
 	Run.collect(codec, values, #values, instances)
 	Frame.writeRunHeader(w, entry.id, idWidth, #values, nil)
-	Run.encode(w, codec, values, #values, instances, subject)
+	Run.encode(w, codec, values, #values, instances, subject, "data")
 end
 
 -- Writes a downstream reliable frame of one run segment of `arena`.
@@ -86,7 +97,7 @@ local function readRun(
 	Check.expectEqual(count, #expected, "count")
 
 	local values = {}
-	Check.expectEqual(Run.decode(r, codec, #expected, {}, values), 0, "rule")
+	Check.expectEqual(decode(r, codec, #expected, values), 0, "rule")
 	Check.expectEqual(values, expected, "values")
 end
 
@@ -150,7 +161,7 @@ return {
 		writeDownToc(w, "unchanged")
 		Frame.writeRunHeader(w, entry.id, arena.downWidth, 1, nil)
 		Frame.writeAnswerPrefix(w, 0, 0, 0)
-		Run.encode(w, codec, { 250 }, 1, newInstances(), "arena.buy:handle")
+		Run.encode(w, codec, { 250 }, 1, newInstances(), "arena.buy:handle", "reply")
 		Bits.align(w)
 		local golden = Golden.bytes(Golden.entry("G3"))
 		Check.expectBytes(Bits.finish(w), hexOf(golden))
@@ -162,7 +173,7 @@ return {
 		local slot, epoch, outcome = Frame.readAnswerPrefix(r)
 		Check.expectEqual({ slot, epoch, outcome }, { 0, 0, 0 }, "answer prefix")
 		local values = {}
-		Check.expectEqual(Run.decode(r, codec, 1, {}, values), 0, "rule")
+		Check.expectEqual(decode(r, codec, 1, values), 0, "rule")
 		Check.expectEqual(values, { 250 }, "values")
 		finish(r)
 	end,

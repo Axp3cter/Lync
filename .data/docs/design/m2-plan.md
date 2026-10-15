@@ -484,3 +484,6 @@ None of the following may appear in `src/`:
     occurrence, summary counts including the first, `field.qualifier` counter names, plain-typed `Fact` fields
     frozen at run time, the instance array always passed as the second argument).
   - `test/session/buckets.spec.luau` belongs to unit E.
+- From milestone 1 (unit C): because `Instances.count` counts committed encodes, collecting several request rows
+  before encoding any of them means one refused row also drops the later rows' instances. Unit F collects and encodes
+  each row in turn (or each run as one unit), never collects ahead.

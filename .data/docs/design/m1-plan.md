@@ -677,3 +677,8 @@ as entries only, without reordering.
 - **W for answers** is `1 + E(reply)`; kinds without answers have 0 (`v5.md` §4.8 to say so at the next design pass).
 - **Direction encoder:** it always returns a canonical code, iterating E and taking the lower member of a 2-cycle,
   like rotation (unit A, in progress); C7's rule-6 refusal waits for it.
+- **C's interpretations accepted:** `Instances.count` is the number of entries committed by encodes (an encode fixes
+  it at `#list` on entry; a failure truncates back), which satisfies both C2 and C4; `Chunk.offset` is the count of
+  frame-array entries before the chunk; `root` is required. The lead updated the two stale calls in B's files
+  (`docs/codes/valueRefused.md`, `test/plan/sizes.spec.luau`).
+- **Milestone 1 closed:** 362 tests pass, default suite about 37 s; `LYNC_FULL=1` runs the full property counts.

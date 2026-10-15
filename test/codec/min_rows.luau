@@ -45,6 +45,7 @@ type Stream = { base: number, offset: number }
 -- Constants ---------------------------------------------------------------------------------------
 
 const MAX_N = 8
+const NO_INSTANCES = { list = {}, index = {}, count = 0 }
 const DRAWS = 200
 const PATTERNS: { Pattern } = { "constant", "noise", "gaussian", "sparse" }
 const SIGMA = 50
@@ -112,7 +113,7 @@ local function valueOf(
 		local n = 2 ^ codec.bits
 		local x = nextCode(streams, `{key}.x`, n, pattern)
 		local y = nextCode(streams, `{key}.y`, n, pattern)
-		return Leaves.directionOf(x, y, codec.bits)
+		return Gen.direction(x, y, codec.bits)
 	elseif codec.kind == "rotation" then
 		local bits = codec.bits
 		local low = (2 ^ bits - 1) // 2 - ROTATION_SPREAD
@@ -155,10 +156,10 @@ local function bitsOf(codec: Ir.Codec, n: number, pattern: Pattern): (number, nu
 
 		local rows = Bits.writer()
 		for i = 1, n do
-			assert(Rows.write(rows, codec, values[i], { list = {}, index = {} }) == nil, "rows")
+			assert(Rows.write(rows, codec, values[i], NO_INSTANCES) == nil, "rows")
 		end
 		local block = Bits.writer()
-		assert(Columns.write(block, codec, values, 1, n, { list = {}, index = {} }) == nil, "block")
+		assert(Columns.write(block, codec, values, 1, n, NO_INSTANCES) == nil, "block")
 
 		rowBits += rows.bit
 		blockBits += block.bit

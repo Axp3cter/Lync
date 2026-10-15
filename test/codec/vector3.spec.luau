@@ -12,13 +12,13 @@
 
 local Bits = require("../../src/wire/bits")
 local Check = require("../support/check")
+local Frame = require("../support/frame")
 local Gen = require("../support/gen")
 local Ir = require("../../src/plan/ir")
 local Leaves = require("../../src/codec/leaves")
 local Lync = require("../../src")
 local Quant = require("../../src/wire/quant")
 local Rows = require("../../src/codec/rows")
-local Run = require("../../src/codec/run")
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -57,7 +57,7 @@ local function spacingAt(bound: number): number
 end
 
 local function newInstances(): Rows.Instances
-	return { list = {}, index = {} }
+	return { list = {}, index = {}, count = 0 }
 end
 
 -- Decodes a code into a Vector3 component, stored in f32, and returns the code it re-encodes to.
@@ -115,26 +115,30 @@ return {
 		local value = Vector3.new(0.1, -0.1, 0.1)
 		Check.expect(value.X > 0.1, "f32 0.1 must lie above 0.1")
 
-		local w = Bits.writer()
-		Run.encode(w, codec, { value }, 1, newInstances(), "arena.test:fire")
-		local decoded = {}
-		local r = Bits.reader(Bits.finish(w))
-		Check.expectEqual(Run.decode(r, codec, 1, {}, decoded), 0, "rule")
-		Check.expectEqual(decoded[1], value, "decoded")
+		local decoded = Frame.decodeRun(Frame.encodeRun(codec, { value }, 1), codec, 1, {})
+		Check.expectEqual(decoded.rule, 0, "rule")
+		Check.expectEqual(decoded.values[1], value, "decoded")
 	end,
 
 	["a t.cframe position takes the end code within the f32 spacing"] = function()
 		local codec = Gen.plan(t.cframe(t.vector3(-0.1, 0.1, 0.001), t.rotation(9)))
 		local value = CFrame.new(0.1, -0.1, 0)
 		local w = Bits.writer()
-		Rows.encodeValue(w, codec, value, newInstances(), "arena.test:fire")
+		Rows.encodeValue(w, codec, value, newInstances(), "arena.test:fire", "data")
 		local r = Bits.reader(Bits.finish(w))
-		local decoded, rule = Rows.read(r, codec, {})
+		local decoded, rule = Rows.read(r, codec, Rows.beginChunk({}, 0, 0), 1, {})
 		Check.expectEqual(rule, 0, "rule")
 		Check.expectEqual(decoded, value, "decoded")
 
 		Check.expectThrow(function()
-			Rows.encodeValue(Bits.writer(), codec, CFrame.new(0.1001, 0, 0), newInstances(), "a.b")
+			Rows.encodeValue(
+				Bits.writer(),
+				codec,
+				CFrame.new(0.1001, 0, 0),
+				newInstances(),
+				"a.b",
+				"data"
+			)
 		end, { code = "valueRefused", path = "data.position" })
 	end,
 }

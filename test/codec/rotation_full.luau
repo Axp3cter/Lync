@@ -88,13 +88,39 @@ local function fail(tally: Tally, description: string)
 	end
 end
 
--- Encodes with the fewest re-encodings that succeed; nil after `MAX_STEPS`.
+local function quantized(value: CFrame, bits: number): { number }
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = value:GetComponents()
+
+	return { Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits) }
+end
+
+-- Follows the encoder's iteration from the first encoding and counts its re-encodings: the steps
+-- it takes to a fixed point or a 2-cycle, nil after `MAX_STEPS`; then checks that the encoder
+-- returns the same codes.
 local function encoded(value: CFrame, bits: number): (number?, { number })
+	local previous = ""
+	local current = quantized(value, bits)
 	for steps = 1, MAX_STEPS do
-		local ok, flag, index, a, b, c = pcall(Leaves.rotationCodes, value, bits, steps)
-		if ok then
-			return steps, { flag, index, a, b, c }
+		local decoded = Leaves.rotationOf(
+			current[1],
+			current[2],
+			current[3],
+			current[4],
+			current[5],
+			bits,
+			0,
+			0,
+			0
+		)
+		local reencoded = quantized(decoded :: CFrame, bits)
+		local key = table.concat(reencoded, ",")
+		if key == table.concat(current, ",") or key == previous then
+			local codes = { Leaves.rotationCodes(value, bits) }
+			return steps, codes
 		end
+
+		previous = table.concat(current, ",")
+		current = reencoded
 	end
 
 	return nil, {}
@@ -108,7 +134,10 @@ local function checkEncoding(tally: Tally, value: CFrame, bits: number, label: s
 	end
 
 	tally.stepCounts[steps] += 1
-	if not Leaves.canonicalRotation(codes[1], codes[2], codes[3], codes[4], codes[5], bits) then
+	if
+		Leaves.canonicalRotation(codes[1], codes[2], codes[3], codes[4], codes[5], bits, 0, 0, 0)
+		== nil
+	then
 		fail(tally, `{label}: encoder output {table.concat(codes, ",")} is not canonical`)
 	end
 
@@ -120,8 +149,17 @@ local function checkCode(tally: Tally, codes: { number }, bits: number)
 	local label = `{bits} bits, code {table.concat(codes, ",")}`
 	local decoded =
 		Leaves.rotationOf(codes[1], codes[2], codes[3], codes[4], codes[5], bits, 0, 0, 0)
-	local isCanonical =
-		Leaves.canonicalRotation(codes[1], codes[2], codes[3], codes[4], codes[5], bits)
+	local isCanonical = Leaves.canonicalRotation(
+		codes[1],
+		codes[2],
+		codes[3],
+		codes[4],
+		codes[5],
+		bits,
+		0,
+		0,
+		0
+	) ~= nil
 	if decoded == nil then
 		tally.refused += 1
 		if isCanonical then

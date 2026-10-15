@@ -14,17 +14,15 @@
 local Bits = require("../../src/wire/bits")
 local Check = require("../support/check")
 local Column = require("../../src/wire/column")
+local Frame = require("../support/frame")
 local Gen = require("../support/gen")
 local Ir = require("../../src/plan/ir")
 local Lync = require("../../src")
 local Prop = require("../support/prop")
-local Rows = require("../../src/codec/rows")
-local Run = require("../../src/codec/run")
 
 -- Constants ---------------------------------------------------------------------------------------
 
 const MAX_RUN = 2 * Column.MIN_ROWS + 1
-const SUBJECT = "gen.e:fire"
 const ZERO_WIDTH = { intSingle = true, enumSingle = true }
 
 local t = Lync.types
@@ -71,24 +69,28 @@ local function leafCodecs(): { [string]: any }
 	}
 end
 
-local function bytesOf(codec: Ir.Codec, values: { any }, count: number): (buffer, { Instance })
-	local instances: Rows.Instances = { list = {}, index = {} }
-	Run.collect(codec, values, count, instances)
+-- Writes codes of one width, one after another, as a single row's payload.
+local function payloadOf(width: number, codes: { number }): buffer
 	local w = Bits.writer()
-	Run.encode(w, codec, values, count, instances, SUBJECT)
+	for _, code in codes do
+		Bits.write(w, width, code)
+	end
 
-	return Bits.finish(w), instances.list
+	return Bits.finish(w)
+end
+
+local function bytesOf(codec: Ir.Codec, values: { any }, count: number): buffer
+	return (Frame.encodeRun(codec, values, count))
 end
 
 local function checkRoundTrip(codec: Ir.Codec, values: { any }, count: number)
-	local bytes, list = bytesOf(codec, values, count)
-	local r = Bits.reader(bytes)
-	local decoded = {}
-	Check.expectEqual(Run.decode(r, codec, count, list, decoded), 0, "rule")
-	Check.expect(Bits.meets(r), "the bits and the tail must meet")
-	Check.expectEqual(decoded, values, "decoded")
+	local bytes, list = Frame.encodeRun(codec, values, count)
+	local decoded = Frame.decodeRun(bytes, codec, count, list)
+	Check.expectEqual(decoded.rule, 0, "rule")
+	Check.expectEqual(decoded.misses, {}, "misses")
+	Check.expectEqual(decoded.values, values, "decoded")
 
-	local again = bytesOf(codec, decoded, count)
+	local again = bytesOf(codec, decoded.values, count)
 	Check.expectEqual(buffer.tostring(again), buffer.tostring(bytes), "re-encoded")
 end
 
@@ -209,5 +211,59 @@ return {
 		local varintBytes = bytesOf(varint, centred, #values)
 		Check.expectEqual(buffer.tostring(wideBytes), buffer.tostring(varintBytes), "bytes")
 		checkRoundTrip(wide, values, #values)
+	end,
+
+	["t.number and t.vector3 re-encode every code, the top code included"] = function()
+		for _, bounds in { { 0, 0.3, 0.1 }, { 0, 0.7, 0.1 }, { 0, 2.3, 0.1 }, { -1, 1, 1 / 3 } } do
+			local min, max, step = bounds[1], bounds[2], bounds[3]
+			local number = Gen.plan(t.number(min, max, step)) :: Ir.NumberCodec
+			local vector = Gen.plan(t.vector3(min, max, step))
+			for code = 0, number.steps do
+				local numberRow = payloadOf(number.width, { code })
+				local decoded = Frame.decodeRun(numberRow, number, 1, {})
+				Check.expectEqual(decoded.rule, 0, `t.number{bounds}: code {code}`)
+				local again = bytesOf(number, decoded.values, 1)
+				Check.expectEqual(buffer.tostring(again), buffer.tostring(numberRow), `code {code}`)
+
+				for _, codes in { { code, 0, number.steps }, { number.steps, code, 0 } } do
+					local vectorRow = payloadOf(number.width, codes)
+					local decodedVector = Frame.decodeRun(vectorRow, vector, 1, {})
+					Check.expectEqual(decodedVector.rule, 0, "t.vector3 rule")
+					local vectorAgain = bytesOf(vector, decodedVector.values, 1)
+					Check.expectEqual(
+						buffer.tostring(vectorAgain),
+						buffer.tostring(vectorRow),
+						"t.vector3"
+					)
+				end
+			end
+		end
+	end,
+
+	["collecting lists instances in the order the payloads reference them first"] = function()
+		local pool = instancePool()
+		Prop.check("collect order", function(size: number)
+			local codec = nil
+			while codec == nil do
+				local ok, planned = pcall(Gen.plan, {
+					a = Gen.codec(2, size),
+					b = t.instance(),
+					c = Gen.codec(2, size),
+				})
+				codec = if ok and planned.kind == "record" then planned else nil
+			end
+
+			local count = math.random(1, MAX_RUN)
+			local style = Gen.style(pool)
+			local values = {}
+			for i = 1, count do
+				values[i] = Gen.value(codec, size // 8 + 1, style)
+			end
+			return { codec = codec, values = values, count = count }
+		end, function(case)
+			-- Rule 9 holds only when the list is in order of first reference and complete.
+			local bytes, list = Frame.encodeRun(case.codec, case.values, case.count)
+			Check.expectEqual(Frame.decodeRun(bytes, case.codec, case.count, list).rule, 0, "rule")
+		end, { runs = 200 })
 	end,
 }

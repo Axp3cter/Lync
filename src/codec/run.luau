@@ -9,7 +9,8 @@
 
 	A run's chunk header (`id`, `count - 1`, `instances`, §4.1) belongs to the transport. Its
 	instance list must be known before the payloads are written, since indices are as wide as the
-	list needs, so `Run.collect` lists them first.
+	list needs, so `Run.collect` lists them first; the transport brackets the decode with
+	`Rows.beginChunk` and `Rows.endChunk` (m1-plan.md §6.2).
 ]=]
 
 -- Imports -----------------------------------------------------------------------------------------
@@ -24,11 +25,6 @@ local Rows = require("./rows")
 -- Module ------------------------------------------------------------------------------------------
 
 local Run = {}
-
--- State -------------------------------------------------------------------------------------------
-
---- Where `Run.collect` encodes the run to find its instances; the bits are discarded.
-local scratch = Bits.writer()
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -56,10 +52,8 @@ end
 -- Public ------------------------------------------------------------------------------------------
 
 --[=[
-	Lists a run's instances, each once, in the order the payloads reference them first.
-
-	It encodes the run and discards the bits; a value the codec refuses ends the listing, and
-	`Run.encode` then raises for it.
+	Lists a run's instances, each once, in the order the payloads reference them first, and
+	writes nothing. A value the codec would refuse lists nothing past it.
 
 	@param codec  the messages' codec
 	@param values the messages' values, at 1 to `count`
@@ -67,62 +61,79 @@ end
 	@param into   the chunk's instances, extended
 ]=]
 function Run.collect(codec: Ir.Codec, values: { any }, count: number, into: Rows.Instances)
-	write(scratch, codec, values, count, into)
-	Leaves.reset(scratch, 0, 0, 0)
+	if count >= Column.MIN_ROWS then
+		Columns.collect(codec, values, 1, count, into)
+		return
+	end
+
+	for i = 1, count do
+		Rows.collect(codec, values[i], into)
+	end
 end
 
 --[=[
-	Decodes a run's payloads, and checks the chunk's instance list (rule 9).
+	Decodes a run's payloads, after its chunk header; the caller begins and ends the chunk.
 
-	@param  r         the reader, after the run's chunk header
-	@param  codec     the messages' codec
-	@param  count     how many messages, from the header
-	@param  instances the chunk's instance list; a missing instance is nil
-	@param  out       where the values are stored, at 1 to `count`
+	@param  r      the reader; its budget is charged for the run's count and every array and map
+	               count
+	@param  codec  the messages' codec
+	@param  count  how many messages, from the header
+	@param  chunk  the chunk's instances
+	@param  misses where values the receiver can't resolve are recorded, by message number
+	@param  out    where the values are stored, at 1 to `count`
 	@return 0, or the v5.md §4.8 rule that refuses the run
 ]=]
 function Run.decode(
 	r: Bits.Reader,
 	codec: Ir.Codec,
 	count: number,
-	instances: { Instance? },
+	chunk: Rows.Chunk,
+	misses: { Rows.Miss },
 	out: { any }
 ): number
-	local rule = Leaves.beginInstances(instances)
-	if rule ~= 0 then
-		return rule
+	if not Bits.charge(r, count) then
+		return 10
 	end
 
 	if count >= Column.MIN_ROWS then
-		rule = Columns.read(r, codec, count, instances, out)
-	else
-		for i = 1, count do
-			local value, rowRule = Rows.read(r, codec, instances)
-			if rowRule ~= 0 then
-				rule = rowRule
-				break
+		local rows: { number }? = nil
+		if Leaves.canMiss(codec) then
+			local numbers = table.create(count, 0)
+			for i = 1, count do
+				numbers[i] = i
 			end
-			out[i] = value
+			rows = numbers
 		end
+
+		return Columns.read(r, codec, count, chunk, misses, out, 0, rows)
 	end
 
-	if rule ~= 0 then
-		return rule
+	for i = 1, count do
+		local value, rule = Rows.read(r, codec, chunk, i, misses)
+		if rule ~= 0 then
+			return rule
+		end
+		out[i] = value
 	end
 
-	return Leaves.endInstances(instances)
+	return 0
 end
 
 --[=[
-	Encodes a run's payloads, or raises `valueRefused` at the caller's line.
+	Encodes a run's payloads, or raises at the caller's line.
 
-	@param w         the writer, unchanged when a value is refused
-	@param codec     the messages' codec, a definition's `data`
+	The chunk's instances must already list the run's instances (`Run.collect`). On any failure
+	the writer and the instance list are as they were before the last committed encode.
+
+	@param w         the writer
+	@param codec     the messages' codec
 	@param values    the messages' values, at 1 to `count`
 	@param count     how many messages, at least 1
-	@param instances the chunk's instances, listed by `Run.collect`
+	@param instances the chunk's instances; the encode commits what is listed
 	@param subject   the definition and call, such as `arena.strike:fire`
-	@error valueRefused, naming `subject` and the refused value's path from `data`
+	@param root      the value the refusal's path starts from
+	@error valueRefused, naming `subject` and the refused value's path from `root`; a raise from
+	       game code (`t.convert`, `t.custom`) or `internal`, unchanged
 ]=]
 function Run.encode(
 	w: Bits.Writer,
@@ -130,18 +141,25 @@ function Run.encode(
 	values: { any },
 	count: number,
 	instances: Rows.Instances,
-	subject: string
+	subject: string,
+	root: Rows.Root
 )
 	local startBit = w.bit
 	local startTailCount = #w.tail
 	local startTailBytes = w.tailBytes
-	local refusal = write(w, codec, values, count, instances)
-	if refusal == nil then
+	local committed = instances.count
+	instances.count = #instances.list
+
+	local ok, result = pcall(write, w, codec, values, count, instances)
+	if ok and result == nil then
 		return
 	end
 
-	Leaves.reset(w, startBit, startTailCount, startTailBytes)
-	Leaves.raise(refusal, subject)
+	Leaves.rollBack(w, startBit, startTailCount, startTailBytes, instances, committed)
+	if not ok then
+		error(result, 0)
+	end
+	Leaves.raise(result :: Rows.Refusal, subject, root)
 end
 
 return table.freeze(Run)

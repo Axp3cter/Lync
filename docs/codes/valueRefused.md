@@ -25,9 +25,9 @@ local arena = Lync.schema("arena", {
 	buy = Lync.request({ from = "client", data = { item = t.enum({ "sword", "shield" }) } }),
 })
 local codec = arena.ir.byName.buy.data
-local instances = { list = {}, index = {} }
+local instances = { list = {}, index = {}, count = 0 }
 
-Rows.encodeValue(Bits.writer(), codec, { item = "axe" }, instances, "arena.buy:invoke")
+Rows.encodeValue(Bits.writer(), codec, { item = "axe" }, instances, "arena.buy:invoke", "data")
 ```
 
 raises:

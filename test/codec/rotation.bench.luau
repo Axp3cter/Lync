@@ -11,8 +11,8 @@
 
 	The CLI has no `CFrame`, so a stand-in builds the f32 matrix a `CFrame` stores from a
 	quaternion, in a table, and returns its entries as `GetComponents` does. A decode builds one
-	`CFrame`; a checked decode builds the check's `CFrame`, re-encodes it (twice for a 2-cycle code),
-	then builds the decoded `CFrame`, as `Leaves.canonicalRotation` and the decoders do. The cost
+	`CFrame`; a checked decode builds it, re-encodes it (twice for a 2-cycle code) and returns it,
+	as `Leaves.canonicalRotation` does. The cost
 	of the engine's own `CFrame` is not measured. Each figure is the median of 15 interleaved samples,
 	one JSON line each.
 ]=]
@@ -103,22 +103,24 @@ local function isLower(left: { number }, right: { number }): boolean
 	return false
 end
 
-local function isCanonical(codes: { number }): boolean
-	local once = reencoded(codes)
-	if once == nil then
-		return false
+-- Returns the decoded matrix when the codes are canonical, as `Leaves.canonicalRotation` does.
+local function canonicalMatrix(codes: { number }): { number }?
+	local m = decodedMatrix(codes)
+	if m == nil then
+		return nil
 	end
 
+	local once = { Quant.rotation(m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], BITS) }
 	if isSame(once, codes) then
-		return true
+		return m
 	end
 
 	if not isLower(codes, once) then
-		return false
+		return nil
 	end
 
 	local twice = reencoded(once)
-	return twice ~= nil and isSame(twice, codes)
+	return if twice ~= nil and isSame(twice, codes) then m else nil
 end
 
 local function codeSet(): { { number } }
@@ -128,7 +130,7 @@ local function codeSet(): { { number } }
 			matrixOf(nextRandom() - 0.5, nextRandom() - 0.5, nextRandom() - 0.5, nextRandom() - 0.5)
 		local candidate =
 			{ Quant.rotation(m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], BITS) }
-		if isCanonical(candidate) then
+		if canonicalMatrix(candidate) ~= nil then
 			table.insert(codes, candidate)
 		end
 	end
@@ -140,10 +142,11 @@ local function nanosecondsPerDecode(codes: { { number } }, isChecked: boolean): 
 	local start = os.clock()
 	for _ = 1, ROUNDS do
 		for _, code in codes do
-			if isChecked and not isCanonical(code) then
+			if not isChecked then
+				decodedMatrix(code)
+			elseif canonicalMatrix(code) == nil then
 				error("a benchmark code must be canonical")
 			end
-			decodedMatrix(code)
 		end
 	end
 

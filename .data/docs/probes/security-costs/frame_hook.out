@@ -17,3 +17,21 @@ default identity, always called         28.68      26.11      46.56     0.99    
 for scale: tag a 100 B frame          3967.87    3711.68    4310.28   131.45   105.96   158.67
 sink	24989010319
 == frame_hook, luau -O2, run 3
+## end of one flush (per frame) (3000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+none                                    28.85      26.31      36.73     1.00     1.00     1.00
+nil-checked table field                 28.72      26.95      38.11     1.02     0.95     1.24
+nil-checked upvalue                     29.38      26.97      37.52     1.01     0.82     1.23
+default identity, always called         28.30      26.76      36.91     1.01     0.75     1.14
+for scale: tag a 100 B frame          4011.51    3658.42    4288.14   135.00   112.21   146.53
+sink	24989010319
+== frame_hook, luau -O2 --codegen, run 1
+## end of one flush (per frame) (3000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+none                                    11.85      11.08      12.35     1.00     1.00     1.00
+nil-checked table field                 11.60      11.10      13.58     1.02     0.93     1.10
+nil-checked upvalue                     11.55      11.27      12.97     1.00     0.93     1.08
+default identity, always called         11.47      11.23      12.00     0.99     0.92     1.07
+for scale: tag a 100 B frame           435.63     412.52     458.96    37.97    33.96    39.01
+sink	24989010319
+== frame_hook, luau -O2 --codegen, run 2

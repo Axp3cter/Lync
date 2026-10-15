@@ -11,15 +11,28 @@
 local FRAMES = 1_000_000
 local DT = 1 / 60
 
+-- xorshift32 stand-in for Roblox's Random (the CLI has none); seed must be non-zero
+local function newRng(seed: number): () -> number
+	local x = seed
+	return function(): number
+		x = bit32.bxor(x, bit32.lshift(x, 13))
+		x = bit32.bxor(x, bit32.rshift(x, 17))
+		x = bit32.bxor(x, bit32.lshift(x, 5))
+		return x / 4294967296
+	end
+end
+
+type Arrival = { at: number, seq: number }
+
 local function run(jitter: number, loss: number, seed: number)
-	local rng = Random.new(seed)
-	local arrivals: { { at: number, seq: number } } = {}
+	local next = newRng(seed)
+	local arrivals: { Arrival } = {}
 	for s = 0, FRAMES - 1 do
-		if rng:NextNumber() >= loss then
-			table.insert(arrivals, { at = s * DT + 0.05 + rng:NextNumber() * jitter, seq = s })
+		if next() >= loss then
+			table.insert(arrivals, { at = s * DT + 0.05 + next() * jitter, seq = s })
 		end
 	end
-	table.sort(arrivals, function(a, b)
+	table.sort(arrivals, function(a: Arrival, b: Arrival): boolean
 		return a.at < b.at
 	end)
 	local newest = -1
@@ -56,24 +69,6 @@ local function run(jitter: number, loss: number, seed: number)
 		jitter, loss, #arrivals - windowDrops, late, 100 * late / #arrivals, windowDrops, naiveFail,
 		100 * naiveFail / #arrivals, seqFail
 	))
-end
-
--- Random is a Roblox global; the CLI has none, so a small xorshift stand-in is used there.
-if (_G :: any).Random == nil then
-	local Rand = {}
-	Rand.__index = Rand
-	function Rand.new(seed: number)
-		return setmetatable({ s = seed }, Rand)
-	end
-	function Rand.NextNumber(self: any): number
-		local x = self.s
-		x = bit32.bxor(x, bit32.lshift(x, 13))
-		x = bit32.bxor(x, bit32.rshift(x, 17))
-		x = bit32.bxor(x, bit32.lshift(x, 5))
-		self.s = x
-		return x / 4294967296
-	end
-	Random = Rand :: any
 end
 
 run(0.02, 0.05, 12345) -- v5.md §9 default network

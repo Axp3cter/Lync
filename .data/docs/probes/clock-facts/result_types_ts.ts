@@ -4,7 +4,7 @@ interface ServerTiming {
 	/** s: os.clock() at the answer's decode minus os.clock() at the flush that sent the ask; -1 if none */
 	readonly roundTrip: number;
 	/** s: Player.GetNetworkPing() at that flush; -1 if the ask was never sent */
-	readonly pingAtAsk: number;
+	readonly pingAtSend: number;
 	/** s: Player.GetNetworkPing() at the answer's decode; -1 if no answer arrived */
 	readonly pingAtAnswer: number;
 	/** s: min(GetNetworkPing samples, ack round trips) over the last 10 s at the answer's decode; -1 if no answer */

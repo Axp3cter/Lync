@@ -228,7 +228,7 @@ H.compare("D. server, per answered ask (U4)", 1000000, {
 		local s = 0
 		for i = 1, n do
 			local slot = i % 16 + 1
-			local r = { ok = true, value = i, roundTrip = 0.2 - sendAt[slot], pingAtAsk = pingAt[slot], pingAtAnswer = 0.05, minPing = 0.04 }
+			local r = { ok = true, value = i, roundTrip = 0.2 - sendAt[slot], pingAtSend = pingAt[slot], pingAtAnswer = 0.05, minPing = 0.04 }
 			s += r.value
 		end
 		return s

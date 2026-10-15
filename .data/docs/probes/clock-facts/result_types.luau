@@ -4,18 +4,18 @@
 -- Fields are present on every arm; -1 marks "no such moment" (the facts' convention, e.g. desync.sinceRekey).
 export type ServerTiming = {
 	roundTrip: number, -- s: os.clock() at the answer's decode minus os.clock() at the flush that sent the ask; -1 if none
-	pingAtAsk: number, -- s: GetNetworkPing() sampled at that flush; -1 if the ask was never sent
+	pingAtSend: number, -- s: GetNetworkPing() sampled at that flush; -1 if the ask was never sent
 	pingAtAnswer: number, -- s: GetNetworkPing() sampled at the answer's decode; -1 if no answer arrived
 	minPing: number, -- s: the path bound (U10) at the answer's decode; -1 if no answer arrived
 }
 export type ServerResult<R, E> =
-	{ ok: true, value: R, roundTrip: number, pingAtAsk: number, pingAtAnswer: number, minPing: number }
-	| { ok: false, error: E, roundTrip: number, pingAtAsk: number, pingAtAnswer: number, minPing: number }
+	{ ok: true, value: R, roundTrip: number, pingAtSend: number, pingAtAnswer: number, minPing: number }
+	| { ok: false, error: E, roundTrip: number, pingAtSend: number, pingAtAnswer: number, minPing: number }
 
 type AskError = "timeout" | "rejected" | "unanswered" | "left" | "shutdown"
 
 local function fake(): ServerResult<number, AskError>
-	return { ok = true, value = 3, roundTrip = 0.13, pingAtAsk = 0.1, pingAtAnswer = 0.1, minPing = 0.09 }
+	return { ok = true, value = 3, roundTrip = 0.13, pingAtSend = 0.1, pingAtAnswer = 0.1, minPing = 0.09 }
 end
 
 local r = fake()

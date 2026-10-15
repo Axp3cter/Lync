@@ -8,13 +8,15 @@
 //       <build>/libLuau.Common.a -o host
 //
 // Usage:
-//   host run NAME=FILE:MODE ... SCRIPT:MODE     MODE is interp or native; each NAME=FILE chunk's return value
+//   host run NAME=FILE:MODE ... SCRIPT:MODE     MODE is interp, native (every function) or roblox (only
+//                                               --!native modules and @native functions); each NAME=FILE chunk's return value
 //                                               becomes global NAME before the next chunk runs
 //   host load FILE REPS [O]                     bytecode size, luau_load time, native compile time
 #include "lua.h"
 #include "lualib.h"
 #include "luacode.h"
 #include "luacodegen.h"
+#include "Luau/CodeGen.h"
 
 #include <chrono>
 #include <cstdio>
@@ -65,7 +67,7 @@ static lua_State* newState()
     return L;
 }
 
-static int runChunk(lua_State* L, const std::string& path, bool native, int opt)
+static int runChunk(lua_State* L, const std::string& path, int mode, int opt)
 {
     std::string bc = compile(readFile(path), opt, 1);
     std::string chunk = "=" + path;
@@ -74,8 +76,15 @@ static int runChunk(lua_State* L, const std::string& path, bool native, int opt)
         fprintf(stderr, "load %s: %s\n", path.c_str(), lua_tostring(L, -1));
         exit(1);
     }
-    if (native)
+    if (mode == 1)
         luau_codegen_compile(L, -1);
+    else if (mode == 2)
+    {
+        // as on a Roblox server: only --!native modules and @native functions
+        Luau::CodeGen::CompilationOptions co;
+        co.flags = Luau::CodeGen::CodeGen_OnlyNativeModules;
+        Luau::CodeGen::compile(L, -1, co);
+    }
     if (lua_pcall(L, 0, 1, 0) != 0)
     {
         fprintf(stderr, "run %s: %s\n", path.c_str(), lua_tostring(L, -1));
@@ -107,8 +116,9 @@ int main(int argc, char** argv)
             }
             size_t colon = spec.rfind(':');
             std::string path = spec.substr(0, colon);
-            bool native = spec.substr(colon + 1) == "native";
-            runChunk(L, path, native, opt);
+            std::string m = spec.substr(colon + 1);
+            int mode = m == "native" ? 1 : m == "roblox" ? 2 : 0;
+            runChunk(L, path, mode, opt);
             if (!name.empty())
                 lua_setglobal(L, name.c_str());
             else

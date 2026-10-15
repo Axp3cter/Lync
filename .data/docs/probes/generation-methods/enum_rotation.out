@@ -1,0 +1,16 @@
+n   pattern     identity  permuted(mean of 200)  offset(random c per trial)
+4   constant        11.0       9.8                   9.6
+4   sparse10        50.5      52.7                  52.5
+4   sequential     137.0     118.2                  75.5
+4   walk           131.9     134.7                 132.5
+4   uniform        137.0     137.0                 137.0
+8   constant        14.0      12.0                  11.5
+8   sparse10        62.4      66.6                  66.1
+8   sequential     137.0     202.1                 123.4
+8   walk           135.0     192.9                 140.6
+8   uniform        201.0     201.0                 201.0
+32  constant        14.0      14.9                  14.5
+32  sparse10        83.5      89.5                  89.3
+32  sequential     137.0     331.1                 176.1
+32  walk           135.2     292.4                 149.2
+32  uniform        329.2     329.2                 329.2

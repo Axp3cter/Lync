@@ -1,0 +1,14 @@
+== interpreted (luau 0.742 -O2)
+seed 0                        284.7 ns per encode+decode
+seed 7 (field order)          280.4 ns per encode+decode
+seed 7 + code offsets         320.2 ns per encode+decode
+session-selected variant      330.1 ns per encode+decode
+per-call table lookup         340.2 ns per encode+decode
+offset round trip: ok (health 0..100, ammo 0..200 step 2)
+== native (--codegen)
+seed 0                        240.2 ns per encode+decode
+seed 7 (field order)          244.7 ns per encode+decode
+seed 7 + code offsets         284.0 ns per encode+decode
+session-selected variant      261.1 ns per encode+decode
+per-call table lookup         285.8 ns per encode+decode
+offset round trip: ok (health 0..100, ammo 0..200 step 2)

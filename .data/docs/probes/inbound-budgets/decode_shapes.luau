@@ -155,7 +155,7 @@ end
 -- the largest count whose single-run frame fits `limit` bytes (frame including the 2-byte tag)
 local function fill(lane, name, make, limit)
 	local lo, hi = 1, 1
-	local pool = listOf(70000, make)
+	local pool = listOf(if limit > 1000 then 20000 else 400, make)
 	local function size(n) return buffer.len(framesOf(lane, { { name, pool, n } }, 1)[1]) end
 	while size(hi) <= limit do lo = hi; hi *= 2 end
 	while hi - lo > 1 do
@@ -239,7 +239,11 @@ for _, s in SHAPES do
 		end
 	end
 
-	local batch = math.clamp(math.ceil(2 ^ 18 / bytes), 8, 1000)
+	-- batch: up to 1000 frames, at most 2^20 B, and about 20 ms of milestone decode
+	local t0 = os.clock()
+	decodeMilestone(probe, lane)
+	local one = os.clock() - t0
+	local batch = math.clamp(math.min(2 ^ 20 // bytes, math.floor(0.02 / math.max(one, 1e-7))), 1, 1000)
 	local frames = framesOf(lane, s.runs, batch)
 	local slot = namespace.definitions[s.runs[1] and s.runs[1][1] or "ping1"].receivedSlot
 	local function resetConn()

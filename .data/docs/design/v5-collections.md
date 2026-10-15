@@ -466,9 +466,10 @@ naming fields), so a wrong name is a type error; untyped, a path naming no top-l
   string module of that size is accepted is unverified (§16), so `pvs` also takes the decoded `buffer`, from a
   `DataStore` value (at most 4,194,304 characters per key, documented) or any source.
 - **Decision: at what granularity the table narrows.**
-  - *Problem.* The table's cells (`[[pvs]] cellSize`, 8–256 studs, default 32) are at most as large as interest cells (R
-    ≥ the table's `cellSize`, below). A test at table granularity on both sides splits interest cells between viewers of
-    one block, which breaks cell chunks; a test at interest granularity on both sides is too coarse to hide anything.
+  - *Problem.* The table's cells (`[[pvs]] cellSize`, 8–256 studs, default 32) are at most as large as interest
+    cells (R ≥ the table's `cellSize`, below). A test at table granularity on both sides splits interest cells between
+    viewers of one block, which breaks cell chunks; a test at interest granularity on both sides is too coarse to hide
+    anything.
   - *Options:* per (viewer table cell, record table cell), with every narrowed record a piece (encode-once lost for
     the collection); chunks per table cell (a 3 × 3 block of R = 256 at `cellSize` 32 is 576 chunks to copy per viewer);
     **per (viewer table cell, interest cell)**, an interest cell visible when any table cell inside it is.
@@ -476,9 +477,8 @@ naming fields), so a wrong name is a type error; untyped, a path naming no top-l
     an *enter* table of N × N_c bits, enter(u, c) = OR of PVS(u, s) over the table cells s inside interest cell c,
     and keeps cell chunks. Each is an exact function of the given table. It requires R to be an integer multiple of
     the table's `cellSize` and the table's grid origin (`originX`, `originZ`, `v5-tooling.md` §2) to be multiples
-    of it, else the call throws `callOptionOutOfRange`.
-    Cells outside the table's extent are visible. Derivation cost at the call: N × N_c × (R / `cellSize`)² bit reads,
-    about 10^6 for a 1,024-cell table at R / `cellSize` = 8.
+    of it, else the call throws `callOptionOutOfRange`. Cells outside the table's extent are visible. Derivation cost
+    at the call: N × N_c × (R / `cellSize`)² bit reads, about 10^6 for a 1,024-cell table at R / `cellSize` = 8.
 - **Decision: hysteresis for the table.**
   - *Problem.* Without it, a viewer standing on a table-cell boundary, between a cell from which interest cell c is
     visible and one from which it is hidden, removes and re-adds every record of c at each crossing (10–30 B each,
@@ -688,8 +688,8 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
 - **Wire.** `RATE` gains `delay u8` (D in 4 ms units) and goes to one player whenever its D changes, besides every
   `stateRate` change; the client applies it when it decodes the frame, and the server reads which D was in force for a
   message from its frame's receipt, when exact (`v5.md` §4.1, §4.6; §12.3). Cost: at most one `RATE` row (78 bits of
-  fields) per player per second. The unit and step are protocol constants: u8 × 4 ms covers jitter up to 0.41 s at 10
-  Hz, and one unit a second changes the playback rate by 0.4%, below `GetServerTimeNow()`'s own 0.6% rate bound
+  fields) per player per second. The unit and step are protocol constants: u8 × 4 ms covers jitter up to 0.41 s at
+  10 Hz, and one unit a second changes the playback rate by 0.4%, below `GetServerTimeNow()`'s own 0.6% rate bound
   `[state-sync §6.1]` (chosen, unmeasured for visibility). Whatever rule produced it, the D in force for a message is
   the one Lync sent, and rewind uses that (§12.3).
 

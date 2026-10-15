@@ -1,0 +1,62 @@
+Replicated-state schemes over Lync's two lanes under loss: bytes vs staleness.
+T=1200 ticks @20 Hz, N=64, stop/start=0.05/0.02, ABS=8 B, RTO=3 ticks (assumed); 8 seeds
+
+-- loss bern p=0.0
+scheme             B/tick meanStl   p99    max  >4ticks
+full_unrel          512.0    0.29     1      1    0.00%
+changed_unrel       165.2    0.29     1      1    0.00%
+changed_x2          173.4    0.29     1      1    0.00%
+changed_settle      170.3    0.28     1      1    0.00%
+acked_unrel          87.1    0.28     1      1    0.00%
+relbase_unrel       214.2    0.29     1      1    0.00%
+dirty_ack_unrel     165.7    0.28     1      1    0.00%
+rel_delta            73.4    0.29     1      1    0.00%
+chain_unrel          95.4    0.29     1      1    0.00%
+
+-- loss bern p=0.01
+scheme             B/tick meanStl   p99    max  >4ticks
+full_unrel          512.0    0.29     1      3    0.00%
+changed_unrel       165.2    0.59     2    233    0.69%
+changed_x2          173.4    0.29     1     68    0.01%
+changed_settle      169.5    0.29     1     15    0.10%
+acked_unrel          87.3    0.29     1      3    0.00%
+relbase_unrel       214.8    0.29     1      4    0.00%
+dirty_ack_unrel     165.8    0.29     1      4    0.00%
+rel_delta            73.6    0.31     2      7    0.03%
+chain_unrel          95.4    0.72    14     40    3.60%
+
+-- loss bern p=0.05
+scheme             B/tick meanStl   p99    max  >4ticks
+full_unrel          512.0    0.30     2      3    0.00%
+changed_unrel       165.2    2.28    69    342    3.47%
+changed_x2          173.4    0.44     2    232    0.21%
+changed_settle      173.9    0.34     2     14    0.43%
+acked_unrel          88.2    0.30     2      4    0.00%
+relbase_unrel       214.4    0.31     2      7    0.03%
+dirty_ack_unrel     166.2    0.30     2      6    0.00%
+rel_delta            72.7    0.39     4     10    0.52%
+chain_unrel          95.4    1.63    21     40   11.11%
+
+-- loss ge p=0.05
+scheme             B/tick meanStl   p99    max  >4ticks
+full_unrel          512.0    0.34     3     16    0.50%
+changed_unrel       165.2    1.90    59    307    3.47%
+changed_x2          173.4    1.47    43    307    2.53%
+changed_settle      170.8    0.34     2     47    0.36%
+acked_unrel          90.4    0.34     3     15    0.60%
+relbase_unrel       214.3    0.48     6     41    1.27%
+dirty_ack_unrel     166.6    0.35     3     16    0.64%
+rel_delta            73.5    0.89    17     71    4.28%
+chain_unrel          95.4    1.09    19     53    6.32%
+
+-- loss ge p=0.15
+scheme             B/tick meanStl   p99    max  >4ticks
+full_unrel          512.0    0.42     5     19    1.29%
+changed_unrel       165.2    5.36   114    342   10.23%
+changed_x2          173.4    3.59    91    307    7.09%
+changed_settle      171.7    0.58    10     83    1.74%
+acked_unrel          96.5    0.44     5     19    1.46%
+relbase_unrel       214.4    0.86    17     53    4.17%
+dirty_ack_unrel     168.2    0.45     6     20    1.59%
+rel_delta            72.7    3.24    41     72   16.99%
+chain_unrel          95.4    3.08    40    114   16.64%

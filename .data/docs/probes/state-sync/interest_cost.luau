@@ -4,9 +4,15 @@
 -- Variants:
 --   brute : every (player, entity) pair, squared-distance test.
 --   grid  : uniform grid (cell = enter radius), incremental cell moves, 3x3 query,
---           hysteresis (enter R, leave 1.1 R), enter/leave diff against the previous tick.
+--           hysteresis (enter R, leave 1.1 R), enter/leave diff against the previous tick;
+--           membership in a Luau hash table per player.
+--   gridbuf: as grid, but membership is a per-player buffer of u32 stamps indexed by entity id.
+--   cells : cell-granular interest (no distance test): a player subscribes to the 3x3 cells around it;
+--           work happens only when a player or an entity crosses a cell boundary (per-cell subscriber lists).
+--           Relevant set is a square of side 3R, so it is ~2.9x larger than the circle of radius R.
 -- Each tick, MOVE_FRACTION of entities and all players move by up to STEP studs.
--- Output: median ms per tick (5 runs x TICKS ticks) and mean relevant set size.
+-- Output: median ms per tick (5 runs x TICKS ticks) for the relevancy query and, separately, for moving
+-- entities (including the grid's incremental cell update), plus mean relevant set size per player.
 
 local MAP = 4096
 local STEP = 4 -- studs per tick (about 16 studs/s character speed at 60 Hz would be 0.27; this is pessimistic)
@@ -72,19 +78,65 @@ local function run(P: number, E: number, R: number, mode: string): (number, numb
 	-- per-player relevant sets: seen[id] = stamp; list = ids
 	local seen: { { [number]: number } } = table.create(P)
 	local lists: { { number } } = table.create(P)
+	local seenBuf: { buffer } = table.create(P)
 	for p = 1, P do
 		seen[p] = {}
 		lists[p] = {}
+		if mode == "gridbuf" then
+			seenBuf[p] = buffer.create((E + 1) * 4)
+		end
+	end
+	local stamp = 1 -- buffers start at 0, so stamp - 1 never matches an untouched entry
+	local enters, leaves = 0, 0
+	-- cells mode: subscribers per cell, player's current cell, per-player relevant count
+	local subs: { [number]: { number } } = {}
+	local pcell: { number } = table.create(P, 0)
+	local relCount: { number } = table.create(P, 0)
+	local function subscribe(p: number, k: number, sign: number)
+		local cx = k % SIDE
+		local cz = k // SIDE
+		for oz = -1, 1 do
+			for ox = -1, 1 do
+				local key = (cx + ox) + (cz + oz) * SIDE
+				local l = subs[key]
+				if l == nil then
+					l = {}
+					subs[key] = l
+				end
+				if sign > 0 then
+					table.insert(l, p)
+				else
+					local at = table.find(l, p)
+					if at then
+						l[at] = l[#l]
+						l[#l] = nil
+					end
+				end
+				local c = cells[key]
+				if c then
+					relCount[p] += sign * #c
+					enters += if sign > 0 then #c else 0
+					leaves += if sign < 0 then #c else 0
+				end
+			end
+		end
+	end
+	if mode == "cells" then
+		for p = 1, P do
+			pcell[p] = keyOf(px[p], pz[p])
+			subscribe(p, pcell[p], 1)
+		end
 	end
 
 	local times = {}
+	local moveTimes = {}
 	local totalRelevant = 0
-	local stamp = 0
-	local enters, leaves = 0, 0
 	for run = 1, 5 do
-		local t0 = os.clock()
+		local queryTime = 0
+		local moveTime = 0
 		for _ = 1, TICKS do
 			stamp += 1
+			local tm = os.clock()
 			-- movement (not timed separately; included, since a real server pays the cell update)
 			local moves = math.floor(E * MOVE_FRACTION)
 			for m = 1, moves do
@@ -93,11 +145,41 @@ local function run(P: number, E: number, R: number, mode: string): (number, numb
 				local z = math.clamp(ez[i] + (rand() - 0.5) * 2 * STEP, 0, MAP - 1)
 				ex[i] = x
 				ez[i] = z
-				if mode == "grid" then
+				if mode ~= "brute" then
 					local k = keyOf(x, z)
-					if k ~= cellOf[i] then
+					local old = cellOf[i]
+					if k ~= old then
 						remove(i)
 						insert(i, k)
+						if mode == "cells" then
+							-- players subscribed to old but not new lose it; new but not old gain it
+							local ls = subs[old]
+							if ls then
+								for j = 1, #ls do
+									local p = ls[j]
+									local pk = pcell[p]
+									local dx = math.abs(pk % SIDE - k % SIDE)
+									local dz = math.abs(pk // SIDE - k // SIDE)
+									if dx > 1 or dz > 1 then
+										relCount[p] -= 1
+										leaves += 1
+									end
+								end
+							end
+							local ln = subs[k]
+							if ln then
+								for j = 1, #ln do
+									local p = ln[j]
+									local pk = pcell[p]
+									local dx = math.abs(pk % SIDE - old % SIDE)
+									local dz = math.abs(pk // SIDE - old // SIDE)
+									if dx > 1 or dz > 1 then
+										relCount[p] += 1
+										enters += 1
+									end
+								end
+							end
+						end
 					end
 				end
 			end
@@ -105,8 +187,59 @@ local function run(P: number, E: number, R: number, mode: string): (number, numb
 				px[p] = math.clamp(px[p] + (rand() - 0.5) * 2 * STEP, 0, MAP - 1)
 				pz[p] = math.clamp(pz[p] + (rand() - 0.5) * 2 * STEP, 0, MAP - 1)
 			end
+			local tq = os.clock()
+			moveTime += tq - tm
 			-- relevancy
-			if mode == "brute" then
+			if mode == "cells" then
+				for p = 1, P do
+					local k = keyOf(px[p], pz[p])
+					if k ~= pcell[p] then
+						subscribe(p, pcell[p], -1)
+						pcell[p] = k
+						subscribe(p, k, 1)
+					end
+					totalRelevant += relCount[p]
+				end
+			elseif mode == "gridbuf" then
+				for p = 1, P do
+					local x, z = px[p], pz[p]
+					local b = seenBuf[p]
+					local list = lists[p]
+					local cx = x // CELL + 1
+					local cz = z // CELL + 1
+					local newList: { number } = table.create(#list + 8)
+					local n = 0
+					for oz = -1, 1 do
+						for ox = -1, 1 do
+							local c = cells[(cx + ox) + (cz + oz) * SIDE]
+							if c then
+								for j = 1, #c do
+									local i = c[j]
+									local dx = ex[i] - x
+									local dz = ez[i] - z
+									local d2 = dx * dx + dz * dz
+									local was = buffer.readu32(b, i * 4) == stamp - 1
+									if (was and d2 <= leave2) or d2 <= enter2 then
+										if not was then
+											enters += 1
+										end
+										buffer.writeu32(b, i * 4, stamp)
+										n += 1
+										newList[n] = i
+									end
+								end
+							end
+						end
+					end
+					for j = 1, #list do
+						if buffer.readu32(b, list[j] * 4) ~= stamp then
+							leaves += 1
+						end
+					end
+					lists[p] = newList
+					totalRelevant += n
+				end
+			elseif mode == "brute" then
 				for p = 1, P do
 					local x, z = px[p], pz[p]
 					local count = 0
@@ -162,21 +295,24 @@ local function run(P: number, E: number, R: number, mode: string): (number, numb
 					totalRelevant += n
 				end
 			end
+			queryTime += os.clock() - tq
 		end
-		times[run] = (os.clock() - t0) / TICKS * 1000
+		times[run] = queryTime / TICKS * 1000
+		moveTimes[run] = moveTime / TICKS * 1000
 	end
 	table.sort(times)
-	return times[3], totalRelevant / (5 * TICKS * P)
+	table.sort(moveTimes)
+	return times[3], totalRelevant / (5 * TICKS * P), moveTimes[3]
 end
 
 local radius = tonumber((...)) or 256
 print(`R={radius} studs, map {MAP}x{MAP}, ticks of {TICKS}, median of 5`)
-print("players\tentities\tmode\tms/tick\tavgRelevant")
+print("players\tentities\tmode\tquery ms/tick\tmove+cell ms/tick\tavgRelevant")
 for _, P in { 50, 100, 200 } do
 	for _, E in { 1000, 5000, 10000 } do
-		for _, mode in { "brute", "grid" } do
-			local ms, rel = run(P, E, radius, mode)
-			print(`{P}\t{E}\t{mode}\t{string.format("%.3f", ms)}\t{string.format("%.1f", rel)}`)
+		for _, mode in { "brute", "grid", "gridbuf", "cells" } do
+			local ms, rel, mv = run(P, E, radius, mode)
+			print(`{P}\t{E}\t{mode}\t{string.format("%.3f", ms)}\t{string.format("%.3f", mv)}\t{string.format("%.1f", rel)}`)
 		end
 	end
 end

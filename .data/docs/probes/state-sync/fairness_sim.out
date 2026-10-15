@@ -1,0 +1,20 @@
+Starvation and fairness of per-viewer schedulers under a byte budget (one viewer, newest-value records).
+dirty prob 0.5: demand ~1155 B/tick; update 10 B; 3000 ticks
+
+budget 1270 B/tick (110% of demand)   class: mean / p99 / max age in ticks
+  strict       own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:    0.0 /   0 /   3
+  accum        own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:    0.0 /   0 /   1
+  accum+floor  own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:    0.0 /   0 /   1
+  rr           own:    0.0 /   0 /   1  near:    0.0 /   0 /   1  far:    0.0 /   0 /   1
+
+budget 577 B/tick (50% of demand)   class: mean / p99 / max age in ticks
+  strict       own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:  713.3 /2934 /3000
+  accum        own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:    1.1 /   3 /   4
+  accum+floor  own:    0.0 /   0 /   0  near:    0.0 /   0 /   0  far:    1.1 /   3 /   4
+  rr           own:    0.9 /   3 /   3  near:    0.9 /   3 /   3  far:    0.9 /   3 /   3
+
+budget 231 B/tick (20% of demand)   class: mean / p99 / max age in ticks
+  strict       own:    0.0 /   0 /   0  near:    0.0 /   0 /   1  far: 1290.3 /2964 /3000
+  accum        own:    0.0 /   0 /   0  near:    0.2 /   1 /   1  far:    7.6 /  16 /  19
+  accum+floor  own:    0.0 /   0 /   0  near:    0.2 /   1 /   1  far:    7.6 /  16 /  19
+  rr           own:    3.7 /   9 /  10  near:    3.7 /   9 /  10  far:    3.7 /   9 /  10

@@ -1,0 +1,10 @@
+== native
+ns per record (median of 7 x 200000)
+encode once (quantize + write 8 B): 12.5
+copy shared 8 B chunk (buffer.copy): 24.9
+per-viewer delta vs own baseline:   47.7
+== interpreted
+ns per record (median of 7 x 200000)
+encode once (quantize + write 8 B): 109.0
+copy shared 8 B chunk (buffer.copy): 43.5
+per-viewer delta vs own baseline:   236.6

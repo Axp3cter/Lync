@@ -306,11 +306,14 @@ local function mk(kind: number, key: string, reference: ((number, Payload) -> an
 	}
 end
 
+-- Each run starts from empty state, and the clock keeps rising across runs (a restart at 0 would make the
+-- token bucket refill negatively and the monotonic check take its late-frame branch).
+local clock = 0
 local function runCase(name: string, checks: { Check }?)
-	buffer.fill(state, 0, 0)
 	bench(name, N, function()
+		buffer.fill(state, 0, 0)
 		local ok = 0
-		local now = 0
+		local now = clock
 		for i = 1, N do
 			now += 0.0005
 			local player = i % PLAYERS + 1
@@ -318,6 +321,7 @@ local function runCase(name: string, checks: { Check }?)
 			payload.seq = i -- increasing per player
 			ok += runChecks(checks, player, payload, i, now)
 		end
+		clock = now
 		return ok
 	end)
 end
@@ -352,4 +356,4 @@ bench("clamp vector to sphere (on failure, policy clamp)", N, function()
 end)
 
 print(string.format("state: within 0 B; monotonic 16 B; maxTotal 16-bucket %d B; token bucket 16 B (per player per check)", (B + 2) * 8))
-print(string.format("failures counted: %d", failures))
+print(string.format("failures counted: %d (expected %d: only the failing case fails)", failures, RUNS * N))

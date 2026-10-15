@@ -1,1 +1,10 @@
 == frame_hook, luau -O2, run 1
+## end of one flush (per frame) (3000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+none                                    29.45      27.50      39.99     1.00     1.00     1.00
+nil-checked table field                 28.84      27.06      40.88     0.99     0.83     1.13
+nil-checked upvalue                     29.05      26.07      41.29     1.00     0.89     1.12
+default identity, always called         30.93      27.32      38.36     1.03     0.69     1.33
+for scale: tag a 100 B frame          3944.27    3644.47    4105.67   131.91    98.62   143.05
+sink	24989010319
+== frame_hook, luau -O2, run 2

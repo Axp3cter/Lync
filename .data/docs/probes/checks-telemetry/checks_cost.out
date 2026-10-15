@@ -1,14 +1,3 @@
-## interpreted -O2
-within (distance^2 <= max^2)                    59.9 ns/op  (sink 3)
-monotonic (f64 last, strict >)                  18.6 ns/op  (sink 2)
-maxTotal (16-bucket sliding sum)                82.7 ns/op  (sink 3)
-aim ring write (u16 pitch, u16 yaw)             52.1 ns/op  (sink 5)
-atom copy (45 samples, 180 B, two-part ring copy) /10     9.8 ns/op  (sink 5)
-memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
-## native -O2 --codegen
-within (distance^2 <= max^2)                     7.8 ns/op  (sink 3)
-monotonic (f64 last, strict >)                   3.4 ns/op  (sink 2)
-maxTotal (16-bucket sliding sum)                11.9 ns/op  (sink 3)
-aim ring write (u16 pitch, u16 yaw)              7.5 ns/op  (sink 5)
-atom copy (45 samples, 180 B, two-part ring copy) /10     6.4 ns/op  (sink 5)
-memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+# Luau 0.742 (built from .data/projects/luau, CMake Release), Intel Xeon 2.1 GHz, 4 cores, 2026-10-15
+# best of 7 per line; three process runs per mode
+## run 1 interpreted -O2

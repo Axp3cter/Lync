@@ -23,8 +23,8 @@ the client side: `research/security-tooling.md` §2.
 
 - [x] U1: capture `FireServer` once and call the captured function
 - [x] U2: per-build variation of the tag function beyond its two constants
-- [ ] U7: `debug.info` caller information folded into the tag
-- [ ] Implications
+- [x] U7: `debug.info` caller information folded into the tag
+- [x] Implications
 
 ---
 
@@ -155,13 +155,14 @@ search is 2^64 per session; with a vetted altered set it is unanalysed.
 | 3-4 | 5.03–5.24 µs | 66.5–67.6 µs | 0.70 µs | 9.64 µs | 3,754 B |
 | 4-4 | 6.86–7.43 µs | 83.9–90.7 µs | 0.86 µs | 12.10 µs | 4,362 B |
 
-- Rotation amounts and d cost nothing measurable. Each extra compression round adds about 19 ns per covered byte
+- Rotation amounts and d cost nothing measurable in time (d = 4 adds about 304 B unrolled). Each extra compression round adds about 19 ns per covered byte
   interpreted (26 ns at c = 1, 45 at 2, 64 at 3, 82 at 4) and about 2.7 ns native.
 - The busy model (70 upstream frames/s, v5.md §4.1) at about 64 B per frame: c = 2 costs a client 0.09–0.13 ms/s
   more than c = 1, interpreted, and the server 13–16 µs/s more per player, native. A tag failure costs
   up to 5 PRFs at the variant's price.
-- Unrolling grows each shard by about 300 B per extra round per pass (word loop and tail); a loop with a literal
-  bound keeps the size of 1-3. The milestone code used a loop.
+- Unrolled, each written-out SipRound adds about 304 B of bytecode: an extra compression round writes two (word
+  loop and tail), an extra finalization round one. A loop with a literal bound keeps the size of 1-3; the
+  milestone code used loops.
 - Wire: zero bytes. Developer: none beyond the option; offline decoding already needs the seed.
 - Verification: the generated 2-4 variant reproduces the published HalfSipHash-2-4 32-bit vector
   (`a9 35 9f 5b` for key `00…07` and the empty message, `tagvariants.out`); each pool entry needs its own golden
@@ -193,7 +194,146 @@ v5.md principle 2 an option sets their range:
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `build.tagRounds` | array of two integers `[min, max]` | compression rounds per 4-byte word | 1 ≤ min ≤ max ≤ 4 | `[1, 1]` | each round above 1: about 19 ns per covered byte on the client (interpreted), 2.7 ns native on the server, on every upstream frame and on each of up to 5 retries of a failing one; about 300 B of shard per round if unrolled |
+| `build.tagRounds` | array of two integers `[min, max]` | compression rounds per 4-byte word | 1 ≤ min ≤ max ≤ 4 | `[1, 1]` | each round above 1: about 19 ns per covered byte on the client (interpreted), 2.7 ns native on the server, on every upstream frame and on each of up to 5 retries of a failing one; about 600 B of shard per round if unrolled |
 
 With min < max each build draws c uniformly in the range, so the frame cost varies between builds within it. The
 manifest records the drawn c, d and pool index beside the seed.
+
+---
+
+## U7. Caller information from `debug.info` folded into the tag
+
+**Origin.** The attempt listed "`debug.info` caller attestation folded into the tag" and "closure hygiene" without
+specifying either (`v5-attempt.md` lines 248–250).
+
+**Today.** The caller probe's source check (`v5-integrity.md` §4) walks `debug.info` to the first frame outside
+Lync and looks its source up in the build's list of client scripts that reference the definition. The result
+travels as a count, `sourceUnlisted`, in `REPORT`, and the server reports `reportedSourceUnlisted` with evidence
+`reported` and `probes`, both client-stated, and no definition.
+
+### Three ways to fold it in
+
+**(a) A caller-keyed tag, verified against a server-only list.** The client mixes a hash of each caller's source
+into the tag; the server, holding the lists, checks it. The server doesn't know which listed script sent each
+message, and a frame batches messages from many callers, so it must try every combination: the product of the
+list sizes over the frame's messages (3 messages whose definitions list 4 scripts each: 64 PRFs per frame),
+before decode, since the tag is checked first (v5.md §6.1). The cost is unbounded in the frame's contents. If the
+lists ship to the client so that it can pick, it reduces to (b). Described for completeness; its cost has no
+bound.
+
+**(b) One bit per frame, `u`, in the tag input.** The client sets `u = 1` for a frame when any probed call whose
+message is in that frame failed the source check. `u` is carried in the high bit of the lane byte that the tag
+input already holds (v5.md §4.5: "lane u8 (0 reliable, 1 unreliable)"), so the hashed length doesn't change and
+no byte is sent. The server verifies each count first with `u = 0`, then `u = 1`, then moves to the next count of
+the lookahead. A match with `u = 1` delivers the frame as usual and records one fact for it.
+
+**(c) (b), with the frame split.** As (b), but the client puts the messages of unlisted calls in a frame of their
+own within the flush, so that the bit covers exactly those messages and the fact can name their definitions.
+
+### What (b) and (c) change against `REPORT`
+
+| | `REPORT` count (today) | (b) bit in the tag | (c) bit with split |
+|---|---|---|---|
+| Who states it | the client | the client | the client |
+| Evidence | counts since the previous `REPORT` | per frame: `lane`, the frame's message count, its definition when the frame holds one | per frame, with the definitions of exactly the unlisted calls |
+| Bytes | `REPORT` only when non-zero (one control chunk) | none | none, plus one extra reliable call per flush holding an unlisted call |
+| Editable below the encoder | no while `REPORT` lies inside `tag.cover` (default 16,384, the whole frame); yes for the part of a frame past a smaller cover | no at any `tag.cover`, including 0 | as (b) |
+| Removed by a patched Lync | yes, by zeroing the count | yes, by setting `u = 0` | as (b) |
+
+So the bit adds per-frame evidence and a definition name, and holds at any cover. It adds no resistance to a
+patched Lync: the bit and the count are both what Lync's code chooses to state.
+
+**What it prices.** The same as the source check: API drivers that call Lync from a chunk whose source is not on
+the definition's list, without renaming it (`v5-integrity.md` §4).
+
+**What it does not price.**
+- *Naming or hiding code and stack frames*: a chunk loaded under a listed script's name, or a frame hidden from
+  the walk, reads as listed.
+- *Reading and writing upvalues, stack and GC objects*, and *hooking*: Lync's probe result or the bit can be
+  forced to 0 before the tag is computed.
+- *Requiring client modules and calling Lync's own API* through a listed game function: the first frame outside
+  Lync is that function's script, which is listed.
+- Packet-level tools: they can't change the bit without the key, but they never set it either.
+
+**"Closure hygiene"** (keeping the key and count out of reach of memory readers): no Luau storage is outside
+*reading and writing upvalues, stack and GC objects* (`getgc`, `getupvalues`, `getstack`, `getreg`), so where Lync
+keeps them changes which call finds them, not whether one does.
+
+**Cost** (client interpreted, `cost.out`; server native, `tagvariants.out`).
+- Client: the probe's walk and lookup, 189–196 ns per probed call through one Lync frame (566–589 ns for the walk
+  alone through five), already paid by the source check at `callerProbe.oneIn` = 1; setting the bit is one
+  assignment. The tag input keeps its length.
+- Server: a frame with `u = 1` costs 2 PRFs instead of 1 (about 0.29 µs more native at 64 B, 3.6 µs at 1 KB). A
+  failing frame costs up to 10 PRFs instead of 5 on the reliable lane and 6 instead of 3 on the unreliable.
+- Keyless guessing: each candidate frame now matches under two `u` values, so at the full frame budgets
+  (1320 candidates/s, v5.md §4.5) acceptance doubles, from one per about 38 days to one per about 19.
+- (c) only: one extra `FireServer` per flush that holds an unlisted call (engine per-call cost unmeasured,
+  v5.md §10); the frame header and toc again (a few bytes).
+- Developer: none beyond the source check's clone mapping.
+
+**Failure on an unmodified client (false facts).** Each yields a frame with `u = 1`, delivered as usual. From the
+probes (`info.out`) and the docs:
+- `fire` started with no frame of game code on its thread: passed straight to `coroutine.wrap` (verified: the
+  walk runs off the stack), and by the same mechanism `task.spawn(view.fire, view, v)` or a signal connected
+  directly to `view.fire` (unverified on Roblox).
+- `fire` called through a C function (`pcall`, verified: `[C]` is the first frame). Lync can skip `[C]` frames
+  and walk on, which removes this cause and also skips `newcclosure` frames.
+- `fire` reached through a function value that a library calls, with no game frame between (a `fire` bound to
+  its view and handed to a promise library): the first frame outside Lync is the library's module, which the scan
+  didn't list because its text doesn't name the definition.
+- A script outside the clone mapping (the existing cause, `v5-integrity.md` §10), and a character model that game
+  code renamed, since the mapping of character scripts uses `Players.LocalPlayer.Name`
+  (`security-tooling.md` §2).
+- Whether a script renamed or moved after it loaded keeps its load-time source string: unverified.
+- The Studio command bar (Studio only; its source string is unverified).
+
+The first and third causes can be removed only by game code calling `fire` from its own function. An option that
+leaves the no-outside-frame case unset would also leave the scheduler route unobserved; that choice belongs to the
+option below.
+
+**Options.** (b) replaces the `sourceUnlisted` field of `REPORT` rather than adding a second way to state the same
+count (v5.md principle 4); `callerProbe.oneIn` and `callerProbe.maxPerSecond` keep governing which calls are
+probed. It needs no new option. (c) and the no-outside-frame rule add:
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `callerProbe.splitFrames` | boolean | — | — | false | one extra reliable call per flush that holds a call with an unlisted source; a few bytes of header and toc; the fact then names exactly those definitions |
+| `callerProbe.noOuterFrame` | enum | — | `"unlisted"`, `"ignored"` | `"unlisted"` | none; `"ignored"` removes the scheduler cause and leaves calls with no outside frame unobserved |
+
+Both are client behaviour, so the server sends them in `WELCOME` (2 bits beside `callerProbe.oneIn`). The fact
+keeps the code `reportedSourceUnlisted` with a new trigger: "a frame whose tag matches with `u = 1`"; action
+none (the frame is delivered); evidence `lane`, `messages` (the frame's message count), and the definition when
+the frame holds messages of one definition only; marked client-stated. The identity half of the probe could fold
+in the same way, as a second bit, at the same server cost per set bit.
+
+---
+
+## Implications
+
+1. **Adopt U1 as an implementation detail:** capture `FireServer` per remote found; zero bytes, no option, VM
+   dispatch equal or up to 8 ns cheaper. It prices only `__namecall` spies, and the direct-namecall path in Luau
+   may already change that (U1, "An engine fact").
+2. **Do not count U1 as an integrity measure** in v5.md §6.2's table: it reports nothing and in-place hooks see
+   through it (U1, "What it does not price").
+3. **Draw the rotation amounts and d from the seed, through a vetted pool only,** never straight from the seed:
+   zero run-time cost, but 16 of 40 random sets diffuse a round later than the reference (U2, diffusion).
+4. **Ship the pool with golden vectors, and make the build check its emitted client and server tag functions on
+   them** before writing shards (U2, "Failure").
+5. **Offer `build.tagRounds` with default `[1, 1]`**: about 19 ns per covered byte per extra round on clients, and
+   it prices only reimplementations that a rotation-aware tool already re-reads each release (U2, cost and
+   "What it does not price").
+6. **Record that altered rotations have no published analysis** next to the measure, since the trade is
+   analysed constants for per-build variation (U2, PRF quality).
+7. **If caller information goes into the tag, use (b), the per-frame bit in the lane byte, and remove
+   `sourceUnlisted` from `REPORT`**: zero bytes, holds at any `tag.cover`, adds per-frame and per-definition
+   evidence, and stays client-stated (U7, comparison table).
+8. **Refuse (a), the caller-keyed tag:** its server cost grows with the product of list sizes per frame and
+   has no bound (U7, (a)).
+9. **State the doubled keyless acceptance** (one per about 19 days at full budgets) wherever (b) is adopted, beside
+   the tag-width decision in v5.md §4.5 (U7, cost).
+10. **Skip `[C]` frames in every source walk, and walk by source, never by level**: removes the `pcall` cause and
+    keeps Studio (`-O1`) and live (`-O2`) results equal (U7, false facts; `security-tooling.md` §2).
+11. **List the scheduler, library-callback and renamed-character causes** on the `reportedSourceUnlisted`
+    registry page, with `callerProbe.noOuterFrame` as the developer's choice (U7, false facts and options).
+12. **Never use `getfenv` to reach a caller's instance:** the 3.5–4× slowdown lands on the game's script, not on
+    Lync (`security-tooling.md` §2, `deopt.out`).

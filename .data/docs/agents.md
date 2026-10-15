@@ -29,9 +29,10 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a10c21d6f462379ea` | researcher | state sync: notify model, acks, priority accumulators, budgets, interest management, inputs, time, modern engines | `research/state-sync.md`, `probes/state-sync/` | done; **first choice for replication and scheduling** |
 | `a56677e25c2c92fb5` | critic | broad review of design draft 1: API beauty, typing (probes), hot path, research consistency, gaps | `reviews/v5-design-1.md`, `probes/review-1/` | done (3 blocking, 13 major, 11 minor, 4 taste); reusable for design and typing review |
 | `a00f8d63b9b01f794` | critic | redundancy and inefficiency in design draft 1, with measurements | `reviews/v5-design-1-redundancy.md`, `probes/review-redundancy/` | done (1 blocking, 8 major, 10 minor, 1 taste); reusable for cost and redundancy review |
+| `a3deaff2845a787e5` | architect | design draft 2 from both draft-1 reviews; holds the design, both reviews and the research sections they cite | `design/v5.md` (draft 2), `design/v5-changes.md`, `probes/design-2/` | running |
 
 Paths are relative to `.data/docs/`.
 
 ## Next
 
-- `architect`: design draft 2 from both reviews, once both critics finish.
+- Second critic pass on draft 2 if the change log warrants it, then milestone 1 (wire and codecs) with builders.

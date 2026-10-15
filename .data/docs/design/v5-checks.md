@@ -14,9 +14,10 @@ milestone 2, the lint in milestone 3, and the rest in milestone 7 (`v5.md` §10)
 file adds are listed in §10; pending measurements in §11.
 
 Every part follows `v5.md` §0: Lync reports facts with exact triggers and numeric evidence, and never rewrites a
-value a client sent. A message is dropped only for a rule the developer declared: a `validate` returning `false`, a
-check with `policy = "drop"`, a claim with no verifier (§7.3), as `limit` and traps already do (`v5.md` §6.1).
-Nothing here scores, ranks, delays or throttles a player.
+value a client sent. A message is dropped only for a rule the developer declared: a `validate` returning `false` or
+a check with `policy = "drop"`, as `limit` and traps already do (`v5.md` §6.1). Every bound is the developer's
+option; Lync derives none from a model of the network. Nothing here scores, ranks, delays or throttles a player.
+Code, counter and option names are provisional until the naming pass.
 
 ## 1. Checks: the common frame
 
@@ -25,7 +26,7 @@ Nothing here scores, ranks, delays or throttles a player.
 - **Problem.** A check compares a client value with server truth, so it needs server functions and server-only
   bounds. The shared schema is evaluated on the client, can't hold functions, and is readable by a modified client.
 - **Options:** (a) codec methods in the shared schema (`t.int(0, 1000):maxTotal(5000, 600)`); (b) **calls on the
-  server view**, as `:trap()`, `:refers()` and `:canary()` are (`v5-integrity.md` §3, §8, §9).
+  server view**, as `:trap()` and the field handles' `refers()` and `canary()` are (`v5-integrity.md` §3, §8, §9).
 - **Choice: (b)** `[checks-telemetry C0]`. References are server functions. Bounds stay off the client, since the
   server shard is never replicated (`v5.md` §3.5), so a modified client can't read a tolerance and use exactly all of
   it. Checks change no bytes, so they stay out of the schema hash (`v5.md` §4.7) and a retune needs no client
@@ -33,19 +34,19 @@ Nothing here scores, ranks, delays or throttles a player.
 
 ### 1.2 Shape and scope
 
-`Net.<definition>:<check>(path, options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`,
-`maxRate`.
-- **`path`** names a field of `data`, with dots through records and optionals (`"origin"`, `"hit.origin"`); `""`
-  names `data` itself when it isn't a record. Paths can't enter arrays, maps or union variants. A path that names no
-  field throws `unknownField`; a field whose codec the check doesn't take throws `fieldKind`.
-- **Types.** The generated server shard types `path` as a union of the literal paths each check accepts, and the
-  options per path (§5.4 gives `derive`'s overloads); on the runtime path `path` is a string checked at the call.
-  Whether the old solver picks an overload from a literal argument without an annotation is milestone 3's typing
-  proof (§11).
+`Net.<definition>:field(path):<check>(options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`,
+`maxRate` (`Net.strike:field("origin"):within({ … })`).
+- **`field(path)`** is `v5.md` §3.4's field handle: `path` names a field of `data` through records and optionals
+  (`""` is `data` itself when it isn't a record); arrays, maps and union variants are not reachable; an unknown path
+  throws `unknownField`. A check on a field whose codec it doesn't take throws `fieldKind`. Checks take leaf codecs
+  only, so a check is always on the leaf it verifies (§7.2).
+- **Types.** `field(path)` selects by the literal and returns `Field<D, T>`; each check is one non-overloaded method
+  of it, so options such as `derive`'s `fn` are typed by the field (`v5.md` §3.4, verified on both solvers and
+  tsc).
 - **Scope.** `data` of client-sent events and of client requests' asks. Replies to server `invoke`s are not
   covered: answers have no validator step, and the code that called `invoke` checks its result. A check declared on
-  a server-sent definition or a collection throws `viewPlacement`.
-- **An absent optional.** A check whose path passes through an optional that is absent in a message is not
+  a field of a server-sent definition or a collection throws `viewPlacement`.
+- **An absent optional.** A check whose field passes through an optional that is absent in a message is not
   evaluated for that message and changes no state.
 - **When.** A check may be declared at any time; it applies to messages decoded after the call. There is no call
   that removes one. Its **index** is its 1-based position among the definition's checks in declaration order.
@@ -83,16 +84,15 @@ Nothing here scores, ranks, delays or throttles a player.
 record):
 - **Step 5** is unchanged: control; traps and reachability; answers; `unresolved`; `limit`; the report-only checks
   of milestone 5. Messages over `limit` therefore never touch check state.
-- **Step 6, claims, checks and validator**, per message of a definition, in this order:
-  1. **Claim requirement.** If the definition has an unverified claim leaf (§7.3), the message is dropped (an ask is
-     answered `rejected`), counted in `claimsUnverified` and reported as `claimUnverified`. Nothing below runs.
-  2. **Evaluate** every check of the definition in declaration order, each on the decoded values. Each failure
+- **Step 6, checks and validator**, per message of a definition, in this order (the claim requirement is enforced
+  earlier, when the handler is declared, §7.3):
+  1. **Evaluate** every check of the definition in declaration order, each on the decoded values. Each failure
      records one `constraint` occurrence. A game function a check calls (`within`'s `reference`, `derive`'s `fn`)
      runs under the validator rules (§1.7).
-  3. If any failing check has `"drop"`, the message is dropped (an ask is answered `rejected`); the validator is not
+  2. If any failing check has `"drop"`, the message is dropped (an ask is answered `rejected`); the validator is not
      called and nothing is committed.
-  4. **Validate**, as today: `false`, a throw or a yield drops the message.
-  5. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A failing check with
+  3. **Validate**, as today: `false`, a throw or a yield drops the message.
+  4. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A failing check with
      `"deliver"` commits too, so check state always describes what game code received.
   Messages of one frame are handled in order, each committing before the next is evaluated.
 - **Step 6b, sample** (§8.3), then **step 7, delivery**.

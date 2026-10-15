@@ -31,12 +31,18 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
 
 - **Slots.** A collection has `maxRecords` slots, ws = ⌈log2 maxRecords⌉ bits (0 for a singleton). A slot freed by
   a remove becomes reusable 2 s later. A `set` that finds no free slot throws `recordLimit` at the caller
-  `[review-2 m4]`. Slots are drawn uniformly at random among free slots (server `Random`), which decoys rely on
-  (`v5-integrity.md` §8).
-- **Sizing `maxRecords`.** It must cover live records, records removed in the last 2 s, and the decoy pool
-  (`maxPerViewer`, at most 256). At the default 1024, a 256-slot pool leaves 768; keeping 1024 for real records
-  needs `maxRecords` 1280, one more bit (11) in every slot field of that collection (derived)
-  `[probes security-costs #6]`.
+  `[review-2 m4]`.
+- **One allocator for records and decoys.** Every slot, a real record's or a decoy's (`v5-integrity.md` §8), is
+  drawn uniformly at random among free slots (server `Random`) and held until its remove plus 2 s. Each viewer's
+  decoys hold their own slots. A separate decoy pool marks decoys to the viewer through slot reuse: a viewer's best
+  gap rule sorts them at a balanced accuracy of 0.65–1.00 with the pool, and 0.51 (chance) with one allocator
+  `[refusals-rejudged-4 R16]`. A decoy add that finds no free slot is not made that tick (counter `decoysUnplaced`,
+  §14) and is retried when the behaviour's next result is diffed.
+- **Sizing `maxRecords`.** It must cover live records, records removed in the last 2 s, and up to
+  `Players.MaxPlayers` × `maxPerViewer` decoy slots. A 64-record collection at 100 players and `maxPerViewer` 1
+  needs at least 165 slots plus the reuse delay, 8 bits per slot field instead of 7: about 12 B more per state tick
+  per viewer on the 100-player shooter's 1,190 B of rows, +1% (derived) `[refusals-rejudged-4 R16]`. `recordLimit`'s
+  known causes include decoys holding slots under a `maxRecords` that doesn't cover that product.
 - **Keys** travel once, in the add; everything after addresses the record by slot.
 - **Decision: how a client knows which occupant of a slot a row belongs to.**
   - *Problem.* `:newest()` rows are encoded once per tick (§5) and travel on the unreliable lane, so a row can
@@ -48,10 +54,12 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   - *Options:* per-viewer counts in rows (rows stop being encode-once); **the server-wide generation in every add,
     stored by the client** (2 bits per add, nothing more per row); a full occupant id per row (ws + 16 bits or more on
     every row).
-  - *Choice: the generation travels in the add.* The server counts the records that have occupied each slot, modulo 4
-    (`gen`, server-wide); every add, catch-up adds included, and every row carries it, and the client stores the add's `gen` instead of counting. The fault is a
-    property of the stated rules, not a measurement: milestone 4's two-sided world tests it with a record that
-    leaves and re-enters one viewer's audience while other viewers keep it.
+  - *Choice: the generation travels in the add.* The server counts the records and decoys that have occupied
+    each slot, modulo 4 (`gen`, server-wide); every add, catch-up adds included, and every row carries it, and the
+    client stores the add's `gen` instead of counting. Shared decoy slots need it too: a decoy add advances the
+    count, and a viewer not sent it sees only a gap, as interest produces anyway `[refusals-rejudged-4 R16]`. The
+    fault is a property of the stated rules, not a measurement: milestone 4's two-sided world tests it with a record
+    that leaves and re-enters one viewer's audience while other viewers keep it.
 - **Row acceptance on the client.** Per slot the client keeps: whether it is occupied, the stored `gen` g and add
   tick A (the tick of the reliable frame that carried the add, `v5.md` §4.1), the extended seq s of the last applied
   row, and at most one held row. A row (gen r, frame seq q, frame tick T):
@@ -323,8 +331,14 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
 - **Consequence.** "Beyond max draw distance" placements `[anticheat-design §2.1]` don't exist inside an interest
   collection: placements must lie within R where the game's rendering ignores them (behind the viewer, inside
   geometry, beyond the game's own render distance when shorter than R) `[interest-rewind §6.1]`.
-- **Encoding.** A viewer with decoys gets its own re-encode of each changed cell chunk that holds one of its decoys,
-  with the decoys' rows mixed in, and keeps shared copies for its other cells.
+- **Encoding** (with or without interest). A viewer's copy of a changed shared chunk (partition or cell) is
+  re-encoded, with its decoys' rows mixed in, only in a flush where its decoys have adds or updates in that chunk;
+  otherwise it gets the shared chunk, and stays in `FireAllClients` for that flush if nothing else is per viewer.
+  The re-encode runs the full k search, so it is the minimal encoding of its rows, as every shared chunk is
+  (`v5.md` §4.3); reusing the shared chunk's k leaves non-minimal encodings (+4 B at 16 decoys, +152 B at 256), a
+  mark, and is not used. A decoy's remove goes in the viewer's own remove chunk. Cost: 19.3 µs native per re-encode
+  at one decoy; a behaviour that moves only `:newest()` fields and replaces its decoy every 5 s pays 3.9 µs/s per
+  viewer `[refusals-rejudged-4 R16]` `[probes security-costs #6]`.
 - **Cost:** one cell test and one PVS bit test per decoy per state tick, and the predicate's call when declared.
 
 ## 9. Visibility classes
@@ -643,15 +657,15 @@ end)
 ### 12.6 Decoys under rewind
 
 When a collection has both decoys and `rewind` `[decoy-challenge-facts §1]`:
-- each live decoy's declared fields go into a ring per (viewer, pool slot) each state tick: the same slot layout
-  and K, holding the values that viewer was sent;
+- each live decoy's declared fields go into a ring of its own each state tick: the same slot layout and K, holding
+  the values its viewer was sent;
 - `rewound(seen, key)` for a decoy of `seen`'s player returns its values from that ring, with the result shape of a
   real record; `"received"` mode works unchanged, since decoy rows are rows of that viewer's state frames. A tick
   outside the decoy's life (its history in `v5-integrity.md` §8, kept max(2 s, `maxRewind` + 0.25 s) after its
   remove) gives `"notHeld"`; another viewer's decoy gives `"unknownKey"`, as a never-live key does, since that player
   was never sent it; `at(tick, key)` gives `"unknownKey"` for every decoy: a decoy has no truth, only what one viewer
   was shown;
-- `held(seen)` includes the viewer's decoys alive in the window; pool slots are random among free slots (§2), so
+- `held(seen)` includes the viewer's decoys alive in the window; decoy slots come from the one allocator (§2), so
   decoys fall among real records in slot order;
 - no decoy flag on results and no fact from `rewound`: the game's hit test runs as for any record, and a hit it
   finds is stated through `reportInteraction` (`v5-integrity.md` §8).
@@ -796,9 +810,10 @@ classes and scoping are the server's own behaviour, and rewind can't know a mess
 | `narrowedPairs` | each pair the cells admitted and `pvs` or `predicate` removed | what narrowing removes; 0 with a `pvs` set means the table admits everything |
 | `predicateErrors` | each predicate throw or yield | broken predicates |
 | `scopedDropped` (`.<namespace>.<definition>`) | each (message, viewer) a scoped event skipped (§10) | which events scoping filters |
+| `decoysUnplaced` | each decoy add not made because no slot was free (§2) | `maxRecords` below live + 2 s of removes + `MaxPlayers` × `maxPerViewer` |
 
 Cost: one add per viewer per state tick and one per membership change, 0.1 ns per pair native and 0.2 interpreted
-amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies five more numbers per collection.
+amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six more numbers per collection.
 
 **Constants** (`v5.md` §4.9's rule: none is a knob):
 

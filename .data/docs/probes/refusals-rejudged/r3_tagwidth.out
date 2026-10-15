@@ -1,0 +1,35 @@
+== r3_tagwidth, luau 0.742 -O2 (deterministic; one run)
+width budgets (R, U frames/s)    v         cand/s   per acceptance P(>=1 in 24 h)
+16    120, 240 (defaults)        1           1320           49.6 s              1
+16    120, 240 (defaults)        2           2640           24.8 s              1
+16    120, 240 (defaults)        4           5280           12.4 s              1
+16    1000, 1000 (range maxima)  1           8000            8.2 s              1
+16    1000, 1000 (range maxima)  2          16000            4.1 s              1
+16    1000, 1000 (range maxima)  4          32000            2.0 s              1
+32    120, 240 (defaults)        1           1320        37.7 days         0.0262
+32    120, 240 (defaults)        2           2640        18.8 days         0.0517
+32    120, 240 (defaults)        4           5280         9.4 days          0.101
+32    1000, 1000 (range maxima)  1           8000         6.2 days          0.149
+32    1000, 1000 (range maxima)  2          16000         3.1 days          0.275
+32    1000, 1000 (range maxima)  4          32000           37.3 h          0.475
+64    120, 240 (defaults)        1           1320   4.43e+08 years       6.18e-12
+64    120, 240 (defaults)        2           2640   2.21e+08 years       1.24e-11
+64    120, 240 (defaults)        4           5280   1.11e+08 years       2.47e-11
+64    1000, 1000 (range maxima)  1           8000   7.31e+07 years       3.75e-11
+64    1000, 1000 (range maxima)  2          16000   3.65e+07 years       7.49e-11
+64    1000, 1000 (range maxima)  4          32000   1.83e+07 years        1.5e-10
+-- failing tag checks per acceptance (32 bits, defaults, v = 1): frames per acceptance = 2^32 / (1320 / 360)
+   1.17e+09 tagMismatch occurrences per accepted frame
+-- M13 chance tagVariant at the default frame budgets (120 R + 240 U failing frames/s)
+   width 32, N =   2: one per 37.7 days
+   width 32, N =  16: one per 2.5 days
+   width 32, N =  64: one per 14.3 h
+   width 32, N = 256: one per 3.5 h
+   width 64, N =   2: one per 4.43e+08 years
+   width 64, N =  16: one per 2.95e+07 years
+   width 64, N =  64: one per 7.03e+06 years
+   width 64, N = 256: one per 1.74e+06 years
+-- upstream framing, busy model (70 frames/s; 374 B/s at 16 bits, v5.md §4.1)
+   width 16: 374 B/s
+   width 32: 514 B/s
+   width 64: 794 B/s

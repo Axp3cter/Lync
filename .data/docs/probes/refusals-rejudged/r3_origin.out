@@ -1,0 +1,60 @@
+== r3_origin, luau 0.742 -O2, run 1
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      5.04       4.52       5.70     1.00     1.00     1.00
+call through a field, no check          18.96      17.84      20.08     3.76     3.41     4.19
+debug.info(2, 'f') == nil               50.71      48.23      58.94    10.03     9.06    11.69
+== r3_origin, luau 0.742 -O2, run 2
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      5.13       4.74       6.91     1.00     1.00     1.00
+call through a field, no check          19.06      17.48      28.99     3.75     3.22     4.62
+debug.info(2, 'f') == nil               57.26      46.97      82.56    10.65     8.52    13.60
+== r3_origin, luau 0.742 -O2, run 3
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      4.88       4.30       7.51     1.00     1.00     1.00
+call through a field, no check          17.82      16.94      31.84     3.65     3.50     6.74
+debug.info(2, 'f') == nil               47.83      44.99      84.80     9.74     6.60    17.94
+== r3_origin, luau 0.742 -O2 --codegen, run 1
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      2.65       2.45       2.79     1.00     1.00     1.00
+call through a field, no check          14.99      13.97      20.00     5.81     5.17     7.97
+debug.info(2, 'f') == nil               36.93      33.60      41.50    13.94    12.93    15.78
+== r3_origin, luau 0.742 -O2 --codegen, run 2
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      2.75       2.59       3.24     1.00     1.00     1.00
+call through a field, no check          15.31      14.01      16.90     5.47     4.68     5.77
+debug.info(2, 'f') == nil               39.60      36.50      44.05    14.38    11.25    16.17
+== r3_origin, luau 0.742 -O2 --codegen, run 3
+fresh coroutine, listener first    debug.info(2,'s') = nil; debug.info(2,'f') is nil
+coroutine.wrap, listener first     debug.info(2,'s') = nil; debug.info(2,'f') is nil
+C caller (pcall) in a coroutine    debug.info(2,'s') = [C]; debug.info(2,'f') is function
+Lua caller                         debug.info(2,'s') = ./r3_origin.luau; debug.info(2,'f') is function
+## origin check per frame (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+no check (baseline)                      2.71       2.45       3.12     1.00     1.00     1.00
+call through a field, no check          15.39      13.94      16.04     5.71     5.02     5.83
+debug.info(2, 'f') == nil               36.51      33.90      40.22    13.41    12.53    14.65

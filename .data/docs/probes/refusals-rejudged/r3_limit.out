@@ -1,0 +1,42 @@
+== r3_limit, luau 0.742 -O2 (deterministic; one run)
+== honest client, true stated times; dropped messages per rule (A design, B send time, C count time)
+limit / fire rate / stall      sent      A      B      C       
+p=10  b=20  fire=10  d=0.00    200      0      0    147
+p=10  b=20  fire=10  d=0.30    200      0      0    147
+p=10  b=20  fire=10  d=0.85    200      0      0    147
+p=10  b=20  fire=10  d=1.50    200      0      0    147
+p=10  b=20  fire=10  d=1.90    200      0      0    147
+p=10  b=20  fire=10  d=2.00    200      0      0    147
+p=10  b=20  fire=10  d=2.50    200      0      0    147
+p=10  b=20  fire=10  d=4.00    200      1      2    147
+p=10  b=20  fire=5   d=0.00    100      0      0     64
+p=10  b=20  fire=5   d=0.30    100      0      0     64
+p=10  b=20  fire=5   d=0.85    100      0      0     64
+p=10  b=20  fire=5   d=1.50    100      0      0     64
+p=10  b=20  fire=5   d=1.90    100      0      0     64
+p=10  b=20  fire=5   d=2.00    100      0      0     64
+p=10  b=20  fire=5   d=2.50    100      0      0     64
+p=10  b=20  fire=5   d=4.00    100      0      0     64
+p=1   b=2   fire=1   d=0.00     20      0      0     18
+p=1   b=2   fire=1   d=0.30     20      0      0     18
+p=1   b=2   fire=1   d=0.85     20      0      0     18
+p=1   b=2   fire=1   d=1.50     20      0      0     18
+p=1   b=2   fire=1   d=1.90     20      0      0     18
+p=1   b=2   fire=1   d=2.00     20      0      0     18
+p=1   b=2   fire=1   d=2.50     20      0      0     18
+p=1   b=2   fire=1   d=4.00     20      1      2     18
+p=60  b=60  fire=60  d=0.00   1200      0      0      0
+p=60  b=60  fire=60  d=0.30   1200      0      0      0
+p=60  b=60  fire=60  d=0.85   1200      0      0      0
+p=60  b=60  fire=60  d=1.50   1200      0      0      0
+p=60  b=60  fire=60  d=1.90   1200      0      0      0
+p=60  b=60  fire=60  d=2.00   1200      0      0      0
+p=60  b=60  fire=60  d=2.50   1200      0      0      0
+p=60  b=60  fire=60  d=4.00   1200     60     64      0
+== modified client; accepted messages (A design, B best of four stated-time strategies, C count time)
+arrival pattern (p = 10, b = 20)                  sent       A       B       C
+1000 at one instant after 10 s idle               1000      40      39     186   bound b + p(W + span) = 40
+100/s for 10 s (10 x limit)                       1000     139     139     186   bound b + p(W + span) = 140
+120 frames/s for 10 s, 1 message each             1200     139     139     219   bound b + p(W + span) = 140
+100 every 3 s, 10 times (hold and release)        1000     310     226     186   bound b + p(W + span) = 310
+60/s for 10 s, one frame each (6 x limit)          600     139     139     119   bound b + p(W + span) = 140

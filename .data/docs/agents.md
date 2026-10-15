@@ -42,4 +42,4 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 
 ## Next
 
-- Milestone 1 fixes: A and B now, C after them (`m1-plan.md` §7). Milestone 2: E running; D after C; then F.
+- Milestone 1 fixes: A (direction encoder), B and C running (`m1-plan.md` §7). Milestone 2: E done; D after the fixes; then F.

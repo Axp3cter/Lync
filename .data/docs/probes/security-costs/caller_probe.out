@@ -1,1 +1,17 @@
 == caller_probe, luau -O2, run 1
+## one probe (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+pcall ok                                28.17      24.73      43.06     1.00     1.00     1.00
+failing pcall, error(s) level 1       2813.74    2458.76    3117.75   101.13    62.41   113.16
+failing pcall, error(s, 0)            2383.01    2139.56    2747.25    84.54    55.64    96.10
+failing pcall, error(table)           2523.08    2040.87    2994.64    88.59    51.96   103.80
+failing pcall, C arg error            3898.48    3639.64    4691.69   143.08    84.53   169.23
+debug.info(2,'s') + cache               68.15      57.79      94.50     2.35     1.56     3.45
+random draw per fire                    33.89      28.26      50.68     1.21     0.81     1.76
+## per second at 60 probes (identity + source) and 60 draws
+failing pcall, error(s) level 1    174.9 us/s (0.175 ms/s)
+failing pcall, error(s, 0)         149.1 us/s (0.149 ms/s)
+failing pcall, error(table)        157.5 us/s (0.158 ms/s)
+failing pcall, C arg error         240.0 us/s (0.240 ms/s)
+sink	15750000
+== caller_probe, luau -O2, run 2

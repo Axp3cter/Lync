@@ -16,7 +16,7 @@ for path in sys.argv[1:]:
         if m:
             title = m.group(1)
             continue
-        m = re.match(r"(.{34}) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+)$", line.rstrip("\n"))
+        m = re.match(r"(.{34,40}?) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+) +([\d.]+)$", line.rstrip("\n"))
         if m and mode and title:
             data.setdefault((mode, title), OrderedDict()).setdefault(m.group(1).strip(), []).append((float(m.group(2)), float(m.group(5))))
     print(f"# {path}")

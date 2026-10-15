@@ -41,7 +41,7 @@ machines and accounts). Routes A0–A8 are `client-security.md` §1.4's.
 
 - [x] 0. Findings that cut across methods
 - [x] M1. Per-build field order (in the design), with a private rotation seed
-- [ ] M2. Per-build tag constants (in the design)
+- [x] M2. Per-build tag constants (in the design)
 - [ ] M3. Per-build code offsets
 - [ ] M4. Id permutation mixed with a per-build value
 - [ ] M5. Per-build column-mode choice
@@ -167,3 +167,55 @@ have to reach clients in `WELCOME`, so it would be public by construction and pr
 **Changed from the draft.** Its timing pair (285/280 ns) was re-run (282/297, noise either way); an opcode-level
 check was added; the public-seed finding and the private seed are new; the draft did not note that one-field
 records and unions gain nothing.
+
+---
+
+## M2. Per-build tag constants
+
+**Status.** In the design (`v5-integrity.md` §2). Re-checked; kept, with what it prices narrowed.
+
+**What the build emits.** Grain: per build. The client and server shards' HalfSipHash-1-3 initialisation uses two
+constants drawn from the build's rotation seed (M1) in place of the reference ones (`opcodes_gen.py`):
+
+```luau
+-- seed 0 (reference)                                   -- nonzero seed
+local v0, v1 = k0, k1                                   local v0, v1 = k0, k1
+local v2, v3 = bxor(k0, 0x6c796765), bxor(k1, 0x74656462)   local v2, v3 = bxor(k0, 0x9f3a21c4), bxor(k1, 0x0b77e1d3)
+```
+
+Both land in the tag function's constant table and are used through `FASTCALL2K` (`opcodes.out`:
+`FASTCALL2K 32 R2 K0 L0 [2671387076]`), exactly as `generation-security.md` §3.2 found for large literals.
+
+**Changes / fixed.** Changes the 32-bit tag of every upstream frame at a nonzero seed. Fixed: the tag width, its
+input (count, lane, length, instance count, the first `tag.cover` bytes), the key, the count rules, the 4-count
+lookahead and the replay window. G4, G5 and G8 are seed-0 vectors and are unchanged; the runtime path uses the
+reference constants.
+
+**Further constants (U2), re-checked.** Replacing v0's and v1's zero initialisation too gives four constants, but
+v0 = k0 ⊕ c0 is the reference structure under the key k0 ⊕ c0 with v2's constant c0 ⊕ c2 (derived from the
+initialisation equations), so four constants are two constants plus a whitening of a key that is already random
+per session: one more constant to read in the same pass, nothing more. Rotation amounts are the other U2 lever; the
+PRF's analysis depends on them, and no analysis of altered amounts was found (unverified), so they stay fixed. Any
+two nonzero constants keep v0 ≠ v2 and v1 ≠ v3; xorshift32 never outputs 0 from a nonzero state, so drawn
+constants are nonzero. Whether arbitrary constants preserve HalfSipHash's security margin is unverified; the
+reference constants are asymmetry breakers with no stated structure.
+
+**What it prices.** A tag reimplementation written against an earlier build, in a tool that does not call Lync's
+own tag function: it must read two constants per build (**code**: `getconstants` on the tag function returns them
+directly once the function is found). With the public seed of today they are computable from `HELLO` (§0.1).
+It does not price an extractor (**mem**): one that holds the key can call the shard's own tag function. It does not
+price **api** (`fire` tags for the caller), **hook** or **packet** edits outside `tag.cover` (none at the default
+cover of 16,384 B).
+
+**Cost.** Zero. A full HalfSipHash-1-3 with each constant set compiles to 445 instructions with an identical
+opcode sequence and 2037 B of bytecode (`opcodes.out`). Zero bytes. Build: two xorshift32 draws.
+
+**Composition.** One more value from M1's rotation seed. M7 makes the constants per player (next unit: binding a
+frame to the variant it verifies under). Reopens U2 in part: four constants add nothing over two; rotation amounts
+stay out on PRF quality.
+
+No option: the constants follow `build.seed`.
+
+**Changed from the draft.** The opcode identity is now verified on a full tag function rather than cited; the draft
+did not say that an extractor calls Lync's own tag function, so M2 prices reimplementations only; U2's four-constant
+form is shown equivalent to two.

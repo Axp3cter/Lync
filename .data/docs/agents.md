@@ -19,7 +19,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 
 | Id | Role | Task and context held | Output | Status |
 |---|---|---|---|---|
-| `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | running |
+| `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | first pass done (57 items: R1–R38 refused, D1–D4 deferred, U1–U15 undecided; no fallback); finishing the full read |
 | `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/` | running |
 | `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | running |
 | `a7526dc18c6060de5` | architect | started on codecs in game scripts; stopped, since the architect integrates rather than designs | none | stopped; do not reuse |

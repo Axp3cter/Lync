@@ -64,4 +64,3 @@ Rate limits are per minute unless stated otherwise.
 | `ScriptContext.Error(message, stackTrace, script)` | capability `Logging`, security None | does not fire for watchdog timeouts | the native-report channel | — | documented (ScriptContext.yaml) |
 | `ScriptContext:EnableCoverage(instance)`, `GetCoverageStats(): Array` | capability `PluginOrOpenCloud`, not game scripts | coverage must be enabled first; `GetHits()` returns per-line and per-function hit counts | dynamic reachability (§3, §4) | per run | verified (dump); documented |
 | `Stats.DataSendKbps/DataReceiveKbps/HeartbeatTime/…`, `GetTotalMemoryUsageMb()` | security None, ReadSafe | per process, not per player | inspector views only, not a per-player fact | read | verified (dump) |
-| `RunService.PostSimulation/PreSimulation/Heartbeat`; `IsServer/IsClient/IsStudio` (Safe); `IsEdit` (P

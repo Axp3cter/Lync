@@ -1,0 +1,29 @@
+== interpreted (luau 0.742 -O2)
+(a) canary, 12 random characters (today)                     452.3 ns
+(b) per-viewer canary suffix, 1 x HalfSipHash-1-3 + 4 chars  1008.4 ns
+(b2) recover the viewer from an echoed suffix               1093.4 ns
+(c) per-viewer add copy, 32 B piece + 12 B canary             79.3 ns
+(d1) decoy record by clone-and-offset of a real record       137.7 ns
+(d2) decoy record drawn uniformly per field                  241.8 ns
+(e) up-space id bits with T generated traps: D -> bits for T = 0, 1, 2, 4, 8
+    D =   7: 3 3 4 4 4
+    D =   8: 3 4 4 4 4
+    D =  20: 5 5 5 5 5
+    D =  32: 5 6 6 6 6
+    D =  50: 6 6 6 6 6
+    D = 200: 8 8 8 8 8
+== native (--codegen)
+(a) canary, 12 random characters (today)                     415.3 ns
+(b) per-viewer canary suffix, 1 x HalfSipHash-1-3 + 4 chars   219.6 ns
+(b2) recover the viewer from an echoed suffix                312.4 ns
+(c) per-viewer add copy, 32 B piece + 12 B canary             67.2 ns
+(d1) decoy record by clone-and-offset of a real record        80.7 ns
+(d2) decoy record drawn uniformly per field                  199.2 ns
+(e) up-space id bits with T generated traps: D -> bits for T = 0, 1, 2, 4, 8
+    D =   7: 3 3 4 4 4
+    D =   8: 3 4 4 4 4
+    D =  20: 5 5 5 5 5
+    D =  32: 5 6 6 6 6
+    D =  50: 6 6 6 6 6
+    D = 200: 8 8 8 8 8
+trap encoder bytecode: see bytecode2.out (enc_plain marginal per definition)

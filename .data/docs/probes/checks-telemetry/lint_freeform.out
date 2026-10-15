@@ -1,0 +1,13 @@
+-- arena (v5.md §3.4), unannotated
+warning[freeFormField]: arena.chat data is client-sent and free-form (free text or bytes); mark it :input() or :claim()
+warning[freeFormField]: arena.strike data.target is client-sent and free-form (integer with 1099511627776 values); mark it :input() or :claim()
+-- arena, annotated
+-- outcome-shaped fields, and what the rule cannot see
+warning[freeFormField]: demo.collect data.coins is client-sent and free-form (integer with 1000001 values); mark it :input() or :claim()
+warning[freeFormField]: demo.confirm reply.note is client-sent and free-form (free text or bytes); mark it :input() or :claim()
+warning[freeFormField]: demo.hit data.damage is client-sent and free-form (unbounded float); mark it :input() or :claim()
+warning[freeFormField]: demo.hit data.origin is client-sent and free-form (quantized number with 131073 codes per component); mark it :input() or :claim()
+warning[freeFormField]: demo.hit data.part is client-sent and free-form (instance reference); mark it :input() or :claim()
+warning[freeFormField]: demo.settings data.name is client-sent and free-form (free text or bytes); mark it :input() or :claim()
+warning[freeFormField]: demo.settings data.volume is client-sent and free-form (quantized number with 100001 codes per component); mark it :input() or :claim()
+9 warnings

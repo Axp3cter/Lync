@@ -30,7 +30,7 @@ first case, the baseline in the same run. `run.sh` runs each probe 3 times inter
 - [x] 9. Clock beacon: one 66-slope fit per 5 s per player (`clock_fit.luau`)
 - [x] 10. Canary scan up to 256 B: per-offset lookup cost (`canary_scan.luau`)
 - [x] 11. Other figures used to refuse or narrow a measure (`tag_cover.luau`, `per_viewer.luau`, `enum_rotation.luau`, `getfenv_deopt.luau`)
-- [ ] 12. R39: an unused per-frame transform hook slot vs none (`frame_hook.luau`)
+- [x] 12. R39: an unused per-frame transform hook slot vs none (`frame_hook.luau`)
 
 ## Results
 
@@ -341,3 +341,43 @@ Found while reading; each with its source, probe and result. (a)–(c) are repor
 | h | per-session permutation build "≈ 50 ns per definition (estimate)" (`client-security.md` §3.4) | per-session id shuffle (R3) | `id_shuffle.luau` | Fisher–Yates + inverse for 200 ids: 26 ns/id native, 124 ns/id interpreted; affine map 0.49 µs per player | estimate within 2.5x; irrelevant at join |
 | i | downstream tags at "100 players × 60 Hz" with the draft-1 5.5 µs/1024 B hash (`v5-changes.md:102`) | downstream tags (R1) | `downstream_tag.luau` | busy model is 80 frames/s; build hash 3.1–3.7 µs, this probe 2.5–4.2 µs native per 1024 B; at 80/s and 1 KB: 2.0–3.4% native, 24–34% interpreted | see claim 3 |
 | j | three per-byte tag figures: 13–23 ns (estimate), 35 ns (draft-1 probe), 22 ns (build) interpreted (`client-security.md` §3.1, `v5-design-1-redundancy.md`, `v5.md` §4.5) | `tag.cover` default and masking's "tag rate" | `tag_cover.luau` | this probe: 37.5–38.7 ns/B (loop), 27.9–33.4 (unrolled, nested); draft-1 probe re-run: 38–40 ns/B on 0.740 and 0.742; native 3.8–3.9 and 2.2 ns/B | 13–23 not reproduced; 35 reproduced; 22 not reproduced by these implementations (claim 8) |
+
+### 12. R39: an unused per-frame transform hook slot against none — **no measurable cost (within ±2%, under 0.5 ns per frame)**
+
+Source: `research/security-refusals.md` R39 (`research/landscape.md` implication 14 asks that an unused hook cost
+nothing; no cost is recorded anywhere). Probe: `frame_hook.luau`, output `frame_hook.out`. The end of a flush
+(write a length, hand the frame to the transport), per frame, medians of 3 runs:
+
+| Per frame | interpreted | ratio | native | ratio |
+|---|---|---|---|---|
+| no hook (what a build emits when none is declared; baseline) | 29.2 ns | 1.00 | 11.6 ns | 1.00 |
+| nil-checked table field `config.transform` | 28.8 ns | 1.02 | 11.5 ns | 1.02 |
+| nil-checked local upvalue | 29.4 ns | 1.00 | 11.6 ns | 1.00 |
+| slot bound at start to an identity function, always called | 28.7 ns | 1.01 | 11.5 ns | 0.99 |
+| for scale: tagging the same 100 B frame | 3.97 µs | 132 | 436 ns | 38 |
+
+- Every form is inside run-to-run noise; against the tag on the same frame the slot is under 0.1% of the
+  per-frame work. A generated shard can also omit it entirely when no transform is declared.
+
+## Summary
+
+| # | Claim | Verdict |
+|---|---|---|
+| 1 | runtime field shuffling 2–3x per record write | false: 2–3x is table-driven vs generated; shuffle itself 0–14% on the generated path |
+| 2 | masking +62–272% bytes; CPU at the tag's rate | bytes false for v5 frames (0%; only large compressible tails pay); CPU true at best (0.2–0.8x with a generated keystream, 3–7x in PRF counter mode) |
+| 3 | downstream tag per recipient ≤ 3% of a core; ends `FireAllClients` | true native for frames ≤ 1 KB; false interpreted (8–34%) and at 4 KB; once-per-frame scheme 0.06–0.19%; `FireAllClients` inconclusive |
+| 4 | per-session id shuffle ~20,000-slot table | true count; 22–319 KB or none (XOR/affine), +0.3–2.8 ns native per message |
+| 5 | watermarks: per-viewer encoding | true in kind; −12% to +7% native, +84% interpreted over the existing per-viewer copy |
+| 6 | decoys: per-viewer re-encode, pool slots | true; ≈1.2x a chunk encode per decoy viewer per flush at d = 1, 15x at 256; halved by reusing k |
+| 7 | caller probe ≤ 0.2 ms/s at 60/s | inconclusive (0.15–0.19 ms/s with Lua errors, 0.24–0.25 with C-raised errors on the CLI) |
+| 8 | `tag.cover` ≤ 0.23 ms/s; 0.022 / 0.0035 µs/B | false as a bound (omits per-frame cost; over-budget reliable frames are still hashed); native 0.0022 µs/B with a generated unrolled tag; interpreted 0.028–0.033 here |
+| 9 | clock beacon fit | true; ≤ 6 µs per fit, ≤ 0.012% of a core at 100 players |
+| 10 | canary scan per-offset cost | true; 54–64 ns per offset as specified, 5 ns native with a prefix bitset |
+| 11 | other figures | a: magnitude true, reason false; b, c, f: true; d, g: false; e: true, small; h: within 2.5x; i, j: see 3, 8 |
+| 12 | R39 unused hook slot | no measurable cost |
+
+**Not settled here (needs Roblox):** the engine's per-call and `FireAllClients` costs; the capability-error cost
+of the identity probe; zstd level, threshold and fallback of the engine (the masking table brackets level 1 and 3,
+with and without fallback); device speed factors; whether a server runs Lync's modules native. Probes are not
+type-check clean under the new solver (`string.unpack` returns and the generated pool's union type); they are
+runtime probes and every result-bearing computation is checked by an assertion in the probe.

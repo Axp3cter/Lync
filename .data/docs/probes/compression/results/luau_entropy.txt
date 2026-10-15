@@ -1,0 +1,14 @@
+# luau 0.740 -O2 (interpreted)
+N=2048 symbols, H0 = 1039 bytes, Huffman 1086 bytes (max len 12), rANS 1064 bytes
+  raw copy (readu8 + writeu8) baseline        17.7 ns/symbol
+  static Huffman decode (LUT)                 48.9 ns/symbol
+  static Huffman encode                       43.9 ns/symbol
+  static rANS decode                          65.6 ns/symbol
+  static rANS encode                          67.7 ns/symbol
+# luau 0.740 -O2 --codegen (native)
+N=2048 symbols, H0 = 1039 bytes, Huffman 1086 bytes (max len 12), rANS 1064 bytes
+  raw copy (readu8 + writeu8) baseline         3.5 ns/symbol
+  static Huffman decode (LUT)                 10.9 ns/symbol
+  static Huffman encode                        9.9 ns/symbol
+  static rANS decode                          18.1 ns/symbol
+  static rANS encode                          16.6 ns/symbol

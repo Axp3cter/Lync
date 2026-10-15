@@ -116,6 +116,8 @@ class Shooter:
 
     def __init__(self, hz=60, players=30, seed=1):
         self.rng = random.Random(seed)
+        if players > 32:
+            self.id_bits = 7
         self.dt = 1 / hz
         self.hz = hz
         r = self.rng
@@ -175,15 +177,15 @@ class Shooter:
                 p["hp"] = 100
             # shots: 10 rounds/s while firing
             if p["firing"] and r.random() < 10 * dt:
-                tgt = r.randrange(len(self.p)) if r.random() < 0.3 else 31
-                ev = [(i, 5), (q(p["x"], -1024, 1 / 32, 16), 16), (q(p["y"] + 4.5, -512, 1 / 32, 16), 16),
+                tgt = r.randrange(min(31, len(self.p))) if r.random() < 0.3 else 31
+                ev = [(i % 128, 7 if len(self.p) > 32 else 5), (q(p["x"], -1024, 1 / 32, 16), 16), (q(p["y"] + 4.5, -512, 1 / 32, 16), 16),
                       (q(p["z"], -1024, 1 / 32, 16), 16),
                       (qa(p["yaw"], 12), 12), (q(p["pitch"], -math.pi / 2, math.pi / 255, 8), 8),
                       (tgt, 5), (p["weapon"], 4)]
                 f.events.append(("shot", ev))
                 if tgt != 31 and r.random() < 0.08:
-                    f.events.append(("kill", [(i, 5), (tgt, 5), (p["weapon"], 4)]))
-                    f.strings.append(("killfeed", NAMES[i] + " eliminated " + NAMES[tgt]))
+                    f.events.append(("kill", [(i % 128, 7), (tgt, 5), (p["weapon"], 4)]))
+                    f.strings.append(("killfeed", NAMES[i % len(NAMES)] + " eliminated " + NAMES[tgt % len(NAMES)]))
             if i == self.me:
                 continue
             f.rows[i] = (q(p["x"], -1024, 1 / 32, 16), q(p["y"], -512, 1 / 32, 16), q(p["z"], -1024, 1 / 32, 16),

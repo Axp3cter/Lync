@@ -3,7 +3,7 @@
 Everything here is a reference implementation in plain Python. It is not
 meant to be fast; it is meant to produce exactly the bytes a Luau codec would.
 
-Run any probe with:  PYTHONPATH=<dir with zstandard> python3 -I <probe>.py
+Run any probe from this directory with:  PYTHONPATH=<dir with zstandard> python3 <probe>.py
 """
 import math
 import struct

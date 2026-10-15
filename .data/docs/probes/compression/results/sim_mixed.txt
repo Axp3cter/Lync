@@ -1,0 +1,3 @@
+tycoon   frames with strings  587: state  204.6 B + strings   35.3 B raw | one buffer  239.3 | two buffers  241.6 | per-frame best  239.2
+shooter  frames with strings  200: state  184.2 B + strings   35.4 B raw | one buffer  219.5 | two buffers  221.5 | per-frame best  219.5
+mmo      frames with strings  152: state  106.8 B + strings    9.2 B raw | one buffer  116.0 | two buffers  118.0 | per-frame best  116.0

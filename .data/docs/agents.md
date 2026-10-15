@@ -19,7 +19,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 
 | Id | Role | Task and context held | Output | Status |
 |---|---|---|---|---|
-| `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | first pass done (57 items: R1–R38 refused, D1–D4 deferred, U1–U15 undecided; no fallback); finishing the full read |
+| `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | done (59 items: R1–R40 refused, D1–D4 deferred, U1–U15 undecided; full read; no fallback); free for follow-ups |
 | `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/` | running |
 | `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | running |
 | `a7526dc18c6060de5` | architect | started on codecs in game scripts; stopped, since the architect integrates rather than designs | none | stopped; do not reuse |
@@ -46,7 +46,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
     `debug.info` caller attestation in the tag: cost and what each survives.
   - `a6d6d1502e0ad3c95` (codecs): U9 `Lync.derive`, U10 reaction floor on `:reactsTo`, U11 decoy-adjacent facts,
     U14 server-issued challenges, U3, U4 — after its current task.
-  - `adb93333f6c4648cf` (scout): any deferred items its full read adds, routed to the agent above that fits.
+  - R39 per-frame transform hook → `ad69e26579bcfc07b` (prover), cost of a hook slot; R40 Studio trap line → the architect.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the

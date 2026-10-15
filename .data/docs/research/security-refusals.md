@@ -17,14 +17,10 @@ constants at zero run-time cost (`design/v5-integrity.md:33-63`; measured: same 
 **Tags** (what the recorded reason assumes): `runtime-cost`, `runtime-path`, `shared-artefact`, `library-package`,
 `script-rewrite`, `protection`, `platform`, `author-decision`. `none recorded` where the docs give no reason.
 
-**Reading.** Read in full: `design/v5.md`, `v5-integrity.md`, `v5-changes.md`, `v5-collections.md`,
-`v5-tooling.md`, `v5-extensions.md`; `research/client-security.md`, `anticheat-design.md`,
-`client-security-build.md`, `v5-attempt.md`; `reviews/v5-design-1.md`, `v5-design-1-redundancy.md`; probe READMEs,
-`typing-and-codegen/RESULTS.md`, and the cost probe outputs cited below. Read by section after a keyword search
-(security, trust, tag, rotation, trap, decoy, refusal terms): `research/v4.md`, `compression.md`, `diagnostics.md`,
-`landscape.md`, `state-sync.md`, `reviews/v5-design-2.md`, `v5-design-2-redundancy.md`, `v5-design-3.md`,
-`simplifications.md`, `m1-code.md`, `design/m1-plan.md`, `m2-plan.md`. Items in those files outside the searched
-sections may be missing.
+**Reading.** Read in full: every Markdown file under `.data/docs/` (`design/*`, `research/*`, `reviews/*`,
+`agents.md`), every README and RESULTS file under `probes/` (`build/README.md`, `diagnostics/README.md`,
+`compression/studio/README.md`, `typing-and-codegen/RESULTS.md`), and the cost probe outputs and scripts cited
+below. Probe source files not cited here were not read.
 
 Abbreviations: CS = `research/client-security.md`, AC = `research/anticheat-design.md`, CSB =
 `research/client-security-build.md`, CH = `design/v5-changes.md`, INT = `design/v5-integrity.md`.
@@ -36,7 +32,7 @@ Abbreviations: CS = `research/client-security.md`, AC = `research/anticheat-desi
 | Figure | Source | Provenance | Inconsistency with other measured figures |
 |---|---|---|---|
 | HalfSipHash per frame, native: 0.48 µs/64 B, 5.5 µs/1024 B | `probes/review-redundancy/halfsiphash_cost.out` (draft-1 probe, cover 1024) | measured | The milestone build measured 0.26–0.42 µs/64 B and 3.1–3.7 µs/1024 B native, 1.8–3.5 and 22–24 µs interpreted (`v5.md:609-611`, `probes/build/results/579015b.json`, `c91960e.json`). The draft-2 downstream-tag refusal (CH:102) uses the older, higher figures. |
-| Tag cost per covered byte | CS:291-296 estimate 13–23 ns/B; review-redundancy 35 ns/B interpreted (`v5-design-1-redundancy.md:530-538`); build 22 ns/B interpreted, 3.5 ns/B native (`v5.md:610`) | estimate / measured / measured | Three figures in the docs; the design uses the build's. Any "CPU per byte at the tag's rate" (masking, CH:556) inherits whichever is meant. |
+| Tag cost per covered byte | CS:291-296 estimate 13–23 ns/B; review-redundancy 35 ns/B interpreted (`v5-design-1-redundancy.md:530-538`); `simplifications.md:229-231` 50 ns/B interpreted, 7.5 ns/B native (derived from the 64 B per-frame figure, so per-call overhead is included); build 22 ns/B interpreted, 3.5 ns/B native (`v5.md:610`, derived from the 1024 B figure) | estimate / measured / derived / derived from measured | Four figures in the docs, spanning about 2x; the design uses the build's 1024 B derivation (CH:510). Any "CPU per byte at the tag's rate" (masking, CH:556) inherits whichever is meant. |
 | "Runtime field shuffling: 2–3x slower per record write" | CSB:335-345, `probes/client-security-build/rotation/compare.py`, `runtime.luau`, `run.out` (writeHit 41–72 ns generated vs 113–142 ns "runtime tables", interpreted only, one 3-field record, 3 runs per variant on a shared machine) | measured | The "runtime" variant is a loop over a table of per-field closures, i.e. a table-driven writer, not "straight-line code plus a shuffle". It measures the generated-vs-table-driven gap that `typing-and-codegen/RESULTS.md` P1 puts at 3.2–4.6x interpreted, 4.2x native. CSB:368-372 says the runtime path "already iterates a field list, so a permuted list costs it nothing extra". No native figure for writeHit. |
 | "Codecs scattered: 5.0x bytecode" | CSB:400, `probes/client-security-build/placement/size.out` (50 call sites each inlining one 3-field, 15-byte encoder: 22,927 B against 4,587 B at `-g0`) | measured | Ratio of one synthetic case; absolute growth 18.3 KB for 50 sites. Scales with call-site count and encoder size; no other configuration measured. Whether script bytecode download is compressed by the engine: unverified in the docs. |
 | Failing `pcall` (caller probe) 2.2–3.3 µs | CS:210-213, `probes/review-redundancy-2/inbound_hotpath.out` (failPcall 2.5 µs interpreted, 2.2 native) | measured (CLI) | Roblox device cost unverified (INT:110). |
@@ -431,6 +427,29 @@ Abbreviations: CS = `research/client-security.md`, AC = `research/anticheat-desi
 - **Decided:** CS:514-515 (weight 0); CH:119 (covered).
 - **Reasons:** "The inbound frame budget reports the same fact … with an exact trigger."
 - **Tags:** `protection` (dominated). **Generation:** independent.
+
+### R39. A per-frame transform hook ("compression or encryption experiments")
+- **Decided:** `research/landscape.md:489-494` (implication 14: per-field codecs, per-message middleware and
+  per-frame transforms, "compile it out" when unused); per-message middleware deleted with every hook but `validate`
+  (CH:65, R8; `v5-design-1-redundancy.md:256-279`); `v5.md:1177-1178` ("There is no middleware … transformation game
+  code"). The per-frame transform is never named in the design.
+- **Prices:** whatever a game-supplied frame transform would add (the landscape brief names encryption experiments;
+  compare R2).
+- **Reasons:** for middleware, "four ways" to reject a message with undefined order, and a drop with no `rejected`
+  answer (redundancy #8); one function hook (principle 4). No reason recorded for the per-frame transform itself.
+- **Costs cited:** none; landscape asks that an unused hook cost nothing on the hot path (asserted).
+- **Tags:** `author-decision`; `none recorded` for the per-frame part.
+- **Generation:** a build could compile a declared transform into the shards, so an absent one costs nothing; not
+  discussed.
+
+### R40. A Studio line naming a fired trap
+- **Decided:** CS:416 ("In Studio Lync reports it and prints one loud line naming the trap");
+  `v5-design-2-redundancy.md:200-205` (#5 lists "a Studio print" among what `:trap()` adds);
+  `research/diagnostics.md:795` (cut as "the Studio-only `trap` print"); traps report through the `unreachable`
+  fact (INT:67-72).
+- **Prices:** developer mistakes (own test code or the command bar firing a trap), not an attacker.
+- **Reasons:** "an ad hoc Studio-only print", a second channel for one fact (`research/diagnostics.md:329`, `:688`).
+- **Tags:** `author-decision`. **Generation:** independent.
 
 ---
 

@@ -1,0 +1,13 @@
+locals_199: Compiled 0 KLOC into 18 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)
+locals_201: ./locals_201.luau(201,16): CompileError: Out of local registers when trying to allocate f199: exceeded limit 200
+regs_190: Compiled 0 KLOC into 10 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)
+regs_260: ./regs_260.luau(201,8): CompileError: Out of local registers when trying to allocate a198: exceeded limit 200
+closures_2000: Compiled 2 KLOC into 217 KB bytecode (read 0.00s, parse 0.00s, compile 0.01s)
+closures_33000: ./closures_33000.luau(32770,12): CompileError: Exceeded closure limit; simplify the code to compile
+consts_200: Compiled 0 KLOC into 17 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)
+consts_40000: Compiled 40 KLOC into 3307 KB bytecode (read 0.00s, parse 0.05s, compile 0.18s)
+consts_200: FASTCALL2K=200 LOADKX=0 bytes_g0=15238
+consts_255: FASTCALL2K=255 LOADKX=0 bytes_g0=19529
+consts_256: FASTCALL2K=256 LOADKX=0 bytes_g0=19607
+consts_1000: FASTCALL2K=1000 LOADKX=0 bytes_g0=77639
+consts_40000: FASTCALL2K=40000 LOADKX=8262 bytes_g0=2782650

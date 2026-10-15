@@ -1,0 +1,8 @@
+consts_200 -g0: bytes=15238 load_us_median=14.6 load_us_min=8.0 top_level_us_median=0.3 ns_per_byte=0.96
+consts_200 -g1: bytes=18132 load_us_median=15.5 load_us_min=14.8 top_level_us_median=0.2 ns_per_byte=0.85
+consts_1000 -g0: bytes=77639 load_us_median=44.7 load_us_min=41.0 top_level_us_median=1.0 ns_per_byte=0.58
+consts_1000 -g1: bytes=92572 load_us_median=56.0 load_us_min=50.7 top_level_us_median=1.0 ns_per_byte=0.61
+closures_2000 -g0: bytes=188444 load_us_median=445.5 load_us_min=395.6 top_level_us_median=87.8 ns_per_byte=2.36
+closures_2000 -g1: bytes=222497 load_us_median=518.4 load_us_min=475.7 top_level_us_median=95.0 ns_per_byte=2.33
+consts_40000 -g0: bytes=2782650 load_us_median=1783.7 load_us_min=1342.5 top_level_us_median=5.3 ns_per_byte=0.64
+consts_40000 -g1: bytes=3387179 load_us_median=1713.6 load_us_min=1636.2 top_level_us_median=3.9 ns_per_byte=0.51

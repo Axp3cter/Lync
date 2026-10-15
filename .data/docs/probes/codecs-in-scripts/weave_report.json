@@ -1,0 +1,59 @@
+{
+ "shard": "ReplicatedStorage.Shared.Net.client",
+ "unparsed": [],
+ "escapes": [],
+ "unwoven": [
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 23,
+   "definition": "buy",
+   "why": "not a fire call"
+  }
+ ],
+ "woven": [
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 7,
+   "definition": "strike",
+   "literal": false
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 11,
+   "definition": "move6",
+   "literal": false
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 22,
+   "definition": "buy",
+   "literal": true
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Chat",
+   "line": 4,
+   "definition": "chat",
+   "literal": false
+  }
+ ],
+ "bindingStatements": {
+  "StarterPlayer.StarterPlayerScripts.Client.Weapon": [
+   "3,0 - 3,56"
+  ],
+  "StarterPlayer.StarterPlayerScripts.Client.Chat": [
+   "0,0 - 0,123"
+  ]
+ },
+ "closed": [
+  "strike",
+  "move6",
+  "chat",
+  "announce"
+ ],
+ "open": {
+  "buy": "unwoven site"
+ },
+ "parseSeconds": 0.009226926999872376,
+ "totalSeconds": 0.010087370999826817,
+ "sourceBytes": 1031
+}

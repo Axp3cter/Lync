@@ -1,0 +1,8 @@
+== interpreted (luau 0.742 -O2)
+encode plain  260.5 ns, offsets  300.4 ns: +39.9 ns per record, +4.99 ns per field
+decode plain  330.6 ns, offsets  388.8 ns: +58.2 ns per record, +7.27 ns per field
+offset round trip: every code of every field ok
+== native (--codegen)
+encode plain  209.4 ns, offsets  249.0 ns: +39.6 ns per record, +4.95 ns per field
+decode plain  291.7 ns, offsets  338.5 ns: +46.8 ns per record, +5.85 ns per field
+offset round trip: every code of every field ok

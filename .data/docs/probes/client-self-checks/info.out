@@ -1,0 +1,34 @@
+== -O1
+own source	./lyncstub.luau	main source	./info.luau
+direct	./info.luau	10	gameSend	function: 0x000055963dfdd640
+via helper	./info.luau	16	helper
+multi-line	./info.luau	26	multi	function: 0x000055963dfdd5b0
+coroutine.wrap(fire)	nil	nil	nil	nil
+via pcall	[C]	-1	pcall	function: 0x000055963dfdffb0
+closure	./info.luau	42		function: 0x000055963dfdd670
+level 99
+C function	[C]	-1	print
+arity vararg	0	true
+bad option	false	invalid argument #2 to 'info' (duplicate option)
+bad option x	false	invalid argument #2 to 'info' (invalid option)
+traceback:
+tb
+./info.luau:55
+
+== -O2
+own source	./lyncstub.luau	main source	./info.luau
+direct	./info.luau	10	gameSend	function: 0x00005560beb9c640
+via helper	./info.luau	16	outer
+multi-line	./info.luau	26	multi	function: 0x00005560beb9c5b0
+coroutine.wrap(fire)	nil	nil	nil	nil
+via pcall	[C]	-1	pcall	function: 0x00005560beb9efb0
+closure	./info.luau	42		function: 0x00005560beb9c580
+level 99
+C function	[C]	-1	print
+arity vararg	0	true
+bad option	false	invalid argument #2 to 'info' (duplicate option)
+bad option x	false	invalid argument #2 to 'info' (invalid option)
+traceback:
+tb
+./info.luau:55
+

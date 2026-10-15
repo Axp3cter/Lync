@@ -1,0 +1,67 @@
+{
+ "shard": "ReplicatedStorage.Shared.Net.client",
+ "unparsed": [],
+ "escapes": [
+  {
+   "script": "ReplicatedStorage.Shared.Hud",
+   "line": 5,
+   "why": "binding used as AstStatAssign"
+  }
+ ],
+ "unwoven": [
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 23,
+   "definition": "buy",
+   "why": "not a fire call"
+  }
+ ],
+ "woven": [
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 7,
+   "definition": "strike",
+   "literal": false
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 11,
+   "definition": "move6",
+   "literal": false
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Weapon",
+   "line": 22,
+   "definition": "buy",
+   "literal": true
+  },
+  {
+   "script": "StarterPlayer.StarterPlayerScripts.Client.Chat",
+   "line": 4,
+   "definition": "chat",
+   "literal": false
+  }
+ ],
+ "bindingStatements": {
+  "ReplicatedStorage.Shared.Hud": [
+   "1,0 - 1,45"
+  ],
+  "StarterPlayer.StarterPlayerScripts.Client.Weapon": [
+   "3,0 - 3,56"
+  ],
+  "StarterPlayer.StarterPlayerScripts.Client.Chat": [
+   "0,0 - 0,123"
+  ]
+ },
+ "closed": [],
+ "open": {
+  "strike": "namespace incomplete",
+  "move6": "namespace incomplete",
+  "chat": "namespace incomplete",
+  "buy": "namespace incomplete",
+  "announce": "namespace incomplete"
+ },
+ "parseSeconds": 0.011372613000276033,
+ "totalSeconds": 0.01231586799985962,
+ "sourceBytes": 1228
+}

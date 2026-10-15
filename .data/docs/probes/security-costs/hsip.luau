@@ -304,7 +304,7 @@ function M.check(): number
 	local k0, k1 = string.unpack("<I4I4", key)
 	local seed = 12345
 	local function rnd(n: number): number
-		seed = (seed * 1103515245 + 12345) % 2147483648
+		seed = (seed * 48271) % 2147483647
 		return seed % n
 	end
 	local cases = 0

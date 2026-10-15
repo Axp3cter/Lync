@@ -1,0 +1,13 @@
+{
+ "parseSeconds": 2.8376738349975312,
+ "totalSeconds": 3.0619742869998845,
+ "sourceBytes": 1679195,
+ "closed": [
+  "strike",
+  "move6",
+  "chat",
+  "announce"
+ ],
+ "wovenSites": 901,
+ "scripts": 303
+}

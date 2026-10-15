@@ -1,0 +1,28 @@
+n    pattern     identity  offset,base0  offset,base c   (mean bits over 200 trials, 64 rows)
+4    constant        11.0         9.6          11.0
+4    sparse10        49.9        52.2          49.9
+4    sequential     137.0        73.2         137.0
+4    walk           131.9       132.5         131.9
+4    uniform        137.0       137.0         137.0
+8    constant        14.0        11.5          14.0
+8    sparse10        63.2        67.0          63.2
+8    sequential     137.0       114.1         137.0
+8    walk           135.4       141.9         135.4
+8    uniform        201.0       201.0         201.0
+32   constant        14.0        14.9          14.0
+32   sparse10        80.9        87.0          80.9
+32   sequential     137.0       185.1         137.0
+32   walk           135.9       150.4         135.9
+32   uniform        329.3       329.3         329.3
+101  constant        14.0        16.4          14.0
+101  sparse10        89.3        96.8          89.3
+101  sequential     137.0       197.1         137.0
+101  walk           135.7       153.5         135.7
+101  uniform        458.2       458.2         458.2
+4096 constant        14.0        22.1          14.0
+4096 sparse10       128.0       141.0         128.0
+4096 sequential     137.0       214.2         137.0
+4096 walk           135.8       166.1         135.8
+4096 uniform        786.7       786.7         786.7
+base-c residual streams equal identity's in every trial: ok
+addMod/subMod exact at n = 2^53, 2^53-1, 2^52+1: ok

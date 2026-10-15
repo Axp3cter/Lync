@@ -21,7 +21,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 |---|---|---|---|---|
 | `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | done (59 items: R1–R40 refused, D1–D4 deferred, U1–U15 undecided; full read; no fallback); retired |
 | `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player delivery, what a client reads from a shard, Luau limits, load cost, prior art; then methods M1–M12 | `research/generation-security.md` (kept); `probes/generation-methods/` (kept, valid) | retired: facts brief judged too generic; its methods file was written after a model fallback and removed (copy in the lead's scratchpad, used only as a checklist) |
-| `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | done on the configured model after a fallback redo (19 claims changed or dropped); §2 (client side, unmodified client) not written after a classifier stop, see `client-security.md` §2.2; now on D1, D2, U8, U13, U15 → `research/interest-rewind.md` and D3, D4, U5, U6, U12 → `research/checks-telemetry.md` |
+| `ade0c89512482ae96` | researcher | API catalogue for security (all surfaces); then `interest` (D1, U8, U13) | `research/security-tooling.md`, `probes/security-tooling/`; `research/interest-rewind.md` §1–§10, `probes/interest-rewind/` | done; catalogue redone after a fallback (§2 by another agent); interest on Opus 5.5, 11/11 sections; found the per-slot generation gap (`gen:u2` per add) and `decoyOutsideInterest`; retired |
 | `a7526dc18c6060de5` | architect | started on codecs in game scripts; stopped, since the architect integrates rather than designs | none | stopped; do not reuse |
 | `a6d6d1502e0ad3c95` | researcher | codecs spread into game scripts: transform of the built place, typed API, call-site discovery, source maps, interaction with seed/rotation/tag; dual-purpose forms; re-derives the 5.0x bytecode figure | `research/codecs-in-scripts.md`, `probes/codecs-in-scripts/` | running |
 | `ad69e26579bcfc07b` | prover | re-measures every performance figure used to refuse or narrow a security measure, plus generated cheaper forms | `probes/security-costs/RESULTS.md` | running |
@@ -44,7 +44,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   model, transcript checked on return, and any section written on another model redone as its own unit.
 - Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
   interruptions: a unit written after one is redone as its own unit.
-  1. `interest`: D1, U8, U13 → `research/interest-rewind.md` (on `ade0c89512482ae96`).
+  1. ~~`interest`~~ done.
   2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md`.
   3. `checks`: D3, U12 → `research/checks-telemetry.md`.
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.

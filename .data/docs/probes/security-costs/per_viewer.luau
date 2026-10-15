@@ -14,6 +14,8 @@
 --   re-encode, full k  : the per-viewer re-encode the design specifies (zero / EG-k with every k costed)
 --   re-encode, shared k: the same, reusing the shared chunk's per-column k-cost sums and adding the decoy rows'
 --                        and their neighbours' deltas (a cheaper implementation), then writing
+--   re-encode, reuse k : mode and k are free choices, so write the mixed columns with the shared chunk's k
+--   shared encode      : encoding the shared chunk itself (paid once per flush for all viewers)
 --   behaviour + diff   : the per-viewer behaviour call and diff (v5-integrity.md §8's 236 ns figure)
 -- Run: luau -O2 per_viewer.luau ; luau -O2 --codegen per_viewer.luau
 local H = require("./harness")
@@ -183,11 +185,12 @@ end
 -- the shared chunk's residuals and per-k costs, computed once per flush for every viewer
 local sharedU = table.create(COLS) :: { { number } }
 local sharedCost = table.create(COLS) :: { { number } }
+local sharedK = table.create(COLS, 0)
 for c = 1, COLS do
 	sharedU[c] = table.create(REAL, 0)
 	residuals(realCols[c], REAL, NCODE[c], sharedU[c])
 	sharedCost[c] = table.create(K, 0)
-	choose(sharedU[c], REAL, sharedCost[c])
+	sharedK[c] = choose(sharedU[c], REAL, sharedCost[c])
 end
 local chunkW: Wr = { b = buffer.create(65536), pos = 0, acc = 0, n = 0 }
 local function encodeShared(w: Wr)
@@ -282,6 +285,18 @@ local function reencodeSharedK(d: number): number
 	end
 	return vW.pos
 end
+-- cheapest valid re-encode: mode and k are free choices (v5.md §4.3, §4.8), so reuse the shared chunk's k
+local function reencodeReuseK(d: number): number
+	local rows = mix(d)
+	vW.pos, vW.acc, vW.n = 0, 0, 0
+	for c = 1, COLS do
+		residuals(mixed[c], rows, NCODE[c], mixedU[c])
+		local k = sharedK[c]
+		if k < 0 then k = 0 end
+		writeCol(vW, mixedU[c], rows, k)
+	end
+	return vW.pos
+end
 -- check: both re-encoders choose the same k, so they write the same bytes
 for _, d in { 1, 16, 256 } do
 	local a = reencodeFull(d)
@@ -314,6 +329,16 @@ for _, d in { 1, 16, 256 } do
 			for _ = 1, n do s += reencodeSharedK(d) end
 			return s
 		end },
+		{ name = "re-encode, shared chunk's k", fn = function(n)
+			local s = 0
+			for _ = 1, n do s += reencodeReuseK(d) end
+			return s
+		end },
+		{ name = "encode the shared chunk (once/flush)", fn = function(n)
+			local s = 0
+			for _ = 1, n do s += encodeShared(chunkW) end
+			return s
+		end },
 		{ name = "behaviour + diff (1 decoy)", fn = function(n)
 			local ch = 0
 			for i = 1, n do
@@ -330,5 +355,6 @@ for _, d in { 1, 16, 256 } do
 		end },
 	})
 end
-print(string.format("shared chunk %d B; per-viewer chunk bytes: d=1 %d B, d=16 %d B, d=256 %d B", sharedLen, reencodeFull(1) + 4, reencodeFull(16) + 4, reencodeFull(256) + 4))
+print(string.format("shared chunk %d B; per-viewer chunk bytes, full search / shared k: d=1 %d/%d B, d=16 %d/%d B, d=256 %d/%d B", sharedLen,
+	reencodeFull(1) + 4, reencodeReuseK(1) + 4, reencodeFull(16) + 4, reencodeReuseK(16) + 4, reencodeFull(256) + 4, reencodeReuseK(256) + 4))
 print("sink", H.sink)

@@ -1,0 +1,50 @@
+== -O2
+== debug.info
+debug.info(1, 's')                                51.9 ns
+debug.info(2, 's')                                55.2 ns
+debug.info(2, 'sl')                               60.8 ns
+debug.info(2, 'slnf')                             91.0 ns
+debug.info(2, 'f')                                34.8 ns
+debug.info(fn, 's')                               67.6 ns
+walk, 1 Lync frame                               173.4 ns
+walk, 3 Lync frames                              379.4 ns
+walk, 5 Lync frames                              566.0 ns
+walk (1 frame) + listed-source lookup            188.7 ns
+== debug.traceback
+debug.traceback() at depth 3                     263.7 ns
+== clocks
+os.clock()                                        54.6 ns
+os.clock() smallest nonzero step                  44.0 ns
+== pcall
+pcall, callee returns                             29.1 ns
+pcall, Lua error(string, 0)                     2060.7 ns
+pcall, C argument error                         3256.9 ns
+== U1: method dispatch on a userdata (Lua __namecall, C target)
+proxy:FireServer(frame) (NAMECALL)                45.1 ns
+proxy.FireServer(proxy, frame) (index each call)      69.1 ns
+captured(proxy, frame) (U1)                       44.0 ns
+== -O1
+== debug.info
+debug.info(1, 's')                                43.9 ns
+debug.info(2, 's')                                42.9 ns
+debug.info(2, 'sl')                               54.8 ns
+debug.info(2, 'slnf')                             79.2 ns
+debug.info(2, 'f')                                29.1 ns
+debug.info(fn, 's')                               61.1 ns
+walk, 1 Lync frame                               177.6 ns
+walk, 3 Lync frames                              385.0 ns
+walk, 5 Lync frames                              589.3 ns
+walk (1 frame) + listed-source lookup            195.7 ns
+== debug.traceback
+debug.traceback() at depth 3                     218.6 ns
+== clocks
+os.clock()                                        45.2 ns
+os.clock() smallest nonzero step                  48.0 ns
+== pcall
+pcall, callee returns                             25.1 ns
+pcall, Lua error(string, 0)                     2031.5 ns
+pcall, C argument error                         3554.2 ns
+== U1: method dispatch on a userdata (Lua __namecall, C target)
+proxy:FireServer(frame) (NAMECALL)                43.0 ns
+proxy.FireServer(proxy, frame) (index each call)      66.5 ns
+captured(proxy, frame) (U1)                       34.6 ns

@@ -1,0 +1,6 @@
+rec_s0 vs rec_s7: 116 vs 116 instructions, opcode sequence identical; bytecode 1012 vs 1012 B (-O2 -g0)
+tag_c0 vs tag_c1: 445 vs 445 instructions, opcode sequence identical; bytecode 2037 vs 2037 B (-O2 -g0)
+  tag_c1: FASTCALL2K 32 R2 K0 L0 [2671387076]
+  tag_c1: LOADK R10 K0 [2671387076]
+  tag_c1: FASTCALL2K 32 R3 K1 L1 [192405971]
+  tag_c1: LOADK R9 K1 [192405971]

@@ -1,0 +1,342 @@
+== tag_cover, luau -O2, run 1
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1241.10    1108.59    1545.18     1.00     1.00     1.00
+1-3/32 unrolled x4                     981.87     885.41    1315.36     0.79     0.72     0.87
+2-4/32                                1662.79    1561.22    2137.18     1.38     1.23     1.52
+1-3/64                                1599.05    1394.77    1867.91     1.26     1.12     1.49
+1-3/32 tagcd (same, generic loop)     1225.02    1074.28    1499.17     0.97     0.86     1.21
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1636.98    1554.35    1809.94     1.00     1.00     1.00
+1-3/32 unrolled x4                    1371.19    1296.42    1562.90     0.84     0.81     0.92
+2-4/32                                2744.75    2643.01    3271.44     1.68     1.57     1.97
+1-3/64                                2165.77    2080.43    2304.28     1.35     1.18     1.40
+1-3/32 tagcd (same, generic loop)     1793.05    1704.50    1894.09     1.09     0.97     1.19
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 3369.61    3238.41    3880.74     1.00     1.00     1.00
+1-3/32 unrolled x4                    2721.55    2543.08    3175.45     0.80     0.72     0.93
+2-4/32                                6107.62    5762.64    6731.35     1.86     1.48     1.99
+1-3/64                                4140.54    3852.44    5007.86     1.22     0.99     1.52
+1-3/32 tagcd (same, generic loop)     3634.13    3409.56    4277.08     1.11     0.88     1.29
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                10511.70    9758.81   12491.58     1.00     1.00     1.00
+1-3/32 unrolled x4                    8574.80    7334.80   11809.07     0.81     0.69     1.05
+2-4/32                               18635.40   17555.25   23014.84     1.81     1.48     2.04
+1-3/64                               11832.02   11007.30   14351.69     1.12     0.88     1.24
+1-3/32 tagcd (same, generic loop)    11641.46   10282.19   14217.38     1.12     0.89     1.26
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                39502.76   37267.40   43780.12     1.00     1.00     1.00
+1-3/32 unrolled x4                   29976.00   28014.32   30972.45     0.74     0.64     0.78
+2-4/32                               72228.77   70022.02   80304.56     1.82     1.68     2.03
+1-3/64                               44502.68   39933.12   49392.34     1.07     1.01     1.30
+1-3/32 tagcd (same, generic loop)    42247.35   40648.31   48791.66     1.09     0.96     1.25
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               157783.20  146091.78  171509.54     1.00     1.00     1.00
+1-3/32 unrolled x4                  124507.16  110824.05  152075.80     0.78     0.72     0.96
+2-4/32                              294236.99  277472.35  309380.37     1.90     1.67     1.94
+1-3/64                              167662.94  157242.32  196703.46     1.08     0.99     1.23
+1-3/32 tagcd (same, generic loop)   167702.60  154976.70  177989.10     1.05     0.98     1.13
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               616095.19  591674.97  663937.26     1.00     1.00     1.00
+1-3/32 unrolled x4                  458843.31  434839.59  545601.21     0.75     0.70     0.83
+2-4/32                             1132888.48 1046458.27 1236624.68     1.85     1.69     1.92
+1-3/64                              666635.43  648082.60  692567.93     1.08     1.00     1.16
+1-3/32 tagcd (same, generic loop)   655592.36  617136.57  749157.03     1.07     0.99     1.15
+## derived (medians above)
+1-3/32 generated loop    fixed  1241.1 ns; marginal  37.54 ns/B (1024..16384);  33.26 ns/B over 0..64; whole-1024  38.58 ns/B; budget bound 2.907 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed   981.9 ns; marginal  27.92 ns/B (1024..16384);  27.18 ns/B over 0..64; whole-1024  29.27 ns/B; budget bound 2.183 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed  1662.8 ns; marginal  69.05 ns/B (1024..16384);  69.45 ns/B over 0..64; whole-1024  70.54 ns/B; budget bound 5.124 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed  1599.1 ns; marginal  40.50 ns/B (1024..16384);  39.71 ns/B over 0..64; whole-1024  43.46 ns/B; budget bound 3.230 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308
+== tag_cover, luau -O2, run 2
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1167.61    1107.38    1515.31     1.00     1.00     1.00
+1-3/32 unrolled x4                     938.07     874.68    1269.45     0.79     0.75     0.94
+2-4/32                                1618.89    1547.20    2063.58     1.39     1.14     1.76
+1-3/64                                1520.35    1392.07    1904.73     1.31     1.00     1.63
+1-3/32 tagcd (same, generic loop)     1143.90    1051.29    1589.65     0.97     0.77     1.36
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1610.14    1531.10    1858.10     1.00     1.00     1.00
+1-3/32 unrolled x4                    1395.25    1299.70    1815.93     0.87     0.76     0.99
+2-4/32                                2862.01    2633.21    3377.91     1.72     1.49     1.92
+1-3/64                                2216.74    2045.72    2601.29     1.39     1.16     1.65
+1-3/32 tagcd (same, generic loop)     1851.69    1767.95    2279.86     1.13     0.97     1.46
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 3513.51    3401.81    4260.22     1.00     1.00     1.00
+1-3/32 unrolled x4                    2902.99    2580.36    3805.51     0.82     0.67     0.91
+2-4/32                                6167.69    5765.19    7525.73     1.76     1.45     1.91
+1-3/64                                4104.13    3787.51    5239.45     1.16     0.98     1.33
+1-3/32 tagcd (same, generic loop)     3858.78    3429.68    4710.38     1.07     0.87     1.36
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                10614.69   10375.18   12618.23     1.00     1.00     1.00
+1-3/32 unrolled x4                    8759.52    7913.42   10576.59     0.81     0.74     0.90
+2-4/32                               19585.90   17940.15   22827.10     1.81     1.60     2.15
+1-3/64                               12123.99   10692.29   13591.00     1.12     0.96     1.31
+1-3/32 tagcd (same, generic loop)    11933.51   11080.97   12767.59     1.11     0.94     1.22
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                39308.10   37707.29   45692.21     1.00     1.00     1.00
+1-3/32 unrolled x4                   30529.89   28123.15   48626.60     0.77     0.70     1.16
+2-4/32                               72775.85   67583.76   87388.73     1.82     1.63     2.08
+1-3/64                               42166.11   39592.05   48921.78     1.07     0.91     1.26
+1-3/32 tagcd (same, generic loop)    41714.80   39681.88   50215.08     1.06     0.91     1.29
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               149378.10  142221.51  158057.17     1.00     1.00     1.00
+1-3/32 unrolled x4                  113562.26  112006.19  116589.83     0.76     0.72     0.79
+2-4/32                              275612.15  261020.76  326276.06     1.84     1.74     2.20
+1-3/64                              159202.99  148576.84  164431.68     1.05     0.95     1.10
+1-3/32 tagcd (same, generic loop)   161082.81  152943.06  180200.08     1.08     0.98     1.21
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               626911.43  599090.04  717373.44     1.00     1.00     1.00
+1-3/32 unrolled x4                  542734.49  436624.60  634976.98     0.81     0.73     0.92
+2-4/32                             1189393.03 1110017.21 1349252.20     1.90     1.69     2.13
+1-3/64                              687220.80  630163.92  770193.06     1.10     0.95     1.25
+1-3/32 tagcd (same, generic loop)   681165.88  631567.19  802822.99     1.11     0.98     1.21
+## derived (medians above)
+1-3/32 generated loop    fixed  1167.6 ns; marginal  38.26 ns/B (1024..16384);  36.65 ns/B over 0..64; whole-1024  38.39 ns/B; budget bound 2.927 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed   938.1 ns; marginal  33.35 ns/B (1024..16384);  30.70 ns/B over 0..64; whole-1024  29.81 ns/B; budget bound 2.523 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed  1618.9 ns; marginal  72.70 ns/B (1024..16384);  71.08 ns/B over 0..64; whole-1024  71.07 ns/B; budget bound 5.347 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed  1520.3 ns; marginal  42.00 ns/B (1024..16384);  40.37 ns/B over 0..64; whole-1024  41.18 ns/B; budget bound 3.300 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308
+== tag_cover, luau -O2, run 3
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1350.61    1206.62    1724.69     1.00     1.00     1.00
+1-3/32 unrolled x4                    1038.44     909.09    1331.69     0.80     0.60     0.91
+2-4/32                                1688.03    1612.17    1996.70     1.36     0.93     1.50
+1-3/64                                1708.16    1556.67    1998.44     1.30     0.90     1.52
+1-3/32 tagcd (same, generic loop)     1339.83    1152.49    1485.84     0.97     0.70     1.16
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1637.33    1525.95    1867.18     1.00     1.00     1.00
+1-3/32 unrolled x4                    1474.80    1298.97    1854.78     0.88     0.79     1.03
+2-4/32                                2702.72    2635.57    3279.70     1.70     1.43     2.03
+1-3/64                                2270.83    2064.62    2594.13     1.36     1.11     1.60
+1-3/32 tagcd (same, generic loop)     1864.48    1718.45    2367.91     1.15     0.92     1.47
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 3390.63    3238.98    3863.53     1.00     1.00     1.00
+1-3/32 unrolled x4                    2720.10    2580.62    3374.39     0.81     0.72     1.00
+2-4/32                                6373.64    5876.54    7234.91     1.80     1.66     2.13
+1-3/64                                4088.58    3856.92    4877.43     1.20     1.04     1.44
+1-3/32 tagcd (same, generic loop)     3716.80    3577.67    4135.09     1.10     0.93     1.28
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                10915.20   10277.71   12529.43     1.00     1.00     1.00
+1-3/32 unrolled x4                    8412.48    7829.20   11214.21     0.77     0.67     0.91
+2-4/32                               19756.14   19059.13   22260.48     1.81     1.57     1.98
+1-3/64                               12201.22   11189.38   14843.72     1.08     0.94     1.32
+1-3/32 tagcd (same, generic loop)    11938.88   11221.89   13542.13     1.06     0.92     1.28
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                39940.18   37381.38   46846.87     1.00     1.00     1.00
+1-3/32 unrolled x4                   31112.99   27644.09   38104.00     0.79     0.69     0.86
+2-4/32                               75938.25   71592.44   88479.53     1.99     1.70     2.14
+1-3/64                               44391.69   40357.43   50358.46     1.09     0.92     1.25
+1-3/32 tagcd (same, generic loop)    43685.74   40258.63   47253.10     1.09     0.88     1.25
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               154693.91  150234.44  176288.97     1.00     1.00     1.00
+1-3/32 unrolled x4                  117530.87  112629.36  158002.62     0.75     0.67     0.92
+2-4/32                              282718.29  271428.41  312811.72     1.81     1.60     2.04
+1-3/64                              166784.71  155825.88  194401.39     1.10     0.89     1.22
+1-3/32 tagcd (same, generic loop)   166867.09  157663.99  194427.73     1.05     0.89     1.21
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop               633545.69  597250.41  702306.43     1.00     1.00     1.00
+1-3/32 unrolled x4                  492995.47  464036.44  599903.13     0.76     0.70     0.92
+2-4/32                             1202740.56 1130522.33 1375650.37     1.92     1.71     2.10
+1-3/64                              677297.12  651029.53  783505.41     1.06     0.98     1.26
+1-3/32 tagcd (same, generic loop)   686499.33  652640.69  768335.03     1.11     0.94     1.19
+## derived (medians above)
+1-3/32 generated loop    fixed  1350.6 ns; marginal  38.65 ns/B (1024..16384);  31.88 ns/B over 0..64; whole-1024  39.00 ns/B; budget bound 3.019 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed  1038.4 ns; marginal  30.07 ns/B (1024..16384);  26.28 ns/B over 0..64; whole-1024  30.38 ns/B; budget bound 2.345 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed  1688.0 ns; marginal  73.36 ns/B (1024..16384);  73.21 ns/B over 0..64; whole-1024  74.16 ns/B; budget bound 5.415 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed  1708.2 ns; marginal  41.20 ns/B (1024..16384);  37.19 ns/B over 0..64; whole-1024  43.35 ns/B; budget bound 3.315 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308
+== tag_cover, luau -O2 --codegen, run 1
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  248.42     221.32     295.88     1.00     1.00     1.00
+1-3/32 unrolled x4                     231.94     198.12     247.87     0.89     0.79     1.00
+2-4/32                                 255.29     243.55     309.49     1.08     0.85     1.25
+1-3/64                                 255.53     235.01     310.69     1.09     0.84     1.25
+1-3/32 tagcd (same, generic loop)      205.85     188.92     259.39     0.87     0.64     1.02
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  113.16     100.57     122.78     1.00     1.00     1.00
+1-3/32 unrolled x4                     257.70     245.12     266.53     2.28     2.17     2.58
+2-4/32                                 360.70     334.15     405.37     3.22     2.89     3.59
+1-3/64                                 307.89     287.64     323.44     2.77     2.52     3.04
+1-3/32 tagcd (same, generic loop)      256.27     251.52     342.74     2.30     2.21     2.79
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  299.21     281.17     365.66     1.00     1.00     1.00
+1-3/32 unrolled x4                     368.44     340.96     413.10     1.17     1.11     1.30
+2-4/32                                 705.32     645.91     841.39     2.31     2.09     2.45
+1-3/64                                 488.40     461.63     621.44     1.68     1.32     1.83
+1-3/32 tagcd (same, generic loop)      442.93     424.38     600.51     1.51     1.22     1.77
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1039.92    1026.34    1068.28     1.00     1.00     1.00
+1-3/32 unrolled x4                     781.51     760.00     831.48     0.76     0.73     0.78
+2-4/32                                2093.88    2063.89    2191.38     2.03     1.95     2.08
+1-3/64                                1254.73    1234.42    1377.28     1.20     1.16     1.33
+1-3/32 tagcd (same, generic loop)     1210.82    1183.31    1315.61     1.17     1.12     1.25
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 3978.84    3842.51    4670.59     1.00     1.00     1.00
+1-3/32 unrolled x4                    2546.59    2462.91    2833.70     0.62     0.58     0.66
+2-4/32                                7695.95    7145.15    8398.40     1.91     1.72     2.03
+1-3/64                                4246.44    3970.58    5359.90     1.06     0.98     1.35
+1-3/32 tagcd (same, generic loop)     4213.50    3826.29    5433.61     1.02     0.96     1.37
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                16212.44   15473.43   17410.37     1.00     1.00     1.00
+1-3/32 unrolled x4                    9263.42    8640.41    9926.31     0.57     0.54     0.59
+2-4/32                               29675.61   27777.78   32572.29     1.82     1.77     1.87
+1-3/64                               16918.72   15641.52   22710.24     1.06     1.00     1.32
+1-3/32 tagcd (same, generic loop)    16872.23   15854.20   20469.59     1.05     0.98     1.28
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                62817.46   59393.48   65262.51     1.00     1.00     1.00
+1-3/32 unrolled x4                   35578.38   33060.43   37159.11     0.57     0.54     0.60
+2-4/32                              119990.35  113363.29  126046.60     1.91     1.79     2.12
+1-3/64                               64762.04   61903.18   68634.27     1.03     1.00     1.11
+1-3/32 tagcd (same, generic loop)    65418.58   59607.91   80002.41     1.05     0.95     1.23
+## derived (medians above)
+1-3/32 generated loop    fixed   248.4 ns; marginal   3.83 ns/B (1024..16384);   0.79 ns/B over 0..64; whole-1024   3.89 ns/B; budget bound 0.340 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed   231.9 ns; marginal   2.15 ns/B (1024..16384);   2.13 ns/B over 0..64; whole-1024   2.49 ns/B; budget bound 0.224 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed   255.3 ns; marginal   7.31 ns/B (1024..16384);   7.03 ns/B over 0..64; whole-1024   7.52 ns/B; budget bound 0.571 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed   255.5 ns; marginal   3.94 ns/B (1024..16384);   3.64 ns/B over 0..64; whole-1024   4.15 ns/B; budget bound 0.350 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308
+== tag_cover, luau -O2 --codegen, run 2
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  214.48     197.15     277.54     1.00     1.00     1.00
+1-3/32 unrolled x4                     194.25     177.34     217.42     0.90     0.73     1.01
+2-4/32                                 238.85     219.64     265.91     1.11     0.89     1.35
+1-3/64                                 239.32     218.13     271.35     1.10     0.95     1.29
+1-3/32 tagcd (same, generic loop)      191.32     174.52     261.03     0.88     0.77     1.16
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  116.23     101.86     169.16     1.00     1.00     1.00
+1-3/32 unrolled x4                     262.37     237.94     310.87     2.26     1.84     2.79
+2-4/32                                 373.48     353.58     423.02     3.18     2.50     3.83
+1-3/64                                 338.08     302.46     379.13     2.70     2.24     3.23
+1-3/32 tagcd (same, generic loop)      264.94     246.45     333.80     2.25     1.67     3.04
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  312.07     283.25     348.87     1.00     1.00     1.00
+1-3/32 unrolled x4                     367.13     337.32     438.03     1.19     1.09     1.38
+2-4/32                                 721.93     692.05     803.89     2.31     2.16     2.46
+1-3/64                                 525.84     481.43     613.80     1.72     1.53     1.86
+1-3/32 tagcd (same, generic loop)      465.45     433.69     571.65     1.50     1.36     1.73
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1056.46     945.72    1451.58     1.00     1.00     1.00
+1-3/32 unrolled x4                     782.89     709.08     911.40     0.75     0.57     0.85
+2-4/32                                2040.16    1889.24    2193.33     1.96     1.41     2.10
+1-3/64                                1213.12    1120.98    1346.87     1.16     0.84     1.27
+1-3/32 tagcd (same, generic loop)     1196.72    1129.78    1281.80     1.13     0.88     1.25
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 4031.71    3688.93    4158.30     1.00     1.00     1.00
+1-3/32 unrolled x4                    2467.00    2305.17    2750.79     0.62     0.58     0.66
+2-4/32                                7686.76    7220.70    8197.36     1.91     1.80     2.10
+1-3/64                                4358.43    4020.51    5596.38     1.07     0.99     1.35
+1-3/32 tagcd (same, generic loop)     4223.79    3907.22    5521.94     1.05     0.96     1.33
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                16078.25   14854.05   18197.75     1.00     1.00     1.00
+1-3/32 unrolled x4                    9240.03    8388.13   10216.37     0.57     0.52     0.62
+2-4/32                               29928.07   27339.44   31808.24     1.84     1.70     2.05
+1-3/64                               16494.79   15213.46   23448.92     1.04     0.89     1.48
+1-3/32 tagcd (same, generic loop)    16490.54   14925.66   23228.97     1.04     0.88     1.47
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                63516.51   58021.57   67140.18     1.00     1.00     1.00
+1-3/32 unrolled x4                   36060.93   33928.32   38261.31     0.57     0.52     0.65
+2-4/32                              117521.06  112215.54  136197.49     1.87     1.76     2.14
+1-3/64                               65802.74   62568.76   95862.67     1.08     0.93     1.50
+1-3/32 tagcd (same, generic loop)    64683.45   60995.12   79798.60     1.05     0.98     1.25
+## derived (medians above)
+1-3/32 generated loop    fixed   214.5 ns; marginal   3.87 ns/B (1024..16384);   1.52 ns/B over 0..64; whole-1024   3.94 ns/B; budget bound 0.331 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed   194.2 ns; marginal   2.19 ns/B (1024..16384);   2.70 ns/B over 0..64; whole-1024   2.41 ns/B; budget bound 0.213 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed   238.9 ns; marginal   7.15 ns/B (1024..16384);   7.55 ns/B over 0..64; whole-1024   7.51 ns/B; budget bound 0.555 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed   239.3 ns; marginal   4.00 ns/B (1024..16384);   4.48 ns/B over 0..64; whole-1024   4.26 ns/B; budget bound 0.348 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308
+== tag_cover, luau -O2 --codegen, run 3
+check: fast HalfSipHash matches the reference port on 405 frames (1-3/32, 2-4/32, 1-3/64)
+## tag over a 0 B frame, cover 16384 (46875 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  213.68     190.28     278.85     1.00     1.00     1.00
+1-3/32 unrolled x4                     191.32     173.84     225.55     0.90     0.81     0.97
+2-4/32                                 241.85     228.07     276.16     1.14     0.99     1.20
+1-3/64                                 235.99     217.16     337.31     1.12     1.01     1.51
+1-3/32 tagcd (same, generic loop)      198.97     172.01     233.84     0.93     0.82     1.05
+## tag over a 16 B frame, cover 16384 (37500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  114.87     110.51     132.93     1.00     1.00     1.00
+1-3/32 unrolled x4                     259.28     234.91     275.69     2.22     2.07     2.37
+2-4/32                                 370.34     340.37     470.21     3.16     3.01     3.98
+1-3/64                                 304.41     284.46     343.00     2.60     2.52     2.88
+1-3/32 tagcd (same, generic loop)      262.18     246.95     303.68     2.27     2.05     2.64
+## tag over a 64 B frame, cover 16384 (23437 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                  295.65     263.48     379.03     1.00     1.00     1.00
+1-3/32 unrolled x4                     356.27     331.42     374.87     1.21     0.93     1.27
+2-4/32                                 698.77     662.02     737.89     2.36     1.94     2.69
+1-3/64                                 488.73     456.58     525.52     1.65     1.39     1.92
+1-3/32 tagcd (same, generic loop)      447.08     401.37     756.52     1.50     1.33     2.58
+## tag over a 256 B frame, cover 16384 (9375 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 1028.72     957.08    1128.93     1.00     1.00     1.00
+1-3/32 unrolled x4                     782.41     728.89     856.95     0.76     0.66     0.82
+2-4/32                                2005.84    1942.15    2464.73     1.98     1.75     2.21
+1-3/64                                1259.76    1125.76    1746.00     1.18     1.02     1.69
+1-3/32 tagcd (same, generic loop)     1213.57    1087.67    1689.57     1.17     0.96     1.64
+## tag over a 1024 B frame, cover 16384 (2757 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                 4037.91    3873.37    4201.28     1.00     1.00     1.00
+1-3/32 unrolled x4                    2484.27    2383.52    2601.51     0.62     0.59     0.66
+2-4/32                                7710.55    7179.34    9104.92     1.91     1.77     2.26
+1-3/64                                4375.12    4084.89    5662.34     1.09     0.98     1.41
+1-3/32 tagcd (same, generic loop)     4325.93    4175.23    5251.05     1.07     0.99     1.30
+## tag over a 4096 B frame, cover 16384 (721 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                16308.33   15048.91   17908.91     1.00     1.00     1.00
+1-3/32 unrolled x4                    9400.31    8812.12   11056.72     0.58     0.55     0.65
+2-4/32                               30553.67   28767.90   36314.42     1.88     1.78     2.13
+1-3/64                               17195.88   15041.87   22296.87     1.10     0.95     1.32
+1-3/32 tagcd (same, generic loop)    17935.67   16029.52   22806.54     1.13     0.97     1.38
+## tag over a 16384 B frame, cover 16384 (400 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+1-3/32 generated loop                62754.00   61439.88   65798.52     1.00     1.00     1.00
+1-3/32 unrolled x4                   36333.02   34254.59   37833.88     0.58     0.56     0.61
+2-4/32                              117575.51  110804.70  126862.03     1.88     1.71     2.02
+1-3/64                               65087.95   61685.24   86213.82     1.04     0.94     1.37
+1-3/32 tagcd (same, generic loop)    66100.34   62390.47   74967.66     1.05     1.00     1.19
+## derived (medians above)
+1-3/32 generated loop    fixed   213.7 ns; marginal   3.82 ns/B (1024..16384);   1.28 ns/B over 0..64; whole-1024   3.94 ns/B; budget bound 0.327 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/32 unrolled x4       fixed   191.3 ns; marginal   2.20 ns/B (1024..16384);   2.58 ns/B over 0..64; whole-1024   2.43 ns/B; budget bound 0.213 ms/s per player (65,536 B/s + 360 frames/s)
+2-4/32                   fixed   241.8 ns; marginal   7.15 ns/B (1024..16384);   7.14 ns/B over 0..64; whole-1024   7.53 ns/B; budget bound 0.556 ms/s per player (65,536 B/s + 360 frames/s)
+1-3/64                   fixed   236.0 ns; marginal   3.95 ns/B (1024..16384);   3.95 ns/B over 0..64; whole-1024   4.27 ns/B; budget bound 0.344 ms/s per player (65,536 B/s + 360 frames/s)
+sink	949610701308

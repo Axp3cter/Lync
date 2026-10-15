@@ -1,0 +1,27 @@
+--!strict
+--!optimize 2
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Net = require(ReplicatedStorage.Shared.Net.client) local __lync = Net.__lync local __lync_begin, __lync_reserve, __lync_tail, __lync_fail, __lync_octa = __lync.begin, __lync.reserve, __lync.tail, __lync.fail, __lync.octa local __lync_writebits = buffer.writebits local __lync_E_x_y_z = __lync.E_x_y_z
+
+local function onHit(target: number, aim: Vector3)
+	do local __lync_a0, __lync_a1 = target, aim if type(__lync_a0) ~= "number" or __lync_a0 ~= __lync_a0 // 1 or __lync_a0 < 1 or __lync_a0 > 1099511627776 then __lync_fail("valueRefused", "strike data.target", __lync_a0) end if type(__lync_a1) ~= "vector" then __lync_fail("valueRefused", "strike data.aim", __lync_a1) end __lync_begin(4, 3) local __lync_q1, __lync_q2 = __lync_octa(__lync_a1, 11) local __lync_b, __lync_p = __lync_reserve(62) __lync_writebits(__lync_b, __lync_p + 0, 32, (__lync_a0 - 1) % 4294967296) __lync_writebits(__lync_b, __lync_p + 32, 8, (__lync_a0 - 1) // 4294967296) __lync_writebits(__lync_b, __lync_p + 40, 11, __lync_q1) __lync_writebits(__lync_b, __lync_p + 51, 11, __lync_q2) end
+end
+
+local function onMove(state)
+	do local __lync_a0, __lync_a1, __lync_a2, __lync_a3, __lync_a4, __lync_a5 =
+ state.a
+, state.b
+, state.crouch
+, state.speed
+, state.mode
+, state.frame
+ if type(__lync_a0) ~= "number" or __lync_a0 ~= __lync_a0 // 1 or __lync_a0 < 0 or __lync_a0 > 1000 then __lync_fail("valueRefused", "move6 data.a", __lync_a0) end if type(__lync_a1) ~= "number" or __lync_a1 ~= __lync_a1 // 1 or __lync_a1 < 0 or __lync_a1 > 1000 then __lync_fail("valueRefused", "move6 data.b", __lync_a1) end if type(__lync_a2) ~= "boolean" then __lync_fail("valueRefused", "move6 data.c", __lync_a2) end if type(__lync_a3) ~= "number" or not (__lync_a3 >= 0 and __lync_a3 <= 1) then __lync_fail("valueRefused", "move6 data.d", __lync_a3) end local __lync_q2 = __lync_E_x_y_z[__lync_a4] if __lync_q2 == nil then __lync_fail("valueRefused", "move6 data.e", __lync_a4) end if type(__lync_a5) ~= "number" or __lync_a5 ~= __lync_a5 // 1 or __lync_a5 < 0 or __lync_a5 > 255 then __lync_fail("valueRefused", "move6 data.f", __lync_a5) end __lync_begin(3, 3) local __lync_q1 = math.min(math.floor((__lync_a3 - 0) / 0.0009765625 + 0.5), 1024) local __lync_b, __lync_p = __lync_reserve(42) __lync_writebits(__lync_b, __lync_p + 0, 10, __lync_a0 - 0) __lync_writebits(__lync_b, __lync_p + 10, 10, __lync_a1 - 0) __lync_writebits(__lync_b, __lync_p + 20, 1, if __lync_a2 then 1 else 0) __lync_writebits(__lync_b, __lync_p + 21, 11, __lync_q1) __lync_writebits(__lync_b, __lync_p + 32, 2, __lync_q2) __lync_writebits(__lync_b, __lync_p + 34, 8, __lync_a5 - 0) end
+end
+
+local function shop()
+	do __lync_begin(1, 3) local __lync_b, __lync_p = __lync_reserve(1) __lync_writebits(__lync_b, __lync_p + 0, 1, 1) end
+	local result = Net.buy:invoke({ item = "shield" }) -- expression context: left to the shard
+	return result
+end
+
+return { onHit = onHit, onMove = onMove, shop = shop }

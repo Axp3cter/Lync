@@ -34,7 +34,7 @@ Xeon: timings show scale only.
 - [x] 5. U14: mechanism, what Lync carries and what the game designs, API (Luau and roblox-ts)
 - [x] 6. U14: outcome, facts and evidence
 - [x] 7. U14: known causes on an unmodified client, accessibility included
-- [ ] 8. U14: what it protects, cost, options
+- [x] 8. U14: what it protects, cost, options
 - [ ] 9. Probes and measurements
 - [ ] Implications
 
@@ -521,3 +521,59 @@ at least 3 for typed codes; every answer button `Selectable`, with `SelectedObje
 visual and a sound form; a still form when `ReducedMotionEnabled`; no challenges during menus, cutscenes or the
 first seconds after join; a way to opt out where the game has other evidence; and the statement that one `timeout`
 distinguishes nothing listed above.
+
+---
+
+## 8. U14: what it protects, cost, options
+
+### 8.1 What it protects, and what it does not
+
+- **Prices automation that doesn't produce the game's response.**
+  - Generic idle-timer defeaters: input simulation keeps Roblox's 20-minute idle disconnect away but answers no
+    game-specific prompt. `VirtualUser.CaptureController` and its siblings are `LocalUserSecurity` (verified, API
+    dump 0.741.19), so game scripts can't call them and executor threads at identity 8 can (CS §1.2); that such
+    scripts are what AFK farms run is widely circulated but not checked here (unverified).
+  - **api**-class farm bots firing gameplay definitions from executor code without per-game prompt handling.
+  - Blind guessing: a guesser closes a challenge as `answered` with probability at most `attempts`/`values` (3/10^4
+    at the recipe's values). Each wrong guess is an attempt in the outcome, and guesses outside a challenge are
+    `unsolicitedAnswer`.
+  - Tools written once for all Lync games: Lync's client has no challenge shape (§5.1), so each game is new work.
+- **Robustness.** The outcome is computed on the server from what arrived. A modified client can't close a
+  challenge as `answered` without the token, and it can't hide a timeout. Clock tools (**clock**) change nothing:
+  deadlines and `after` are server time.
+- **Does not price:**
+  - a bot that reads the token (from Lync's decoded payload, the UI text, a collection field: **state**, **mem**) and
+    sends it through the game's action (**api**): one handler per game, redone only when the game changes how the
+    token travels. An answer by such a bot is byte-identical to a person's; `firstAfter`, `after` and `minPing` are
+    the only difference, and only if it answers faster than people do;
+  - screen readers of a different kind (OCR, ML solvers reading the frame), human farms, and a player who answers
+    and then goes idle;
+  - **packet** tools add nothing over **api**: they still need the token.
+- **Signal strength.** `timeout` is weak alone: §7.1 lists seven ordinary causes. A run of fast correct answers is
+  evidence about timing, and only the game knows what is fast for its prompt.
+
+### 8.2 Cost
+
+| Item | Server CPU (native, `cost_runs.out`, 3 runs) | Memory | Wire | Developer |
+|---|---|---|---|---|
+| token draw | 27–28 ns with `math.random` standing in for `Random:NextInteger` (cost on Roblox unmeasured) | — | 0 | — |
+| answers check, per message of a definition with `answers` | 2.4–2.5 ns when the field is nil; 14.3–14.6 ns with a value and no open challenge (plus a fact record, 20.5 ns, `v5.md` §7.3); 23.6–30.5 ns with one open | — | 0 | one `answers` call |
+| deadline sweep | 293–336 ns per flush for 50 open challenges (about 6 ns per open challenge; 18–20 µs/s at 60 flushes a second) | one record (token, deadline, attempts, two times, ping) per open challenge; three numbers per player for `unsolicitedAnswer` | 0 | — |
+| ping samples | one `GetNetworkPing()` at issue, per attempt and at close (cost on Roblox unmeasured) | — | 0 | — |
+| the token's own fields | — | — | the game's codecs: `t.int(0, 9999)` is 14 bits down; `t.optional(t.int(0, 9999))` is 1 bit on every message of the carrying definition and 15 bits when set (`v5.md` §3.3) | the game's fields |
+| the prompt | — | — | — | the large part: the UI and its accessible forms (§7.4) |
+
+Interpreted (client-irrelevant here: everything runs on the server) figures are in `cost_runs.out` for reference.
+
+### 8.3 Options
+
+| Name | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `within` (`Lync.challenge`) | number (real) | s | 1–3600 | required | one open record held up to `within` (plus extensions) |
+| `values` | integer | token values | 2–2^32 | required (it must match how the game shows the token) | none; a blind guess closes as `answered` with probability ≤ `attempts`/`values`; must fit a declared answers field |
+| `attempts` | integer | values received | 1–255 | 1 | none; more attempts raise the blind-guess bound proportionally |
+| `extend(seconds)` | number (real) | s | 1–3600, total `within` ≤ 3600 | — | none |
+| `Net.d:answers(field)` | declaration (server view) | — | a top-level `t.int` or `t.optional(t.int)` field | none | 2.4–2.5 ns per message when nil, 14–31 ns when set (above) |
+
+Constants (not knobs): one open challenge per player; the `earlyAnswer` window (its own option `earlyAnswer.factor`,
+`v5-integrity.md` §7) applies to challenges unchanged.

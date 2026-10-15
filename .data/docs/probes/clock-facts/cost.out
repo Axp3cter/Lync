@@ -87,3 +87,46 @@ os.clock() read                         49.12      47.28      58.79     1.39    
 record send time + ping in slot         16.38      14.84      18.43     0.45     0.28     0.55
 sink	22180083724766.414
 == cost, luau 0.742 -O2 --codegen, run 2
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2588.88    2347.82    4152.88     1.00     1.00     1.00
+quickselect median                    2174.82    2014.65    3317.17     0.83     0.58     1.26
+fill only (input setup)                579.39     546.00     958.46     0.22     0.16     0.36
+table.sort median      2009 ns per epoch; at one epoch per 5 s: 0.402 us/s
+quickselect median     1595 ns per epoch; at one epoch per 5 s: 0.319 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                 3.02       2.81       3.15     1.00     1.00     1.00
+guard test                               3.27       3.02       3.40     1.08     1.05     1.14
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    37.49      33.50      60.68     1.00     1.00     1.00
+result + 3 timing fields                59.07      51.08     125.23     1.53     1.08     3.00
+frozen result { ok, value }            127.16     114.42     177.07     3.34     2.09     5.29
+frozen result + 3 timing fields        144.00     122.13     214.33     3.56     2.12     6.00
+os.clock() read                         51.43      46.75      94.32     1.36     0.80     2.80
+record send time + ping in slot          7.20       6.27      11.13     0.18     0.11     0.28
+sink	22180155729517.273
+== cost, luau 0.742 -O2 --codegen, run 3
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2612.28    2391.48    4168.48     1.00     1.00     1.00
+quickselect median                    2218.42    1837.58    2705.85     0.79     0.64     0.96
+fill only (input setup)                586.18     524.30     915.25     0.23     0.14     0.35
+table.sort median      2026 ns per epoch; at one epoch per 5 s: 0.405 us/s
+quickselect median     1632 ns per epoch; at one epoch per 5 s: 0.326 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                 3.30       2.80       4.14     1.00     1.00     1.00
+guard test                               3.50       3.18       4.57     1.05     0.81     1.34
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    37.00      33.18      57.15     1.00     1.00     1.00
+result + 3 timing fields                57.61      53.66      71.72     1.51     1.21     1.75
+frozen result { ok, value }            122.97     112.48     190.98     3.27     2.30     5.23
+frozen result + 3 timing fields        135.69     129.18     188.19     3.73     2.37     5.15
+os.clock() read                         50.27      45.54      63.42     1.34     0.82     1.83
+record send time + ping in slot          7.84       5.88      11.28     0.20     0.13     0.32
+sink	22180228123169.336

@@ -68,7 +68,8 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   `[review-redundancy-2 R18]`.
 - **Server API.** `set(key, record)` adds or replaces; `patch(key, partial)` changes fields (a misspelled key is
   `unknownPatchKey`); `remove(key)`; `audience(key, target)`; `cut(key)` (§11.3). A singleton's take no key. The
-  server-view declarations `interest`, `owner`, `team`, `gate` and `rewind` are in §8, §9 and §12.
+  server-view declarations `interest`, `owner(fn)`, `team(fn)`, `rewind` and the field handle's `gate(fn)`
+  (`Net.c:field(path)`, `v5.md` §3.4) are in §8, §9 and §12.
 - **Client API.** `get(key)`; `interpolated(key)` (§11); signals `added(key, record)`, `changed(key, record,
   previous)`, `removed(key)`. A record changed by several chunks of one frame (§3) fires `changed` once, after the
   frame's last chunk for it, with `previous` the record before the frame.
@@ -211,12 +212,14 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
 
 `Net.fighters:interest({ … })` on the server view: interest is server policy and never ships in shared code. It
 applies from the next state tick; a second call replaces the options from the tick after it. An unknown option
-throws `unknownOption`, a missing required one `missingOption`, a value out of range `paramRange`, and `position`
-naming no top-level field `unknownField`, or a field of another codec `fieldCodec`.
+throws `unknownOption`, a missing required one `missingOption`, a value out of range `paramRange`. `position` is a
+path string typed as the union of the record's eligible fields (`v5.md` §3.4's rule for options naming fields), so a
+wrong name is a type error; untyped, a path naming no top-level field throws `unknownField` and one of another codec
+`fieldCodec`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `position` | name of a top-level `t.vector3`, `t.vector3f32` or `t.cframe` field | — | — | required | none |
+| `position` | path string of a top-level `t.vector3`, `t.vector3f32` or `t.cframe` field | — | — | required | none |
 | `radius` | number (real) | studs | 8–4096 | required | R, the cell side. Larger means more members: about 2.6x an exact circle of R are included `[state-sync §7.2]`, so more catch-up bytes and more records in the bucket pass (20–60 ns native each, §7) |
 | `lookAhead` | number (real) | s | 0–1 | 0.2 (chosen: one state tick at 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; a measured round-trip distribution would change it) | one multiply-add per moving record per state tick; a record moving toward a viewer arrives up to `lookAhead` × its speed early |
 | `focus` | `(player: Player) -> Vector3?` or nil | — | — | nil: §8.3's engine focus | one call per viewer per state tick |
@@ -337,11 +340,12 @@ viewers are in a class is bound on the server view, so policy never ships.
 |---|---|---|---|
 | `:owner()` | `Net.c:owner(fn(key, record) -> Player?)` | it is the record's owner | `T?` |
 | `:team()` | `Net.c:team(fn(key, record) -> Target)` | it is in the record's team target | `T?` |
-| `:gated()` | `Net.c:gate(field, fn(key, record) -> boolean)` | the gate returns true; or it would receive the record's `:team()` fields (with a `team` binding); or it is the owner (with an `owner` binding) | `T?` |
+| `:gated()` | `Net.c:field(path):gate(fn(key, record) -> boolean)` | the gate returns true; or it would receive the record's `:team()` fields (with a `team` binding); or it is the owner (with an `owner` binding) | `T?` |
 | `:seen()` | — | the pair has passed every narrowing test (§8.5) at some state tick since the record's last add to it; without `pvs` or `predicate`, from the add | `T?` |
 
 - **Placement.** A modifier goes on a top-level reliable field of a collection record, one per field. Anywhere else
-  (an event, a nested field, a `:newest()` field, a second modifier) is the declaration error `classPlacement`. Rows
+  (an event, a nested field, a `:newest()` field, a second modifier) is the declaration error
+  `visibilityPlacement` (`v5.md` §3.3). Rows
   are one fixed-width piece per record per tick (§5), so a per-class `:newest()` field would need one row per class.
 - **Hash.** Each record field gains a class byte beside its `newest` byte in the canonical serialization (0 none,
   1 owner, 2 team, 3 gated, 4 seen; `v5.md` §4.7).
@@ -384,14 +388,14 @@ Each class keeps encode-once at its own granularity:
 the "Start Spike Defuse" RPC `[anticheat-design §1.1]`. An event fired to `Lync.all` naming an enemy's key tells
 every client where that enemy is, whatever interest withholds.
 
-**Mechanism.** `Net.hit:about("target", "fighters")` on the server view of a server-sent event: the server-sent twin
-of `refers` (`v5-integrity.md` §8).
-- The field is a top-level field of the event's `data` whose codec serialises (`v5.md` §4.7) identically to the
-  collection's `key` codec, or `t.optional` of it. An unknown field or collection throws `unknownField`; another
-  codec throws `fieldCodec`.
+**Mechanism.** `Net.hit:field("target"):about(Net.fighters)` on the server view of a server-sent event: the
+server-sent twin of `field(path):refers(collection)` (`v5-integrity.md` §8).
+- The handle's field has the collection's key type, or `t.optional` of it: another type is a type error on both
+  solvers and in TypeScript (`v5.md` §3.4); untyped, a field whose codec doesn't serialise (`v5.md` §4.7)
+  identically to the collection's `key` codec throws `fieldCodec`, and an unknown path `unknownField`.
 - At flush, each message's target is intersected with the viewers that hold the record its field names (in the
   record's audience and, with interest, a member), taken after the flush's adds and before its removes, the order of
-  `v5.md` §4.1. With several `:about` calls on one definition, a viewer must hold every named record. A nil field
+  `v5.md` §4.1. With `about` on several fields of one definition, a viewer must hold every named record. A nil field
   scopes nothing.
 - Viewers outside the intersection never receive the message; it is not queued. Each skipped (message, viewer) is
   counted in `scopedDropped` (§14): a count, not a fact, since no player's input caused it.
@@ -436,10 +440,11 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
     slowly to a route change, a shorter one is noisier. With no sample in the window both keep their last values.
 - **D, exactly.** Target = max(2 / `stateRate`, 0.1 s) + 2 × jitter, Source's floor `cl_interp` 0.1 s and the
   research's jitter term `[state-sync §6.3]`, in units of 4 ms rounded up, at most 255 units (1.02 s). Once a second
-  per player, D moves one unit toward the target. Both ends start at D₀ = ⌈max(2 / `stateRate`, 0.1) / 0.004⌉
-  units, which needs no message; a `stateRate` change sets D = max(D, the new D₀) at once.
+  per player, D moves one unit toward the target. D starts at D₀ = ⌈max(2 / `stateRate`, 0.1) / 0.004⌉ units, sent
+  in the connection's first `WELCOME` (`v5.md` §4.6); a `stateRate` change sets D = max(D, the new D₀) at once.
 - **Wire.** `RATE` gains `delay u8` (D in 4 ms units) and goes to one player whenever its D changes, besides every
-  `stateRate` change; the client applies it as decoded. Cost: at most one `RATE` row (78 bits of fields) per player
+  `stateRate` change; the client applies it when it decodes the frame, and the server reads which D was in
+  force for a message from the receipt (§12.3). Cost: at most one `RATE` row (78 bits of fields) per player
   per second. The unit and step are protocol constants: u8 × 4 ms covers jitter up to 0.41 s at 10 Hz, and one unit
   a second changes the playback rate by 0.4%, below `GetServerTimeNow()`'s own 0.6% rate bound `[state-sync §6.1]`
   (chosen, unmeasured for visibility).
@@ -515,7 +520,7 @@ buffers, arrays, maps, optionals, unions) is `fieldCodec`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `fields` | array of top-level field names | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
+| `fields` | array of top-level field path strings, typed as a union of the record's fields | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
 | `maxRewind` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it) | K = ⌈(`maxRewind` + 0.25) × `stateRate`⌉ + 2 slots per record; L = K + 17 map entries per player |
 | `mode` | `"received" \| "truth"` | — | — | `"received"` (derived: equal to truth when the viewer got every row, and truth is off by p99 1.33 studs once a third of rows are deferred, §12.4) | received: (4M + 1) B per (viewer, record) and 8.3–8.8 ns native per acked row |
 | `delay` | number (real) or nil | s | 0–1 | nil: the player's server-chosen D (§11.1) | none |
@@ -770,8 +775,8 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 
 | Code | Family | Trigger |
 |---|---|---|
-| `classPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
-| `fieldCodec` | caller (as `unknownField`, which server-view declarations already throw) | a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
+| `visibilityPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
+| `fieldCodec` | caller (as `unknownField`, which server-view declarations already throw) | a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields`, on the untyped path (§8.2, §10, §12.2) |
 | `perceivedOutsideDispatch` | caller | `Lync.perceived(player)` outside a synchronous call for a message from `player` (§12.5) |
 | `releaseTarget` | caller | `Lync.release` with a `folder` that is not a `Folder` under `ServerStorage` (§13.2) |
 | `decoyOutsideInterest` | caller (behaviour channel, as `decoyKeyLive`) | a decoy failing §8.6's test |

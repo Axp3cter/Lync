@@ -263,3 +263,134 @@ per recipient buffer.copy only       13196.25   12072.60   18901.60     0.01    
  4096 B: per recipient, generated loop 12.38%/9.29%; per recipient, unrolled x4 7.67%/5.75%; once per frame + per-recipient mix 0.19%/0.14%; per recipient, header only (16 B) 0.19%/0.14%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.11%/0.08%
 sink	522817756131
 == downstream_tag, luau -O2 --codegen, run 2
+## downstream frame of 32 B to 100 recipients (time per frame) (625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        17709.64   16089.56   19078.42     1.00     1.00     1.00
+per recipient, unrolled x4           26980.30   24789.84   28334.09     1.51     1.46     1.60
+once per frame + per-recipient mix    6966.93    6360.19    9384.85     0.39     0.35     0.53
+per recipient, header only (16 B)    23748.00   22166.75   25259.18     1.36     1.16     1.46
+per recipient, counter only          18605.20   17053.22   24294.63     1.06     0.91     1.39
+per recipient buffer.copy only        3377.89    3049.11    3633.13     0.19     0.16     0.21
+## downstream frame of 64 B to 100 recipients (time per frame) (468 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        30553.96   27771.59   34554.46     1.00     1.00     1.00
+per recipient, unrolled x4           34902.25   33421.12   40371.77     1.16     1.02     1.27
+once per frame + per-recipient mix    7303.68    6597.72   11129.45     0.24     0.21     0.35
+per recipient, header only (16 B)    24286.15   21640.46   28351.53     0.80     0.67     0.89
+per recipient, counter only          19153.55   17838.60   20511.67     0.63     0.55     0.68
+per recipient buffer.copy only        3299.84    2872.85    3588.55     0.11     0.09     0.12
+## downstream frame of 128 B to 100 recipients (time per frame) (312 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        55205.83   51384.62   57592.61     1.00     1.00     1.00
+per recipient, unrolled x4           48275.87   43907.59   49470.84     0.87     0.80     0.95
+once per frame + per-recipient mix    7354.92    7076.36    8172.18     0.14     0.13     0.15
+per recipient, header only (16 B)    24077.62   21309.36   25830.58     0.44     0.38     0.50
+per recipient, counter only          19039.71   17628.77   19711.19     0.34     0.32     0.38
+per recipient buffer.copy only        3246.86    2942.16    3398.89     0.06     0.05     0.06
+## downstream frame of 256 B to 100 recipients (time per frame) (187 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       100480.99   94617.83  116211.91     1.00     1.00     1.00
+per recipient, unrolled x4           71114.76   69013.60   79903.48     0.72     0.65     0.82
+once per frame + per-recipient mix    7655.45    7132.70    8487.09     0.07     0.07     0.09
+per recipient, header only (16 B)    23138.39   21216.40   25553.71     0.22     0.20     0.25
+per recipient, counter only          18535.97   17058.37   19958.14     0.18     0.16     0.21
+per recipient buffer.copy only        3329.48    3016.28    3749.91     0.03     0.03     0.04
+## downstream frame of 512 B to 100 recipients (time per frame) (104 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       191581.03  184989.37  209874.69     1.00     1.00     1.00
+per recipient, unrolled x4          122057.30  120535.66  160616.04     0.65     0.63     0.83
+once per frame + per-recipient mix    8138.76    7974.53   10466.32     0.04     0.04     0.05
+per recipient, header only (16 B)    21767.10   21099.23   24442.82     0.11     0.11     0.12
+per recipient, counter only          16861.52   16656.41   18979.27     0.09     0.09     0.09
+per recipient buffer.copy only        3552.65    3266.58    4945.13     0.02     0.02     0.02
+## downstream frame of 1024 B to 100 recipients (time per frame) (55 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       417667.96  383273.29  461762.29     1.00     1.00     1.00
+per recipient, unrolled x4          256869.36  238607.98  280272.76     0.62     0.56     0.65
+once per frame + per-recipient mix   12534.71    9756.75   16494.16     0.03     0.02     0.04
+per recipient, header only (16 B)    25581.11   22453.87   32092.62     0.06     0.05     0.08
+per recipient, counter only          20074.00   18241.85   24840.20     0.05     0.04     0.06
+per recipient buffer.copy only        5159.42    4075.89    8706.33     0.01     0.01     0.02
+## downstream frame of 4096 B to 100 recipients (time per frame) (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop      1782993.10 1664887.20 1876661.40     1.00     1.00     1.00
+per recipient, unrolled x4         1049521.30  997472.65 1139436.95     0.59     0.56     0.64
+once per frame + per-recipient mix   36519.10   23398.65   45163.95     0.02     0.01     0.03
+per recipient, header only (16 B)    32670.55   24325.25   41014.35     0.02     0.01     0.02
+per recipient, counter only          26122.05   18704.75   33048.75     0.01     0.01     0.02
+per recipient buffer.copy only       17643.50   13171.55   24955.10     0.01     0.01     0.01
+## share of one core for 100 players, 80 downstream frames/s each (busy model: 60 reliable + 20 unreliable), and at 60/s
+   32 B: per recipient, generated loop 0.14%/0.11%; per recipient, unrolled x4 0.22%/0.16%; once per frame + per-recipient mix 0.06%/0.04%; per recipient, header only (16 B) 0.19%/0.14%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.02%
+   64 B: per recipient, generated loop 0.24%/0.18%; per recipient, unrolled x4 0.28%/0.21%; once per frame + per-recipient mix 0.06%/0.04%; per recipient, header only (16 B) 0.19%/0.15%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.02%
+  128 B: per recipient, generated loop 0.44%/0.33%; per recipient, unrolled x4 0.39%/0.29%; once per frame + per-recipient mix 0.06%/0.04%; per recipient, header only (16 B) 0.19%/0.14%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.02%
+  256 B: per recipient, generated loop 0.80%/0.60%; per recipient, unrolled x4 0.57%/0.43%; once per frame + per-recipient mix 0.06%/0.05%; per recipient, header only (16 B) 0.19%/0.14%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.02%
+  512 B: per recipient, generated loop 1.53%/1.15%; per recipient, unrolled x4 0.98%/0.73%; once per frame + per-recipient mix 0.07%/0.05%; per recipient, header only (16 B) 0.17%/0.13%; per recipient, counter only 0.13%/0.10%; per recipient buffer.copy only 0.03%/0.02%
+ 1024 B: per recipient, generated loop 3.34%/2.51%; per recipient, unrolled x4 2.05%/1.54%; once per frame + per-recipient mix 0.10%/0.08%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.16%/0.12%; per recipient buffer.copy only 0.04%/0.03%
+ 4096 B: per recipient, generated loop 14.26%/10.70%; per recipient, unrolled x4 8.40%/6.30%; once per frame + per-recipient mix 0.29%/0.22%; per recipient, header only (16 B) 0.26%/0.20%; per recipient, counter only 0.21%/0.16%; per recipient buffer.copy only 0.14%/0.11%
+sink	522817756131
+== downstream_tag, luau -O2 --codegen, run 3
+## downstream frame of 32 B to 100 recipients (time per frame) (625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        18085.06   17269.13   23963.08     1.00     1.00     1.00
+per recipient, unrolled x4           28647.39   26175.36   34534.54     1.52     1.20     1.87
+once per frame + per-recipient mix    7524.24    6287.96   12269.48     0.40     0.29     0.69
+per recipient, header only (16 B)    24742.60   22514.74   33798.09     1.30     0.94     1.89
+per recipient, counter only          19610.23   17958.28   24492.93     1.03     0.75     1.35
+per recipient buffer.copy only        3497.30    3343.29    5328.72     0.20     0.14     0.30
+## downstream frame of 64 B to 100 recipients (time per frame) (468 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        30238.83   28234.69   33022.63     1.00     1.00     1.00
+per recipient, unrolled x4           35273.85   33704.31   40936.32     1.19     1.08     1.25
+once per frame + per-recipient mix    7446.31    7119.05   10650.88     0.25     0.23     0.32
+per recipient, header only (16 B)    25043.84   23572.89   30151.26     0.85     0.74     0.93
+per recipient, counter only          19500.37   17781.97   21534.84     0.64     0.58     0.70
+per recipient buffer.copy only        3318.00    2924.65    5608.34     0.11     0.10     0.19
+## downstream frame of 128 B to 100 recipients (time per frame) (312 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop        57056.37   54589.33   64016.68     1.00     1.00     1.00
+per recipient, unrolled x4           49412.29   46363.68   51304.72     0.85     0.80     0.91
+once per frame + per-recipient mix    7535.83    6596.98   13456.12     0.13     0.12     0.21
+per recipient, header only (16 B)    24307.23   21763.36   49624.75     0.42     0.39     0.78
+per recipient, counter only          19142.95   16932.20   40434.37     0.33     0.30     0.63
+per recipient buffer.copy only        3433.71    3268.01    3904.83     0.06     0.06     0.07
+## downstream frame of 256 B to 100 recipients (time per frame) (187 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       110070.76  104358.91  120342.66     1.00     1.00     1.00
+per recipient, unrolled x4           80559.75   76940.32   88756.28     0.74     0.70     0.76
+once per frame + per-recipient mix    8788.28    7986.15   12977.40     0.08     0.07     0.11
+per recipient, header only (16 B)    25234.89   24321.69   31862.88     0.23     0.20     0.27
+per recipient, counter only          19563.46   18466.48   25643.01     0.18     0.15     0.22
+per recipient buffer.copy only        3428.39    3243.42    5746.78     0.03     0.03     0.05
+## downstream frame of 512 B to 100 recipients (time per frame) (104 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       212241.43  208760.52  224487.42     1.00     1.00     1.00
+per recipient, unrolled x4          140107.86  135805.59  148580.99     0.66     0.64     0.68
+once per frame + per-recipient mix    9358.84    9058.29   10648.39     0.04     0.04     0.05
+per recipient, header only (16 B)    25482.11   23903.74   31246.92     0.12     0.11     0.15
+per recipient, counter only          19880.66   18780.64   24407.72     0.09     0.09     0.12
+per recipient buffer.copy only        3895.15    3684.59    5692.47     0.02     0.02     0.03
+## downstream frame of 1024 B to 100 recipients (time per frame) (55 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop       419650.51  405321.67  459178.62     1.00     1.00     1.00
+per recipient, unrolled x4          255530.05  229593.67  341190.09     0.61     0.56     0.76
+once per frame + per-recipient mix   11616.15   10900.22   25483.02     0.03     0.03     0.06
+per recipient, header only (16 B)    24758.47   23945.27   36829.58     0.06     0.05     0.08
+per recipient, counter only          19149.93   18239.85   22308.80     0.05     0.04     0.05
+per recipient buffer.copy only        4327.91    4121.40    6899.24     0.01     0.01     0.02
+## downstream frame of 4096 B to 100 recipients (time per frame) (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per recipient, generated loop      1662157.95 1509627.60 1731131.80     1.00     1.00     1.00
+per recipient, unrolled x4          960175.10  901597.20 1009021.70     0.58     0.57     0.60
+once per frame + per-recipient mix   24118.35   22755.95   34490.70     0.01     0.01     0.02
+per recipient, header only (16 B)    24496.25   23033.95   95423.90     0.02     0.01     0.06
+per recipient, counter only          19188.30   18676.70   25359.30     0.01     0.01     0.01
+per recipient buffer.copy only       14088.85   12073.95   37832.30     0.01     0.01     0.02
+## share of one core for 100 players, 80 downstream frames/s each (busy model: 60 reliable + 20 unreliable), and at 60/s
+   32 B: per recipient, generated loop 0.14%/0.11%; per recipient, unrolled x4 0.23%/0.17%; once per frame + per-recipient mix 0.06%/0.05%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.16%/0.12%; per recipient buffer.copy only 0.03%/0.02%
+   64 B: per recipient, generated loop 0.24%/0.18%; per recipient, unrolled x4 0.28%/0.21%; once per frame + per-recipient mix 0.06%/0.04%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.16%/0.12%; per recipient buffer.copy only 0.03%/0.02%
+  128 B: per recipient, generated loop 0.46%/0.34%; per recipient, unrolled x4 0.40%/0.30%; once per frame + per-recipient mix 0.06%/0.05%; per recipient, header only (16 B) 0.19%/0.15%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.02%
+  256 B: per recipient, generated loop 0.88%/0.66%; per recipient, unrolled x4 0.64%/0.48%; once per frame + per-recipient mix 0.07%/0.05%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.16%/0.12%; per recipient buffer.copy only 0.03%/0.02%
+  512 B: per recipient, generated loop 1.70%/1.27%; per recipient, unrolled x4 1.12%/0.84%; once per frame + per-recipient mix 0.07%/0.06%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.16%/0.12%; per recipient buffer.copy only 0.03%/0.02%
+ 1024 B: per recipient, generated loop 3.36%/2.52%; per recipient, unrolled x4 2.04%/1.53%; once per frame + per-recipient mix 0.09%/0.07%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.15%/0.11%; per recipient buffer.copy only 0.03%/0.03%
+ 4096 B: per recipient, generated loop 13.30%/9.97%; per recipient, unrolled x4 7.68%/5.76%; once per frame + per-recipient mix 0.19%/0.14%; per recipient, header only (16 B) 0.20%/0.15%; per recipient, counter only 0.15%/0.12%; per recipient buffer.copy only 0.11%/0.08%
+sink	522817756131

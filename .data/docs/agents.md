@@ -49,6 +49,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md` (on `a0f684951116653fa`).
   3. `checks`: D3, U12 → `research/checks-telemetry.md`.
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
+     Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.
   6. `methods, part 2`: per-player tag binding, generated traps/decoys/canaries, runtime-path per-session
      parameters, composition with codecs-in-scripts → append to `research/generation-methods.md`.

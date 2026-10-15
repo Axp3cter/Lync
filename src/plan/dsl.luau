@@ -416,15 +416,33 @@ local function customNode(spec: unknown, at: Fail.At): Node
 	end
 
 	if options.encode == nil or options.decode == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have encode and decode", Fail.NONE)
+		return Fail.declaration(
+			"missingOption",
+			at,
+			"t.custom spec",
+			"have encode and decode",
+			Fail.NONE
+		)
 	end
 
 	if options.maxBits == nil and options.maxBytes == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have maxBits or maxBytes", Fail.NONE)
+		return Fail.declaration(
+			"missingOption",
+			at,
+			"t.custom spec",
+			"have maxBits or maxBytes",
+			Fail.NONE
+		)
 	end
 
 	if options.name == nil or options.version == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have name and version", Fail.NONE)
+		return Fail.declaration(
+			"missingOption",
+			at,
+			"t.custom spec",
+			"have name and version",
+			Fail.NONE
+		)
 	end
 
 	local name = toName(options.name, MAX_COUNT)
@@ -638,10 +656,10 @@ end
 --[=[
 	Declares an array.
 
-	@param  codec    the elements' codec or record
+	@param  codec    the elements' codec or record, not a `t.optional`
 	@param  maxCount the most elements, 1 to 65,535
 	@return the codec
-	@error  notACodec or paramRange when an argument is not as described
+	@error  notACodec, optionalPlacement or paramRange when an argument is not as described
 ]=]
 function Codecs.array(codec: unknown, maxCount: unknown): Codec
 	local at = atOf(debug.info(2, "sl"))
@@ -878,10 +896,10 @@ end
 	Declares a map, sent with its keys in ascending order.
 
 	@param  key      a `t.int`, list `t.enum` or `t.string` codec
-	@param  value    the values' codec or record
+	@param  value    the values' codec or record, not a `t.optional`
 	@param  maxCount the most pairs, 1 to 65,535
 	@return the codec
-	@error  mapKey, notACodec or paramRange when an argument is not as described
+	@error  mapKey, notACodec, optionalPlacement or paramRange when an argument is not as described
 ]=]
 function Codecs.map(key: unknown, value: unknown, maxCount: unknown): Codec
 	local at = atOf(debug.info(2, "sl"))
@@ -940,9 +958,9 @@ end
 --[=[
 	Declares a value that may be nil.
 
-	@param  codec the present value's codec or record
+	@param  codec the present value's codec or record, not a `t.optional`
 	@return the codec
-	@error  notACodec when `codec` is neither
+	@error  notACodec or optionalPlacement when `codec` is not as described
 ]=]
 function Codecs.optional(codec: unknown): Codec
 	local at = atOf(debug.info(2, "sl"))

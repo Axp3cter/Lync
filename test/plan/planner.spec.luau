@@ -235,14 +235,16 @@ return {
 			end,
 			{ code = "zeroWidthElement", at = at(line + 4), subject = "arena.fives", path = "data" }
 		)
-		Check.expectThrow(
-			function()
-				Lync.schema("arena", {
-					empty = Lync.event({ from = "client", data = t.map(t.enum({ "only" }), {}, 4) }),
-				})
-			end,
-			{ code = "zeroWidthElement", at = at(line + 12), subject = "arena.empty", path = "data" }
-		)
+		Check.expectThrow(function()
+			Lync.schema("arena", {
+				empty = Lync.event({ from = "client", data = t.map(t.enum({ "only" }), {}, 4) }),
+			})
+		end, {
+			code = "zeroWidthElement",
+			at = at(line + 12),
+			subject = "arena.empty",
+			path = "data",
+		})
 	end,
 
 	["hasInstances: data or reply holding a t.instance"] = function()

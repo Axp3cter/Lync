@@ -8,12 +8,12 @@ formatted text (compression §5's templates), for:
   interned  t.string(max):intern(T): value = entry:u1, then id:u(w) (entry) or the plain t.string form (literal);
             definitions in the viewer's strings chunk: per table count:EG0, then per definition id:u(w) len:u(Lt),
             bytes in the tail; plus the chunk's framing (below)
-Framing charged to interned, per frame carrying definitions: EG0 of each table's definition count, 3.5 bits of
-mean alignment padding (chunks start on a byte, residue assumed uniform), and the toc change (events-only
-namespace: a new state segment, +2 bits for segs n 0 -> 1, EG0 namespace index 1 = 3 bits, count-1 = 1 bit,
-strings flag 1 bit; with collections, the namespace's existing state segment's count +1: +2 bits from EG0(0) to
-EG0(1)). Per state segment of a namespace declaring a table, the strings:u1 flag: charged on every frame of the
-collection models (an upper bound: a state segment in every frame).
+Framing charged to interned, per frame carrying definitions: the strings chunk lives in a state segment of
+namespace 0 (which has no collections), so: the chunk's namespace index (EG0 of 1 = 3 bits), EG0 of each table's
+definition count, 3.5 bits of mean alignment padding (chunks start on a byte, residue assumed uniform), and the toc
+change: namespace 0's segment entry (ns EG0(0) = 1 bit, count-1 EG0(0) = 1 bit) and segs(state)'s n + 1 (events-only
+frame: EG0(0) -> EG0(1), +2 bits; a frame already holding the namespace's state segment: EG0(1) -> EG0(2), +0 bits).
+Frames without definitions carry nothing new.
 Bytes = bits / 8 (expected value; the frame rounds once).
 Usage: python3 -B strings_model.py   (no zstd needed: compression §5 found zstd adds nothing at these sizes)
 """
@@ -56,8 +56,8 @@ def frame_cost(values, viewer, tables, ns_has_collections, w_of):
         if s not in viewer.held and s not in defs.get(tbl, {}):
             defs.setdefault(tbl, {})[s] = b
     if defs:
-        hdr = ALIGN
-        hdr += 2 if ns_has_collections else (2 + 3 + 1 + 1)
+        hdr = ALIGN + 3 + 1 + 1
+        hdr += 0 if ns_has_collections else 2
         for tbl in tables:
             hdr += eg0(len(defs.get(tbl, {})))
         interned += hdr
@@ -68,7 +68,7 @@ def frame_cost(values, viewer, tables, ns_has_collections, w_of):
     return inline, interned, defs
 
 
-def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of, state_chunk_bit):
+def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of):
     m = traffic.MODELS[model](hz=hz, seed=51)
     v = Viewer()
     tot_in = tot_int = 0.0
@@ -81,8 +81,6 @@ def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of, state
         f = m.step()
         vals = mapper(f)
         a, b, defs = frame_cost(vals, v, tables, ns_has_collections, w_of)
-        if state_chunk_bit:
-            b += 1
         if i == 0:
             first = (a, b, sum(len(d) for d in defs.values()))
         tot_in += a
@@ -191,12 +189,12 @@ if __name__ == "__main__":
         w = math.ceil(math.log2(W))
         print(f"\n# maxEntries {W} (w = {w}) for names; items table maxEntries {max(256, W)}")
         run("shooter kill feed, kill { killer, victim: t.string(20):intern(names) }, broadcast",
-            "shooter", 20, 3000, shooter_map("names"), {"names": u(20)}, False, {"names": w}, False)
+            "shooter", 20, 3000, shooter_map("names"), {"names": u(20)}, False, {"names": w})
         run("mmo names on enter, name = t.string(20):intern(names) in catch-up adds",
-            "mmo", 20, 3000, mmo_map("names"), {"names": u(20)}, True, {"names": w}, True)
+            "mmo", 20, 3000, mmo_map("names"), {"names": u(20)}, True, {"names": w})
         wi = math.ceil(math.log2(max(256, W)))
         run("tycoon: label, purchase item, notify { item, level } with item t.string(32):intern(items); chat inline",
-            "tycoon", 10, 3000, tycoon_map("items"), {"items": u(32)}, True, {"items": wi}, True)
+            "tycoon", 10, 3000, tycoon_map("items"), {"items": u(32)}, True, {"items": wi})
     print()
     for W in (64, 4096):
         column_ids("mmo", 20, W)

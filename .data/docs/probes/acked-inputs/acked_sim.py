@@ -106,6 +106,61 @@ def egk1(v, k):
     return 2 * ((v >> k) + 1).bit_length() - 1 + k
 
 
+def jensen(m, n):
+    """Upper bound on the EG-0 bits of m gaps summing to at most n - m."""
+    if m == 0:
+        return 0
+    return math.ceil(m * (2 * math.log2(max(1.0, n / m)) + 1))
+
+
+class Bound:
+    """Exact upper bound on a block's bits while rows are admitted in score order (any row order)."""
+
+    def __init__(self, ws, kprev):
+        self.ws, self.kprev = ws, kprev
+        self.cols = {}   # name -> [n, sum_mode1, m_nonzero, sum_sparse]
+        self.total = 0
+        self.pending = None
+
+    def _col(self, cols, name, v, k):
+        c = cols.setdefault(name, [0, 0, 0, 0])
+        c[0] += 1
+        c[1] += egk1(v, k)
+        if v:
+            c[2] += 1
+            c[3] += egk1(v - 1, k)
+
+    def trial(self, res, own, nb, ages, n, ref):
+        cols = {name: list(c) for name, c in self.cols.items()}
+        kp = self.kprev
+        for k, v in enumerate(res):
+            self._col(cols, ("f", k), v, kp.get(("f", k), 0))
+        if own:
+            self._col(cols, "nb", nb, kp.get("nb", 0))
+            for i, a in enumerate(ages):
+                self._col(cols, ("a0", "a1", "a2")[i], a - 1, kp.get(("a0", "a1", "a2")[i], 0))
+        dif = cols.setdefault("dif", [0, 0, 0, 0])
+        dif[1] += 3 + (5 + 3 if nb == 0 else 0)          # own (<= 1), gen (<= 3), seg (<= 1), EG-0
+        dif[0] += 1
+        self.pending = cols
+        tot = 32 + eg0(n - 1) + 2 + (sum(eg0(a - 1) for a in ref[1:]) if ref[0] else 0)
+        for name, (cn, s1, m, ssp) in cols.items():
+            if name == "dif":
+                tot += 3 * 6 + s1
+                continue
+            if cn == 0:
+                continue
+            b = 2 if m == 0 else min(6 + s1, 6 + eg0(m) + ssp + jensen(m, cn))
+            tot += b
+        tot += 6 + math.ceil(n * (2 * math.log2(2 * (1 << self.ws) / n + 1) + 1))   # slot gaps
+        self.pending_total = tot
+        return tot
+
+    def commit(self):
+        self.cols = self.pending
+        self.total = self.pending_total
+
+
 class Loss:
     def __init__(self, kind, p, rng):
         self.kind, self.p, self.rng, self.bad = kind, p, rng, False
@@ -267,7 +322,9 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
             frame_bytes = size
         else:
             cand = []
-            bnd = 32 + 6 * (7 + nf)
+            limit_bits = 8 * min(per_tick, 1000)
+            bd = Bound(ws, kprev)
+            ref = None
             for r in order:
                 lst = [t for t in acked.get(r, []) if t > T - H]
                 if pred == "D":
@@ -276,13 +333,14 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
                 if pred == "L" and len(lst) >= 2:
                     nb = 2
                 codes = f.rows[r]
+                b0 = b1 = b2 = None
+                ages = ()
                 if nb == 2:
-                    t0 = lst[-1]
-                    t1 = lst[-2]
-                    t2 = lst[-3] if len(lst) >= 3 else None
+                    t0, t1 = lst[-1], lst[-2]
+                    t2 = lst[-3] if len(lst) >= 3 else t1 - 1
                     b0, b1 = hist[(r, t0)], hist[(r, t1)]
-                    b2 = hist[(r, t2)] if t2 is not None else None
-                    ages = (T - t0, t0 - t1, (t1 - t2) if t2 is not None else 0)
+                    b2 = hist.get((r, t2))
+                    ages = (T - t0, t0 - t1, t1 - t2)
                 elif nb == 1:
                     t0 = lst[-1]
                     b0 = hist[(r, t0)]
@@ -296,9 +354,8 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
                         p = 0
                     else:
                         p = b0[k]
-                        lin = linear[k] or (rot[k] and qi_idx is not None and nb == 2 and
-                                            codes[qi_idx] == b0[qi_idx] == b1[qi_idx] and
-                                            (b2 is None or b2[qi_idx] == b0[qi_idx]))
+                        lin = linear[k] or (rot[k] and qi_idx is not None and nb == 2 and b2 is not None and
+                                            codes[qi_idx] == b0[qi_idx] == b1[qi_idx] == b2[qi_idx])
                         if nb == 2 and lin:
                             n = nmod[k]
                             d01 = wrap(b0[k] - b1[k], n)
@@ -317,46 +374,44 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
                         res.append(c ^ p)
                     else:
                         res.append(zz(wrap(c - p, nmod[k])))
-                cost = sum(egk1(v, kprev.get(("f", k), 0)) for k, v in enumerate(res))
-                cost += egk1((1 << ws) - 1, kprev.get("slot", 0)) + egk1(3, kprev.get("gen", 0))
-                cost += egk1(1, kprev.get("seg", 0)) + egk1(4, kprev.get("nb", 0))
-                if nb >= 1:
-                    cost += egk1(2 * H, kprev.get("a0", 0))
-                if nb == 2:
-                    cost += egk1(2 * H, kprev.get("a1", 0)) + egk1(2 * H, kprev.get("a2", 0))
-                newb = bnd + cost + (eg0(len(cand)) - (eg0(len(cand) - 1) if cand else 0))
-                limit_bits = 8 * min(per_tick, 1000)
+                trip = (nb,) + ages
+                if ref is None:
+                    ref = trip
+                own = trip != ref
                 if bound == "abs":
                     newb = 32 + 8 + 8 * piece * (len(cand) + 1)
+                else:
+                    newb = bd.trial(res, own, nb, ages, len(cand) + 1, ref)
                 if newb > limit_bits:
                     break
-                bnd = newb
-                cand.append((r, nb, ages if nb else (), res))
+                if bound != "abs":
+                    bd.commit()
+                cand.append((r, nb, ages, res, own))
             sel = [c[0] for c in cand]
             if cand:
+                bnd = bd.total if bound != "abs" else newb
                 cand.sort(key=lambda c: c[0])
-                tb = 32 + eg0(len(cand) - 1)
+                tb = 32 + eg0(len(cand) - 1) + 2
+                if ref[0] >= 1:
+                    tb += sum(eg0(a - 1) for a in ref[1:])
                 cols = {}
-                prev_slot = 0
-                cs = []
+                prev_slot, cs = 0, []
                 for c in cand:
                     cs.append(zz(wrap(c[0] - prev_slot, 1 << ws)))
                     prev_slot = c[0]
                 cols["slot"] = cs
-                cols["gen"] = [0] * len(cand)
-                cols["seg"] = [0] * len(cand)
-                nbs, last = [], 0
+                ow, last = [], 0
                 for c in cand:
-                    nbs.append(zz(c[1] - last))
-                    last = c[1]
-                cols["nb"] = nbs
-                for name, idx, need in (("a0", 0, 1), ("a1", 1, 2), ("a2", 2, 2)):
-                    vals, last = [], 0
-                    for c in cand:
-                        if c[1] >= need:
-                            vals.append(zz(c[2][idx] - last))
-                            last = c[2][idx]
-                    cols[name] = vals
+                    ow.append(int(c[4]) ^ last)
+                    last = int(c[4])
+                cols["own"] = ow
+                cols["nb"] = [c[1] for c in cand if c[4]]
+                cols["a0"] = [c[2][0] - 1 for c in cand if c[4] and c[1] >= 1]
+                cols["a1"] = [c[2][1] - 1 for c in cand if c[4] and c[1] == 2]
+                cols["a2"] = [c[2][2] - 1 for c in cand if c[4] and c[1] == 2]
+                nb0 = [c for c in cand if c[1] == 0]
+                cols["gen"] = [0] * len(nb0)
+                cols["seg"] = [0] * len(nb0)
                 for k in range(nf):
                     cols[("f", k)] = [c[3][k] for c in cand]
                 for name, vals in cols.items():
@@ -364,6 +419,8 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
                     tb += b
                     if vals:
                         kprev[name] = k1
+                if bound != "abs":
+                    assert tb <= bnd, (tb, bnd)
                 frame_bytes = (tb + 7) // 8
                 bound_bits += bnd
                 act_bits += tb
@@ -380,7 +437,7 @@ def run(model, kw, scheme, pred="G", H=32, net=("bern", 0.05), client="busy", bo
             while len(ring) > 17:
                 old = ring.pop(0)
                 for (r, rt) in old[3]:
-                    if r in f.rows:
+                    if last_seq.get(r) == old[0] and r in f.rows:
                         pending.setdefault(r, T)
             if not down.lost():
                 in_flight_down.append((now + 0.05 + rng.uniform(0, 0.02), seq, T, rows))

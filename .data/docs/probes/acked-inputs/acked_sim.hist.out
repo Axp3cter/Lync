@@ -1,0 +1,31 @@
+acked_sim: 60 s per run, budget 16000 B/s, seed 7; see docstring
+shooter20
+  acked G H8                       3006 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/1%/99% bound/actual 1.25
+  acked G H16                      3004 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/0%/100% bound/actual 1.25
+  acked G H64                      3004 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/0%/100% bound/actual 1.25
+  acked G H255                     3004 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/0%/100% bound/actual 1.25
+shooter60
+  acked G H8                      12120 B/s  rows/s/rec  33.32  stale  4.920  nb0/1/3 100%/0%/0% bound/actual 1.29
+  acked G H16                      8390 B/s  rows/s/rec  56.11  stale  4.466  nb0/1/3 0%/0%/100% bound/actual 1.26
+  acked G H64                      8390 B/s  rows/s/rec  56.11  stale  4.466  nb0/1/3 0%/0%/100% bound/actual 1.26
+  acked G H255                     8390 B/s  rows/s/rec  56.11  stale  4.466  nb0/1/3 0%/0%/100% bound/actual 1.26
+shooter100p20
+  acked G H8                       9550 B/s  rows/s/rec  18.76  stale  2.059  nb0/1/3 0%/1%/99% bound/actual 1.27
+  acked G H16                      9546 B/s  rows/s/rec  18.76  stale  2.059  nb0/1/3 0%/0%/100% bound/actual 1.27
+  acked G H64                      9546 B/s  rows/s/rec  18.76  stale  2.059  nb0/1/3 0%/0%/100% bound/actual 1.27
+  acked G H255                     9546 B/s  rows/s/rec  18.76  stale  2.059  nb0/1/3 0%/0%/100% bound/actual 1.27
+racing60
+  acked G H8                      13213 B/s  rows/s/rec  46.62  stale  4.654  nb0/1/3 100%/0%/0% bound/actual 1.13
+  acked G H16                     10474 B/s  rows/s/rec  56.14  stale  4.465  nb0/1/3 0%/0%/100% bound/actual 1.10
+  acked G H64                     10474 B/s  rows/s/rec  56.14  stale  4.465  nb0/1/3 0%/0%/100% bound/actual 1.10
+  acked G H255                    10474 B/s  rows/s/rec  56.14  stale  4.465  nb0/1/3 0%/0%/100% bound/actual 1.10
+mmo20
+  acked G H8                       2899 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 8%/9%/83% bound/actual 1.27
+  acked G H16                      2614 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 4%/8%/89% bound/actual 1.28
+  acked G H64                      2490 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 1%/2%/97% bound/actual 1.30
+  acked G H255                     2466 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 1%/1%/98% bound/actual 1.30
+tycoon10
+  acked G H8                       2660 B/s  rows/s/rec   6.81  stale  1.043  nb0/1/3 1%/4%/94% bound/actual 1.55
+  acked G H16                      2619 B/s  rows/s/rec   6.81  stale  1.043  nb0/1/3 1%/2%/98% bound/actual 1.55
+  acked G H64                      2596 B/s  rows/s/rec   6.81  stale  1.043  nb0/1/3 0%/1%/99% bound/actual 1.57
+  acked G H255                     2585 B/s  rows/s/rec   6.81  stale  1.043  nb0/1/3 0%/1%/99% bound/actual 1.57

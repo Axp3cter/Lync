@@ -1,0 +1,19 @@
+acked_sim: 60 s per run, budget 16000 B/s, seed 7; see docstring
+shooter20
+  core, no budget                  7074 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/0%/0%
+  acked G, no budget               3004 B/s  rows/s/rec  18.80  stale  2.057  nb0/1/3 0%/0%/100% bound/actual 1.25
+shooter60
+  core, no budget                 21233 B/s  rows/s/rec  56.16  stale  4.464  nb0/1/3 0%/0%/0%
+  acked G, no budget               8402 B/s  rows/s/rec  56.16  stale  4.464  nb0/1/3 0%/0%/100% bound/actual 1.26
+shooter100p20
+  core, no budget                 19784 B/s  rows/s/rec  15.57  stale  2.250  nb0/1/3 0%/0%/0%
+  acked G, no budget               9556 B/s  rows/s/rec  18.78  stale  2.058  nb0/1/3 0%/0%/100% bound/actual 1.27
+racing60
+  core, no budget                 15476 B/s  rows/s/rec  56.17  stale  4.464  nb0/1/3 0%/0%/0%
+  acked G, no budget              10478 B/s  rows/s/rec  56.17  stale  4.464  nb0/1/3 0%/0%/100% bound/actual 1.10
+mmo20
+  core, no budget                  7393 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 0%/0%/0%
+  acked G, no budget               2510 B/s  rows/s/rec   7.27  stale  2.055  nb0/1/3 2%/4%/95% bound/actual 1.29
+tycoon10
+  core, no budget                  9943 B/s  rows/s/rec   5.69  stale  1.269  nb0/1/3 0%/0%/0%
+  acked G, no budget               2600 B/s  rows/s/rec   6.81  stale  1.043  nb0/1/3 1%/1%/99% bound/actual 1.57

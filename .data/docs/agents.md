@@ -63,7 +63,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a99200becb647e121` | critic (Opus) | reviews `v5-checks.md` at draft 3.6 | `reviews/v5-3.6-checks.md`, `probes/review-3.6-checks/` | done on Opus 5.5: 2 blocking (frame key reset by `REKEY` breaks `monotonic`/`maxRate`; join hold splits seal and reveal), 7 major, 13 minor, 3 taste; retired |
 | `abe3c9a625869cc7b` | critic (Opus) | reviews `v5.md` §4 at draft 3.6; recomputes every golden frame independently | `reviews/v5-3.6-wire.md`, `probes/review-3.6-wire/` | running |
 | `a91f8b2be20a8e336` | researcher (Opus) | `strings`: downstream string tables and upstream references (the gap R33 left) | `research/strings.md`, `probes/strings/` | running |
-| `a2488a2c51dba205d` | critic (Opus) | reviews `v5-integrity.md` at draft 3.6 | `reviews/v5-3.6-integrity.md` | running |
+| `a2488a2c51dba205d` | critic (Opus) | reviews `v5-integrity.md` at draft 3.6 | `reviews/v5-3.6-integrity.md`, `probes/review-3.6-integrity/` | done on Opus 5.5: 2 blocking (variant modules specified two ways; decoy interest rule differs from collections), 10 major (incl. `tagVariant` doesn't identify a player; §1's recurring-work rule applied two ways; declared traps distinguishable from client bytecode constants), 21 minor, 4 taste; retired |
 | `ae05a016ace1f55ff` | critic (Opus) | reviews `v5.md` §0–§3 and §5.2 at draft 3.6 (types on both solvers and roblox-ts, API behaviour, §3.4 example) | `reviews/v5-3.6-core-api.md`, `probes/review-3.6-core-api/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.

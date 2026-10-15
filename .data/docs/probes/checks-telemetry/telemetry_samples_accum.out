@@ -1,0 +1,52 @@
+-- A. consecutive frames: client flush interval and server inter-arrival (unreliable lane, 5% loss)
+case                                Hz    client ms    server ms      server p1..p99 ms
+30 FPS (low-end mobile)           29.2 34.20 ± 5.59 35.90 ± 12.46     16.05 ..   78.61
+45 FPS (uncapped, GPU-bound)      44.0 22.71 ± 3.70 23.88 ± 10.43      4.57 ..   55.88
+60 FPS cap, steady                60.0 16.67 ± 0.21 17.55 ±  8.98      0.66 ..   41.82
+60 FPS cap, 3% spikes             58.3 17.15 ± 2.85 18.06 ±  9.52      0.67 ..   45.12
+120 FPS cap                       60.0 16.67 ± 1.93 17.54 ±  9.05      0.60 ..   41.49
+144 FPS cap                       60.0 16.67 ± 3.52 17.58 ±  9.42      0.63 ..   42.56
+240 FPS cap                       60.0 16.67 ± 1.27 17.54 ±  9.03      0.58 ..   41.74
+
+-- A2. the same frames under two other readings of the flush rule (flush rate in Hz)
+--     carry: accumulator -= 1/60 at each flush, capped at 1/60 so it never sends two in a row
+--     slack: flush when >= 0.9/60 s has passed since the last flush
+case                                reset      carry      slack
+30 FPS (low-end mobile)              29.1       29.1       29.1
+45 FPS (uncapped, GPU-bound)         44.1       44.1       44.1
+60 FPS cap, steady                   60.0       60.0       60.0
+60 FPS cap, 3% spikes                58.3       58.3       58.2
+120 FPS cap                          60.0       60.0       59.7
+144 FPS cap                          60.0       60.0       47.8
+240 FPS cap                          60.0       60.0       59.8
+
+-- B. game code firing every 0.1 s of game time (if now - last >= 0.1), reliable lane, seen at the server
+case                                client ms      server ms  distinct client intervals
+30 FPS (low-end mobile)         117.8 ± 15.48  117.8 ± 17.50   100 101 102 103 104 105 127 128 129 130 131 132 133 134 135
+45 FPS (uncapped, GPU-bound)    111.5 ±  4.90  111.5 ±  9.56   104 105 106 107 108 109 110 111 112 113 114 115 116 117 118
+60 FPS cap, steady              108.1 ±  8.02  108.1 ± 11.47   100 101 116 117
+60 FPS cap, 3% spikes           108.7 ±  7.87  108.7 ± 11.32   100 101 102 114 115 116 117
+120 FPS cap                     104.2 ±  7.08  104.2 ± 10.69   99 100 101 102 107 115 116 117
+144 FPS cap                     104.2 ±  7.59  104.2 ± 11.07   96 97 98 99 103 104 105 111 112 117 118 119
+240 FPS cap                     102.1 ±  5.56  102.1 ±  9.80   97 98 99 100 101 102 103 115 116 117
+
+-- C. aim samples per atom window [t - 0.5 s, t + 0.25 s], one sample per frame, unreliable lane
+case                                min     mean      max   largest gap ms
+30 FPS (low-end mobile)              16     20.8       24            142.6
+45 FPS (uncapped, GPU-bound)         24     31.4       36            117.1
+60 FPS cap, steady                   36     42.8       46             73.4
+60 FPS cap, 3% spikes                34     41.5       46             85.2
+120 FPS cap                          35     42.7       47             80.2
+144 FPS cap                          37     42.7       46             69.2
+240 FPS cap                          36     42.8       46             79.6
+
+-- D. late frames: aim turning at a steady 90 deg/s, 60 FPS steady, unreliable, jitter 0.02 s and 0.05 s
+jitter 0.02 s: 483 of 34185 deltas in arrival order are negative (1.41%), worst -1.54 deg; 0 in key order
+jitter 0.05 s: 7444 of 34238 deltas in arrival order are negative (21.74%), worst -3.07 deg; 0 in key order
+
+-- E. yaw change caused by one direction step of 0.2369 deg (t.direction(10) worst error), by pitch
+pitch   0.0 deg: yaw moves by up to   0.237 deg
+pitch  45.0 deg: yaw moves by up to   0.335 deg
+pitch  80.0 deg: yaw moves by up to   1.364 deg
+pitch  89.0 deg: yaw moves by up to  13.606 deg
+pitch  89.9 deg: yaw moves by up to 180.000 deg

@@ -8,3 +8,4 @@ B=$1; P=$(cd "$(dirname "$0")" && pwd)
 	echo "== native (--codegen), run $run"; (cd "$P" && "$B/luau" -O2 --codegen strings_cost.luau)
 done; } > "$P/strings_cost.out"
 python3 -B "$P/strings_model.py" > "$P/strings_model.out"
+(cd "$P" && "$B/luau" golden_strings.luau) > "$P/golden_strings.out"

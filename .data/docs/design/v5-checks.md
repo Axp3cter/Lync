@@ -85,14 +85,18 @@ Code, counter and option names are provisional until the naming pass.
   of milestone 5. Messages over `limit` therefore never touch check state.
 - **Step 6, checks and validator**, per message of a definition, in this order (the claim requirement is enforced
   earlier, when the handler is declared, §7.3):
-  1. **Evaluate** every check of the definition in declaration order, each on the decoded values. Each failure
-     records one `constraint` occurrence. A game function a check calls (`within`'s `reference`, `derive`'s `fn`)
-     runs under the validator rules (§1.7).
+  1. **Evaluate** every check of the definition in declaration order. Each check reads its field once, at its own
+     evaluation, and later steps use the value it read. Each failure records one `constraint` occurrence. A game
+     function a check calls (`within`'s `reference`, `derive`'s `fn`) runs in its own thread (§1.7) and receives
+     the same `data` table the validator and the handler receive; a change it makes to `data` is seen by later
+     checks, the validator and the handler, never by a check that has already read its field.
   2. If any failing check has `"drop"`, the message is dropped (an ask is answered `rejected`); the validator is not
      called and nothing is committed.
   3. **Validate**, as today: `false`, a throw or a yield drops the message.
-  4. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A
-     failing check with `"deliver"` commits too, so check state always describes what game code received.
+  4. **Commit**, for every message that passes step 6, whether or not a handler then receives it
+     (`messagesUnheard`, `v5.md` §3.5): `monotonic` and `maxRate` store, `maxTotal` charges, each the value it
+     read at step 1. A failing check with `"deliver"` commits too, so check state is a function of the messages
+     that passed step 6.
   Messages of one frame are handled in order, each committing before the next is evaluated.
 - **Step 6b, sample** (§8.3), then **step 7, delivery**.
 
@@ -102,14 +106,14 @@ messages a validator drops.
 
 ### 1.5 The fact `constraint`
 
-One reason with `kind` 1–4: `v5.md` §7.3's rule is one reason, or one evidence value, per trigger whose cause or
+One reason with `kind` 1–5: `v5.md` §7.3's rule is one reason, or one evidence value, per trigger whose cause or
 knob differs (draft 3.5 root cause C), and `kind` is that value, with known causes listed per kind in §2–§6. One
 reason keeps evidence narrowing on `reason` alone, the form proven on both solvers `[probes review-2 t3]`, as
 `unresolved`'s `what` does.
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `constraint` | a check declared on the message's definition fails, by its kind's trigger: §2.2 (`kind` 1), §3.2 (2), §4.2 (3), §5.2 (4), §6.2 (5) | `"drop"`: dropped, ask `rejected`; `"deliver"`: delivered | `check` (the 1-based index, §1.2), `kind` (1 `within`, 2 `monotonic`, 3 `maxTotal`, 4 `derive`, 5 `maxRate`), `policy` (1 drop, 2 deliver), `observed`, `bound`, `span`, `against` (per kind, below), `late` (1 when the message's frame key is older than the stored key; only kinds 2 and 5 store a key, so it is 0 for kinds 1, 3 and 4) | per kind: §2.4, §3.4, §4.4, §5.3, §6.4 |
+| `constraint` | a check declared on the message's definition fails, by its kind's trigger: §2.2 (`kind` 1), §3.2 (2), §4.2 (3), §5.2 (4), §6.2 (5) | `"drop"`: dropped, ask `rejected`; `"deliver"`: delivered | `check` (the 1-based index, §1.2), `kind` (1 `within`, 2 `monotonic`, 3 `maxTotal`, 4 `derive`, 5 `maxRate`), `policy` (1 drop, 2 deliver), `observed`, `bound`, `span`, `against` (per kind, below), `late` (1 when the message's frame key is older than the stored key: only kinds 2 and 5 store a key, and only unreliable frames can be late (§3.1), so it is 0 for kinds 1, 3 and 4 and for reliable definitions), and on a window's closing fact `peakObserved`, `peakBound` (below) | per kind: §2.4, §3.4, §4.4, §5.3, §6.4 |
 
 | `kind` | `observed` | `bound` | `span` (s) | `against` |
 |---|---|---|---|---|
@@ -123,8 +127,16 @@ The zeros are fixed values of fields a kind has no use for; narrowing on `kind` 
 the evidence set stays flat (`span` and `against` are R35's).
 
 - Evidence is numbers from the decoded value and the server's own value, never client bytes.
-- The fact's key is (player, reason, namespace, definition) (`v5.md` §7.3), so failures of two checks of one
-  definition coalesce in one window, whose closing fact carries the last occurrence's `check`; `count` counts both.
+- **Decision: one window per check** (review M2). Problem: `v5.md` §7.3 keys a window by (player, reason,
+  namespace, definition), so two checks of one definition coalesce and the closing fact carries only the last
+  occurrence's evidence; the tuning workflow (run `"deliver"`, read `observed`, set the bound, §2.4, §5.3) needs
+  each check's own numbers, and the largest of them. Options: (a) the core key, last occurrence only; (b) **the
+  key gains `check`, and the closing fact also carries the window's peak**. Choice: (b). `constraint`'s key is
+  (player, reason, namespace, definition, `check`), and a closing fact carries `peakObserved` and `peakBound`, the
+  `observed` and `bound` of the window's occurrence with the largest |`observed` − `bound`| (the first such on a
+  tie; on a fact delivered at a window's first occurrence they equal `observed` and `bound`). Both are a maximum of
+  reported numbers, exact, not a statistic about a player. The caps (`observe.perPlayerEvents`) count each key as
+  core keys do.
 - Recording costs 20.5 ns native per occurrence `[diagnostics §9]`.
 
 ### 1.6 State and `resetChecks`
@@ -132,10 +144,12 @@ the evidence set stays flat (`span` and `against` are R35's).
 - **State** is kept per (player, check), or per (player, pool) for a `maxTotal` pool. It is allocated at the
   player's first message that reaches the check and freed when the player leaves.
 - **`Net.<definition>:resetChecks(player, options?)`**, `options = { seconds, check }`, clears that player's state
-  for the scoped checks (every check of the definition, or the one at index `check`), including the windows of the
-  pools their `maxTotal` checks belong to. For `seconds` after the call, the scoped checks don't evaluate that
-  player's messages of the definition and commit nothing; each such message is counted in `checksExempted`. After
-  the window, the next message seeds the state. It is the call for rounds, respawns and teleports.
+  for the scoped checks, including the windows of the pools their `maxTotal` checks belong to. The scope is the
+  check at index `check`, whatever its kind; with `check` nil, every check of the definition that keeps state
+  (`monotonic`, `maxTotal`, `maxRate`), since only state needs reseeding: `within` and `derive` keep running (review
+  M1). For `seconds` after the call, the scoped checks don't evaluate that player's messages of the definition and
+  commit nothing; each such message is counted once in `checksExempted`. After the window, the next message seeds
+  the state. It is the call for rounds, respawns and teleports.
 - **Why a duration** `[refusals-rejudged-4 R35]`: messages the client sent before a server-applied move are still in
   flight after the call, and with an instant reset the first of them reseeds `maxRate` or `monotonic` with the old
   value, so the first message after the move fails: one fact per teleport, with `observed` about the teleport's
@@ -152,14 +166,35 @@ the evidence set stays flat (`span` and `against` are R35's).
 
 ### 1.7 Game functions inside checks
 
-- A `reference` or `fn` call runs in its own `xpcall`, with the validator's rules (`v5.md` §6.1 step 6): a throw is
-  reported natively as `validatorError`, a yield as `validatorYielded`, spaced per (code, definition) per
-  `observe.window`; the message names the function (`arena.strike:field("origin"):within reference`). The message is
-  dropped (an ask is answered `rejected`), checks after it are not evaluated, and occurrences already recorded stand. A
-  return of the wrong type is raised inside that call, so it is a throw.
+- **Problem** (collections review B2, checked). Luau lets a coroutine yield across `xpcall`, so a game function that
+  yields under `xpcall` (`task.wait`, `WaitForChild`, a DataStore call) suspends the thread running the inbound
+  pipeline: that frame's remaining messages, and the flush, wait until the engine resumes it, and a re-entrancy flag
+  sees the yield only at the next entry (`v5-collections.md` §8.5's case; checked again here with luau 0.740: a
+  "flush" coroutine calling a yielding function under `xpcall` returned `suspended` and never reached its end).
+- **Rule: every game function a check calls runs in a thread of its own.** Lync resumes a runner thread with the
+  function and its arguments; the runner calls it and yields a completion marker with the results. After
+  `coroutine.resume` returns, exactly one of three holds:
+  - **returned:** the resume returned true with the marker; the results are the function's. A result outside the
+    check's domain is raised inside the runner before the marker, so it is a throw: the wrong type, a non-finite
+    number or component, or, for `derive` on `t.direction`, a zero vector (§5.1);
+  - **threw:** the resume returned false. Reported natively as `validatorError` with `debug.traceback(thread,
+    message)`; the runner is dead and a new one is made for the next call;
+  - **yielded:** the resume returned true without the marker (`coroutine.status` is `"suspended"`). Reported
+    natively as `validatorYielded`; Lync calls `task.cancel(thread)`, which closes the thread so neither game code
+    nor the engine's scheduler resumes it (documented, creator-docs `libraries/task.yaml`), and makes a new runner.
+    Whatever the function did before its yield stays done.
+  In the last two cases the message is dropped (an ask is answered `rejected`), checks after it are not evaluated,
+  occurrences already recorded stand, and the definition's `validatorErrors` counter rises by one, as for a
+  validator (`v5.md` §7.4). Native reports are spaced per (code, definition) per `observe.window`, and name the
+  function (`arena.strike:field("origin"):within reference`). The pipeline thread never runs game code, so a
+  yield costs nothing to the frame or the flush.
+- The same rule fits the validator; `v5.md` §6.1 is the runtime unit's (this file's change record, Needs elsewhere).
 - A function returning nil skips its check for that message, counted in `checksSkipped`; nothing is committed for
   that check.
-- **Cost:** +18–38 ns per protected call `[diagnostics §9]`, once per game function and once for the validator.
+- **Cost** (checked, luau 0.740 CLI, interpreted, best of 5 × 2 × 10^6 calls of a two-argument function): a direct
+  call 22.5 ns, under `xpcall` 28.3 ns, through a reused runner thread 101.5 ns, through a new thread per call
+  245.3 ns. So the runner adds about 73 ns per game function against `xpcall`, plus one thread creation after each
+  throw or yield; native and Roblox's build are unmeasured (§11).
 - **`Lync.perceived(player)`** may be called inside a `reference` or `fn`, as in the validator and the handler
   before its first yield, for the message's own player; it returns the perceived ticks of the message's frame, the
   same value in each call. Anywhere else it throws `perceivedOutsideDispatch` (`v5-collections.md` §12.5). So a
@@ -232,9 +267,15 @@ State 0 B; wire 0 B.
 
 `Net.input:field("seq"):monotonic({ order = "increasing", policy = "drop" })` `[checks-telemetry C2]`: a number that
 unmodified client code never decreases in send order (`"nondecreasing"`) or always raises (`"increasing"`).
-- **Frame key.** On the reliable lane, the frame's tag count (`v5.md` §4.5); on the unreliable lane, its extended
-  upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in call order (`v5.md` §4.1), so they share
-  a key and are compared in order.
+- **Frame key.** On the reliable lane, the number of reliable frames the server has accepted from the player on
+  this connection before this one, counting from 0 (the wire unit defines the count, `v5.md` §4.5); on the
+  unreliable lane, the frame's extended upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in
+  call order (`v5.md` §4.1), so they share a key and are compared in order.
+- **Why not the tag count** (review B1, checked by the reviewer's probe): `REKEY` restarts the tag count at 0
+  (`v5.md` §4.5), so after one `desync`, a known cause on an unmodified client, every reliable frame would be
+  "late" until the new count passed the old one: 999 of 1000 rising values failed `"nondecreasing"`, and 999 of
+  999 stale values passed, which a client can force with 8 bad tags. The accepted count is never reset, and
+  reliable frames arrive in order, so no reliable frame is late.
 - **State:** the stored key s* and value v*, two f64 per (player, check).
 - Codecs: `t.int(min, max)`, `t.int()`, `t.number`, `t.f32`, `t.f64`. `t.angle` wraps, so it is `fieldKind`, as is
   every other codec.
@@ -244,7 +285,7 @@ unmodified client code never decreases in send order (`"nondecreasing"`) or alwa
 For a value v in a frame with key s:
 - no stored value: never fails;
 - s ≥ s*: fails when v < v* (`"nondecreasing"`) or v ≤ v* (`"increasing"`); `late` = 0;
-- s < s* (a late frame, possible only on the unreliable lane): fails when v > v* (`"nondecreasing"`) or v ≥ v*
+- s < s* (a late frame, possible only on the unreliable lane, §3.1): fails when v > v* (`"nondecreasing"`) or v ≥ v*
   (`"increasing"`), since a value sent earlier can't exceed one sent later; `late` = 1.
 
 **Commit** (§1.4): for s ≥ s*, (s*, v*) ← (s, v); a late frame stores nothing.
@@ -278,7 +319,7 @@ Not causes: loss (gaps pass), reordering (the key), duplicates (the replay windo
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `order` | `"nondecreasing" \| "increasing"` | — | — | `"nondecreasing"` (derived: the weaker rule, which raises no fact on equal values) | none |
+| `order` | `"nondecreasing" \| "increasing"` | — | — | required (review m2: which values `"drop"` refuses is the game's rule about its own counter, §1.3's reason; `"nondecreasing"` accepts repeats) | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
 Measured, net: 57–63 ns native and 175–183 ns interpreted per message `[checks-telemetry C6]`. State 16 B per player
@@ -311,6 +352,12 @@ for 600 s):
 
 Let w = `seconds`/16, k = ⌊`os.clock()`/w⌋ at evaluation, and S the sum of amounts committed for (player, check or
 pool) in buckets k − 15 … k. The check fails when S + v > `cap`. **Commit** (§1.4) adds v to bucket k.
+- **Exact arithmetic** (review m1, checked by the reviewer: in f64, 0.1 + 0.1 + 0.1 > 0.3, so a third 0.1 would
+  fail a 0.3 cap). Amounts are summed as integers: for `t.int`, the value; for `t.number(min, max, step)`, the value
+  in units of `step`, (v − min)/step + min/step, which is an integer because the decoder gives min + q · step and
+  `min` must be a multiple of `step` (within `v5.md` §3.3's 1e-9 rule; otherwise `fieldKind`). `cap` is converted
+  once, at declaration, to ⌊cap/step⌋ units by the same 1e-9 rule. S is recomputed from the 16 bucket sums at each
+  evaluation, never kept by adding and subtracting, and every sum is an integer below 2^53 (`cap` ≤ 2^53 units).
 
 **Guarantee** (derived, and measured above): any span of 15/16 × `seconds` or less holds at most `cap` of committed
 amounts while every failing message is dropped; any span of `seconds`, at most 2 × `cap`; the long-run rate is at
@@ -320,7 +367,9 @@ received and `observed` reports how far it went past `cap`.
 - **Codecs:** `t.int(min, max)` and `t.number(min, max, step)` with min ≥ 0. `t.int()`, `t.f32`, `t.f64` and any
   codec with negative values are `fieldKind`: a negative amount would refund the window.
 - **`pool`:** checks with the same pool name, on any definitions of the namespace, share one window per player
-  (coins from `collect`, `sell` and `quest`). They must declare equal `cap` and `seconds`, else `checkPool`.
+  (coins from `collect`, `sell` and `quest`). They must declare equal `cap` and `seconds`, and fields of equal unit
+  (equal `step` for `t.number`), else `checkPool`. A pool whose checks mix `"drop"` and `"deliver"` commits the
+  `"deliver"` checks' failing amounts too, so the guarantee above holds only for pools whose every check drops.
 
 ### 4.3 What it protects, and how it is defeated
 
@@ -381,12 +430,21 @@ Net.craft:field("result"):derive({
   kind**. Choice: the fourth kind, which reuses §1 whole and adds snapping, exact codecs and its own `kind`
   `[server-facts §U9.2]`.
 - **Comparison:**
-  1. `fn(player, data)` returns r, or nil (§1.7).
+  1. `fn(player, data)` returns r, or nil (§1.7). A non-finite r (or component), and a zero vector for
+     `t.direction`, is raised inside `fn`'s thread, so it is a throw (§1.7, review M4): the snap only sees finite
+     values in the codec's domain, and no game value reaches the encoder's `internal`.
   2. **Snap:** r goes through the field codec's own quantizer, the one the encoder applies (`v5.md` §3.3):
      `t.number` and each `t.vector3` component to its step, `t.angle` to its n, `t.direction` through the octahedral
      code, `t.f32` to the nearest f32. A value outside the codec's range is first limited to it (this is the
      server's value; the client's is untouched). `t.int`, `t.f64`, `t.enum` and `t.bool` are compared as returned.
-  3. **Distance d:** §2.1's metric for the codecs there; 0 or 1 for `t.enum` (both forms) and `t.bool`.
+  3. **Distance, in codes where the codec has a grid** (review M3, checked by the reviewer: decoded neighbours at
+     decimal steps lie up to 1.4e-13 beyond `step`, so a float metric fails a one-step tolerance about a quarter of
+     the time). With q_v the received code and q_r the snapped one: `t.number` and `t.int(min, max)`, k = |q_v −
+     q_r|; `t.vector3`, k = Σ Δq² over the components; `t.angle`, k = min(Δq, n − Δq). `tolerance` is converted once,
+     at declaration, to an integer K by `v5.md` §3.3's 1e-9 rule: ⌊tolerance/step⌋ for `t.number` (1 for `t.int`),
+     ⌊(tolerance/step)²⌋ for `t.vector3`, ⌊tolerance · n/2π⌋ for `t.angle`. The comparison is integer: k against K.
+     `observed` reports √k · step, k · step or k · 2π/n in the field's unit. `t.direction`, `t.f32`, `t.f64` keep
+     §2.1's float metric; `t.enum` (both forms) and `t.bool` give 0 or 1.
 - **Codecs:** §2.1's list, plus `t.enum` and `t.bool`. Records, arrays, maps, unions, `t.cframe` and `t.rotation`
   are `fieldKind`; a record outcome is one `derive` per leaf.
 - `derive` keeps no state; commit stores nothing.
@@ -397,8 +455,9 @@ The check is evaluated for a message when `oneIn` is 1, or when a draw `Random:N
 a `Random.new()` instance created without a seed at server start and used for nothing else (an unseeded `Random`
 "uses a seed from an internal entropy source", documented, creator-docs `datatypes/Random.yaml`). The draw happens
 after the frame arrived, so a client can't know before sending which of its messages are evaluated. An evaluated
-check fails when not (d ≤ `tolerance`); equality passes, a NaN fails. A message not drawn is not evaluated and
-passes.
+check fails when not (k ≤ K) on a grid codec, or not (d ≤ `tolerance`) on the others (§5.1 step 3); equality
+passes. A message not drawn is not evaluated, passes, and is counted in `checksUndrawn` (review M1), so every way a
+claim passes unchecked has a count.
 
 ### 5.3 What it protects, known causes
 
@@ -426,9 +485,11 @@ Known causes on an unmodified client (`server-facts/derive_determinism.out` unle
 5. **Inputs that weren't sent:** the client's own clock, a random draw, local state. Fix: put them in the message
    (a seed, `Lync.tick()`) and check them with `within`.
 
-**Tolerance.** In the field's unit, as `within`'s `maxDistance`. The smallest useful value on a quantized codec is
-one grid step's distance: `step` for `t.number`, √3 · `step` for `t.vector3` (0.054 studs at 1/32), 2π/n for
-`t.angle`, one octahedral cell for `t.direction` (0.47° at 10 bits, derived). The docs' formula: one step + the gap
+**Tolerance.** In the field's unit, as `within`'s `maxDistance`. On a grid codec, k steps pass exactly at
+`tolerance` = k · step (k · 2π/n for `t.angle`), and a diagonal neighbour of `t.vector3` at √3 · step
+(0.0541266 studs at 1/32); one grid step is the smallest value that absorbs cause 1. For `t.direction`, one
+octahedral cell (0.47° at 10 bits, derived from the 0.2369° maximum error) plus a margin the developer picks, since
+its metric is a float angle. The docs' formula: one step + the gap
 between the client's algorithm and `fn` + lever arm × input quantization error + speed × latency when `fn` reads
 moving server state.
 
@@ -470,7 +531,8 @@ moving server state.
 
 For a value v in a frame with key s, evaluated at t (`os.clock()` at evaluation): with no stored value, never.
 Otherwise it fails when not (d(v, p) ≤ `rate` × (t − t_p) + `burst`), or not (d(v, a) ≤ `rate` × (t − t_a) +
-`burst`); equality passes. A late frame (s older than the stored key) is compared with both references, `late` = 1.
+`burst`); equality passes. A late frame (s older than the stored key, unreliable only: §3.1's key) is compared with
+both references, `late` = 1.
 
 **Commit** (§1.4): if s is newer than the stored key, (p, t_p, key) ← (v, t, s), and when t − t_a ≥ `window` also
 (a, t_a) ← (v, t). The first message sets both. A late frame stores nothing.
@@ -612,9 +674,12 @@ for checks.
   Lync acting on input, and delivering them would let the marker guarantee nothing. Refusing the handler acts on no
   input and names the line to change; its only cost is an order, verifiers before the handler. Messages decoded
   before a handler exists reach no handler and are counted in `messagesUnheard` (`v5.md` §3.5).
-- **What it guarantees:** no message holding a claim reaches `connect` or `handle` without a game validator or a
-  declared check having run on it. It is defeated by a validator that returns `true` unconditionally, and by marking
-  a claim `:input()` to silence the lint.
+- **What it guarantees, exactly** (review M1): no message holding a claim leaf reaches `connect` or `handle` unless
+  a validator ran on it, or each check declared on the leaf either was evaluated on it, or skipped it in one of
+  three counted ways: its game function returned nil (`checksSkipped`), `oneIn` didn't draw it (`checksUndrawn`), or
+  it fell in a `resetChecks` window (`checksExempted`). A developer who needs every claim evaluated gives the
+  definition a validator, or a reference that never returns nil, `oneIn` 1 and no window on that check. It is
+  defeated by a validator that returns `true` unconditionally, and by marking a claim `:input()` to silence the lint.
 
 ```luau
 -- shared schema
@@ -642,10 +707,12 @@ codecs) in a client-sent payload with no role marker on itself or an enclosing c
 - **What it misses, by design:** outcomes in input-shaped codecs (`t.bool` wins, `t.int(1, 12)` placings,
   `t.int(1, 500)` amounts), a `t.number(0, 600, 0.01)` completion time (60,001 codes), small ids, and choices among
   a server-provided set. The rule is syntax; it can't recognise outcomes `[anticheat-design §3.2]`.
-- **Threshold** 65,536 codes: a constant, chosen, not measured. Below it are every input of `v5.md` §3.4 and the
-  demo inputs (255-code sticks, enums, slot indices); above it, ids, currency up to 10^6 and fine positions. A
-  measured count of false positives and misses per threshold over real schemas would change it. Moving it changes
-  only which fields need a marker, so it is not an option.
+- **Threshold: the developer's** (scope audit H1). The trigger is exact (a code count), but the number is a proxy
+  for "could be a claim", and which fields need a marker is the developer's decision. So it is a `[check]` option,
+  `check.freeFormCodes` (integer, codes per component, 2–2^53, default 65,536, chosen: below it are every input of
+  `v5.md` §3.4 and the demo inputs, 255-code sticks, enums and slot indices; above it ids, currency up to 10^6 and
+  fine positions; a measured count of false positives and misses over real schemas would change it; cost none at
+  run time). The row and the option are `v5-tooling.md`'s.
 - On the runtime path the planner computes it and drops it: there is no build to report to, and a line in every
   session is the channel M11 refused.
 

@@ -12,18 +12,18 @@
 ## mmo names on enter, name = t.string(20):intern(names) in catch-up adds: mmo @ 20 Hz, 150 s, one recipient
   string values per second: 3.07 interned; definitions 35 in 7 frames
   inline      24.18 B/s
-  interned     7.53 B/s   saved   16.66 B/s (68.9%)
-  steady state (frame 0, the join catch-up, excluded): inline 17.69 B/s, interned 4.92 B/s
+  interned     5.04 B/s   saved   19.14 B/s (79.1%)
+  steady state (frame 0, the join catch-up, excluded): inline 17.69 B/s, interned 2.44 B/s
   table names: 35 entries, 295 B of strings, w = 6
-  first frame: inline 973.6 B, interned 390.7 B (29 definitions)
+  first frame: inline 973.6 B, interned 390.9 B (29 definitions)
 
 ## tycoon: label, purchase item, notify { item, level } with item t.string(32):intern(items); chat inline: tycoon @ 10 Hz, 300 s, one recipient
   string values per second: 6.05 interned; definitions 121 in 115 frames
   inline      80.48 B/s
-  interned    23.64 B/s   saved   56.83 B/s (70.6%)
-  steady state (frame 0, the join catch-up, excluded): inline 80.44 B/s, interned 23.60 B/s
+  interned    22.54 B/s   saved   57.94 B/s (72.0%)
+  steady state (frame 0, the join catch-up, excluded): inline 80.44 B/s, interned 22.49 B/s
   table items: 121 entries, 1009 B of strings, w = 8
-  first frame: inline 10.8 B, interned 14.1 B (1 definitions)
+  first frame: inline 10.8 B, interned 14.3 B (1 definitions)
 
 # maxEntries 4096 (w = 12) for names; items table maxEntries 4096
 
@@ -38,18 +38,18 @@
 ## mmo names on enter, name = t.string(20):intern(names) in catch-up adds: mmo @ 20 Hz, 150 s, one recipient
   string values per second: 3.07 interned; definitions 35 in 7 frames
   inline      24.18 B/s
-  interned    10.00 B/s   saved   14.18 B/s (58.6%)
-  steady state (frame 0, the join catch-up, excluded): inline 17.69 B/s, interned 6.65 B/s
+  interned     7.52 B/s   saved   16.67 B/s (68.9%)
+  steady state (frame 0, the join catch-up, excluded): inline 17.69 B/s, interned 4.16 B/s
   table names: 35 entries, 295 B of strings, w = 12
-  first frame: inline 973.6 B, interned 503.2 B (29 definitions)
+  first frame: inline 973.6 B, interned 503.4 B (29 definitions)
 
 ## tycoon: label, purchase item, notify { item, level } with item t.string(32):intern(items); chat inline: tycoon @ 10 Hz, 300 s, one recipient
   string values per second: 6.05 interned; definitions 121 in 115 frames
   inline      80.48 B/s
-  interned    26.87 B/s   saved   53.61 B/s (66.6%)
-  steady state (frame 0, the join catch-up, excluded): inline 80.44 B/s, interned 26.82 B/s
+  interned    25.76 B/s   saved   54.71 B/s (68.0%)
+  steady state (frame 0, the join catch-up, excluded): inline 80.44 B/s, interned 25.71 B/s
   table items: 121 entries, 1009 B of strings, w = 12
-  first frame: inline 10.8 B, interned 15.1 B (1 definitions)
+  first frame: inline 10.8 B, interned 15.3 B (1 definitions)
 
   catch-up ids column, 121 adds, maxEntries 64: creation-order ids 709 bits, random ids 735 bits, single rows 726 bits (+121 entry bits each way)
   catch-up ids column, 121 adds, maxEntries 4096: creation-order ids 709 bits, random ids 1461 bits, single rows 1452 bits (+121 entry bits each way)

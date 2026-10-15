@@ -1,0 +1,31 @@
+acked_sim: 60 s per run, budget 16000 B/s, seed 7; see docstring
+shooter20
+  core ge5                         7074 B/s  rows/s/rec  18.75  stale  2.171  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                  3047 B/s  rows/s/rec  18.75  stale  2.171  nb0/1/3 0%/0%/100% bound/actual 1.25
+  core ge15                        7074 B/s  rows/s/rec  16.92  stale  2.400  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                 3146 B/s  rows/s/rec  16.92  stale  2.400  nb0/1/3 0%/0%/99% bound/actual 1.25
+shooter60
+  core ge5                        15476 B/s  rows/s/rec  40.79  stale  4.850  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                  8440 B/s  rows/s/rec  55.95  stale  4.556  nb0/1/3 0%/0%/100% bound/actual 1.26
+  core ge15                       15476 B/s  rows/s/rec  37.01  stale  5.188  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                 8571 B/s  rows/s/rec  50.77  stale  4.856  nb0/1/3 0%/0%/99% bound/actual 1.26
+shooter100p20
+  core ge5                        15947 B/s  rows/s/rec  12.50  stale  2.527  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                  9686 B/s  rows/s/rec  18.71  stale  2.173  nb0/1/3 0%/0%/100% bound/actual 1.26
+  core ge15                       15947 B/s  rows/s/rec  11.28  stale  2.797  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                 9996 B/s  rows/s/rec  16.88  stale  2.403  nb0/1/3 0%/0%/99% bound/actual 1.26
+racing60
+  core ge5                        15476 B/s  rows/s/rec  56.02  stale  4.555  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                 10494 B/s  rows/s/rec  55.99  stale  4.555  nb0/1/3 0%/0%/100% bound/actual 1.10
+  core ge15                       15476 B/s  rows/s/rec  50.83  stale  4.854  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                10574 B/s  rows/s/rec  50.80  stale  4.855  nb0/1/3 0%/0%/99% bound/actual 1.10
+mmo20
+  core ge5                         7386 B/s  rows/s/rec   7.26  stale  2.209  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                  2535 B/s  rows/s/rec   7.26  stale  2.209  nb0/1/3 2%/4%/94% bound/actual 1.29
+  core ge15                        7425 B/s  rows/s/rec   6.61  stale  2.553  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                 2637 B/s  rows/s/rec   6.61  stale  2.553  nb0/1/3 2%/4%/94% bound/actual 1.29
+tycoon10
+  core ge5                         9943 B/s  rows/s/rec   5.64  stale  1.552  nb0/1/3 0%/0%/0%
+  acked G H32 ge5                  2651 B/s  rows/s/rec   6.73  stale  1.348  nb0/1/3 1%/0%/99% bound/actual 1.56
+  core ge15                        9943 B/s  rows/s/rec   5.15  stale  1.626  nb0/1/3 0%/0%/0%
+  acked G H32 ge15                 2761 B/s  rows/s/rec   6.16  stale  1.424  nb0/1/3 1%/1%/99% bound/actual 1.56

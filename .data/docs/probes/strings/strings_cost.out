@@ -1,27 +1,27 @@
 == interpreted (luau 0.742 -O2), run 1
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail             105.00      99.38     160.27     1.00     1.00     1.00
-interned ref, 1 recipient holds        127.94     122.69     183.57     1.21     0.77     1.34
-interned ref, 100 recipients hold       23.74      22.86      34.49     0.23     0.15     0.29
+plain t.string: len + tail             103.85      97.92     139.95     1.00     1.00     1.00
+interned ref, 1 recipient holds        130.11     121.83     210.12     1.26     1.20     1.50
+interned ref, 100 recipients hold       23.80      22.19      25.29     0.22     0.17     0.24
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 120.61     112.87     180.70     1.00     1.00     1.00
-create entry                           482.73     416.46     645.59     3.82     2.67     5.04
+map lookup only (miss)                 138.75     116.89     591.19     1.00     1.00     1.00
+create entry                           502.51     431.59    1887.91     3.63     1.13    12.37
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              122.85     113.72     167.19     1.00     1.00     1.00
-ref: id + held bit + list               91.99      83.40     151.52     0.75     0.69     1.18
+literal: len + readstring              120.00     117.22     131.04     1.00     1.00     1.00
+ref: id + held bit + list               88.75      86.90      95.60     0.74     0.68     0.79
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              138.15     133.72     148.64     1.00     1.00     1.00
-ref: id + held lookup                   83.48      79.31      91.40     0.61     0.55     0.68
+literal: len + readstring              137.28     128.88     162.16     1.00     1.00     1.00
+ref: id + held lookup                   81.88      78.77     111.40     0.61     0.57     0.75
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         84.69      68.47     149.32     1.00     1.00     1.00
-definition, 3 checks + 2 stores        353.39     265.09     398.97     3.87     2.35     5.70
+readstring only                         83.10      67.50     156.15     1.00     1.00     1.00
+definition, 3 checks + 2 stores        345.45     272.34     590.80     3.99     2.21     6.10
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)
@@ -33,27 +33,27 @@ strings owned by the table only (20 B):         45.0 B per string
 == native (--codegen), run 1
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail              36.49      35.48      39.07     1.00     1.00     1.00
-interned ref, 1 recipient holds         27.01      25.94      27.59     0.74     0.69     0.75
-interned ref, 100 recipients hold        6.03       5.73       6.48     0.16     0.16     0.18
+plain t.string: len + tail              39.79      36.47      43.00     1.00     1.00     1.00
+interned ref, 1 recipient holds         28.30      26.82      37.39     0.75     0.65     0.96
+interned ref, 100 recipients hold        6.03       5.84       7.73     0.15     0.14     0.20
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 105.63     102.56     184.04     1.00     1.00     1.00
-create entry                           262.53     252.79     297.60     2.42     1.62     2.74
+map lookup only (miss)                 108.15     101.69     184.27     1.00     1.00     1.00
+create entry                           262.30     254.84     306.86     2.47     1.67     3.00
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               78.02      74.87      85.45     1.00     1.00     1.00
-ref: id + held bit + list               21.24      20.35      22.30     0.27     0.26     0.30
+literal: len + readstring               78.44      76.46      94.84     1.00     1.00     1.00
+ref: id + held bit + list               22.29      21.06      24.15     0.28     0.23     0.31
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               80.27      75.65     100.17     1.00     1.00     1.00
-ref: id + held lookup                   35.82      34.81      40.49     0.45     0.36     0.52
+literal: len + readstring               79.96      77.07     103.15     1.00     1.00     1.00
+ref: id + held lookup                   37.05      32.68      47.86     0.44     0.38     0.51
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         66.63      58.53     130.63     1.00     1.00     1.00
-definition, 3 checks + 2 stores        309.69     248.64     460.22     4.39     2.42     7.86
+readstring only                         91.98      88.55     158.28     1.00     1.00     1.00
+definition, 3 checks + 2 stores        372.78     358.05     421.09     3.91     2.66     4.59
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)
@@ -65,27 +65,27 @@ strings owned by the table only (20 B):         45.0 B per string
 == interpreted (luau 0.742 -O2), run 2
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail             101.39      97.42     118.32     1.00     1.00     1.00
-interned ref, 1 recipient holds        128.34     123.06     144.48     1.25     1.08     1.47
-interned ref, 100 recipients hold       23.28      22.77      24.11     0.23     0.20     0.24
+plain t.string: len + tail             109.79     103.80     117.48     1.00     1.00     1.00
+interned ref, 1 recipient holds        131.92     129.06     140.61     1.20     1.12     1.35
+interned ref, 100 recipients hold       24.49      23.48      26.80     0.22     0.20     0.25
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 114.77     111.28     168.14     1.00     1.00     1.00
-create entry                           412.36     386.31     433.92     3.51     2.58     3.80
+map lookup only (miss)                 116.18     112.91     195.73     1.00     1.00     1.00
+create entry                           423.77     399.38     482.46     3.52     2.21     4.15
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              122.73     114.32     133.24     1.00     1.00     1.00
-ref: id + held bit + list               92.81      85.98     140.79     0.77     0.71     1.10
+literal: len + readstring              122.37     119.02     135.38     1.00     1.00     1.00
+ref: id + held bit + list               91.00      86.74     103.65     0.75     0.66     0.87
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              134.59     127.89     170.99     1.00     1.00     1.00
-ref: id + held lookup                   79.91      75.26     112.66     0.59     0.46     0.85
+literal: len + readstring              135.26     131.77     139.32     1.00     1.00     1.00
+ref: id + held lookup                   80.96      78.00      92.06     0.59     0.58     0.68
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         80.33      62.61     144.16     1.00     1.00     1.00
-definition, 3 checks + 2 stores        320.75     252.88     357.68     4.01     2.35     4.59
+readstring only                         88.20      72.76     197.92     1.00     1.00     1.00
+definition, 3 checks + 2 stores        362.79     315.69     702.46     3.85     2.34     5.96
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)
@@ -97,27 +97,27 @@ strings owned by the table only (20 B):         45.0 B per string
 == native (--codegen), run 2
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail              35.77      33.47      41.97     1.00     1.00     1.00
-interned ref, 1 recipient holds         26.34      25.00      34.77     0.72     0.63     1.03
-interned ref, 100 recipients hold        5.83       5.41       8.63     0.16     0.16     0.21
+plain t.string: len + tail              39.64      34.76      43.39     1.00     1.00     1.00
+interned ref, 1 recipient holds         28.96      25.71      49.91     0.72     0.66     1.20
+interned ref, 100 recipients hold        6.23       5.96      11.25     0.15     0.14     0.28
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 110.56     105.69     195.21     1.00     1.00     1.00
-create entry                           274.59     260.65     308.95     2.44     1.51     2.79
+map lookup only (miss)                 107.64     105.53     183.15     1.00     1.00     1.00
+create entry                           259.65     242.81     298.77     2.33     1.63     2.61
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               80.52      73.43     103.76     1.00     1.00     1.00
-ref: id + held bit + list               21.64      20.25      31.06     0.28     0.21     0.33
+literal: len + readstring               77.38      74.14      85.86     1.00     1.00     1.00
+ref: id + held bit + list               20.89      20.34      22.97     0.27     0.24     0.31
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               76.04      73.42     107.49     1.00     1.00     1.00
-ref: id + held lookup                   32.48      31.61      52.31     0.43     0.42     0.53
+literal: len + readstring               74.58      73.59      76.28     1.00     1.00     1.00
+ref: id + held lookup                   31.94      31.41      37.85     0.43     0.42     0.50
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         55.00      53.37     138.81     1.00     1.00     1.00
-definition, 3 checks + 2 stores        246.98     226.58     363.91     4.35     2.62     4.69
+readstring only                         54.64      51.75     103.26     1.00     1.00     1.00
+definition, 3 checks + 2 stores        246.96     236.03     926.36     4.52     2.48    17.90
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)
@@ -129,27 +129,27 @@ strings owned by the table only (20 B):         45.0 B per string
 == interpreted (luau 0.742 -O2), run 3
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail             102.01      98.80     174.63     1.00     1.00     1.00
-interned ref, 1 recipient holds        126.92     122.16     188.19     1.23     0.83     1.88
-interned ref, 100 recipients hold       23.74      23.22      34.58     0.23     0.16     0.35
+plain t.string: len + tail             106.44     101.70     175.88     1.00     1.00     1.00
+interned ref, 1 recipient holds        127.01     124.42     196.15     1.22     0.96     1.31
+interned ref, 100 recipients hold       23.89      22.79      34.45     0.22     0.13     0.26
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 117.50     108.42     166.53     1.00     1.00     1.00
-create entry                           406.67     399.82     455.63     3.60     2.57     3.89
+map lookup only (miss)                 113.53     107.31     164.39     1.00     1.00     1.00
+create entry                           390.37     372.09     420.89     3.47     2.51     3.71
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              117.25     114.43     122.68     1.00     1.00     1.00
-ref: id + held bit + list               86.88      83.81      90.96     0.74     0.71     0.78
+literal: len + readstring              121.76     114.79     140.57     1.00     1.00     1.00
+ref: id + held bit + list               89.99      87.65     138.93     0.76     0.66     0.99
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring              130.47     128.28     150.56     1.00     1.00     1.00
-ref: id + held lookup                   80.75      75.85      91.30     0.61     0.55     0.65
+literal: len + readstring              136.51     130.63     149.49     1.00     1.00     1.00
+ref: id + held lookup                   81.52      78.08      94.67     0.59     0.57     0.71
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         71.30      59.58     145.80     1.00     1.00     1.00
-definition, 3 checks + 2 stores        302.81     235.24     341.84     3.99     2.34     5.19
+readstring only                         81.06      67.75     141.67     1.00     1.00     1.00
+definition, 3 checks + 2 stores        324.34     264.21     378.53     3.92     2.49     5.15
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)
@@ -161,27 +161,27 @@ strings owned by the table only (20 B):         45.0 B per string
 == native (--codegen), run 3
 ## server encode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-plain t.string: len + tail              34.55      31.88      36.83     1.00     1.00     1.00
-interned ref, 1 recipient holds         25.42      23.45      27.17     0.74     0.68     0.81
-interned ref, 100 recipients hold        5.86       5.39      20.28     0.17     0.15     0.59
+plain t.string: len + tail              35.70      34.67      37.71     1.00     1.00     1.00
+interned ref, 1 recipient holds         26.41      25.56      27.05     0.74     0.70     0.76
+interned ref, 100 recipients hold        5.96       5.72       7.80     0.17     0.16     0.22
 (the 100-recipient case runs m/100 values: its per-iteration figure is per (value, recipient))
 ## server: create one entry (random free id) (3000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-map lookup only (miss)                 100.68      99.22     220.12     1.00     1.00     1.00
-create entry                           255.06     244.39     344.08     2.50     1.49     3.05
+map lookup only (miss)                 110.71     106.77     181.58     1.00     1.00     1.00
+create entry                           265.10     256.49     302.84     2.39     1.67     2.78
 (both cases build their key with a concatenation; their difference is the creation work)
 ## server decode, one upstream t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               73.67      64.52      93.57     1.00     1.00     1.00
-ref: id + held bit + list               20.03      17.96      26.51     0.28     0.23     0.32
+literal: len + readstring               76.09      74.33      77.73     1.00     1.00     1.00
+ref: id + held bit + list               21.01      20.37      21.55     0.28     0.27     0.28
 ## client decode, one t.string(20) value (200000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-literal: len + readstring               78.86      74.76      98.69     1.00     1.00     1.00
-ref: id + held lookup                   34.29      32.42      64.49     0.44     0.34     0.82
+literal: len + readstring               75.02      74.26      81.64     1.00     1.00     1.00
+ref: id + held lookup                   36.12      34.79      36.74     0.48     0.44     0.49
 ## client: decode one definition (id, len, bytes; checks; store) (2000 iters x 11 rounds)
 case                                median ns        min        max    ratio     rmin     rmax
-readstring only                         55.12      54.16     111.94     1.00     1.00     1.00
-definition, 3 checks + 2 stores        249.07     235.40     282.23     4.54     2.23     5.12
+readstring only                        104.73      57.13     131.38     1.00     1.00     1.00
+definition, 3 checks + 2 stores        392.79     251.76     893.29     3.66     2.69    13.21
 ## heap, 1024 entries of 20-byte strings alive elsewhere, ids random in [0, 4096)
 client id->string, hash table (random ids):     32.0 B per entry
 client id->string, table.create(CAP) array:     64.0 B per entry (65536 B total, any fill)

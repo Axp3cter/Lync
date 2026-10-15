@@ -1,0 +1,130 @@
+== overloads_8.luau --solver=old
+== overloads_8.luau --solver=new
+== overloads_9.luau --solver=old
+== overloads_9.luau --solver=new
+./overloads_9.luau(4,29): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+== overloads_32.luau --solver=old
+== overloads_32.luau --solver=new
+./overloads_32.luau(4,29): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+== overloads_consumer.luau --solver=old
+./overloads_consumer.luau(4,42): TypeError: Expected this to be 'vector?', but got 'number'
+caused by:
+  None of the union options are compatible. For example:
+Expected this to be 'vector', but got 'number'
+./overloads_consumer.luau(5,11): TypeError: Expected this to be '"f1"', but got '"nope"'
+./overloads_consumer.luau(5,1): TypeError: Other overloads are also not viable: (View, "f2") -> H<string>; (View, "f3") -> H<number>; (View, "f4") -> H<vector>; (View, "f5") -> H<string>; (View, "f6") -> H<number>; (View, "f7") -> H<vector>; (View, "f8") -> H<string>; (View, "f9") -> H<number>; (View, "f10") -> H<vector>; (View, "f11") -> H<string>; (View, "f12") -> H<number>; (View, "f13") -> H<vector>; (View, "f14") -> H<string>; (View, "f15") -> H<number>; (View, "f16") -> H<vector>; (View, "f17") -> H<string>; (View, "f18") -> H<number>; (View, "f19") -> H<vector>; (View, "f20") -> H<string>; (View, "f21") -> H<number>; (View, "f22") -> H<vector>; (View, "f23") -> H<string>; (View, "f24") -> H<number>; (View, "f25") -> H<vector>; (View, "f26") -> H<string>; (View, "f27") -> H<number>; (View, "f28") -> H<vector>; (View, "f29") -> H<string>; (View, "f30") -> H<number>; (View, "f31") -> H<vector>; and (View, "f32") -> H<string>
+== overloads_consumer.luau --solver=new
+/home/user/Lync/.data/docs/probes/review-3.6-core-api/overloads_32.luau(4,29): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+./overloads_consumer.luau(4,49): TypeError: Expected this to be 'vector?', but got 'number'
+./overloads_consumer.luau(5,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./overloads_consumer.luau(5,1): TypeError: Available overloads: (View, "f1") -> H<vector>; (View, "f2") -> H<string>; (View, "f3") -> H<number>; (View, "f4") -> H<vector>; (View, "f5") -> H<string>; (View, "f6") -> H<number>; (View, "f7") -> H<vector>; (View, "f8") -> H<string>; (View, "f9") -> H<number>; (View, "f10") -> H<vector>; (View, "f11") -> H<string>; (View, "f12") -> H<number>; (View, "f13") -> H<vector>; (View, "f14") -> H<string>; (View, "f15") -> H<number>; (View, "f16") -> H<vector>; (View, "f17") -> H<string>; (View, "f18") -> H<number>; (View, "f19") -> H<vector>; (View, "f20") -> H<string>; (View, "f21") -> H<number>; (View, "f22") -> H<vector>; (View, "f23") -> H<string>; (View, "f24") -> H<number>; (View, "f25") -> H<vector>; (View, "f26") -> H<string>; (View, "f27") -> H<number>; (View, "f28") -> H<vector>; (View, "f29") -> H<string>; (View, "f30") -> H<number>; (View, "f31") -> H<vector>; and (View, "f32") -> H<string>
+== overloads_consumer_fixed.luau --solver=old
+./overloads_consumer_fixed.luau(4,42): TypeError: Expected this to be 'vector?', but got 'number'
+caused by:
+  None of the union options are compatible. For example:
+Expected this to be 'vector', but got 'number'
+./overloads_consumer_fixed.luau(5,11): TypeError: Expected this to be '"f1"', but got '"nope"'
+./overloads_consumer_fixed.luau(5,1): TypeError: Other overloads are also not viable: (View, "f2") -> H<string>; (View, "f3") -> H<number>; (View, "f4") -> H<vector>; (View, "f5") -> H<string>; (View, "f6") -> H<number>; (View, "f7") -> H<vector>; (View, "f8") -> H<string>; (View, "f9") -> H<number>; (View, "f10") -> H<vector>; (View, "f11") -> H<string>; (View, "f12") -> H<number>; (View, "f13") -> H<vector>; (View, "f14") -> H<string>; (View, "f15") -> H<number>; (View, "f16") -> H<vector>; (View, "f17") -> H<string>; (View, "f18") -> H<number>; (View, "f19") -> H<vector>; (View, "f20") -> H<string>; (View, "f21") -> H<number>; (View, "f22") -> H<vector>; (View, "f23") -> H<string>; (View, "f24") -> H<number>; (View, "f25") -> H<vector>; (View, "f26") -> H<string>; (View, "f27") -> H<number>; (View, "f28") -> H<vector>; (View, "f29") -> H<string>; (View, "f30") -> H<number>; (View, "f31") -> H<vector>; and (View, "f32") -> H<string>
+== overloads_consumer_fixed.luau --solver=new
+./overloads_consumer_fixed.luau(4,49): TypeError: Expected this to be 'vector?', but got 'number'
+./overloads_consumer_fixed.luau(5,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./overloads_consumer_fixed.luau(5,1): TypeError: Available overloads: (View, "f1") -> H<vector>; (View, "f2") -> H<string>; (View, "f3") -> H<number>; (View, "f4") -> H<vector>; (View, "f5") -> H<string>; (View, "f6") -> H<number>; (View, "f7") -> H<vector>; (View, "f8") -> H<string>; (View, "f9") -> H<number>; (View, "f10") -> H<vector>; (View, "f11") -> H<string>; (View, "f12") -> H<number>; (View, "f13") -> H<vector>; (View, "f14") -> H<string>; (View, "f15") -> H<number>; (View, "f16") -> H<vector>; (View, "f17") -> H<string>; (View, "f18") -> H<number>; (View, "f19") -> H<vector>; (View, "f20") -> H<string>; (View, "f21") -> H<number>; (View, "f22") -> H<vector>; (View, "f23") -> H<string>; (View, "f24") -> H<number>; (View, "f25") -> H<vector>; (View, "f26") -> H<string>; (View, "f27") -> H<number>; (View, "f28") -> H<vector>; (View, "f29") -> H<string>; (View, "f30") -> H<number>; (View, "f31") -> H<vector>; and (View, "f32") -> H<string>
+== field_kind.luau --solver=old
+./field_kind.luau(26,26): TypeError: Expected this to be exactly
+	'Collection<number?>'
+but got
+	'Collection<number>'
+caused by:
+  Property 'get' is not compatible.
+Expected this to be exactly
+	'(Collection<number?>, number?) -> {  }?'
+but got
+	'(Collection<number>, number) -> {  }?'
+caused by:
+  Argument #2 type is not compatible.
+Expected this to be exactly 'number', but got 'number?'
+== field_kind.luau --solver=new
+./field_kind.luau(26,26): TypeError: Expected this to be
+	'Collection<number?>'
+but got
+	'Collection<number>'; 
+Expected the 2nd parameter of property `get` to be exactly `nil`, but got `number`
+== field_kind_fixed.luau --solver=old
+./field_kind_fixed.luau(24,1): TypeError: Key 'aim' not found in table 'PositionField<Data>'
+./field_kind_fixed.luau(25,1): TypeError: Key 'maxTotal' not found in table 'SignedIntField<Data>'
+./field_kind_fixed.luau(26,26): TypeError: Expected this to be exactly
+	'Collection<number>'
+but got
+	'Collection<string>'
+caused by:
+  Property 'get' is not compatible.
+Expected this to be exactly
+	'(Collection<number>, number) -> {  }?'
+but got
+	'(Collection<string>, string) -> {  }?'
+caused by:
+  Argument #1 type is not compatible.
+Expected this to be exactly
+	'Collection<string>'
+but got
+	'Collection<number>'
+caused by:
+  Property 'get' is not compatible.
+Expected this to be exactly
+	'(Collection<string>, string) -> {  }?'
+but got
+	'(Collection<number>, number) -> {  }?'
+caused by:
+  Argument #2 type is not compatible.
+Expected this to be exactly 'number', but got 'string'
+== field_kind_fixed.luau --solver=new
+./field_kind_fixed.luau(24,1): TypeError: Key 'aim' not found in table 'PositionField<Data>'
+./field_kind_fixed.luau(25,1): TypeError: Key 'maxTotal' not found in table 'SignedIntField<Data>'
+./field_kind_fixed.luau(26,26): TypeError: Expected this to be
+	'Collection<number>'
+but got
+	'Collection<string>'; 
+this is because 
+	 * Expected the 2nd parameter of property `get` of the 1st parameter of property `get` to be exactly `number`, but got `string`
+	 * Expected the 2nd parameter of property `get` to be exactly `number`, but got `string`
+== result_arms.luau --solver=old
+./result_arms.luau(9,2): TypeError: Expected this to be 'number', but got 'number?'
+./result_arms.luau(27,8): TypeError: Expected this to be 'number', but got 'number?'
+== result_arms.luau --solver=new
+./result_arms.luau(9,20): TypeError: Expected this to be 'number', but got 'number?'; 
+`nil` is not a subtype of `number`
+./result_arms.luau(27,8): TypeError: Operator '+' could not be applied to operands of types nil and number; there is no corresponding overload for __add
+== nested_typefn.luau --solver=new (runtime path: type functions)
+./nested_typefn.luau(46,22): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+./nested_typefn.luau(53,46): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./nested_typefn.luau(54,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./nested_typefn.luau(54,1): TypeError: Available overloads: (any, "hit") -> { derive: (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> () }; (any, "hit.at") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "hit.part") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "variant") -> { derive: (any, { fn: () -> ({ kind: "a", x: number } | { kind: "b", y: number })?, policy: "deliver" | "drop" }) -> () }; (any, "origin") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "meta") -> { derive: (any, { fn: () -> { tag: { level: number } }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag") -> { derive: (any, { fn: () -> { level: number }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag.level") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "list") -> { derive: (any, { fn: () -> {{ z: number }}?, policy: "deliver" | "drop" }) -> () }; and (any, "map") -> { derive: (any, { fn: () -> { [string]: { w: number } }?, policy: "deliver" | "drop" }) -> () }
+./nested_typefn.luau(55,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./nested_typefn.luau(55,1): TypeError: Available overloads: (any, "hit") -> { derive: (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> () }; (any, "hit.at") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "hit.part") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "variant") -> { derive: (any, { fn: () -> ({ kind: "a", x: number } | { kind: "b", y: number })?, policy: "deliver" | "drop" }) -> () }; (any, "origin") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "meta") -> { derive: (any, { fn: () -> { tag: { level: number } }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag") -> { derive: (any, { fn: () -> { level: number }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag.level") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "list") -> { derive: (any, { fn: () -> {{ z: number }}?, policy: "deliver" | "drop" }) -> () }; and (any, "map") -> { derive: (any, { fn: () -> { [string]: { w: number } }?, policy: "deliver" | "drop" }) -> () }
+./nested_typefn.luau(56,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./nested_typefn.luau(56,1): TypeError: Available overloads: (any, "hit") -> { derive: (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> () }; (any, "hit.at") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "hit.part") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "variant") -> { derive: (any, { fn: () -> ({ kind: "a", x: number } | { kind: "b", y: number })?, policy: "deliver" | "drop" }) -> () }; (any, "origin") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "meta") -> { derive: (any, { fn: () -> { tag: { level: number } }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag") -> { derive: (any, { fn: () -> { level: number }?, policy: "deliver" | "drop" }) -> () }; (any, "meta.tag.level") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "list") -> { derive: (any, { fn: () -> {{ z: number }}?, policy: "deliver" | "drop" }) -> () }; and (any, "map") -> { derive: (any, { fn: () -> { [string]: { w: number } }?, policy: "deliver" | "drop" }) -> () }
+./nested_typefn.luau(57,75): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+== index_field.luau --solver=new (runtime path: type functions)
+./index_field.luau(8,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(8,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(8,1): TypeError: Type 'index<Fields, string>' does not have key 'derive'
+./index_field.luau(9,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(9,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(9,1): TypeError: Type 'index<Fields, string>' does not have key 'derive'
+./index_field.luau(10,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(11,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(11,1): TypeError: Property 'string' does not exist on type 'Fields'
+./index_field.luau(11,1): TypeError: Type 'index<Fields, string>' does not have key 'derive'
+== sealed_fire.luau --solver=new (runtime path: type functions)
+./sealed_fire.luau(23,1): TypeError: Type 'nil' does not have key 'reveal'
+== sealed_fire_fixed.luau --solver=new (runtime path: type functions)
+./sealed_fire_fixed.luau(22,1): TypeError: Value of type '{ discard: t1, reveal: (t2) -> () }? where t1 = (t2) -> () ; t2 = { discard: t1, reveal: (t2) -> () }' could be nil
+./sealed_fire_fixed.luau(22,1): TypeError: Expected this to be
+	't1 where t1 = { discard: (t1) -> (), reveal: (t1) -> () }'
+but got
+	'{ discard: t1, reveal: (t2) -> () }? where t1 = (t2) -> () ; t2 = { discard: t1, reveal: (t2) -> () }'
+== result_arms.ts tsc --strict
+Version 6.0.2
+result_arms.ts(12,8): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.

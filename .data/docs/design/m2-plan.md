@@ -487,3 +487,12 @@ None of the following may appear in `src/`:
 - From milestone 1 (unit C): because `Instances.count` counts committed encodes, collecting several request rows
   before encoding any of them means one refused row also drops the later rows' instances. Unit F collects and encodes
   each row in turn (or each run as one unit), never collects ahead.
+- Unit D:
+  - Accepted as built: `Frame.fits` counts each kind's longest header (splits up to about 5 B early); the frame
+    kinds `"reliable" | "event" | "state" | "upReliable" | "upUnreliable"`; untagged `HELLO` read through
+    `Bits.reader` with rule 8 applied by the caller; `Control.Rekey = { keyLow, keyHigh }`; D's decode-rule choices
+    (name length, `stateRate`, cover, epoch, `WELCOME` index 0, control counts charged); `Seq.extend`'s tie-break;
+    the permutation vector parameters; rule 1 and rule 7 belong to unit F's inbound path.
+  - Ruled: clients read every frame with a fixed allowance of 4,194,304 elements (`v5.md` §4.8, §4.9), so a
+    zero-bit-row count can't hang a client. Unit F builds client readers with it; D's fuzz may use it.
+  - `test/support/frame.luau` belongs to unit D from here.

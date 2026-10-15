@@ -156,6 +156,32 @@ function Bits.charge(r: Reader, n: number): boolean
 end
 
 --[=[
+	Appends bits from a buffer, at any bit offset and with no alignment (v5.md §4.1, upstream
+	chunks).
+
+	@param w         the writer
+	@param from      the bits to copy, starting at its bit 0
+	@param bitLength how many bits to copy, at most 8 times the length of `from`
+]=]
+function Bits.copy(w: Writer, from: buffer, bitLength: number)
+	local bit = w.bit
+	local neededBytes = (bit + bitLength) // 8 + WINDOW_BYTES
+	if neededBytes > buffer.len(w.buf) then
+		grow(w, neededBytes)
+	end
+
+	local buf = w.buf
+	local copied = 0
+	while bitLength - copied > CHUNK_BITS do
+		writeChunk(buf, bit + copied, readChunk(from, copied, CHUNK_BITS))
+		copied += CHUNK_BITS
+	end
+	writeChunk(buf, bit + copied, readChunk(from, copied, bitLength - copied))
+
+	w.bit = bit + bitLength
+end
+
+--[=[
 	Returns the writer's bits and tail as one frame body.
 
 	@param  w the writer, unchanged

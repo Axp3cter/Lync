@@ -42,6 +42,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a928f08cbc1635fcd` | researcher (Opus) | re-judges R26 `REPORT` forcing a frame, R27 `REKEY` rate, R32 client element bucket, R37 per-fit clock counter, R38 calls-per-second signal | `research/refusals-rejudged-2.md`, `probes/refusals-rejudged/r2_*` | done on Opus 5.5: R26 adopt (pending reliable data on non-zero counts), R27 narrowed (one pending `REKEY` per player; found the `REKEY-ACK` raise gap), R32 kept refused on correctness (server `elementsSent`; §4.8 hang claim to correct), R37 adopt as counters, R38 narrowed to per-lane counters; retired |
 | `a5b3bafd396671a88` | researcher (Opus) | clock unit restarted: U3 beacon window rules, the `BEACON` frame gap, U4 `roundTrip`/`ping`; builds on R37's counters and U10's path estimate | `research/clock-facts.md`, `probes/clock-facts/` | running |
 | `a4b3fa7fe7846b2d5` | scout (Opus) | change list restarted: by target, conflicts, simplifications, cross-unit questions, R items with no proposal, pending measurements | `design/v5-3.6-inputs.md` | running; reuse it to fill the two placeholders |
+| `a0d8f5898e745dd3f` | prover (Opus) | inbound byte budgets: decode + tag CPU per byte, budget → worst-case CPU formula, budget values at 1/5/10% of a core at 100 players | `probes/inbound-budgets/RESULTS.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

@@ -1,0 +1,14 @@
+check: luau-lsp 1.70.1 with Roblox definitions (from luau-lsp 1.70.1), new solver, no sourcemap.json here: instance paths like script.Parent.X are typed any and unchecked
+clean
+NAMECALL R0 R0 K3 ['GetService']
+CALL R0 2 1
+NAMECALL R1 R0 K5 ['WaitForChild']
+CALL R1 2 1
+NAMECALL R2 R1 K5 ['WaitForChild']
+CALL R2 2 1
+NAMECALL R2 R1 K5 ['WaitForChild']
+CALL R2 2 1
+GETTABLEKS R1 R0 K8 ['FireServer']
+GETTABLEKS R3 R2 K8 ['FireServer']
+CALL R5 1 1
+CALL R6 3 0

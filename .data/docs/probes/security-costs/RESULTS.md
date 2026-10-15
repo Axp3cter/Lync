@@ -20,7 +20,7 @@ first case, the baseline in the same run. `run.sh` runs each probe 3 times inter
 ## Checklist
 
 - [x] 1. Runtime field shuffling 2–3x per record write (`field_order.luau`)
-- [ ] 2. Masking: +62–272% bytes after zstd; CPU per byte at the tag's rate (`mask_bytes.py`, `mask_cpu.luau`)
+- [x] 2. Masking: +62–272% bytes after zstd; CPU per byte at the tag's rate (`mask_bytes.py`, `mask_cpu.luau`)
 - [x] 3. Downstream tags: a PRF per recipient ≤ 3% of a core; ends `FireAllClients` (`downstream_tag.luau`)
 - [x] 4. Per-session upstream id shuffle: ~20,000-slot decode table (`id_shuffle.luau`)
 - [x] 5. Low-order watermarks: per-viewer encoding cost (`per_viewer.luau` part A)
@@ -215,3 +215,49 @@ The shared chunk itself costs 16.7–17.2 µs native and 81–88 µs interpreted
 - Pool slots (derived, not timed): the pool takes `maxPerViewer` of `maxRecords` slots. At the default
   `maxRecords` 1024, d = 256 leaves 768 slots for live records and the reuse delay; keeping 1024 for them needs
   `maxRecords` 1280, one more bit (⌈log2 1280⌉ = 11) in every slot field of that collection.
+
+### 2. Masking or whitening: "+62–272% bytes after zstd; CPU per byte at the tag's rate" — **bytes: false for v5 frames (0% for the bit section and for typical tails); CPU: true at best, a generated keystream runs at 0.2–0.8x the tag's rate**
+
+Source: `client-security.md` §3.7 and `probes/client-security/zmask.out` (Python zstd level 3, synthetic
+*draft-wire* byte-aligned frames masked whole, no raw fallback); `v5-changes.md:103`, `:556`; R2.
+
+**Bytes.** Probe: `mask_bytes.py` (run `python3 -I mask_bytes.py <zstandard dir> ../compression`), output
+`mask_bytes.out`. v5-shaped frames: the compression study's `col_bits_pred` layout as the bit section and inline
+strings as the tail (`probes/compression/sim_mixed.py`), the engine model of `probes/compression/wire.py` (raw
+under 100 B; zstd level 1 or 3, with and without raw fallback), 597 frames per model:
+
+| Model (bit section + tail, mean) | plain | mask bits only | mask tail only | mask both |
+|---|---|---|---|---|
+| tycoon 10 Hz (183.4 + 12.8 B), level 3, fallback | 196.0 B | +0% | +0% (196.2) | +0% |
+| shooter 20 Hz (173.2 + 4.6 B) | 177.8 B | +0% | +0% | +0% |
+| shooter 60 Hz (100.3 + 1.3 B) | 101.5 B | +0% | +0% | +0% |
+| mmo 20 Hz (94.2 + 1.2 B) | 95.5 B | +0% | +0% | +0% |
+
+The same holds at level 1 and without fallback (tycoon 204.6 → 205.2 B masking the tail). Large tails behind an
+80 B shooter bit section (level 3, fallback): 600 B of item and player names 508 → 506 B masking bits (−0.4%) and
+508 → 680 B masking the tail (+34%); 3,240 B of names 398 → 402 B (+1.0%) and 398 → 3,320 B (+734%). The draft-wire
+frames reproduce the research's figures: whole-frame masking +36–67% on input-like frames and +91–267% on
+chat-like frames of 256–4096 B with fallback (+41–268% zstd-only).
+
+- The +62–272% is the cost of masking *compressible byte-aligned* data; v5's bit section does not compress, so
+  masking it costs 0 B, and the per-frame tails in these models are 1–13 B, also 0 B. Only a large compressible
+  tail (catch-up names, chat logs, user strings) pays, which masking the bit section alone avoids.
+
+**CPU.** Probe: `mask_cpu.luau`, output `mask_cpu.out`. Masking the bit section in place, per frame, medians of 3
+runs, ratio to the tag over the same bytes in the same run:
+
+| Bit section | tag rate (baseline) | PRF counter mode (2-word HalfSipHash per 4 B) | xorshift32 + Weyl keystream, 1 PRF per frame, per-build constants | 16 KB per-session pad, slice by count |
+|---|---|---|---|---|
+| native 64 B | 377 ns | 2.88x | 0.54x | 0.20x |
+| native 256 B | 811 ns | 4.96x | 0.72x | 0.31x |
+| native 1024 B | 2.57 µs | 6.42x | 0.83x | 0.36x (0.93 ns/B) |
+| interpreted 64 B | 2.64 µs | 4.84x | 0.73x | 0.19x |
+| interpreted 256 B | 8.20 µs | 6.56x | 0.73x | 0.23x |
+| interpreted 1024 B | 30.1 µs | 7.09x | 0.65x | 0.24x (7.1 ns/B) |
+
+- "At the tag's rate" is right for a keystream seeded once per frame and lower for a session pad; a PRF in
+  counter mode is 3–7x the tag. All are involutions (checked). The pad repeats across frames (two frames masked
+  with one slice XOR to the XOR of their plaintexts), and the xorshift stream is not a PRF; both are enough only
+  against passive readers, which is the reader masking prices.
+- A mask keyed per server and per tick, rather than per connection, keeps downstream frames identical for every
+  recipient, so it need not end `FireAllClients`; per-connection keys do.

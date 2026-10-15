@@ -1,0 +1,78 @@
+== clock_fit, luau -O2, run 1
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4611.26    4297.29    5446.55     1.00     1.00     1.00
+quickselect median                    5965.78    5585.09    6867.90     1.30     1.09     1.43
+generated pairs + quickselect         4790.23    4496.61    5577.85     1.05     0.90     1.11
+fill only (input setup)                384.90     377.98     514.60     0.09     0.08     0.09
+per-beacon window min update            27.98      26.25      41.44     0.01     0.01     0.01
+table.sort median              4226 ns per fit; 100 players at one fit per 5 s: 84.5 us/s (0.0085% of a core)
+quickselect median             5581 ns per fit; 100 players at one fit per 5 s: 111.6 us/s (0.0112% of a core)
+generated pairs + quickselect  4405 ns per fit; 100 players at one fit per 5 s: 88.1 us/s (0.0088% of a core)
+sink	56797.58870929245
+== clock_fit, luau -O2, run 2
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4937.22    4423.25    5686.58     1.00     1.00     1.00
+quickselect median                    6489.43    5796.31    7296.46     1.28     1.15     1.51
+generated pairs + quickselect         4760.23    4426.32    5353.92     0.97     0.83     1.08
+fill only (input setup)                400.20     384.16     531.85     0.08     0.07     0.12
+per-beacon window min update            29.26      25.19      43.79     0.01     0.01     0.01
+table.sort median              4537 ns per fit; 100 players at one fit per 5 s: 90.7 us/s (0.0091% of a core)
+quickselect median             6089 ns per fit; 100 players at one fit per 5 s: 121.8 us/s (0.0122% of a core)
+generated pairs + quickselect  4360 ns per fit; 100 players at one fit per 5 s: 87.2 us/s (0.0087% of a core)
+sink	56797.58870929245
+== clock_fit, luau -O2, run 3
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4798.66    4465.81    6116.60     1.00     1.00     1.00
+quickselect median                    6012.47    5626.87    7244.39     1.29     0.98     1.47
+generated pairs + quickselect         5072.38    4804.82    5342.81     1.06     0.81     1.18
+fill only (input setup)                414.40     397.07     605.60     0.09     0.07     0.13
+per-beacon window min update            29.58      26.92      49.59     0.01     0.00     0.01
+table.sort median              4384 ns per fit; 100 players at one fit per 5 s: 87.7 us/s (0.0088% of a core)
+quickselect median             5598 ns per fit; 100 players at one fit per 5 s: 112.0 us/s (0.0112% of a core)
+generated pairs + quickselect  4658 ns per fit; 100 players at one fit per 5 s: 93.2 us/s (0.0093% of a core)
+sink	56797.58870929245
+== clock_fit, luau -O2 --codegen, run 1
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2856.46    2615.16    3410.47     1.00     1.00     1.00
+quickselect median                    1543.94    1422.19    2278.13     0.54     0.43     0.83
+generated pairs + quickselect         1109.55     987.69    1615.00     0.39     0.30     0.59
+fill only (input setup)                 77.32      66.93     143.25     0.03     0.02     0.05
+per-beacon window min update             8.89       7.66      14.15     0.00     0.00     0.01
+table.sort median              2779 ns per fit; 100 players at one fit per 5 s: 55.6 us/s (0.0056% of a core)
+quickselect median             1467 ns per fit; 100 players at one fit per 5 s: 29.3 us/s (0.0029% of a core)
+generated pairs + quickselect  1032 ns per fit; 100 players at one fit per 5 s: 20.6 us/s (0.0021% of a core)
+sink	56797.58870929245
+== clock_fit, luau -O2 --codegen, run 2
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2919.53    2630.90    3479.40     1.00     1.00     1.00
+quickselect median                    1492.55    1450.56    2063.37     0.54     0.46     0.70
+generated pairs + quickselect         1058.03     992.60    1584.15     0.37     0.30     0.56
+fill only (input setup)                 69.34      63.49     130.07     0.02     0.02     0.04
+per-beacon window min update             8.58       7.79      12.44     0.00     0.00     0.00
+table.sort median              2850 ns per fit; 100 players at one fit per 5 s: 57.0 us/s (0.0057% of a core)
+quickselect median             1423 ns per fit; 100 players at one fit per 5 s: 28.5 us/s (0.0028% of a core)
+generated pairs + quickselect  989 ns per fit; 100 players at one fit per 5 s: 19.8 us/s (0.0020% of a core)
+sink	56797.58870929245
+== clock_fit, luau -O2 --codegen, run 3
+check: the three fits agree on 50 inputs
+## one Theil-Sen fit over 12 windows (66 slopes) (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2850.66    2691.63    3080.14     1.00     1.00     1.00
+quickselect median                    1524.57    1351.87    2298.53     0.54     0.50     0.78
+generated pairs + quickselect         1060.96     988.00    1535.59     0.36     0.35     0.52
+fill only (input setup)                 78.59      66.15     125.26     0.03     0.02     0.05
+per-beacon window min update             8.77       7.66      12.18     0.00     0.00     0.00
+table.sort median              2772 ns per fit; 100 players at one fit per 5 s: 55.4 us/s (0.0055% of a core)
+quickselect median             1446 ns per fit; 100 players at one fit per 5 s: 28.9 us/s (0.0029% of a core)
+generated pairs + quickselect  982 ns per fit; 100 players at one fit per 5 s: 19.6 us/s (0.0020% of a core)
+sink	56797.58870929245

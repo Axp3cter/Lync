@@ -1,0 +1,156 @@
+== canary_scan, luau -O2, run 1
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1335.46    1132.03    1507.40     1.00     1.00     1.00
+rolling u32 key + prefix map           951.72     829.65    1325.59     0.75     0.61     0.92
+fromstring + readu32 + prefix          622.49     533.34     962.99     0.49     0.37     0.67
+fromstring + bitset + prefix          1074.07     927.89    1634.34     0.82     0.69     1.28
+t.buffer input: bitset + prefix       1162.47     934.37    1556.13     0.92     0.69     1.23
+per offset at 32 B: fromstring + bitset + prefix 51.1 ns; fromstring + readu32 + prefix 29.6 ns; rolling u32 key + prefix map 45.3 ns; sub + map per offset 63.6 ns; t.buffer input: bitset + prefix 55.4 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  7046.99    6265.39    8548.25     1.00     1.00     1.00
+rolling u32 key + prefix map          5215.78    4718.45    6979.79     0.75     0.73     0.96
+fromstring + readu32 + prefix         3305.40    2918.77    4003.39     0.47     0.40     0.56
+fromstring + bitset + prefix          5273.43    5007.00    6674.85     0.77     0.67     0.95
+t.buffer input: bitset + prefix       5149.65    4725.77    5694.52     0.75     0.64     0.82
+per offset at 128 B: fromstring + bitset + prefix 45.1 ns; fromstring + readu32 + prefix 28.3 ns; rolling u32 key + prefix map 44.6 ns; sub + map per offset 60.2 ns; t.buffer input: bitset + prefix 44.0 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 14246.98   13677.19   17378.09     1.00     1.00     1.00
+rolling u32 key + prefix map         10952.97   10017.41   16250.26     0.77     0.72     0.94
+fromstring + readu32 + prefix         6706.42    6334.96    9893.50     0.47     0.39     0.67
+fromstring + bitset + prefix         10997.30   10348.63   14161.36     0.76     0.65     0.89
+t.buffer input: bitset + prefix      10828.61   10171.29   12655.43     0.74     0.64     0.89
+per offset at 256 B: fromstring + bitset + prefix 44.9 ns; fromstring + readu32 + prefix 27.4 ns; rolling u32 key + prefix map 44.7 ns; sub + map per offset 58.2 ns; t.buffer input: bitset + prefix 44.2 ns
+sink	0
+== canary_scan, luau -O2, run 2
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1182.32    1124.63    1431.59     1.00     1.00     1.00
+rolling u32 key + prefix map           883.24     802.07    1281.68     0.74     0.70     0.90
+fromstring + readu32 + prefix          591.38     540.64     904.78     0.50     0.46     0.63
+fromstring + bitset + prefix          1036.85     975.97    1172.08     0.88     0.72     0.98
+t.buffer input: bitset + prefix        979.42     921.91    1247.30     0.84     0.64     1.05
+per offset at 32 B: fromstring + bitset + prefix 49.4 ns; fromstring + readu32 + prefix 28.2 ns; rolling u32 key + prefix map 42.1 ns; sub + map per offset 56.3 ns; t.buffer input: bitset + prefix 46.6 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  6848.00    6424.90    8358.90     1.00     1.00     1.00
+rolling u32 key + prefix map          5016.41    4778.36    5454.95     0.73     0.65     0.81
+fromstring + readu32 + prefix         3204.59    3002.12    3595.22     0.48     0.36     0.51
+fromstring + bitset + prefix          5351.61    4981.94    6591.03     0.78     0.61     0.99
+t.buffer input: bitset + prefix       5127.34    5048.85    7728.29     0.76     0.63     1.16
+per offset at 128 B: fromstring + bitset + prefix 45.7 ns; fromstring + readu32 + prefix 27.4 ns; rolling u32 key + prefix map 42.9 ns; sub + map per offset 58.5 ns; t.buffer input: bitset + prefix 43.8 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 14898.52   13743.42   17749.19     1.00     1.00     1.00
+rolling u32 key + prefix map         11048.12   10445.30   14411.45     0.74     0.66     0.96
+fromstring + readu32 + prefix         6941.59    6311.63    9959.70     0.48     0.38     0.67
+fromstring + bitset + prefix         11413.01   10143.53   13136.31     0.78     0.60     0.90
+t.buffer input: bitset + prefix      11388.14   10284.25   17243.46     0.79     0.61     1.10
+per offset at 256 B: fromstring + bitset + prefix 46.6 ns; fromstring + readu32 + prefix 28.3 ns; rolling u32 key + prefix map 45.1 ns; sub + map per offset 60.8 ns; t.buffer input: bitset + prefix 46.5 ns
+sink	0
+== canary_scan, luau -O2, run 3
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1171.95    1081.24    1432.26     1.00     1.00     1.00
+rolling u32 key + prefix map           926.78     842.41    1371.52     0.79     0.62     1.07
+fromstring + readu32 + prefix          631.22     563.90     939.67     0.54     0.41     0.67
+fromstring + bitset + prefix          1031.09     961.47    1274.47     0.88     0.68     0.95
+t.buffer input: bitset + prefix        965.63     895.12    1174.38     0.84     0.62     0.90
+per offset at 32 B: fromstring + bitset + prefix 49.1 ns; fromstring + readu32 + prefix 30.1 ns; rolling u32 key + prefix map 44.1 ns; sub + map per offset 55.8 ns; t.buffer input: bitset + prefix 46.0 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  7511.95    6636.70    8940.00     1.00     1.00     1.00
+rolling u32 key + prefix map          5336.81    4810.00    7547.50     0.73     0.63     0.99
+fromstring + readu32 + prefix         3363.82    2992.64    5148.72     0.47     0.39     0.65
+fromstring + bitset + prefix          5755.09    5078.93    8623.11     0.79     0.66     1.13
+t.buffer input: bitset + prefix       5468.84    5135.97    8248.95     0.74     0.64     0.92
+per offset at 128 B: fromstring + bitset + prefix 49.2 ns; fromstring + readu32 + prefix 28.8 ns; rolling u32 key + prefix map 45.6 ns; sub + map per offset 64.2 ns; t.buffer input: bitset + prefix 46.7 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 14769.09   14035.14   20015.78     1.00     1.00     1.00
+rolling u32 key + prefix map         12000.37   10498.22   13833.58     0.78     0.67     0.90
+fromstring + readu32 + prefix         7308.23    6763.49    9332.72     0.49     0.36     0.65
+fromstring + bitset + prefix         11365.87   10901.21   14983.45     0.79     0.57     0.99
+t.buffer input: bitset + prefix      11423.42   10735.37   17088.33     0.77     0.57     1.21
+per offset at 256 B: fromstring + bitset + prefix 46.4 ns; fromstring + readu32 + prefix 29.8 ns; rolling u32 key + prefix map 49.0 ns; sub + map per offset 60.3 ns; t.buffer input: bitset + prefix 46.6 ns
+sink	0
+== canary_scan, luau -O2 --codegen, run 1
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1062.39     985.95    1131.94     1.00     1.00     1.00
+rolling u32 key + prefix map           447.70     417.89     478.67     0.42     0.40     0.45
+fromstring + readu32 + prefix          338.21     319.97     402.95     0.31     0.30     0.39
+fromstring + bitset + prefix           121.36     109.41     133.11     0.11     0.10     0.13
+t.buffer input: bitset + prefix         88.51      80.32      99.41     0.08     0.08     0.10
+per offset at 32 B: fromstring + bitset + prefix 5.8 ns; fromstring + readu32 + prefix 16.1 ns; rolling u32 key + prefix map 21.3 ns; sub + map per offset 50.6 ns; t.buffer input: bitset + prefix 4.2 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  6803.14    6340.08    7715.43     1.00     1.00     1.00
+rolling u32 key + prefix map          3480.82    2631.04    4348.45     0.51     0.39     0.65
+fromstring + readu32 + prefix         2295.14    1915.57    3468.59     0.33     0.28     0.55
+fromstring + bitset + prefix           698.14     622.13    1008.99     0.10     0.09     0.16
+t.buffer input: bitset + prefix        606.67     552.63     937.19     0.09     0.08     0.15
+per offset at 128 B: fromstring + bitset + prefix 6.0 ns; fromstring + readu32 + prefix 19.6 ns; rolling u32 key + prefix map 29.8 ns; sub + map per offset 58.1 ns; t.buffer input: bitset + prefix 5.2 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 13551.94   12782.45   16120.54     1.00     1.00     1.00
+rolling u32 key + prefix map          6348.38    6039.68    9381.39     0.47     0.43     0.64
+fromstring + readu32 + prefix         4584.62    4306.21    6041.96     0.34     0.27     0.41
+fromstring + bitset + prefix          1319.21    1238.43    2266.86     0.10     0.08     0.17
+t.buffer input: bitset + prefix       1239.46    1144.88    2063.72     0.09     0.07     0.15
+per offset at 256 B: fromstring + bitset + prefix 5.4 ns; fromstring + readu32 + prefix 18.7 ns; rolling u32 key + prefix map 25.9 ns; sub + map per offset 55.3 ns; t.buffer input: bitset + prefix 5.1 ns
+sink	0
+== canary_scan, luau -O2 --codegen, run 2
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1057.01    1020.06    1096.18     1.00     1.00     1.00
+rolling u32 key + prefix map           452.75     424.78     478.27     0.43     0.41     0.46
+fromstring + readu32 + prefix          348.62     331.11     373.29     0.34     0.31     0.35
+fromstring + bitset + prefix           124.03     110.65     135.34     0.12     0.10     0.13
+t.buffer input: bitset + prefix         89.63      83.33     103.93     0.09     0.08     0.10
+per offset at 32 B: fromstring + bitset + prefix 5.9 ns; fromstring + readu32 + prefix 16.6 ns; rolling u32 key + prefix map 21.6 ns; sub + map per offset 50.3 ns; t.buffer input: bitset + prefix 4.3 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  6298.11    6005.04    6714.12     1.00     1.00     1.00
+rolling u32 key + prefix map          2751.21    2547.82    2998.90     0.44     0.41     0.48
+fromstring + readu32 + prefix         2088.51    1999.58    2549.64     0.33     0.31     0.41
+fromstring + bitset + prefix           635.16     605.51    1403.38     0.10     0.09     0.21
+t.buffer input: bitset + prefix        591.51     546.83     906.09     0.09     0.09     0.14
+per offset at 128 B: fromstring + bitset + prefix 5.4 ns; fromstring + readu32 + prefix 17.9 ns; rolling u32 key + prefix map 23.5 ns; sub + map per offset 53.8 ns; t.buffer input: bitset + prefix 5.1 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 13814.56   13141.52   15117.23     1.00     1.00     1.00
+rolling u32 key + prefix map          6158.06    5967.24    7412.24     0.46     0.41     0.52
+fromstring + readu32 + prefix         4607.27    4326.57    4827.97     0.33     0.31     0.35
+fromstring + bitset + prefix          1309.45    1223.56    1566.16     0.09     0.08     0.11
+t.buffer input: bitset + prefix       1249.65    1159.95    1552.78     0.09     0.08     0.12
+per offset at 256 B: fromstring + bitset + prefix 5.3 ns; fromstring + readu32 + prefix 18.8 ns; rolling u32 key + prefix map 25.1 ns; sub + map per offset 56.4 ns; t.buffer input: bitset + prefix 5.1 ns
+sink	0
+== canary_scan, luau -O2 --codegen, run 3
+## scan one inbound 32 B string, no canary in it (21 offsets) (62500 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  1069.30    1053.71    1219.84     1.00     1.00     1.00
+rolling u32 key + prefix map           454.70     443.10     531.82     0.43     0.37     0.50
+fromstring + readu32 + prefix          353.94     332.34     380.70     0.34     0.29     0.35
+fromstring + bitset + prefix           124.81     120.37     140.04     0.12     0.11     0.12
+t.buffer input: bitset + prefix         91.62      88.48     100.97     0.09     0.07     0.09
+per offset at 32 B: fromstring + bitset + prefix 5.9 ns; fromstring + readu32 + prefix 16.9 ns; rolling u32 key + prefix map 21.7 ns; sub + map per offset 50.9 ns; t.buffer input: bitset + prefix 4.4 ns
+## scan one inbound 128 B string, no canary in it (117 offsets) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                  6272.28    6221.25    7275.51     1.00     1.00     1.00
+rolling u32 key + prefix map          2689.27    2558.47    3672.14     0.43     0.35     0.59
+fromstring + readu32 + prefix         2050.19    1894.75    3344.68     0.32     0.27     0.54
+fromstring + bitset + prefix           632.13     597.53    1111.22     0.10     0.08     0.18
+t.buffer input: bitset + prefix        605.85     562.99     962.49     0.10     0.08     0.15
+per offset at 128 B: fromstring + bitset + prefix 5.4 ns; fromstring + readu32 + prefix 17.5 ns; rolling u32 key + prefix map 23.0 ns; sub + map per offset 53.6 ns; t.buffer input: bitset + prefix 5.2 ns
+## scan one inbound 256 B string, no canary in it (245 offsets) (7812 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+sub + map per offset                 13108.50   12227.79   14378.14     1.00     1.00     1.00
+rolling u32 key + prefix map          5912.12    5528.73    6816.01     0.45     0.41     0.49
+fromstring + readu32 + prefix         4371.63    4010.96    6151.46     0.33     0.29     0.43
+fromstring + bitset + prefix          1284.73    1172.58    2024.91     0.10     0.09     0.14
+t.buffer input: bitset + prefix       1220.54    1069.81    1958.58     0.09     0.08     0.14
+per offset at 256 B: fromstring + bitset + prefix 5.2 ns; fromstring + readu32 + prefix 17.8 ns; rolling u32 key + prefix map 24.1 ns; sub + map per offset 53.5 ns; t.buffer input: bitset + prefix 5.0 ns
+sink	0

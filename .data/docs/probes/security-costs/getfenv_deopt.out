@@ -1,0 +1,19 @@
+== getfenv_deopt, luau -O2, run 1
+## fast-call loop body (per iteration) (2000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+safe environment                        58.66      52.17      76.64     1.00     1.00     1.00
+after getfenv(1) in the module         291.45     263.77     349.34     5.09     3.80     5.64
+sink	23105516132590760
+== getfenv_deopt, luau -O2, run 2
+## fast-call loop body (per iteration) (2000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+safe environment                        55.80      51.18      69.87     1.00     1.00     1.00
+after getfenv(1) in the module         268.50     256.84     326.23     4.83     3.82     6.00
+sink	23105516132590760
+== getfenv_deopt, luau -O2, run 3
+## fast-call loop body (per iteration) (2000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+safe environment                        58.74      54.93      72.81     1.00     1.00     1.00
+after getfenv(1) in the module         298.13     260.38     393.66     4.89     4.60     6.63
+sink	23105516132590760
+== getfenv_deopt, luau -O2 --codegen, run 1

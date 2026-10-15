@@ -1,1 +1,183 @@
 == tag_cost, interpreted (luau 0.742 -O2), run 1
+## A reliable
+TAG lane=r kind=string B=3 pos=e+0 hashes=1 F=4048 3690 5105
+TAG lane=r kind=string B=3 pos=e+1 hashes=2 F=6228 5775 9413
+TAG lane=r kind=string B=3 pos=e+2 hashes=3 F=11165 7120 11449
+TAG lane=r kind=string B=3 pos=e+3 hashes=4 F=12373 7832 13076
+TAG lane=r kind=string B=3 pos=e+4 hashes=5 F=12448 8659 12919
+TAG lane=r kind=string B=3 pos=fail hashes=5 F=6538 6229 9504
+TAG lane=r kind=string B=70 pos=e+0 hashes=1 F=8216 7488 8670
+TAG lane=r kind=string B=70 pos=e+1 hashes=2 F=13127 12474 19421
+TAG lane=r kind=string B=70 pos=e+2 hashes=3 F=15121 14366 22134
+TAG lane=r kind=string B=70 pos=e+3 hashes=4 F=18442 17605 24290
+TAG lane=r kind=string B=70 pos=e+4 hashes=5 F=30918 21314 33386
+TAG lane=r kind=string B=70 pos=fail hashes=5 F=15785 15162 25519
+TAG lane=r kind=string B=1030 pos=e+0 hashes=1 F=35810 34025 37843
+TAG lane=r kind=string B=1030 pos=e+1 hashes=2 F=67138 62180 71833
+TAG lane=r kind=string B=1030 pos=e+2 hashes=3 F=98285 95977 145869
+TAG lane=r kind=string B=1030 pos=e+3 hashes=4 F=168741 130340 201974
+TAG lane=r kind=string B=1030 pos=e+4 hashes=5 F=172562 162696 207071
+TAG lane=r kind=string B=1030 pos=fail hashes=5 F=170620 164210 246991
+TAG lane=r kind=string B=4102 pos=e+0 hashes=1 F=191430 183863 198611
+TAG lane=r kind=string B=4102 pos=e+1 hashes=2 F=363794 252364 384922
+TAG lane=r kind=string B=4102 pos=e+2 hashes=3 F=407141 374001 446400
+TAG lane=r kind=string B=4102 pos=e+3 hashes=4 F=737932 644561 757007
+TAG lane=r kind=string B=4102 pos=e+4 hashes=5 F=605959 576064 615125
+TAG lane=r kind=string B=4102 pos=fail hashes=5 F=646855 598102 743859
+TAG lane=r kind=string B=15906 pos=e+0 hashes=1 F=512109 465306 755118
+TAG lane=r kind=string B=15906 pos=e+1 hashes=2 F=1363769 1026347 1398510
+TAG lane=r kind=string B=15906 pos=e+2 hashes=3 F=1520276 1421876 1749224
+TAG lane=r kind=string B=15906 pos=e+3 hashes=4 F=1833449 1801175 2047873
+TAG lane=r kind=string B=15906 pos=e+4 hashes=5 F=2392794 2284495 2635442
+TAG lane=r kind=string B=15906 pos=fail hashes=5 F=3021769 2692694 3227371
+TAG lane=r kind=buffer B=70 pos=e+0 hashes=1 F=11132 9782 12212
+TAG lane=r kind=buffer B=70 pos=e+1 hashes=2 F=19120 17208 19360
+TAG lane=r kind=buffer B=70 pos=e+2 hashes=3 F=15402 15098 15957
+TAG lane=r kind=buffer B=70 pos=e+3 hashes=4 F=18727 18482 19247
+TAG lane=r kind=buffer B=70 pos=e+4 hashes=5 F=21111 20857 22005
+TAG lane=r kind=buffer B=70 pos=fail hashes=5 F=18247 17841 19847
+TAG lane=r kind=buffer B=1030 pos=e+0 hashes=1 F=37314 36459 39820
+TAG lane=r kind=buffer B=1030 pos=e+1 hashes=2 F=69341 66133 104048
+TAG lane=r kind=buffer B=1030 pos=e+2 hashes=3 F=115123 106411 126493
+TAG lane=r kind=buffer B=1030 pos=e+3 hashes=4 F=129658 125709 145859
+TAG lane=r kind=buffer B=1030 pos=e+4 hashes=5 F=165166 154362 237696
+TAG lane=r kind=buffer B=1030 pos=fail hashes=5 F=174008 159077 222289
+TAG lane=r kind=buffer B=4102 pos=e+0 hashes=1 F=173156 164632 182882
+TAG lane=r kind=buffer B=4102 pos=e+1 hashes=2 F=337321 240623 352365
+TAG lane=r kind=buffer B=4102 pos=e+2 hashes=3 F=390144 358986 477453
+TAG lane=r kind=buffer B=4102 pos=e+3 hashes=4 F=548255 471979 595236
+TAG lane=r kind=buffer B=4102 pos=e+4 hashes=5 F=647070 571449 797879
+TAG lane=r kind=buffer B=4102 pos=fail hashes=5 F=605762 591900 775072
+TAG lane=r kind=buffer B=15906 pos=e+0 hashes=1 F=480197 456608 537193
+TAG lane=r kind=buffer B=15906 pos=e+1 hashes=2 F=922459 908770 1044726
+TAG lane=r kind=buffer B=15906 pos=e+2 hashes=3 F=1356630 1342322 1775337
+TAG lane=r kind=buffer B=15906 pos=e+3 hashes=4 F=1803810 1756626 1823115
+TAG lane=r kind=buffer B=15906 pos=e+4 hashes=5 F=2288432 2256069 3272292
+TAG lane=r kind=buffer B=15906 pos=fail hashes=5 F=2422982 2288482 2999132
+## B unreliable
+TAG lane=u kind=string B=4 pos=c1 hashes=1 F=4657 4525 4901
+TAG lane=u kind=string B=4 pos=c2 hashes=2 F=4187 3731 4409
+TAG lane=u kind=string B=4 pos=c3 hashes=3 F=11236 6864 11294
+TAG lane=u kind=string B=4 pos=fail hashes=3 F=6993 5904 9756
+TAG lane=u kind=string B=71 pos=c1 hashes=1 F=8988 8839 9369
+TAG lane=u kind=string B=71 pos=c2 hashes=2 F=8357 7952 8888
+TAG lane=u kind=string B=71 pos=c3 hashes=3 F=16214 15623 23500
+TAG lane=u kind=string B=71 pos=fail hashes=3 F=19507 12220 20411
+TAG lane=u kind=string B=263 pos=c1 hashes=1 F=25243 24942 26121
+TAG lane=u kind=string B=263 pos=c2 hashes=2 F=30828 29997 31860
+TAG lane=u kind=string B=263 pos=c3 hashes=3 F=56046 53745 56784
+TAG lane=u kind=string B=263 pos=fail hashes=3 F=44470 43341 46093
+TAG lane=u kind=string B=962 pos=c1 hashes=1 F=58830 57270 61337
+TAG lane=u kind=string B=962 pos=c2 hashes=2 F=92986 91448 94680
+TAG lane=u kind=string B=962 pos=c3 hashes=3 F=93968 87114 151443
+TAG lane=u kind=string B=962 pos=fail hashes=3 F=97195 87528 140482
+## C walk
+WALK refused=bytes lane=1 entries=0 F=903 876 935
+WALK refused=frames lane=1 entries=0 F=908 847 1374
+WALK refused=bytes lane=0 entries=0 F=6255 6087 6567
+WALK refused=frames lane=0 entries=0 F=8851 6108 9357
+WALK alone entries=0 F=151 144 163
+WALK refused=bytes lane=1 entries=16 F=2394 2336 2674
+WALK refused=frames lane=1 entries=16 F=2327 2033 2426
+WALK refused=bytes lane=0 entries=16 F=6376 5903 6561
+WALK refused=frames lane=0 entries=16 F=6406 6308 6565
+WALK alone entries=16 F=601 577 616
+WALK refused=bytes lane=1 entries=256 F=9405 8942 10041
+WALK refused=frames lane=1 entries=256 F=9161 8805 9341
+WALK refused=bytes lane=0 entries=256 F=14313 13757 14581
+WALK refused=frames lane=0 entries=256 F=14310 14099 14503
+WALK alone entries=256 F=8457 8261 8687
+WALK refused=bytes lane=1 entries=4096 F=140649 130444 215550
+WALK refused=frames lane=1 entries=4096 F=225809 220074 228944
+WALK refused=bytes lane=0 entries=4096 F=139942 136137 145264
+WALK refused=frames lane=0 entries=4096 F=144347 142756 148865
+WALK alone entries=4096 F=137229 133018 142946
+WALK refused=bytes lane=1 entries=16384 F=544474 516540 563958
+WALK refused=frames lane=1 entries=16384 F=924058 903728 963911
+WALK refused=bytes lane=0 entries=16384 F=631940 579775 911578
+WALK refused=frames lane=0 entries=16384 F=780144 534087 868819
+WALK alone entries=16384 F=644876 561496 893400
+## D hello
+HELLO untagged-decode valid rows=1 B=21 F=4553 3573 4823
+HELLO untagged-decode bad rows=1 B=22 F=4556 4227 4949
+HELLO receive untagged-bad hasTagged=false rows=1 B=22 F=20698 20139 21105
+HELLO receive untagged-bad hasTagged=true rows=1 B=22 F=9849 9761 13282
+HELLO receive untagged-valid rows=1 B=21 F=5579 5283 6549
+HELLO receive tagged-e4 rows=1 B=23 F=14862 14371 21785
+HELLO untagged-decode valid rows=64 B=1211 F=88806 72920 96761
+HELLO untagged-decode bad rows=64 B=1212 F=66772 66157 70190
+HELLO receive untagged-bad hasTagged=false rows=64 B=1212 F=267113 262608 312450
+HELLO receive untagged-bad hasTagged=true rows=64 B=1212 F=256167 211535 279375
+HELLO receive untagged-valid rows=64 B=1211 F=198390 189999 237260
+HELLO receive tagged-e4 rows=64 B=1213 F=317751 311937 380612
+HELLO untagged-decode valid rows=867 B=16369 F=1409535 1128569 1478687
+HELLO untagged-decode bad rows=867 B=16370 F=855454 847129 865083
+HELLO receive untagged-bad hasTagged=false rows=867 B=16370 F=3630989 3464177 4043048
+HELLO receive untagged-bad hasTagged=true rows=867 B=16370 F=2534031 2403965 3426072
+HELLO receive untagged-valid rows=867 B=16369 F=2675118 1678635 2983450
+HELLO receive tagged-e4 rows=867 B=16371 F=4553242 4207469 5391049
+== tag_cost, native (luau 0.742 -O2 --codegen), run 1
+## A reliable
+TAG lane=r kind=string B=3 pos=e+0 hashes=1 F=2152 1905 2287
+TAG lane=r kind=string B=3 pos=e+1 hashes=2 F=3282 3149 3407
+TAG lane=r kind=string B=3 pos=e+2 hashes=3 F=4101 3427 5147
+TAG lane=r kind=string B=3 pos=e+3 hashes=4 F=3688 3429 3803
+TAG lane=r kind=string B=3 pos=e+4 hashes=5 F=4066 3862 6218
+TAG lane=r kind=string B=3 pos=fail hashes=5 F=2759 2451 2845
+TAG lane=r kind=string B=70 pos=e+0 hashes=1 F=4781 4286 6817
+TAG lane=r kind=string B=70 pos=e+1 hashes=2 F=5662 5413 5973
+TAG lane=r kind=string B=70 pos=e+2 hashes=3 F=6139 5961 6372
+TAG lane=r kind=string B=70 pos=e+3 hashes=4 F=6894 6575 7394
+TAG lane=r kind=string B=70 pos=e+4 hashes=5 F=9034 8703 82714
+TAG lane=r kind=string B=70 pos=fail hashes=5 F=5170 5027 16258
+TAG lane=r kind=string B=1030 pos=e+0 hashes=1 F=11174 10044 28673
+TAG lane=r kind=string B=1030 pos=e+1 hashes=2 F=19234 18490 19674
+TAG lane=r kind=string B=1030 pos=e+2 hashes=3 F=22291 18877 24818
+TAG lane=r kind=string B=1030 pos=e+3 hashes=4 F=23533 22787 24437
+TAG lane=r kind=string B=1030 pos=e+4 hashes=5 F=30769 27934 38202
+TAG lane=r kind=string B=1030 pos=fail hashes=5 F=25282 24205 32274
+TAG lane=r kind=string B=4102 pos=e+0 hashes=1 F=28891 27174 29944
+TAG lane=r kind=string B=4102 pos=e+1 hashes=2 F=53500 52325 54609
+TAG lane=r kind=string B=4102 pos=e+2 hashes=3 F=57973 55689 81804
+TAG lane=r kind=string B=4102 pos=e+3 hashes=4 F=74261 73610 75362
+TAG lane=r kind=string B=4102 pos=e+4 hashes=5 F=94406 91826 127250
+TAG lane=r kind=string B=4102 pos=fail hashes=5 F=110743 93699 120116
+TAG lane=r kind=string B=15906 pos=e+0 hashes=1 F=96731 75646 102499
+TAG lane=r kind=string B=15906 pos=e+1 hashes=2 F=145640 140464 169022
+TAG lane=r kind=string B=15906 pos=e+2 hashes=3 F=247599 232652 259122
+TAG lane=r kind=string B=15906 pos=e+3 hashes=4 F=350026 287597 369762
+TAG lane=r kind=string B=15906 pos=e+4 hashes=5 F=362191 353002 368489
+TAG lane=r kind=string B=15906 pos=fail hashes=5 F=350121 340868 491575
+TAG lane=r kind=buffer B=70 pos=e+0 hashes=1 F=7041 4900 7559
+TAG lane=r kind=buffer B=70 pos=e+1 hashes=2 F=8636 8538 8840
+TAG lane=r kind=buffer B=70 pos=e+2 hashes=3 F=7633 6255 9729
+TAG lane=r kind=buffer B=70 pos=e+3 hashes=4 F=9650 8051 10193
+TAG lane=r kind=buffer B=70 pos=e+4 hashes=5 F=10391 9201 10938
+TAG lane=r kind=buffer B=70 pos=fail hashes=5 F=4736 4046 5404
+TAG lane=r kind=buffer B=1030 pos=e+0 hashes=1 F=13827 12264 14174
+TAG lane=r kind=buffer B=1030 pos=e+1 hashes=2 F=15519 15014 20087
+TAG lane=r kind=buffer B=1030 pos=e+2 hashes=3 F=20837 19328 26824
+TAG lane=r kind=buffer B=1030 pos=e+3 hashes=4 F=25353 24349 28207
+TAG lane=r kind=buffer B=1030 pos=e+4 hashes=5 F=29134 28505 30797
+TAG lane=r kind=buffer B=1030 pos=fail hashes=5 F=25636 24972 26580
+TAG lane=r kind=buffer B=4102 pos=e+0 hashes=1 F=23977 23323 25066
+TAG lane=r kind=buffer B=4102 pos=e+1 hashes=2 F=47781 45092 53297
+TAG lane=r kind=buffer B=4102 pos=e+2 hashes=3 F=67997 62262 80251
+TAG lane=r kind=buffer B=4102 pos=e+3 hashes=4 F=94543 80745 103537
+TAG lane=r kind=buffer B=4102 pos=e+4 hashes=5 F=101466 97907 208594
+TAG lane=r kind=buffer B=4102 pos=fail hashes=5 F=99099 93107 114306
+TAG lane=r kind=buffer B=15906 pos=e+0 hashes=1 F=83609 81638 84224
+TAG lane=r kind=buffer B=15906 pos=e+1 hashes=2 F=147631 146193 151638
+TAG lane=r kind=buffer B=15906 pos=e+2 hashes=3 F=220377 218856 228499
+TAG lane=r kind=buffer B=15906 pos=e+3 hashes=4 F=289042 284965 303477
+TAG lane=r kind=buffer B=15906 pos=e+4 hashes=5 F=403641 387388 419842
+TAG lane=r kind=buffer B=15906 pos=fail hashes=5 F=344752 337557 369519
+## B unreliable
+TAG lane=u kind=string B=4 pos=c1 hashes=1 F=2703 2631 2781
+TAG lane=u kind=string B=4 pos=c2 hashes=2 F=2336 2283 2488
+TAG lane=u kind=string B=4 pos=c3 hashes=3 F=3495 3317 3926
+TAG lane=u kind=string B=4 pos=fail hashes=3 F=3122 2979 3435
+TAG lane=u kind=string B=71 pos=c1 hashes=1 F=5216 4752 5388
+TAG lane=u kind=string B=71 pos=c2 hashes=2 F=2925 2814 4750
+TAG lane=u kind=string B=71 pos=c3 hashes=3 F=6088 5821 6465
+TAG lane=u kind=string B=71 pos=fail hashes=3 F=3972 38

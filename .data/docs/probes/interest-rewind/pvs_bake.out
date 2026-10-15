@@ -1,0 +1,4 @@
+map 1024, cell 32 (1024 cells), boxes 1500, samples 1x1: 0.17 s, 523776 rays (3.07 M rays/s), visible pairs 0.8%, table 131072 B (128.0 KiB)
+map 1024, cell 32 (1024 cells), boxes 1500, samples 2x2: 2.16 s, 8230084 rays (3.80 M rays/s), visible pairs 2.8%, table 131072 B (128.0 KiB)
+map 1024, cell 64 (256 cells), boxes 1500, samples 3x3: 0.65 s, 2535483 rays (3.89 M rays/s), visible pairs 6.4%, table 8192 B (8.0 KiB)
+map 2048, cell 64 (1024 cells), boxes 6000, samples 1x1: 0.20 s, 523776 rays (2.68 M rays/s), visible pairs 0.2%, table 131072 B (128.0 KiB)

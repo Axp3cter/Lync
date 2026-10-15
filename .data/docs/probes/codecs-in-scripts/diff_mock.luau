@@ -9,6 +9,7 @@ local function inst(path)
 		end,
 	})
 end
+Net.buy.invoke = function(self, v) self:fire(v) return { ok = true, value = 0 } end
 game = { GetService = function(_, name) return inst(name) end }
 Net.__lync = setmetatable({ E_x_y_z = { x = 0, y = 1, z = 2 }, E_shield_sword = { shield = 0, sword = 1 } }, { __index = RT })
 require = function(i)

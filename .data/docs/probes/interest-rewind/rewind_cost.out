@@ -1,0 +1,8 @@
+## interpreted -O2
+push (one record, one tick)                 87.5 ns/op  (sink 5)
+sample at perceived tick (lerp xyz)        150.3 ns/op  (sink 5)
+memory: 1024 B per record (K=64), 102400 B for 100 records
+## native -O2 --codegen
+push (one record, one tick)                  7.6 ns/op  (sink 5)
+sample at perceived tick (lerp xyz)         25.1 ns/op  (sink 5)
+memory: 1024 B per record (K=64), 102400 B for 100 records

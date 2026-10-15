@@ -40,15 +40,23 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   No new agents beyond the five above; follow-ups go to an agent once it finishes its current task.
 - Process rule: every agent writes a header and a checklist first, then one section per edit, ticking it; an
   interrupted section is marked "not written" and the agent continues. Briefs are worded around what Lync builds.
-- Queue (ids → follow-up, from `research/security-refusals.md`):
-  - `ade0c89512482ae96` (tooling): after its redo, D1 `interest` (per-viewer relevancy, build-time PVS bake,
-    visibility classes U8, relevancy facts U13), D2 `rewind`, U15 streaming guidance, the PlayerGui variant timing
-    rule (partial work in `probes/interest-rewind/` from the generation researcher); then D3 `checks` (`within`, `monotonic`, `maxTotal`, `:claim()`, U12 lint), D4
-    `telemetry` (feature streams, `:aim()`, Roblox terms on off-platform data), U5 `foreignRemotes`, U6 core hash
-    and manifest drift.
-  - `a6d6d1502e0ad3c95` (codecs): U9 `Lync.derive`, U10 reaction floor on `:reactsTo`, U11 decoy-adjacent facts,
-    U14 server-issued challenges, U3, U4 — after its current task.
-  - R39 per-frame transform hook → `ad69e26579bcfc07b` (prover), cost of a hook slot; R40 Studio trap line → the architect.
+- Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
+  interruptions: a unit written after one is redone as its own unit.
+  1. `interest`: D1, U8, U13 → `research/interest-rewind.md` (on `ade0c89512482ae96`).
+  2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md`.
+  3. `checks`: D3, U12 → `research/checks-telemetry.md`.
+  4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
+  5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.
+  6. `methods, part 2`: per-player tag binding, generated traps/decoys/canaries, runtime-path per-session
+     parameters, composition with codecs-in-scripts → append to `research/generation-methods.md`.
+  7. `server facts A`: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` → `research/server-facts.md`.
+  8. `server facts B`: U11 decoy-adjacent facts, U14 server-issued challenges → append to `research/server-facts.md`.
+  9. `clock and timing`: U3 beacon window rules, U4 `roundTrip`/`ping` → append to `research/server-facts.md`.
+  10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
+      tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and
+      the `v5-changes.md` section.
+  11. Critic on draft 3.6, then the architect applies it.
+  - R40 Studio trap line → the integrity architect unit.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the

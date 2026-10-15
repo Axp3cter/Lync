@@ -29,7 +29,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a6b292c4df871349d` | researcher | client shard self-checks: finishes `security-tooling.md` §2; U1 captured `FireServer`, U2 tag rounds and rotation amounts, U7 caller information in the tag | `research/security-tooling.md` §2, `research/client-self-checks.md`, `probes/client-self-checks/` | done on Opus 5.5, nothing unwritten; U1 captured method (≤ 8 ns less, `__namecall` spies only), U2 rounds (vetted rotation pool, `build.tagRounds`), U7 one caller bit in the lane byte, replacing `sourceUnlisted`; retired |
 | `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | `research/interest-rewind.md` §11–§13, `probes/interest-rewind/` | done on Opus 5.5, nothing unwritten; rewind 24 B per record per tick, perceived tick from acks plus ping, server-chosen interpolation delay in `RATE`; staged release via `Lync.release`; variant timing rule; retired |
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md` C0–C7, `probes/checks-telemetry/` | done on Opus 5.5: `within`, `monotonic` (frame-keyed order), `maxTotal` (16-bucket window), `:claim()`/`:input()`, `freeFormField` lint, one `constraint` fact; retired |
-| `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
+| `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | `research/generation-methods.md` M13–M14, `probes/generation-methods/run3.sh` | done on Opus 5.5: M13 per-player tag mask and `tagVariant` fact, `Lync.variantOf`; M14 runtime path tables (closure tree 1.45–1.72x generated), `layout.vary`; retired |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | `research/generation-methods.md` M15–M16, `probes/generation-methods/run4.sh` | done on Opus 5.5: `build.traps` 0–8 (reopens R13), `decoyFrom`, `canary.perViewer`; weaving composition table and `weaveHash` coverage; retired |
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | running |
@@ -40,7 +40,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 
 ## Next
 
-- Built code removed at the author's request (in git at `f1fbfd7`, not on this remote; evidence data in
+- Built code removed at the author's request (in git at `f1fbfd7`, present in this clone; evidence data in
   `probes/build/`). Design at draft 3.5. No milestone work without the author's go-ahead.
 - Security re-judgment in progress: the agents above find facts and designs; then an architect brings them
   together into draft 3.6; then a critic reviews it. Designing new mechanisms is research work, not the architect's.
@@ -58,8 +58,8 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   4. `telemetry` (on `a8535342774a83e31`): D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
-  6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through
-      tables → append to `research/generation-methods.md`.
+  6a. ~~`methods, part 2a`~~ done.
+  6c. `methods, consolidation` (Opus): M7 against M13, Summary M1–M16, one Implications list, checklist.
   6b. ~~`methods, part 2b`~~ done.
   7. `server facts A`: U9, U10 → `research/server-facts.md` (on `a37cd6952a2f7bad9`).
   8. `server facts B`: U11, U14 → `research/decoy-challenge-facts.md` (on `a3a196cb42882d70c`).

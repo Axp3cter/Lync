@@ -1,0 +1,12 @@
+{
+	"name": "build-checks-rojo",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": { "$className": "ReplicatedStorage", "Shared": { "$path": "src/shared" } },
+		"StarterPlayer": {
+			"$className": "StarterPlayer",
+			"StarterPlayerScripts": { "$className": "StarterPlayerScripts", "Client": { "$path": "src/client" } }
+		},
+		"Workspace": { "$className": "Workspace", "Gear": { "$path": "Gear.rbxm" } }
+	}
+}

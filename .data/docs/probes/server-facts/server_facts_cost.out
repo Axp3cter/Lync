@@ -1,0 +1,57 @@
+# Luau 0.742 (built from .data/projects/luau, CMake Release),  Intel(R) Xeon(R) Processor @ 2.10GHz, 2026-10-15; best of 7 per line, two process runs per mode
+## run 1 interpreted -O2
+-- U9 derive
+game fn alone (closed-form projectile)                            41.3 ns/op  (sink 0)
+runner, definition with no checks (nil test)                      19.4 ns/op  (sink 0)
+runner, derive vector, tolerance in steps (Chebyshev)            119.2 ns/op  (sink 0)
+runner, derive vector, tolerance in studs (grid, Euclidean)       95.1 ns/op  (sink 0)
+runner, derive enum/int, exact (fn returns the item)              23.8 ns/op  (sink 0)
+-- U10 reactsTo
+stimulus sent: ring push (key, frame, time)                       77.4 ns/op  (sink 0)
+response: scan ring for key, elapsed, case 1 and floor tests     178.5 ns/op  (sink 0)
+response to a collection add: slot frame, frame time, tests       49.2 ns/op  (sink 0)
+path bound: record one ping sample into its 1 s bucket            46.2 ns/op  (sink 0)
+path bound: minimum over 10 buckets                              191.9 ns/op  (sink 0)
+memory: event ring 192 B per (player, declaration); collection 4096 B per viewer per collection; frame times 1024 B per player; bound 40 B per player
+## run 1 native -O2 --codegen
+-- U9 derive
+game fn alone (closed-form projectile)                            13.0 ns/op  (sink 0)
+runner, definition with no checks (nil test)                       6.9 ns/op  (sink 0)
+runner, derive vector, tolerance in steps (Chebyshev)             40.1 ns/op  (sink 0)
+runner, derive vector, tolerance in studs (grid, Euclidean)       32.3 ns/op  (sink 0)
+runner, derive enum/int, exact (fn returns the item)               8.5 ns/op  (sink 0)
+-- U10 reactsTo
+stimulus sent: ring push (key, frame, time)                       10.2 ns/op  (sink 0)
+response: scan ring for key, elapsed, case 1 and floor tests      34.7 ns/op  (sink 0)
+response to a collection add: slot frame, frame time, tests        8.2 ns/op  (sink 0)
+path bound: record one ping sample into its 1 s bucket             7.9 ns/op  (sink 0)
+path bound: minimum over 10 buckets                               46.0 ns/op  (sink 0)
+memory: event ring 192 B per (player, declaration); collection 4096 B per viewer per collection; frame times 1024 B per player; bound 40 B per player
+## run 2 interpreted -O2
+-- U9 derive
+game fn alone (closed-form projectile)                            40.7 ns/op  (sink 0)
+runner, definition with no checks (nil test)                      18.6 ns/op  (sink 0)
+runner, derive vector, tolerance in steps (Chebyshev)            113.7 ns/op  (sink 0)
+runner, derive vector, tolerance in studs (grid, Euclidean)       92.3 ns/op  (sink 0)
+runner, derive enum/int, exact (fn returns the item)              23.8 ns/op  (sink 0)
+-- U10 reactsTo
+stimulus sent: ring push (key, frame, time)                       78.7 ns/op  (sink 0)
+response: scan ring for key, elapsed, case 1 and floor tests     181.6 ns/op  (sink 0)
+response to a collection add: slot frame, frame time, tests       54.5 ns/op  (sink 0)
+path bound: record one ping sample into its 1 s bucket            47.5 ns/op  (sink 0)
+path bound: minimum over 10 buckets                              193.3 ns/op  (sink 0)
+memory: event ring 192 B per (player, declaration); collection 4096 B per viewer per collection; frame times 1024 B per player; bound 40 B per player
+## run 2 native -O2 --codegen
+-- U9 derive
+game fn alone (closed-form projectile)                            19.1 ns/op  (sink 0)
+runner, definition with no checks (nil test)                       7.0 ns/op  (sink 0)
+runner, derive vector, tolerance in steps (Chebyshev)             38.2 ns/op  (sink 0)
+runner, derive vector, tolerance in studs (grid, Euclidean)       31.9 ns/op  (sink 0)
+runner, derive enum/int, exact (fn returns the item)               7.2 ns/op  (sink 0)
+-- U10 reactsTo
+stimulus sent: ring push (key, frame, time)                        8.6 ns/op  (sink 0)
+response: scan ring for key, elapsed, case 1 and floor tests      38.1 ns/op  (sink 0)
+response to a collection add: slot frame, frame time, tests        8.3 ns/op  (sink 0)
+path bound: record one ping sample into its 1 s bucket             8.1 ns/op  (sink 0)
+path bound: minimum over 10 buckets                               45.4 ns/op  (sink 0)
+memory: event ring 192 B per (player, declaration); collection 4096 B per viewer per collection; frame times 1024 B per player; bound 40 B per player

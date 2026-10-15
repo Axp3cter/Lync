@@ -181,9 +181,9 @@ local function scan(scripts: { any }, leaves: { [string]: string })
 					if not modules[s.name] then modules[s.name] = ns changed = true end
 				elseif x[e - 1] == "=" and nxt ~= "." and nxt ~= ":" and nxt ~= "(" and nxt ~= "[" then
 					if bindTarget(si, t, e, ns) then changed = true end
-				elseif (x[e - 1] == "(" or x[e - 1] == ",") and nxt ~= "." and nxt ~= ":" and nxt ~= "[" then
+				elseif (x[e - 1] == "(" or x[e - 1] == "," or x[e - 1] == "{") and nxt ~= "." and nxt ~= ":" and nxt ~= "[" and nxt ~= "=" then
 					-- argument position: walk back to the call's opening parenthesis
-					local depth, j, pos = 0, e - 1, 1
+					local depth, j, pos = 0, if x[e - 1] == "{" then e else e - 1, 1
 					while j > 0 do
 						local c = x[j]
 						if c == ")" or c == "]" or c == "}" then depth += 1

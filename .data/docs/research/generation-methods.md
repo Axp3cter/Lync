@@ -53,10 +53,10 @@ machines and accounts). Routes A0–A8 are `client-security.md` §1.4's.
 - [x] M11. Per-server values through `ConfigService`
 - [x] M12. Join rule for per-player variants
 - [x] Summary table and Implications
-- next unit: per-player tag constants or key derivation bound to the player's variant, so the server can state
-  which variant a frame verifies under
+- [x] M13. Per-player tag binding: one output mask per variant, fact `tagVariant` (was: next unit)
 - [x] M15. Per-build generated traps, decoys and canaries (was: next unit)
-- next unit: the no-build (runtime) path with per-session parameters through tables, measured
+- [x] M14. The runtime (no-build) path with per-server and per-session parameters through tables, measured (was:
+  next unit)
 - [x] M16. Composition with `research/codecs-in-scripts.md` (was: next unit; M9 gives only what the first run checked)
 
 ---
@@ -766,6 +766,232 @@ hard-code values (§0.1).
 10. Leave `ConfigService` to game code through `Lync.configure`; Lync's start must not yield (M11).
 11. Next unit: per-player tag binding (builds on M7 and M8), generated traps, decoys and canaries, the runtime
     path's per-session parameters, and composition with `codecs-in-scripts.md` (checklist).
+
+---
+
+## M13. Per-player tag binding: one output mask per variant
+
+**Status.** New (checklist "next unit"). It changes what M7's tag-only variant holds: one 32-bit output mask in
+place of two initialisation constants, because only a mask lets the server name the other variant without
+re-hashing. Probe: `tagbind.luau` → `tagbind.out` (Lync's own HalfSipHash from git `f1fbfd7`, exported by
+`run3.sh`; 32-bit output over the `v5.md` §4.5 input, all bytes covered).
+
+**The binding.** Grain: per build (N masks) × per player (the assignment). The build draws m_1 … m_N, each the low
+32 bits of HalfSipHash-2-4 keyed by M1's `rotationSeed` over `"mask"` and the variant number as u16le, redrawn while
+it is 0 or repeats an earlier one. Variant v's module (M7, `PlayerGui`) holds m_v and nothing else; the server
+shard holds all N (M10). With N = 1, or at seed 0, there is no variant and m = 0. The tag becomes:
+
+```luau
+-- client, M7 tag-only today                         -- client, M13
+local tag = H13(key, input, IV0_v, IV1_v)            local tag = bxor(H13(key, input, IV0, IV1), MASK)   -- IV per build (M2)
+
+-- server, today                                     -- server, M13 (v = assigned[player])
+for j = 0, 4 do                                      local other, jAt = 0, 0
+	if H13(key, inputAt(e + j)) == tag then          for j = 0, 4 do
+		return accept(j)                                 local d = bxor(H13(key, inputAt(e + j)), tag)
+	end                                                  if d == MASK[v] then return accept(j) end
+end                                                      if other == 0 then other = VARIANT_OF[d] or 0; jAt = j end
+tagMismatch(e)                                       end
+                                                     if other ~= 0 then tagVariant(other, v, jAt) else tagMismatch(e) end
+```
+
+The server already computes H13 at every candidate count; d is one XOR and `VARIANT_OF[d]` one table lookup per
+candidate. Unreliable frames do the same at the extended seq and its two neighbours, before the replay window.
+While a `REKEY` is pending, the candidates under the new key (counts 0 … 4) are looked up too.
+
+**The fact.**
+
+| Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
+|---|---|---|---|---|
+| `tagVariant` | a tagged upstream frame whose tag fails under the player's assigned mask at every candidate (reliable: counts e … e + 4; unreliable: the extended seq and its two neighbours), and for which tag XOR H13 at one candidate equals another variant's mask; reported in place of `tagMismatch` for that frame | frame dropped; e unchanged; counts as a failure toward `desync` | `lane`, `variant` (the matching mask's variant), `assigned` (the player's), `skipped` (reliable: j, the candidate's offset from e; unreliable: −1, 0 or 1, the neighbour of the extended seq) | chance: a frame failing for a `tagMismatch` cause matches one of the N − 1 other masks with probability (N − 1) × 5 × 2^−32 (reliable) or (N − 1) × 3 × 2^−32 (unreliable); a Lync bug installing a variant other than the one assigned |
+
+What a `tagVariant` states: the frame's tag is this session's keyed hash at a count within the lookahead, masked
+with variant u's mask. Short of chance, its sender held this session's key and u's mask. Who held u is the
+assignment: the server knows it for its own players, and games that log a server API `Lync.variantOf(player)`
+(0 when there are no variants) can find it across servers. It names a player uniquely only while N is at least
+the number of concurrent players and assignment is round-robin (M7).
+
+Chance matches, at the full default frame budgets (120 reliable × 5 candidates + 240 unreliable × 3 candidates
+per second, `v5.md` §7.5) for a sender without the key (`tagbind.out`, computed): N = 2, one per 904 h;
+N = 16, one per 60 h; N = 64, one per 14 h; N = 256, one per 3.5 h. A carried mask matches on every frame it is
+used for, while chance matches come one at a time and name variants at random. The `count` and `variant`
+fields show which of the two a game is seeing; Lync states both, and does not choose between them.
+
+**Changes / fixed.** Changes the value of every upstream tag for N ≥ 2. Fixed: zero bytes; the tag width, its input,
+`tag.cover`, the count rules, the lookahead, the replay window; the M2 constants (per build, shared by every
+variant); the hash, types; G4, G5 and G8 (m = 0). `tagMismatch`'s trigger gains "and no other variant's mask
+matches".
+
+**What it prices.** **share**: a tag routine, mask or byte tool carried from one account to another now produces
+a fact naming the source variant on each frame, instead of a `tagMismatch` that does not say why. That moves
+M7's attribution from "an artefact names its variant, if someone finds the artefact" to "the server states the
+variant per frame". Not priced: a tool that reads its own client's variant (**code**, **mem**); a tool holding
+the key that also sees its own client's tagged frames (**mem** with **packet**), which can learn its own mask
+from them; **api** and **hook** (`fire` tags with the client's own mask); a sender without the key, which gets
+chance facts only.
+
+**Rejected alternatives, measured** (`tagbind.out`, best of 7 on a shared Xeon):
+
+| Server work per frame | 64 B interpreted | 64 B native | 1024 B native |
+|---|---|---|---|
+| accepted at e, today | 2.60 µs | 0.45 µs | 4.02 µs |
+| accepted at e, mask | 2.53 µs | 0.43 µs | 3.93 µs |
+| failing (5 counts), today | 12.57 µs | 1.97 µs | 20.33 µs |
+| failing, mask and 5 lookups | 13.07 µs | 2.21 µs | 19.75 µs |
+| failing, re-hash under 15 other variants' constants (N = 16) | 199.0 µs | 31.4 µs | 314.1 µs |
+
+- **Per-variant initialisation constants** (M7's tag-only form as written). The variant's constants change the
+  hash's initial state, so naming the other variant needs 5 × (N − 1) full hashes per failing frame: 31.4 µs native
+  per 64 B frame at N = 16, about 534 µs at N = 256 (× 255/15, derived). At 120 failing 1 KB reliable frames a
+  second, N = 16 costs 37.7 ms of server CPU a second for that player (derived). Usable only sampled, for example
+  at most once per `desync`.
+- **Per-variant key secret** (M8's S per variant). The key differs per variant, so naming needs the same re-hash,
+  plus N key derivations per session (0.26–0.42 µs each, native). It prices **share** no more than the mask: both
+  are one value read from the same variant module. S stays per build.
+
+The mask costs nothing measurable: accepted frames differ by one XOR (within noise in all three columns) and
+failing frames by 5 lookups (+0.5 µs interpreted, +0.24 µs native at 64 B, below noise at 1 KB).
+
+**Memory.** Server: `VARIANT_OF`, 13,312 B for 256 masks (`tagbind.out`), plus the N masks, once per server. Per
+player: the variant index M7 already keeps. Client: one u32.
+
+**Composition.**
+- **M7.** Tag-only scope now holds the mask; upstream scope holds the mask and its encoders. The join rule is
+  unchanged: tags are computed at send, so frames wait for "`WELCOME` received and variant installed" (M12
+  rule 3). M12 rule 6's open item ("stating which variant it verifies under") is `tagVariant`.
+- **M2.** Unchanged and shared: the constants are per build, the mask per variant.
+- **M8.** The key is derived per session from the per-build S, then masked. A `tagVariant` therefore also states
+  that the sender derived this session's key.
+- **M10.** Holds the N masks and `VARIANT_OF`. **M16's** composition row (tag-level, like M2 and tag-only M7) holds.
+- **Runtime path.** Masks are data, not code: a runtime-path server could draw N masks at start and give each
+  player one through `PlayerGui`, which binds per server instead of per build. A per-session mask sent in
+  `WELCOME` binds nothing: it reaches the same client in the same frame as the key, so it is only a longer key.
+
+No option: masks follow `build.playerVariants` ≥ 2. One server API (`Lync.variantOf`), one fact code.
+
+**Implications.** Specify M7 tag-only as one output mask per variant, not constants (table above). Add
+`tagVariant` with its chance rate in the known causes. Keep S per build. Expose `Lync.variantOf(player)` so games
+can log assignments.
+
+---
+
+## M14. The runtime (no-build) path: per-server and per-session parameters through tables
+
+**Status.** New (checklist "next unit"; reopens R5, "the runtime path always runs at seed 0"). Measured on Lync's own
+runtime interpreter, not a model of one. Probe: `runtime_path.luau` → `runtime_path.out`, run by `run3.sh`, which
+exports git `f1fbfd7:src` (the milestone build: planner, `codec/rows.luau`, `wire/bits.luau`) into the work
+directory. `patch_rows.py` writes a copy of `rows.luau` whose int, bool and enum branches read an offset from the
+IR. Each figure is the best of 7 runs of 200,000 rows on a shared Xeon. Run-to-run noise is about ±5% interpreted
+and up to ±20% native, so differences under about 80 ns are noise.
+
+**What the runtime path can vary without `loadstring`.** Anything the interpreter reads from the IR, which is a
+table:
+- **field order**: a permuted `fields` array in a copy of a record's IR (M1's Fisher–Yates);
+- **code offsets**: `offset` and `n` on int, enum and bool codecs (M3), with the patched branches;
+- **tag constants**: the runtime's `HalfSipHash.hash` already takes `iv0, iv1` as parameters (read in
+  `f1fbfd7:src/wire/halfsiphash.luau`), so per-connection constants need no code change.
+
+It cannot vary anything that is code shape (M5, M15's generated traps, or pools of encoder bodies), and it has no
+private value: the client has no build, so every parameter must reach it in `WELCOME` or be derived from what
+`WELCOME` carries.
+
+```luau
+-- runtime path today: one IR at seed 0             -- M14: an IR copy per server (or per session)
+Rows.write(w, def.data, value, instances)           Rows.write(w, conn.layout[def], value, instances)
+                                                    -- conn.layout built once, at the first WELCOME:
+                                                    --   variantIr(def.data, xorshift32(layoutSeed ⊕ pathHash))
+-- interpreter's int branch gains (patch_rows.py):
+local offset = codec.offset
+if offset ~= nil then
+	local n = codec.n
+	code = if code >= n - offset then code - (n - offset) else code + offset
+end
+```
+
+**Grain and wire.** One field in the connection's first `WELCOME`, `layout` u2: 0 off (identity, all golden
+vectors), 1 per server, 2 per session. The parameters are derived, not sent:
+- **per server**: the layout seed is the low 32 bits of HalfSipHash-2-4, zero key, over the permutation seed
+  (already in `WELCOME`) and `"layout"`. Upstream and downstream layouts are both per server, so every client of
+  a server shares one downstream layout, and encode-once and `FireAllClients` hold (§0.2).
+- **per session**: the upstream layout seed is derived the same way from the first `WELCOME`'s key; downstream
+  stays per server. A `REKEY` keeps the layout, so decoders never switch in the middle of a session.
+
+Fixed: the hash (computed at seed 0), types, widths, ids (already permuted per server), `HELLO` (seed 0), the
+tag's input. G10 gains the 2-bit field (value 0); the other golden vectors are unchanged. The differential test's
+seed seam (`v5.md` §2) becomes the production path, which answers R5's question "is the seam safe in production":
+it is the same pure-Luau xorshift32 and Fisher–Yates on both ends. One conflict: a generated shard built at
+`build.seed = 0` also sends seed 0, cannot follow a varied layout, and would mis-decode. Seed-0 shards exist only
+in tests, so the test fixture sets `layout` 0. A `HELLO` bit would remove the conflict for one bit per `HELLO`.
+
+**Measured: the runtime path against the generated path** (`runtime_path.out`; ns per row, harness included, which
+alone is 35–45 ns interpreted and 23–25 native; s3 = 3 bounded fields, s8 = 8 bounded fields, sm = enum, string,
+int and optional):
+
+| Form | s3 enc / dec, interpreted | s8 enc / dec, interpreted | sm enc / dec, interpreted | s3 enc / dec, native | s8 enc / dec, native |
+|---|---|---|---|---|---|
+| I: `Rows.write`/`Rows.read`, as built | 742 / 831 | 1747 / 1852 | 1112 / 1004 | 325 / 447 | 780 / 894 |
+| C: closure tree built from the IR | 487 / 629 | 1337 / 1516 | 864 / 817 | 216 / 387 | 546 / 814 |
+| Cf: closures, bit positions fixed at plan time | 333 / 369 | 768 / 791 | n/a | 203 / 274 | 452 / 551 |
+| G1: generated straight line on `Bits.write` | 396 / 515 | 915 / 1102 | 663 / 621 | 166 / 267 | 345 / 670 |
+| G2: generated straight line, inline `writebits` at constant positions | 229 / 184 | 447 / — | n/a | 134 / 161 | 274 / — |
+
+- **The interpreter as built** is 3.2–3.9x the fastest generated form (G2) to encode and 4.5x to decode (s3)
+  interpreted, and 2.4–2.9x to encode native. That matches the earlier 3.2–4.6x (`v5.md` §0) for this form. Against
+  a generated encoder on the same writer (G1), it is 1.7–1.9x interpreted and 1.9–2.3x native.
+- **A table-driven runtime path need not be that slow.** With bit positions fixed at plan time and one growth check
+  per row (Cf), it is 1.45–1.72x G2 to encode and 2.0x to decode interpreted, 1.5–1.65x to encode native. It beats G1 interpreted (0.84x) but not native
+  (1.2–1.3x). Most of the generated path's advantage comes from constant bit positions, not from straight-line
+  code. Cf applies to fixed-width rows; rows with strings, optionals or arrays need a running cursor, and there the
+  closure tree (C) is 1.3x G1 (sm).
+- So the earlier figures are right for today's interpreter and too high as a bound on the runtime path. The
+  2–3x of R4 compared a closure loop with straight-line code (`security-refusals.md` §1); Cf is that loop with
+  constant positions.
+- Scale (derived): at the busy model's 70 upstream messages a second, I against G2 on s3 costs
+  (742 − 229) × 70 = 36 µs/s of client CPU; Cf against G2 costs 7 µs/s. The tag on the same 70 frames costs
+  2.2 µs × 70 = 154 µs/s (64 B, interpreted, from the same output).
+
+**Measured: what per-session parameters add on the runtime path**:
+- **Order** (Ip against I): −48 to +19 ns encode interpreted, +2 to +16 native: zero within noise. The interpreter
+  already iterates a field array, which verifies CSB's assertion (R5 "costs cited").
+- **Offsets**, interpreter (Io against I): +6, +59 and +77 ns encode interpreted for 3, 8 and 3 bounded fields; +42,
+  +77 and +22 native. That is 2–26 ns per bounded field, limited by noise, the order of M3's +5.0 / +7.3 ns on
+  the generated path. Decode moves −30 to +76 ns, within noise.
+- **Offsets**, closures (Co against C, Cfo against Cf): −70 to +39 ns, within noise. Cf does the offset arithmetic
+  even at offset 0, so Cfo − Cf is 0 by construction.
+- **Tag constants from a table**: 2.21 against 2.17 µs (64 B) and 27.4 against 29.1 µs (1 KB) interpreted;
+  0.32 against 0.33 µs native: zero.
+- **Set-up per definition** (once per connection on the client; on the server once per server, or once per player
+  per session): an IR copy takes 1.5–4.3 µs interpreted and 0.8–3.0 µs native, and holds 1.7–3.8 KB. A closure
+  tree takes another 0.9–2.0 µs and 1.5–2.9 KB. These are full copies, an upper bound; sharing the unchanged
+  string and optional nodes would shrink them (not measured). For 200 definitions: about 0.3–0.9 ms and
+  0.34–0.76 MB per client connection (derived). On the server, per session means the same for each player: 34–76
+  MB at 100 players (derived). Per server means it once.
+- **Per frame on the server**: the player's layout table is one more lookup (+about 10 ns native, M6's
+  `dispatch.out`). Per server needs none.
+
+**What it prices.** The parameters come from `WELCOME` fields, which a **packet** tool reads, and from Lync's own
+planner, which any tool can call (**api**). So M14 prices only tools that hard-code a no-build game's layout or
+the reference tag constants: static forgers (A2) and byte scripts carried between servers (**share**), which
+today work against every no-build game with no change. That is the same verdict as M1 under today's public seed
+(§0.1), at per-server grain instead of per-build grain, and the same reason the id permutation stays on by default
+(`client-security.md` §3.4: no run-time cost, and copy-paste byte scripts are removed as a class). Per session
+prices nothing more than per server: whoever reads the key reads the layout in the same pass (R4's 3.5 verdict).
+It does not price **mem**, **code**, **api**, **hook** or **state**.
+
+**Composition.** Uses M1's order and M3's offsets as data; M3's column rule ("first row against 0 or against c")
+applies unchanged. M2's constants become per-server values derived from the key or the permutation seed.
+M6, M7, M8 and M15 are generated-path only. M13's masks can reach a runtime-path client as data (M13).
+Downstream varies at most per server (§0.2).
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `layout.vary` (`Lync.configure`, runtime path only; u2 in `WELCOME`) | `"off" \| "server" \| "session"` | — | — | `"server"` | `"server"`: per definition, once per server and once per client connection, 1.5–4.3 µs and 1.7–3.8 KB (IR copy); offsets +2 to +26 ns per bounded field per message; order and tag constants 0. `"session"`: the same per player on the server (34–76 MB at 200 definitions × 100 players), and +about 10 ns native per frame |
+
+**Implications.** Reopen R5: let the runtime path vary order, offsets and tag constants per server through IR
+tables, on by default, with its protection stated as hard-coded tools only. Do not offer `"session"` unless a use
+appears that `"server"` does not cover. Record the runtime path's cost as 1.7–1.9x a generated encoder on the same
+writer and 3.2–3.9x the inline form for the interpreter as built, and let the runtime team decide whether to adopt
+Cf's plan-time bit positions (1.45–1.72x).
 
 ---
 

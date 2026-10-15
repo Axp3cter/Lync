@@ -1,0 +1,21 @@
+# Luau 0.742, 2026-10-15; v5.md §9 default network model, 200,000 trials per line
+-- bound (min ping) = 0.10 s
+r = 0.00 s: slack (estimate - r) min 0.0042 p1 0.0185 p50 0.0454 p99 0.2400; case 1 by time (factor 0.5): 0
+            below floor 0.05: 64.48%, 0.10: 97.59%, 0.12: 97.80%
+r = 0.10 s: slack (estimate - r) min 0.0043 p1 0.0187 p50 0.0455 p99 0.2467; case 1 by time (factor 0.5): 0
+            below floor 0.05: 0.00%, 0.10: 0.00%, 0.12: 1.39%
+r = 0.15 s: slack (estimate - r) min 0.0050 p1 0.0186 p50 0.0455 p99 0.2455; case 1 by time (factor 0.5): 0
+            below floor 0.05: 0.00%, 0.10: 0.00%, 0.12: 0.00%
+-- bound (min ping) = 0.12 s
+r = 0.00 s: slack (estimate - r) min -0.0155 p1 -0.0013 p50 0.0255 p99 0.2281; case 1 by time (factor 0.5): 0
+            below floor 0.05: 95.81%, 0.10: 97.72%, 0.12: 97.93%
+r = 0.10 s: slack (estimate - r) min -0.0179 p1 -0.0012 p50 0.0255 p99 0.2226; case 1 by time (factor 0.5): 0
+            below floor 0.05: 0.00%, 0.10: 1.35%, 0.12: 32.84%
+r = 0.15 s: slack (estimate - r) min -0.0161 p1 -0.0012 p50 0.0254 p99 0.2231; case 1 by time (factor 0.5): 0
+            below floor 0.05: 0.00%, 0.10: 0.00%, 0.12: 0.00%
+-- responders firing at time L after the stimulus flush (negative: before), not waiting for it; bound 0.10
+L = -0.20 s: case 1 by time 99.3%, case 1 by receipt 100.0%, floor 0.10 100.0%
+L = -0.05 s: case 1 by time 98.5%, case 1 by receipt 100.0%, floor 0.10 99.3%
+L = +0.00 s: case 1 by time 0.0%, case 1 by receipt 100.0%, floor 0.10 99.2%
+L = +0.03 s: case 1 by time 0.0%, case 1 by receipt 100.0%, floor 0.10 98.9%
+L = +0.06 s: case 1 by time 0.0%, case 1 by receipt 16.3%, floor 0.10 98.8%

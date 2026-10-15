@@ -302,3 +302,49 @@ const wrongPath = v.field("nope");
 v.field("f3").derive({{ fn: () => 1, policy: "dorp" }});
 export {{ h2, exact, wrongType, wrongPath }};
 ''')
+
+# (a2) form (a) with explicit type instantiation, which keeps the literal: v:field<<"f3">>("f3")
+for n in SIZES:
+    src = open(os.path.join(HERE, f"a_generic_{n}.luau")).read()
+    head, _, _ = src.partition("local h2")
+    head = head.replace("-- (a) One function type", "-- (a2) (a) called with explicit instantiation v:field<<\"p\">>(\"p\"); one function type")
+    write(f"a_explicit_{n}.luau", head + calls(n, lambda p: f'v:field<<"{p}">>("{p}")'))
+
+# (b) as a library: FieldsOf in Lync's module, the game's script reads Net.<def>.fields
+B_FIELDS = f'''type function FieldsOf(rec)
+	{HELPERS}
+	local props = {{}}
+	walk(rec, "", function(path, inner) props[types.singleton(path)] = handleOf(inner) end)
+	return types.newtable(props)
+end'''
+write("b_lib.luau", f'''--!strict
+-- (b) in Lync's own module: define returns View<S> with fields: FieldsOf<S>.
+{B_FIELDS}
+export type View<S> = {{ fields: FieldsOf<S> }}
+local Lync = {{}}
+function Lync.define<S>(schema: S): View<S>
+	return nil :: any
+end
+return Lync
+''')
+write("b_consumer_128.luau", f'''--!strict
+-- The game's script on the runtime path, 128 paths, through b_lib's define.
+local Lync = require("./b_lib")
+{schema(128)}
+local v = Lync.define((nil :: any) :: Shot)
+{calls(128, dot)}''')
+
+# (f) no type function: the schema's codec values carry the handle type; fields is the schema table itself.
+# Records nest as fields (v.fields.hit.at); a record's own handle is not derivable without a type function.
+F_LIB = '''type Handle<T> = { derive: (self: Handle<T>, options: { fn: () -> T?, policy: "drop" | "deliver" }) -> () }
+local t = {}
+function t.leaf<T>(): Handle<T> return nil :: any end
+function t.optional<C>(c: C): C return c end -- an optional record keeps its children's handles
+local function define<S>(fields: S): { fields: S } return { fields = fields } end'''
+for n in SIZES:
+    leaves = ", ".join(f"f{i} = t.leaf() :: Handle<{LT[i % 3]}>" for i in range(1, n - 2))
+    write(f"f_codec_{n}.luau", f'''--!strict
+-- (f) No type function, {n} paths: the handle is the codec value's own type, fields is the schema table (generic S).
+{F_LIB}
+local v = define({{ {leaves}, hit = t.optional({{ part = t.leaf() :: Handle<number>, at = t.leaf() :: Handle<vector> }}) }})
+{calls(n, lambda p: "v.fields." + p)}''')

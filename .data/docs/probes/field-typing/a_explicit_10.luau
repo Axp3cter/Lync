@@ -1,0 +1,52 @@
+--!strict
+-- (a2) (a) called with explicit instantiation v:field<<"p">>("p"); one function type, no overloads: field: <P>(self, path: P) -> FieldAt<Shot, P>, 10 paths.
+type function FieldAt(rec, p)
+	local function handleOf(t)
+		return types.newtable({ [types.singleton("derive")] = types.newfunction(
+			{ head = { types.any, types.newtable({
+				[types.singleton("fn")] = types.newfunction({}, { head = { types.optional(t) } }),
+				[types.singleton("policy")] = types.unionof(types.singleton("drop"), types.singleton("deliver")),
+			}) } }, {}) })
+	end
+	local function stripNil(t: any): any
+		if t:is("union") then
+			local rest = {}
+			local hadNil = false
+			for _, c in t:components() do
+				if c:is("nil") then hadNil = true else table.insert(rest, c) end
+			end
+			if hadNil and #rest == 1 then return rest[1] end
+		end
+		return t
+	end
+	-- calls each(path, inner) for every path through records and optionals
+	local function walk(t: any, prefix: string, each)
+		for key, prop in t:properties() do
+			local name = tostring(key:value())
+			local path = if prefix == "" then name else prefix .. "." .. name
+			local inner = stripNil(prop.read)
+			each(path, inner)
+			if inner:is("table") and inner:indexer() == nil then walk(inner, path, each) end
+		end
+	end
+	if not p:is("singleton") then error("field: the path must be a string literal, got a non-singleton") end
+	local want = p:value()
+	local found = nil
+	walk(rec, "", function(path, inner) if path == want then found = handleOf(inner) end end)
+	if found == nil then error("field: no path " .. tostring(want)) end
+	return found
+end
+type Shot = { f1: vector, f2: string, f3: number, f4: vector, f5: string, f6: number, f7: vector, hit: { part: number, at: vector }? }
+type View = { field: <P>(self: View, path: P) -> FieldAt<Shot, P> }
+local v: View = nil :: any
+local h2 = v:field<<"f2">>("f2") -- inferred type: see run.out (--annotate)
+v:field<<"f3">>("f3"):derive({ fn = function() return 1 end, policy = "drop" })
+v:field<<"hit.at">>("hit.at"):derive({ fn = function() return vector.create(1, 2, 3) end, policy = "deliver" })
+v:field<<"f7">>("f7"):derive({ fn = function() return nil end, policy = "drop" })
+local _exact: { derive: (any, { fn: () -> string?, policy: "drop" | "deliver" }) -> () } = v:field<<"f2">>("f2")
+-- EXPECT an error on each line below
+local _wrongType: { derive: (any, { fn: () -> number?, policy: "drop" | "deliver" }) -> () } = v:field<<"f2">>("f2") -- f2 is a string handle
+v:field<<"hit.part">>("hit.part"):derive({ fn = function() return vector.create(1, 2, 3) end, policy = "drop" }) -- wrong return
+local _wrongPath = v:field<<"nope">>("nope") -- unknown path
+v:field<<"f3">>("f3"):derive({ fn = function() return 1 end, policy = "dorp" }) -- wrong option
+return h2

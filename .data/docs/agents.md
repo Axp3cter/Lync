@@ -64,6 +64,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `abe3c9a625869cc7b` | critic (Opus) | reviews `v5.md` §4 at draft 3.6; recomputes every golden frame independently | `reviews/v5-3.6-wire.md`, `probes/review-3.6-wire/` | running |
 | `a91f8b2be20a8e336` | researcher (Opus) | `strings`: downstream string tables and upstream references (the gap R33 left) | `research/strings.md`, `probes/strings/` | running |
 | `a2488a2c51dba205d` | critic (Opus) | reviews `v5-integrity.md` at draft 3.6 | `reviews/v5-3.6-integrity.md` | running |
+| `ae05a016ace1f55ff` | critic (Opus) | reviews `v5.md` §0–§3 and §5.2 at draft 3.6 (types on both solvers and roblox-ts, API behaviour, §3.4 example) | `reviews/v5-3.6-core-api.md`, `probes/review-3.6-core-api/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -102,6 +103,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   10. Architects, seven units by ownership (`design/v5-3.6-architect-brief.md`): tooling, core-api, wire, runtime,
       integrity, collections, checks; pending research goes to the owning unit by message. Then one consistency
       unit applies every "Needs elsewhere" list and merges the change records into `v5-changes.md`.
+  10b. Each area's architect then applies its critic review and its scope-audit findings together, in one pass.
   11. Critic per area as each architect unit finishes (`reviews/v5-3.6-<unit>.md`); the same architect applies it. Then one critic over the merged draft.
   - R40 Studio trap line → the integrity architect unit.
   - Lead decision: `callerProbe.splitFrames` is rejected (integrity §4: it breaks one reliable frame per flush); the consistency unit removes it from the wire unit's `WELCOME` row.

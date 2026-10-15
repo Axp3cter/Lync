@@ -1,5 +1,0 @@
-== lsp-new (exit 1)
-test/types/brand.luau(28,34): TypeError: Expected this to be
-	'"REVEAL record"'
-but got
-	'{ _value: number, name: string }'

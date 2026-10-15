@@ -1,5 +1,2 @@
 __pycache__/
 *.pyc
-sourcemap.json
-roblox.yml
-bench/results/*.tmp

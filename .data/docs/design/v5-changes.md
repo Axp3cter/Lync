@@ -355,7 +355,7 @@ choices) and G9 (the `t.int()` extremes) are new.
 
 **Count:** 18 items. Accepted 15, changed 3, rejected 0.
 
-**`columnMinRows` benchmark** (unit C, `bench/rows.luau`): bits of n single rows against one column block, summed
+**`columnMinRows` benchmark** (unit C, `bench/rows.luau` (planned; built as `test/codec/min_rows.luau`, commit `f1fbfd7`)): bits of n single rows against one column block, summed
 over `strike`, `announce`, `fighters` and a `{ t.int(0, 100) }` record, 200 draws.
 
 | n | constant | ±1 noise | Gaussian σ = 50 | 10% sparse |

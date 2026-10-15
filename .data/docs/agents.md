@@ -31,7 +31,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md` C0–C7, `probes/checks-telemetry/` | done on Opus 5.5: `within`, `monotonic` (frame-keyed order), `maxTotal` (16-bucket window), `:claim()`/`:input()`, `freeFormField` lint, one `constraint` fact; retired |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | `research/generation-methods.md` M13–M14, `probes/generation-methods/run3.sh` | done on Opus 5.5: M13 per-player tag mask and `tagVariant` fact, `Lync.variantOf`; M14 runtime path tables (closure tree 1.45–1.72x generated), `layout.vary`; retired |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | `research/generation-methods.md` M15–M16, `probes/generation-methods/run4.sh` | done on Opus 5.5: `build.traps` 0–8 (reopens R13), `decoyFrom`, `canary.perViewer`; weaving composition table and `weaveHash` coverage; retired |
-| `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
+| `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | done on Opus 5.5: `foreignRemotes` inventory, `dynamicAccess` = incompleteness (fixes the reachability gap), `editedShard`/`unpairedShard`/`staleManifest`; code hash in `HELLO` not recommended for protocol v1; retired |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | done on Opus 5.5: `derive` as a fourth check kind (grid-rounded tolerance; native FMA differs from interpreted), `reactsTo` with `earlyReaction` and a proposed 1 B `rcv` receipt on reliable upstream frames; its checklist's U11/U14/U3/U4 rows are covered by `decoy-challenge-facts.md` and `clock-facts.md`; retired |
 | `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
 | `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | append to `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
@@ -60,7 +60,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   3. ~~`checks`~~ done.
   4. `telemetry` (on `a8535342774a83e31`): D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
-  5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
+  5. ~~`build checks`~~ done.
   6a. ~~`methods, part 2a`~~ done.
   6c. ~~`methods, consolidation`~~ done.
   6b. ~~`methods, part 2b`~~ done.

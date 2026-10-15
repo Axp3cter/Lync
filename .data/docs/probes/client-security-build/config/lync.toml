@@ -1,0 +1,36 @@
+#:schema ./lync.schema.json
+# Build-time configuration for Lync's generator. Every value here is compiled into generated code or
+# decides what the build checks and writes; nothing here is read at run time. Runtime integrity policy
+# (tag width, replay window, weights, traps) is set in server code through Lync's server API.
+
+format = 1                                   # config format version; integer; only 1 exists
+
+[project]
+sourcemap = "sourcemap.json"                 # Rojo sourcemap; ignored by the Studio plugin, which reads the DataModel
+namespaces = ["ReplicatedStorage.Shared.Combat"]   # instance paths of namespace modules; empty = every module calling Lync.namespace
+output = "src/shared/LyncGenerated"          # folder the project maps into the tree, next to the namespaces
+
+[build]
+seed = "release"                             # "release" (fresh 32-bit seed per build) | integer 0..4294967295; 0 = canonical
+
+[generate]
+shardBy = "namespace"                        # "namespace" | "group"; one generated ModuleScript per namespace or per group
+maxShardBytes = 65536                        # bytes of generated source per module; 8192..1048576
+native = false                               # emit --!native in shards; server and client hosts decide whether it applies
+schemaLocations = true                       # error strings and comments name the schema file and line
+types = ["luau", "dts"]                      # concrete types for Luau and for roblox-ts
+
+[rotate]                                     # inert at seed 0
+fieldOrder = true                            # record field order per build; zero run-time cost
+tagConstants = true                          # PRF initialisation constants per build; zero run-time cost
+
+[check]
+rawRemotes = "error"                         # "off" | "warn" | "error": FireServer and friends in project scripts
+foreignRemotes = "warn"                      # remotes created or placed by anything but Lync
+unreliableSize = "error"                     # unreliable definitions whose worst case exceeds the per-frame cap
+dynamicAccess = "warn"                       # computed indexing of a Lync view, which disables reachability
+reachability = "report"                      # "off" | "report" | "enforce": definitions no client script references
+
+[output]
+report = "lync-build/report"                 # writes report.json and report.txt; keep out of the project tree
+debugMap = "lync-build/debug.json"           # developer-only; never inside a folder the project maps

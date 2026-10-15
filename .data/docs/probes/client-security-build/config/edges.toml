@@ -1,0 +1,7 @@
+# Edge cases for parser parity; not a config.
+whole = 1
+wholeFloat = 1.0
+big = 4294967295
+beyond = 9007199254740993
+date = 1979-05-27
+hexInt = 0xFF

@@ -1,0 +1,57 @@
+Created sourcemap at sourcemap.json
+seed 0: manifest sha256 a78d91ad4f91991b8e8eb36d1d451a13a751696bfb1bb0fbca3190aef47869d7
+  fixture.ReplicatedStorage.Shared.Combat.gen.luau 2486f313d8b27ce24aeda2e0281f046b07e0ca4f60b24ea8650a490ca73251b2
+  client fires: inventory (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:7), reload (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:6), shoot (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:5)
+  dynamic access: fixture.StarterPlayer.StarterPlayerScripts.Client.Dynamic:6
+  raw remote calls: FireServer at fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:11
+  remote creation: RemoteEvent at fixture.ServerScriptService.Server.Main:5
+seed 7: manifest sha256 a8cb3f4cc0e208834af091ceb7dfe801a7c3bf16423610e272ba8a57c6fe6b9b
+  fixture.ReplicatedStorage.Shared.Combat.gen.luau 635bfb163f73e7dd28cbfa36e08b355e97a0b540d65d5b8886fe06845b9927ca
+  client fires: inventory (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:7), reload (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:6), shoot (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:5)
+  dynamic access: fixture.StarterPlayer.StarterPlayerScripts.Client.Dynamic:6
+  raw remote calls: FireServer at fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:11
+  remote creation: RemoteEvent at fixture.ServerScriptService.Server.Main:5
+seed 0: manifest sha256 a78d91ad4f91991b8e8eb36d1d451a13a751696bfb1bb0fbca3190aef47869d7
+  fixture.ReplicatedStorage.Shared.Combat.gen.luau 2486f313d8b27ce24aeda2e0281f046b07e0ca4f60b24ea8650a490ca73251b2
+  client fires: inventory (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:7), reload (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:6), shoot (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:5)
+  dynamic access: fixture.StarterPlayer.StarterPlayerScripts.Client.Dynamic:6
+  raw remote calls: FireServer at fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:11
+  remote creation: RemoteEvent at fixture.ServerScriptService.Server.Main:5
+seed 7: manifest sha256 a8cb3f4cc0e208834af091ceb7dfe801a7c3bf16423610e272ba8a57c6fe6b9b
+  fixture.ReplicatedStorage.Shared.Combat.gen.luau 635bfb163f73e7dd28cbfa36e08b355e97a0b540d65d5b8886fe06845b9927ca
+  client fires: inventory (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:7), reload (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:6), shoot (fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:5)
+  dynamic access: fixture.StarterPlayer.StarterPlayerScripts.Client.Dynamic:6
+  raw remote calls: FireServer at fixture.StarterPlayer.StarterPlayerScripts.Client.Weapon:11
+  remote creation: RemoteEvent at fixture.ServerScriptService.Server.Main:5
+seed 0: two runs byte-identical
+seed 7: two runs byte-identical
+Compiled 0 KLOC into 2 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)
+compiles: fixture.ReplicatedStorage.Shared.Combat.gen.luau
+tagWord: seed0 76 instr; 7: 76 same sequence; 8: 76 same sequence; 12345: 76 same sequence; runtime: 80 different
+writeHit: seed0 26 instr; 7: 26 same sequence; 8: 26 same multiset, reordered; 12345: 26 same multiset, reordered; runtime: 28 different
+dispatch: seed0 27 instr; 7: 27 same sequence; 8: 27 same sequence; 12345: 27 same sequence; runtime: 59 different
+tagWord opcodes seed0: FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL ADD FASTCALL2K LOADK GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL MOVE ADD FASTCALL2K LOADK GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL MOVE FASTCALL2 MOVE MOVE GETIMPORT CALL FASTCALL2 MOVE MOVE GETIMPORT CALL FASTCALL2 GETIMPORT CALL RETURN
+tagWord opcodes runtime: GETUPVAL GETTABLEN FASTCALL2 MOVE GETIMPORT CALL GETUPVAL GETTABLEN FASTCALL2 MOVE GETIMPORT CALL GETUPVAL GETTABLEN FASTCALL2 MOVE GETIMPORT CALL GETUPVAL GETTABLEN FASTCALL2 MOVE GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL ADD FASTCALL2K LOADK GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL MOVE ADD FASTCALL2K LOADK GETIMPORT CALL MOVE FASTCALL2K MOVE LOADK GETIMPORT CALL FASTCALL2 MOVE GETIMPORT CALL MOVE FASTCALL2 MOVE MOVE GETIMPORT CALL FASTCALL2 MOVE MOVE GETIMPORT CALL FASTCALL2 GETIMPORT CALL RETURN
+seed0 tagWord 102.9 ns, writeHit 41.3 ns, dispatch 23.5 ns
+seed0 tagWord 82.5 ns, writeHit 52.8 ns, dispatch 27.5 ns
+seed0 tagWord 82.3 ns, writeHit 44.1 ns, dispatch 23.7 ns
+seed7 tagWord 81.8 ns, writeHit 52.7 ns, dispatch 28.5 ns
+seed7 tagWord 97.7 ns, writeHit 41.5 ns, dispatch 22.1 ns
+seed7 tagWord 81.8 ns, writeHit 43.2 ns, dispatch 28.2 ns
+runtime tagWord 112.9 ns, writeHit 143.5 ns, dispatch 37.3 ns
+runtime tagWord 97.4 ns, writeHit 113.4 ns, dispatch 34.6 ns
+runtime tagWord 111.3 ns, writeHit 147.7 ns, dispatch 45.5 ns
+== lync.toml
+toml.luau (luau 0.740):
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+smol-toml (node):  (same as first)
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+lune serde:  (same as first)
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+== edges.toml
+toml.luau (luau 0.740):
+  {"beyond":9007199254740992,"big":4294967295,"date":"1979-05-27","hexInt":255,"whole":1,"wholeFloat":1}
+smol-toml (node):  (DIFFERS)
+  Error: Invalid TOML document: integer value cannot be represented losslessly
+lune serde:  (DIFFERS)
+  {"beyond":9007199254740992,"big":4294967295,"date":{"$__toml_private_datetime":"1979-05-27"},"hexInt":255,"whole":1,"wholeFloat":1}

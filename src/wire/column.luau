@@ -64,6 +64,9 @@ local onesChanges: { number } = table.create(K_COUNT, 0)
 --- The same changes for the non-zero residuals less one.
 local sparseOnesChanges: { number } = table.create(K_COUNT, 0)
 
+--- One sparse-mode field as it is read: the non-zero count, then each gap.
+local sparseField: { number } = table.create(1, 0)
+
 --- The EG-k cost of every residual, at index k + 1.
 local egCosts: { number } = table.create(K_COUNT, 0)
 
@@ -222,63 +225,40 @@ local function readExpGolomb(r: Bits.Reader, count: number, maxCode: number): nu
 		return 4
 	end
 
-	for i = 1, count do
-		local z, rule = Ints.readEg(r, k)
-		if z == nil then
-			return rule
-		end
-
-		if z > maxCode then
-			return 2
-		end
-
-		residuals[i] = z
-	end
-
-	return 0
+	return Ints.readEgMany(r, k, count, residuals, 1, maxCode)
 end
 
+-- Sparse pairs alternate two orders, so each field is read alone, its maximum checked as it is read.
 local function readSparse(r: Bits.Reader, count: number, maxCode: number): number
 	local k = Bits.read(r, K_BITS)
 	if k == nil then
 		return 4
 	end
 
-	local nonzeroCount, countRule = Ints.readEg(r, 0)
-	if nonzeroCount == nil then
+	local countRule = Ints.readEgMany(r, 0, 1, sparseField, 1, count)
+	if countRule ~= 0 then
 		return countRule
 	end
 
-	if nonzeroCount > count then
-		return 2
-	end
-
+	local nonzeroCount = sparseField[1]
 	for i = 1, count do
 		residuals[i] = 0
 	end
 
 	local row = 0
 	for _ = 1, nonzeroCount do
-		local gap, gapRule = Ints.readEg(r, 0)
-		if gap == nil then
+		local gapRule = Ints.readEgMany(r, 0, 1, sparseField, 1, count - row - 1)
+		if gapRule ~= 0 then
 			return gapRule
 		end
 
-		row += gap + 1
-		if row > count then
-			return 2
-		end
-
-		local value, valueRule = Ints.readEg(r, k)
-		if value == nil then
+		row += sparseField[1] + 1
+		local valueRule = Ints.readEgMany(r, k, 1, residuals, row, maxCode - 1)
+		if valueRule ~= 0 then
 			return valueRule
 		end
 
-		if value + 1 > maxCode then
-			return 2
-		end
-
-		residuals[row] = value + 1
+		residuals[row] += 1
 	end
 
 	return 0
@@ -344,10 +324,9 @@ Column.MIN_ROWS = 3
 --[=[
 	Returns the reference encoder's choice for a column.
 
-	@param  codes the column's codes
+	@param  codes the column's codes, each in its interval [lo, lo + n - 1]
 	@param  first the index in `codes` of the first row
 	@param  count how many rows, at least 0
-	@param  _lo   the lowest code of the interval; residuals do not depend on it
 	@param  n     the number of codes in the interval, 1 to 2^53
 	@return the mode, 0 to 3; 0 for no rows
 	@return k, 0 to 15; 0 for modes 0 and 3
@@ -357,7 +336,6 @@ function Column.choose(
 	codes: { number },
 	first: number,
 	count: number,
-	_lo: number,
 	n: number
 ): (number, number, number)
 	if count == 0 then
@@ -425,20 +403,13 @@ end
 	Writes a column in the reference encoder's choice, exactly the bits `Column.choose` costs.
 
 	@param w     the writer
-	@param codes the column's codes, each in [lo, lo + n - 1]
+	@param codes the column's codes, each in its interval [lo, lo + n - 1]; the encoding depends
+	             on n alone
 	@param first the index in `codes` of the first row
 	@param count how many rows; 0 writes nothing
-	@param _lo   the lowest code of the interval; residuals do not depend on it
 	@param n     the number of codes in the interval, 1 to 2^53
 ]=]
-function Column.write(
-	w: Bits.Writer,
-	codes: { number },
-	first: number,
-	count: number,
-	_lo: number,
-	n: number
-)
+function Column.write(w: Bits.Writer, codes: { number }, first: number, count: number, n: number)
 	if count == 0 then
 		return
 	end

@@ -178,9 +178,74 @@ return {
 				local v = if i == 0 then max else min + (max - min) * math.random()
 				local q = Quant.number(v, min, step, n)
 				Check.expect(q >= 0 and q <= n, `code {q} of {v} must be in [0, {n}]`)
-				local error = math.abs(Quant.unnumber(q, min, step) - v)
+				local error = math.abs(Quant.unnumber(q, min, step, max) - v)
 				Check.expect(error <= step / 2 * (1 + 1e-9), `error {error} of {v} for step {step}`)
 			end
+		end
+	end,
+
+	["decodes every t.number grid code to a value that re-encodes to it"] = function()
+		for _, case in NUMBER_CASES do
+			local min, max, step = case[1], case[2], case[3]
+			local n = Quant.numberSteps(min, max, step) :: number
+			for q = 0, n do
+				local v = Quant.unnumber(q, min, step, max)
+				Check.expect(
+					v >= min and v <= max,
+					`code {q} of ({min}, {max}, {step}) decodes to {v}`
+				)
+				Check.expectEqual(
+					Quant.number(v, min, step, n),
+					q,
+					`code {q} of ({min}, {max}, {step})`
+				)
+			end
+		end
+	end,
+
+	["decodes every t.angle grid code to an angle that re-encodes to it"] = function()
+		for _, step in { math.rad(1), 2 * math.pi / 1000, 2 * math.pi / 256, 0.3 } do
+			local n = Quant.angleSteps(step)
+			for q = 0, n - 1 do
+				Check.expectEqual(Quant.angle(Quant.unangle(q, n), n), q, `code {q} of {n} steps`)
+			end
+		end
+	end,
+
+	["finds exactly 511 non-canonical direction codes at 8 bits, and encodes none"] = function()
+		local nonCanonicalCount = 0
+		for qx = 0, 255 do
+			for qy = 0, 255 do
+				local x, y, z = Quant.undirection(qx, qy, 8)
+				local encodedX, encodedY = Quant.direction(x, y, z, 8)
+				local isFixed = encodedX == qx and encodedY == qy
+				Check.expectEqual(Quant.directionIsCanonical(qx, qy, 8), isFixed, `({qx}, {qy})`)
+				Check.expect(
+					Quant.directionIsCanonical(encodedX, encodedY, 8),
+					`E({qx}, {qy}) is canonical`
+				)
+				if not isFixed then
+					nonCanonicalCount += 1
+				end
+			end
+		end
+		Check.expectEqual(nonCanonicalCount, 511)
+		Check.expect(not Quant.directionIsCanonical(0, 0, 8), "(0, 0) folds onto (255, 255)")
+		Check.expect(Quant.directionIsCanonical(255, 255, 8), "(255, 255) is the canonical member")
+	end,
+
+	["re-encodes random direction codes at 16 bits to canonical codes"] = function()
+		local maxCode = 2 ^ 16 - 1
+		for _ = 1, 100_000 do
+			local qx, qy = math.random(0, maxCode), math.random(0, maxCode)
+			local x, y, z = Quant.undirection(qx, qy, 16)
+			local encodedX, encodedY = Quant.direction(x, y, z, 16)
+			local isFixed = encodedX == qx and encodedY == qy
+			Check.expectEqual(Quant.directionIsCanonical(qx, qy, 16), isFixed, `({qx}, {qy})`)
+			Check.expect(
+				Quant.directionIsCanonical(encodedX, encodedY, 16),
+				`E({qx}, {qy}) is canonical`
+			)
 		end
 	end,
 
@@ -347,7 +412,7 @@ return {
 		end
 	end,
 
-	["round-trips colour codes"] = function()
+	["re-encodes every colour code to itself"] = function()
 		for q = 0, 255 do
 			Check.expectEqual(Quant.color(Quant.uncolor(q)), q)
 		end

@@ -111,7 +111,7 @@ function writeColumns(
 				return Leaves.refusal(codec, value)
 			end
 		end
-		Column.write(w, codes, 1, count, 0, 2)
+		Column.write(w, codes, 1, count, 2)
 	elseif codec.kind == "int" then
 		local min, max = codec.min, codec.max
 		local codes: { number } = table.create(count, 0)
@@ -122,7 +122,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, 0, max - min + 1)
+		Column.write(w, codes, 1, count, max - min + 1)
 	elseif codec.kind == "varint" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -132,7 +132,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, WIDE_LO, WIDE_N)
+		Column.write(w, codes, 1, count, WIDE_N)
 	elseif codec.kind == "number" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -142,7 +142,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, 0, codec.steps + 1)
+		Column.write(w, codes, 1, count, codec.steps + 1)
 	elseif codec.kind == "angle" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -152,7 +152,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, 0, codec.steps)
+		Column.write(w, codes, 1, count, codec.steps)
 	elseif codec.kind == "enum" then
 		local index = codec.index
 		local codes: { number } = table.create(count, 0)
@@ -163,7 +163,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, 0, #codec.items)
+		Column.write(w, codes, 1, count, #codec.items)
 	elseif codec.kind == "robloxEnum" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -173,7 +173,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, WIDE_LO, WIDE_N)
+		Column.write(w, codes, 1, count, WIDE_N)
 	elseif codec.kind == "instance" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -183,7 +183,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		Column.write(w, codes, 1, count, 0, #instances.list)
+		Column.write(w, codes, 1, count, #instances.list)
 	elseif codec.kind == "optional" then
 		local presence: { number } = table.create(count, 0)
 		local present = {}
@@ -196,7 +196,7 @@ function writeColumns(
 				table.insert(present, value)
 			end
 		end
-		Column.write(w, presence, 1, count, 0, 2)
+		Column.write(w, presence, 1, count, 2)
 		return writeColumns(w, codec.inner, present, 1, #present, instances)
 	elseif codec.kind == "string" or codec.kind == "buffer" then
 		local valueType = codec.kind
@@ -214,7 +214,7 @@ function writeColumns(
 			end
 			lengths[i - first + 1] = length
 		end
-		Column.write(w, lengths, 1, count, 0, max + 1)
+		Column.write(w, lengths, 1, count, max + 1)
 		for i = first, last do
 			Bits.writeTail(w, values[i])
 		end
@@ -238,7 +238,7 @@ function writeColumns(
 			end
 			table.insert(rows, value)
 		end
-		Column.write(w, codes, 1, count, 0, #variants)
+		Column.write(w, codes, 1, count, #variants)
 
 		for i, variant in variants do
 			local rows = rowsByVariant[i]
@@ -266,7 +266,7 @@ function writeColumns(
 			counts[i - first + 1] = elementCount
 			table.move(value, 1, elementCount, #elements + 1, elements)
 		end
-		Column.write(w, counts, 1, count, 0, max + 1)
+		Column.write(w, counts, 1, count, max + 1)
 
 		local refusal = writeColumns(w, codec.inner, elements, 1, #elements, instances)
 		if refusal ~= nil then
@@ -289,7 +289,7 @@ function writeColumns(
 				allValues[#allKeys] = value[key]
 			end
 		end
-		Column.write(w, counts, 1, count, 0, codec.max + 1)
+		Column.write(w, counts, 1, count, codec.max + 1)
 
 		local pairCount = #allKeys
 		local keyRefusal = writeColumns(w, codec.key, allKeys, 1, pairCount, instances)
@@ -321,9 +321,9 @@ function writeColumns(
 		end
 
 		local n = axis.steps + 1
-		Column.write(w, xCodes, 1, count, 0, n)
-		Column.write(w, yCodes, 1, count, 0, n)
-		Column.write(w, zCodes, 1, count, 0, n)
+		Column.write(w, xCodes, 1, count, n)
+		Column.write(w, yCodes, 1, count, n)
+		Column.write(w, zCodes, 1, count, n)
 	elseif codec.kind == "vector3f32" then
 		local xBitsList: { number } = table.create(count, 0)
 		local yBitsList: { number } = table.create(count, 0)
@@ -360,9 +360,9 @@ function writeColumns(
 			redCodes[row], greenCodes[row], blueCodes[row] = red, green, blue
 		end
 
-		Column.write(w, redCodes, 1, count, 0, COLOR_CODES)
-		Column.write(w, greenCodes, 1, count, 0, COLOR_CODES)
-		Column.write(w, blueCodes, 1, count, 0, COLOR_CODES)
+		Column.write(w, redCodes, 1, count, COLOR_CODES)
+		Column.write(w, greenCodes, 1, count, COLOR_CODES)
+		Column.write(w, blueCodes, 1, count, COLOR_CODES)
 	elseif codec.kind == "direction" then
 		local bits = codec.bits
 		local xCodes: { number } = table.create(count, 0)
@@ -375,8 +375,8 @@ function writeColumns(
 			xCodes[i - first + 1], yCodes[i - first + 1] = x, y
 		end
 
-		Column.write(w, xCodes, 1, count, 0, 2 ^ bits)
-		Column.write(w, yCodes, 1, count, 0, 2 ^ bits)
+		Column.write(w, xCodes, 1, count, 2 ^ bits)
+		Column.write(w, yCodes, 1, count, 2 ^ bits)
 	elseif codec.kind == "rotation" then
 		local bits = codec.bits
 		local flags: { number } = table.create(count, 0)
@@ -408,12 +408,12 @@ function writeColumns(
 		end
 
 		local componentCodes = 2 ^ bits
-		Column.write(w, flags, 1, count, 0, 2)
-		Column.write(w, axes, 1, #axes, 0, AXIS_COUNT)
-		Column.write(w, dropped, 1, #dropped, 0, DROPPED_COUNT)
-		Column.write(w, aCodes, 1, #aCodes, 0, componentCodes)
-		Column.write(w, bCodes, 1, #bCodes, 0, componentCodes)
-		Column.write(w, cCodes, 1, #cCodes, 0, componentCodes)
+		Column.write(w, flags, 1, count, 2)
+		Column.write(w, axes, 1, #axes, AXIS_COUNT)
+		Column.write(w, dropped, 1, #dropped, DROPPED_COUNT)
+		Column.write(w, aCodes, 1, #aCodes, componentCodes)
+		Column.write(w, bCodes, 1, #bCodes, componentCodes)
+		Column.write(w, cCodes, 1, #cCodes, componentCodes)
 	elseif codec.kind == "cframe" then
 		local positions = table.create(count)
 		local rotations = table.create(count)

@@ -46,6 +46,40 @@ local function codesOf(size: number): { Code }
 	return codes
 end
 
+type Batch = { k: number, values: { number }, maxCode: number, cut: number, tail: string }
+
+local function batchOf(size: number): Batch
+	local k = math.random(0, 15)
+	local values = {}
+	for i = 1, math.random(1, math.min(60, size + 5)) do
+		local isSmall = math.random() < 0.7
+		values[i] = if isSmall then math.random(0, 2 ^ math.random(0, 12) - 1) else randomValue()
+	end
+
+	local maxCode = if math.random() < 0.3 then randomValue() else Ints.MAX
+	local cut = if math.random() < 0.3 then math.random(0, 64) else 0
+	local tail = string.rep("t", if math.random() < 0.5 then math.random(1, 9) else 0)
+	return { k = k, values = values, maxCode = maxCode, cut = cut, tail = tail }
+end
+
+-- Reads a batch value by value with Ints.readEg, as Ints.readEgMany must.
+local function readOneByOne(r: Bits.Reader, batch: Batch, out: { number }): number
+	for i in batch.values do
+		local value, rule = Ints.readEg(r, batch.k)
+		if value == nil then
+			return rule
+		end
+
+		if value > batch.maxCode then
+			return 2
+		end
+
+		out[i] = value
+	end
+
+	return 0
+end
+
 local function decodedOf(digits: string, k: number): (number?, number)
 	return Ints.readEg(Bits.reader(Bits.finish(writerOfBits(digits))), k)
 end
@@ -111,6 +145,49 @@ return {
 			end
 			Check.expect(Bits.meets(r), "bits must end at the last code")
 		end)
+	end,
+
+	["reads many EG-k codes as reading each one does, the fallback included"] = function()
+		Prop.check("readEgMany", batchOf, function(batch: Batch)
+			local w = Bits.writer()
+			for _, value in batch.values do
+				Ints.writeEg(w, value, batch.k)
+			end
+			Bits.writeTail(w, batch.tail)
+			local bytes = Bits.finish(w)
+			local stopByte = math.max(0, buffer.len(bytes) - #batch.tail - batch.cut // 8)
+
+			local single = Bits.reader(bytes, 0, stopByte)
+			local singleOut = {}
+			local singleRule = readOneByOne(single, batch, singleOut)
+
+			local many = Bits.reader(bytes, 0, stopByte)
+			local manyOut = {}
+			local manyRule =
+				Ints.readEgMany(many, batch.k, #batch.values, manyOut, 1, batch.maxCode)
+			Check.expectEqual(manyRule, singleRule, "rule")
+			Check.expectEqual(manyOut, singleOut, "values")
+			if manyRule == 0 then
+				Check.expectEqual(many.bit, single.bit, "cursor")
+				Check.expectEqual(manyOut, batch.values, "decoded")
+			end
+		end, { runs = 2000 })
+	end,
+
+	["reads many EG-k codes from an offset into out"] = function()
+		local w = Bits.writer()
+		for value = 0, 99 do
+			Ints.writeEg(w, value * 37, 3)
+		end
+		local out = { -1, -1 }
+		local r = Bits.reader(Bits.finish(w))
+		Check.expectEqual(Ints.readEgMany(r, 3, 100, out, 3, Ints.MAX), 0)
+		Check.expectEqual(out[1], -1)
+		Check.expectEqual(out[2], -1)
+		for value = 0, 99 do
+			Check.expectEqual(out[value + 3], value * 37)
+		end
+		Check.expect(Bits.meets(r), "the codes end the bits")
 	end,
 
 	["decodes codes that end at the buffer's last bit"] = function()

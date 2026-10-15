@@ -151,4 +151,27 @@ return {
 		Check.expectEqual(Bits.read(r, 16), 0x0605)
 		Check.expect(Bits.meets(r), "bits must end at the stop byte")
 	end,
+
+	["charges elements until the budget runs out"] = function()
+		local r = Bits.reader(buffer.create(1), nil, nil, 10)
+		Check.expectEqual(r.budget, 10)
+		Check.expect(Bits.charge(r, 4), "4 of 10")
+		Check.expect(Bits.charge(r, 6), "exactly the budget leaves 0")
+		Check.expectEqual(r.budget, 0)
+		Check.expect(Bits.charge(r, 0), "a zero count at 0 still fits")
+		Check.expect(not Bits.charge(r, 1), "one past the budget")
+		Check.expect(not Bits.charge(r, 0), "a spent budget stays spent")
+
+		local zero = Bits.reader(buffer.create(1), 0, 1, 0)
+		Check.expect(not Bits.charge(zero, 1), "a zero budget refuses one element")
+	end,
+
+	["never runs out of the default budget"] = function()
+		local r = Bits.reader(buffer.create(1))
+		Check.expectEqual(r.budget, math.huge)
+		for _ = 1, 1000 do
+			Check.expect(Bits.charge(r, 2 ^ 53), "the default allowance is unlimited")
+		end
+		Check.expectEqual(r.budget, math.huge)
+	end,
 }

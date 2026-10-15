@@ -41,14 +41,16 @@ export type Writer = {
 --[=[
 	A cursor over one frame's bits and tail.
 
-	@field buf  the frame
-	@field bit  the absolute next bit to read
-	@field stop the tail cursor: the byte after the next tail value to read
+	@field buf    the frame
+	@field bit    the absolute next bit to read
+	@field stop   the tail cursor: the byte after the next tail value to read
+	@field budget the decode element allowance left (v5.md §4.8 rule 10); math.huge on clients
 ]=]
 export type Reader = {
 	buf: buffer,
 	bit: number,
 	stop: number,
+	budget: number,
 }
 
 -- Constants ---------------------------------------------------------------------------------------
@@ -69,14 +71,10 @@ local function writeChunk(buf: buffer, bit: number, value: number)
 	buffer.writeu32(buf, byte, bit32.bor(below, bit32.lshift(value, shift)))
 end
 
-local function windowAt(buf: buffer, byte: number): number
-	local length = buffer.len(buf)
-	if byte + WINDOW_BYTES <= length then
-		return buffer.readu32(buf, byte)
-	end
-
+-- The u32 window at `byte` when fewer than 4 bytes remain, from the bytes that do.
+local function windowNearEnd(buf: buffer, byte: number): number
 	local window = 0
-	for i = 0, length - byte - 1 do
+	for i = 0, buffer.len(buf) - byte - 1 do
 		window += bit32.lshift(buffer.readu8(buf, byte + i), 8 * i)
 	end
 
@@ -88,7 +86,12 @@ local function readChunk(buf: buffer, bit: number, width: number): number
 		return 0
 	end
 
-	return bit32.extract(windowAt(buf, bit // 8), bit % 8, width)
+	local byte = bit // 8
+	if byte + WINDOW_BYTES <= buffer.len(buf) then
+		return bit32.extract(buffer.readu32(buf, byte), bit % 8, width)
+	end
+
+	return bit32.extract(windowNearEnd(buf, byte), bit % 8, width)
 end
 
 local function grow(w: Writer, neededBytes: number)
@@ -100,26 +103,6 @@ local function grow(w: Writer, neededBytes: number)
 	local grown = buffer.create(length)
 	buffer.copy(grown, 0, w.buf)
 	w.buf = grown
-end
-
-local function write(w: Writer, width: number, value: number)
-	local bit = w.bit
-	local neededBytes = (bit + width) // 8 + WINDOW_BYTES
-	if neededBytes > buffer.len(w.buf) then
-		grow(w, neededBytes)
-	end
-
-	local buf = w.buf
-	local remaining = width
-	while remaining > CHUNK_BITS do
-		writeChunk(buf, bit, value % CHUNK_RANGE)
-		value //= CHUNK_RANGE
-		bit += CHUNK_BITS
-		remaining -= CHUNK_BITS
-	end
-	writeChunk(buf, bit, value)
-
-	w.bit = bit + remaining
 end
 
 local function copyBits(w: Writer, into: buffer)
@@ -155,7 +138,21 @@ end
 	@param w the writer
 ]=]
 function Bits.align(w: Writer)
-	write(w, (8 - w.bit % 8) % 8, 0)
+	Bits.write(w, (8 - w.bit % 8) % 8, 0)
+end
+
+--[=[
+	Charges elements to the reader's decode element allowance, before they are allocated.
+
+	@param  r the reader, its budget reduced by `n`
+	@param  n how many elements: a run, array or map count
+	@return false when the allowance has gone negative, which refuses the frame (rule 10)
+]=]
+function Bits.charge(r: Reader, n: number): boolean
+	local budget = r.budget - n
+	r.budget = budget
+
+	return budget >= 0
 end
 
 --[=[
@@ -259,13 +256,15 @@ end
 	@param  buf       the frame
 	@param  startByte the first byte of the bit section, 0 when nil
 	@param  stopByte  the byte after the tail's last byte, the buffer's length when nil
+	@param  budget    the frame's decode element allowance, unlimited when nil
 	@return a reader at the first bit, with its tail cursor at `stopByte`
 ]=]
-function Bits.reader(buf: buffer, startByte: number?, stopByte: number?): Reader
+function Bits.reader(buf: buffer, startByte: number?, stopByte: number?, budget: number?): Reader
 	return {
 		buf = buf,
 		bit = (startByte or 0) * 8,
 		stop = stopByte or buffer.len(buf),
+		budget = budget or math.huge,
 	}
 end
 
@@ -302,7 +301,23 @@ end
 	@param value an integer in [0, 2^width)
 ]=]
 function Bits.write(w: Writer, width: number, value: number)
-	write(w, width, value)
+	local bit = w.bit
+	local neededBytes = (bit + width) // 8 + WINDOW_BYTES
+	if neededBytes > buffer.len(w.buf) then
+		grow(w, neededBytes)
+	end
+
+	local buf = w.buf
+	local remaining = width
+	while remaining > CHUNK_BITS do
+		writeChunk(buf, bit, value % CHUNK_RANGE)
+		value //= CHUNK_RANGE
+		bit += CHUNK_BITS
+		remaining -= CHUNK_BITS
+	end
+	writeChunk(buf, bit, value)
+
+	w.bit = bit + remaining
 end
 
 --[=[

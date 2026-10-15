@@ -133,7 +133,12 @@ local function senderOf(s: State, player: Player?): Sender
 	return created
 end
 
-local function keyOf(sender: Sender, reason: Codes.Code, namespace: string?, definition: string?): Key?
+local function keyOf(
+	sender: Sender,
+	reason: Codes.Code,
+	namespace: string?,
+	definition: string?
+): Key?
 	for _, key in sender.keys do
 		if key.reason == reason and key.definition == definition and key.namespace == namespace then
 			return key

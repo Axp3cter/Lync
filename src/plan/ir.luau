@@ -40,26 +40,18 @@ export type Codec =
 	| { kind: "vector3", axis: NumberCodec }
 	| { kind: "vector3f32" }
 	| { kind: "direction", bits: number }
-	| { kind: "rotation", bits: number }
-	| { kind: "cframe", position: Codec, rotation: Codec }
+	| RotationCodec
+	| { kind: "cframe", position: Codec, rotation: RotationCodec }
 	| { kind: "color3" }
 	| { kind: "enum", items: { string }, index: { [string]: number }, width: number }
 	| { kind: "robloxEnum", name: string, byValue: { [number]: EnumItem } }
 	| { kind: "instance", class: string? }
 	| { kind: "optional", inner: Codec }
 	| { kind: "array", inner: Codec, max: number, width: number }
-	| { kind: "map", key: Codec, value: Codec, max: number, width: number }
+	| MapCodec
 	| { kind: "union", variants: { Variant }, byName: { [string]: number }, width: number }
-	| { kind: "record", fields: { Field } }
-	| {
-		kind: "custom",
-		name: string,
-		version: number,
-		maxBits: number,
-		maxBytes: number,
-		encode: (Bits.Writer, any) -> (),
-		decode: (Bits.Reader) -> (any, number),
-	}
+	| RecordCodec
+	| CustomCodec
 	| { kind: "convert", base: Codec, decode: (any) -> any, encode: (any) -> any }
 
 --- A `t.number`, and each axis of a `t.vector3`.
@@ -72,20 +64,41 @@ export type NumberCodec = {
 	width: number,
 }
 
+--- A `t.rotation`, and the rotation of a `t.cframe`.
+export type RotationCodec = { kind: "rotation", bits: number }
+
+--- A `t.map`.
+export type MapCodec = { kind: "map", key: Codec, value: Codec, max: number, width: number }
+
+--- A record, and each variant of a `t.union`; `fields` are in v5.md §3.1 order.
+export type RecordCodec = { kind: "record", fields: { Field } }
+
+--- A `t.custom`, whose functions run the user's own encoding.
+export type CustomCodec = {
+	kind: "custom",
+	name: string,
+	version: number,
+	maxBits: number,
+	maxBytes: number,
+	encode: (Bits.Writer, any) -> (),
+	decode: (Bits.Reader) -> (any, number),
+}
+
 --- A record field, in name order; `newest` marks a collection field declared with `:newest()`.
 export type Field = { name: string, codec: Codec, newest: boolean }
 
---- A union variant, in name order; `record` is a `record` codec.
-export type Variant = { name: string, record: Codec }
+--- A union variant, in name order.
+export type Variant = { name: string, record: RecordCodec }
 
 --[=[
-	A planned definition. Options a kind does not take hold 0 (`timeout`, `maxRecords`,
-	`priority`) or nil.
+	A planned definition. Options a kind does not take hold nil.
 
 	@field dataMaxBits  the worst-case bits of `data` in single-row encoding, 0 without `data`
 	@field dataMaxTail  the worst-case tail bytes of `data`
 	@field replyMaxBits the worst-case bits of `reply`, 0 without `reply`
 	@field replyMaxTail the worst-case tail bytes of `reply`
+	@field dataMaxElements  W of a message (v5.md §4.8): 1 for the message, plus its elements
+	@field replyMaxElements W of an answer; 0 for a definition with no answers
 	@field hasInstances whether `data` or `reply` can hold a `t.instance`
 	@field line         where the definition's constructor was called
 	@field source       the source of that call
@@ -99,14 +112,16 @@ export type Definition = {
 	reply: Codec?,
 	key: Codec?,
 	limit: { perSecond: number, burst: number }?,
-	timeout: number,
-	maxRecords: number,
-	priority: number,
+	timeout: number?,
+	maxRecords: number?,
+	priority: number?,
 	reliableRate: number?,
 	dataMaxBits: number,
 	dataMaxTail: number,
 	replyMaxBits: number,
 	replyMaxTail: number,
+	dataMaxElements: number,
+	replyMaxElements: number,
 	hasInstances: boolean,
 	line: number,
 	source: string,

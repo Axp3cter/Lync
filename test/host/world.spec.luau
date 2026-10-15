@@ -35,11 +35,12 @@ type Stub = {
 const RELIABLE = 0
 const UNRELIABLE = 1
 
-const STEADY = table.freeze({
+const STEADY: { [string]: any } = {
 	jitter = 0,
 	loss = 0,
 	stall = table.freeze({ chance = 0, seconds = 0 }),
-})
+}
+table.freeze(STEADY)
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -204,13 +205,18 @@ return {
 			count = 1,
 			evidence = { lane = RELIABLE, rule = 1 },
 		})
+		Check.expectEqual(#world:claimLines(world.server, "malformed"), 1, "console lines at once")
+		world:expectQuiet()
+
+		-- The second call coalesces with the first, and arrives at the window's close.
+		world:step(30)
 		world:expectFact(world.server, {
 			reason = "malformed",
 			player = attacker.player,
 			count = 1,
 			evidence = { lane = UNRELIABLE, rule = 1 },
 		})
-		Check.expectEqual(#world:claimLines(world.server, "malformed"), 1, "console lines")
+		Check.expectEqual(#world:claimLines(world.server, "malformed"), 1, "the summary line")
 		Check.expectEqual(#world.server.runtime.received, 1, "the honest frame arrives")
 		world:expectQuiet()
 	end,
@@ -230,7 +236,8 @@ return {
 
 	["virtual time is deterministic for a given seed"] = function()
 		local function trace(seed: number): string
-			local world = worldOf(seed, { duplicate = 0.05, stall = { chance = 0.5, seconds = 0.3 } })
+			local world =
+				worldOf(seed, { duplicate = 0.05, stall = { chance = 0.5, seconds = 0.3 } })
 			local clients = { world:join(), world:join() }
 			local parts = {}
 			for step = 1, 300 do
@@ -277,7 +284,10 @@ return {
 		end)
 		server.onPlayerRemoving(function(player: Player)
 			table.insert(removing, player)
-			Check.expect(table.find(server.players(), player) ~= nil, "a leaver is listed while leaving")
+			Check.expect(
+				table.find(server.players(), player) ~= nil,
+				"a leaver is listed while leaving"
+			)
 		end)
 		local received = 0
 		server.transport.onReceive(function()
@@ -323,7 +333,11 @@ return {
 
 		Check.expect(ran, "spawn must run the function at once")
 		Check.expectEqual(world:claimReports(world.server, "observer failed"), 1, "the raise")
-		Check.expectEqual(world:claimReports(world.server, "[Lync] decoderRaised:"), 1, "the report")
+		Check.expectEqual(
+			world:claimReports(world.server, "[Lync] decoderRaised:"),
+			1,
+			"the report"
+		)
 		world:expectQuiet()
 	end,
 

@@ -78,6 +78,9 @@ export type Code =
 	| "validatorError"
 	| "validatorYielded"
 	| "internal"
+	| "zeroWidthElement"
+	| "elementsTooMany"
+	| "optionalPlacement"
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -134,13 +137,17 @@ const FAMILY: { [Code]: Family } = {
 	validatorYielded = "fault",
 
 	internal = "internal",
+
+	zeroWidthElement = "declaration",
+	elementsTooMany = "declaration",
+	optionalPlacement = "declaration",
 }
 table.freeze(FAMILY)
 
 -- Each fact's evidence fields, in the order `Facts.record` takes them; its registry page lists
 -- the same order. `suppressed` has one field per suppressed reason instead.
 const EVIDENCE: { [Code]: { string } } = {
-	overBudget = table.freeze({ "lane", "bytes", "instances" }),
+	overBudget = table.freeze({ "lane", "bytes", "instances", "elements" }),
 	malformed = table.freeze({ "lane", "rule" }),
 	decoderRaised = table.freeze({ "lane" }),
 	tagMismatch = table.freeze({ "lane", "expected" }),
@@ -149,7 +156,13 @@ const EVIDENCE: { [Code]: { string } } = {
 	replayed = table.freeze({ "seq", "behind", "seen" }),
 	impossibleAck = table.freeze({ "seq" }),
 	repeatedHello = table.freeze({ "hashChanged" }),
-	schemaMismatch = table.freeze({ "version", "seedDiffers", "hashLow", "hashHigh", "unknownName" }),
+	schemaMismatch = table.freeze({
+		"version",
+		"seedDiffers",
+		"hashLow",
+		"hashHigh",
+		"unknownName",
+	}),
 	slotConflict = table.freeze({ "slot", "case" }),
 	overLimit = table.freeze({ "perSecond", "burst" }),
 	unresolved = table.freeze({ "what", "value" }),

@@ -468,3 +468,19 @@ None of the following may appear in `src/`:
   early answers, decoys, canaries, and nonzero build seeds. The server decodes a `REPORT` and ignores it; a
   `BEACON` is malformed while beacons are off.
 - **Milestones 6 and 7.** Tooling, the inspector, the profiler adapter, and every extension.
+
+## 9. Lead rulings during the build
+
+- Unit E:
+  - Accepted: `RAISED_BY_UNIT_F` in `test/diag/registry.spec.luau` postpones only the trigger and "named by a test"
+    checks for the ten codes unit F raises; unit F must empty it. The proposed examples and triggers for those codes
+    may be changed by F against its real API.
+  - Accepted: `decoderRaised` and `schemaMismatch` are family `fact` (one family per code).
+  - Accepted: `Console.configure(s, window)`, forwarded from `Facts.configure`; `Facts.record` calls `Console.fact`,
+    `Facts.sweep` calls `Console.sweep`.
+  - Changed: `Facts.new(host, console, counters)` takes `Counters`, and `Facts.record` adds the per-reason fact
+    counter itself, so facts and their counters can't disagree.
+  - Accepted: the open decisions in E's report (1% as an absolute 0.01, the cap window per player from its first
+    occurrence, summary counts including the first, `field.qualifier` counter names, plain-typed `Fact` fields
+    frozen at run time, the instance array always passed as the second argument).
+  - `test/session/buckets.spec.luau` belongs to unit E.

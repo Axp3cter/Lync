@@ -4,7 +4,9 @@
 	Fail
 
 	Raises Lync's declaration and caller errors in the one message grammar of v5.md §7.1:
-	`source:line: [Lync] <code>: <subject> must <requirement>[, got <value>][; <fix>]`.
+	`source:line: [Lync] <code>: <subject> must <requirement>, got <value>[; <fix>]`. A message
+	with no value to show passes `Fail.NONE`, which leaves out the `, got` clause; nil shows as
+	`got nil`.
 
 	Messages are one line of at most 200 bytes after the position, raised as strings with
 	`error(message, 0)`. Values are rendered by `show` (diagnostics §3.2), and only on the failure
@@ -36,11 +38,14 @@ const MAX_INTEGER_SHOWN = 2 ^ 63
 
 -- Every Lync module's source starts with this prefix: this file's own source without its
 -- extension and its place in the package (`diag/fail` in a file tree, `.diag.fail` on Roblox).
+-- The prefix keeps its trailing separator, so a sibling such as `Packages.LyncNet` is not Lync.
 const OWN_SOURCE = (string.gsub(debug.info(1, "s"), "%.luau?$", ""))
 const LYNC_PREFIX = assert(
-	string.match(OWN_SOURCE, "^(.-)%.?diag[%./\\]fail$"),
+	string.match(OWN_SOURCE, "^(.-[%./\\])diag[%./\\]fail$"),
 	"Lync must be loaded from diag/fail"
 )
+
+const NONE = table.freeze({})
 
 const ESCAPE_BY_CHARACTER: { [string]: string } = {
 	["\n"] = "\\n",
@@ -90,7 +95,8 @@ local function showNumber(value: number): string
 		return string.format("%d", value)
 	end
 
-	return string.format("%.17g", value)
+	-- Luau's `tostring` gives the shortest text that reads back as the same number.
+	return tostring(value)
 end
 
 local function showTriple(typeName: string, a: number, b: number, c: number): string
@@ -186,7 +192,7 @@ local function bodyOf(
 	got: unknown,
 	fix: string?
 ): string
-	local gotPart = if got == nil then "" else `, got {show(got)}`
+	local gotPart = if got == NONE then "" else `, got {show(got)}`
 	local fixPart = if fix == nil then "" else `; {fix}`
 	local body = `[Lync] {code}: {subject} must {requirement}{gotPart}{fixPart}`
 	if #body <= MAX_BODY_BYTES then
@@ -215,13 +221,16 @@ end
 
 -- Public ------------------------------------------------------------------------------------------
 
+--- Passed as `got` when a message has no value to show.
+Fail.NONE = NONE
+
 --[=[
 	Raises a caller error, positioned at the first frame outside Lync.
 
 	@param code        the error's code
 	@param subject     what the requirement is about, in the user's names
 	@param requirement what the subject must be, completing "<subject> must"
-	@param got         the value given, rendered by `show`; nil leaves the clause out
+	@param got         the value given, rendered by `show`; `Fail.NONE` leaves the clause out
 	@param fix         the one fix, when there is exactly one
 	@error always, with the message
 ]=]
@@ -229,7 +238,7 @@ function Fail.caller(
 	code: Codes.Code,
 	subject: string,
 	requirement: string,
-	got: any?,
+	got: any,
 	fix: string?
 ): never
 	local body = bodyOf(code, subject, requirement, got, fix)
@@ -248,7 +257,7 @@ end
 	@param at          the line and source the constructor recorded
 	@param subject     what the requirement is about, in the user's names
 	@param requirement what the subject must be, completing "<subject> must"
-	@param got         the value given, rendered by `show`; nil leaves the clause out
+	@param got         the value given, rendered by `show`; `Fail.NONE` leaves the clause out
 	@param fix         the one fix, when there is exactly one
 	@error always, with the message
 ]=]
@@ -257,7 +266,7 @@ function Fail.declaration(
 	at: At,
 	subject: string,
 	requirement: string,
-	got: any?,
+	got: any,
 	fix: string?
 ): never
 	local body = bodyOf(code, subject, requirement, got, fix)

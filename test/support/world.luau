@@ -223,7 +223,14 @@ local function isReady(self: World, peer: Peer): boolean
 	return peer.isOpen and self.server.isOpen
 end
 
-local function record(self: World, from: Peer, to: Peer?, kind: "send" | "broadcast" | "raw", lane: Host.Lane, bytes: number)
+local function record(
+	self: World,
+	from: Peer,
+	to: Peer?,
+	kind: "send" | "broadcast" | "raw",
+	lane: Host.Lane,
+	bytes: number
+)
 	table.insert(self.calls, {
 		at = self.now,
 		from = from,
@@ -234,7 +241,14 @@ local function record(self: World, from: Peer, to: Peer?, kind: "send" | "broadc
 	})
 end
 
-local function enqueue(self: World, at: number, from: Peer, to: Peer, lane: Host.Lane, arguments: Arguments)
+local function enqueue(
+	self: World,
+	at: number,
+	from: Peer,
+	to: Peer,
+	lane: Host.Lane,
+	arguments: Arguments
+)
 	self._deliveryCount += 1
 	push(self._queue, {
 		at = at,
@@ -246,7 +260,14 @@ local function enqueue(self: World, at: number, from: Peer, to: Peer, lane: Host
 	})
 end
 
-local function schedule(self: World, from: Peer, to: Peer, link: Net.Link, lane: Host.Lane, arguments: Arguments)
+local function schedule(
+	self: World,
+	from: Peer,
+	to: Peer,
+	link: Net.Link,
+	lane: Host.Lane,
+	arguments: Arguments
+)
 	local first, second = Net.schedule(link, self.now, lane, bytesOf(arguments))
 	if first ~= nil then
 		enqueue(self, first, from, to, lane, arguments)
@@ -585,7 +606,13 @@ end
 function World.expectFact(
 	self: World,
 	peer: Peer,
-	want: { reason: string, player: Player?, count: number?, definition: string?, evidence: { [string]: number }? }
+	want: {
+		reason: string,
+		player: Player?,
+		count: number?,
+		definition: string?,
+		evidence: { [string]: number }?,
+	}
 ): Facts.Fact
 	for i, fact in peer.facts do
 		if fact.reason ~= want.reason or (want.player ~= nil and fact.player ~= want.player) then

@@ -222,6 +222,22 @@ function Quant.direction(x: number, y: number, z: number, bits: number): (number
 end
 
 --[=[
+	Returns whether a direction code is canonical: the code its own decoded direction encodes to
+	(v5.md §3.3). Codes on the fold edge that decode to one direction as another code does are not.
+
+	@param  qx   the code of the mapped x
+	@param  qy   the code of the mapped y
+	@param  bits the width of each code
+	@return true when `Quant.direction(Quant.undirection(qx, qy, bits))` is `(qx, qy)`
+]=]
+function Quant.directionIsCanonical(qx: number, qy: number, bits: number): boolean
+	local x, y, z = Quant.undirection(qx, qy, bits)
+	local encodedX, encodedY = Quant.direction(x, y, z, bits)
+
+	return encodedX == qx and encodedY == qy
+end
+
+--[=[
 	Quantizes a number to its step on a declared range.
 
 	@param  v    the value, in [min, max]
@@ -376,10 +392,11 @@ end
 	@param  q    the code, in [0, n]
 	@param  min  the range's lowest value
 	@param  step the declared step
-	@return min + q * step
+	@param  max  the range's highest value
+	@return min(min + q * step, max), so the top code decodes to a value its encoder accepts
 ]=]
-function Quant.unnumber(q: number, min: number, step: number): number
-	return min + q * step
+function Quant.unnumber(q: number, min: number, step: number, max: number): number
+	return math.min(min + q * step, max)
 end
 
 --[=[

@@ -22,6 +22,7 @@
 
 -- Imports -----------------------------------------------------------------------------------------
 
+local Bits = require("./wire/bits")
 local Ir = require("./plan/ir")
 
 -- Module ------------------------------------------------------------------------------------------
@@ -30,9 +31,12 @@ local Types = {}
 
 -- Types -------------------------------------------------------------------------------------------
 
---- A codec for values of type `T`; `_value` exists only in the type.
+--[=[
+	A codec for values of type `T`. The brand `"[Lync] value"` exists only in the type; its name is
+	one no record field plausibly has, so `Infer` never takes a record for a codec.
+]=]
 export type Codec<T> = {
-	read _value: T,
+	read ["[Lync] value"]: T,
 	newest: (self: Codec<T>) -> Codec<T>,
 }
 
@@ -48,7 +52,7 @@ export type function Infer(codec)
 		return types.singleton("[Lync] expected a codec or a record of codecs")
 	end
 
-	local value = codec:readproperty(types.singleton("_value"))
+	local value = codec:readproperty(types.singleton("[Lync] value"))
 	if value ~= nil then
 		return value
 	end
@@ -119,8 +123,8 @@ end
 
 --- The custom codec's specification (v5.md §8).
 export type CustomSpec<V> = {
-	encode: (writer: any, value: V) -> (),
-	decode: (reader: any) -> (V, number),
+	encode: (writer: Bits.Writer, value: V) -> (),
+	decode: (reader: Bits.Reader) -> (V, number),
 	maxBits: number?,
 	maxBytes: number?,
 	luauType: string?,

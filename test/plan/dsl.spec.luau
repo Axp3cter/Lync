@@ -192,6 +192,25 @@ return {
 		end, { code = "vectorStep", at = at(line + 2), subject = "t.vector3" })
 	end,
 
+	["optionalPlacement: an optional in an optional, as an element or as a map value"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(function()
+			t.optional(t.optional(t.bool()))
+		end, { code = "optionalPlacement", at = at(line + 2), subject = "t.optional" })
+		Check.expectThrow(function()
+			t.array(t.optional(t.bool()), 4)
+		end, { code = "optionalPlacement", at = at(line + 5), subject = "t.array" })
+		Check.expectThrow(function()
+			t.map(t.string(4), t.optional(t.bool()), 4)
+		end, { code = "optionalPlacement", at = at(line + 8), subject = "t.map" })
+	end,
+
+	["an optional inside a record inside an array is allowed"] = function()
+		local codec = t.array({ title = t.optional(t.string(4)) }, 4) :: any
+
+		Check.expectEqual(codec.node.kind, "array")
+	end,
+
 	["numberStepIsInt: step 1 with an integer min"] = function()
 		local line = debug.info(1, "l")
 		Check.expectThrow(function()

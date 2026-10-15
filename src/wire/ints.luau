@@ -32,6 +32,9 @@ const MAX_FIELD_BITS = 53
 const LOOKUP_BITS = 12
 const LOOKUP_SIZE = 4096
 
+--- The longest EG-0 code the lookup table decodes (z = 5).
+const MAX_LOOKUP_CODE_BITS = 11
+
 --- How many zero bits the slow path tests per read.
 const SCAN_BITS = 24
 
@@ -184,6 +187,76 @@ function Ints.readEg(r: Bits.Reader, k: number): (number?, number)
 	end
 
 	return value, 0
+end
+
+--[=[
+	Reads `count` EG-k codes into `out`, refusing any above `maxCode`.
+
+	The cursor stays in a local and the lookup and the k-bit remainder are read in place while
+	the reader's buffer holds a u32 at both and the code must end before the tail cursor; each
+	other code goes through `Ints.readEg`.
+
+	@param  r       the reader, advanced past the codes read
+	@param  k       the order, 0 to 15
+	@param  count   how many codes
+	@param  out     where the values are stored
+	@param  first   the index in `out` of the first value
+	@param  maxCode the largest value accepted
+	@return 0, or the refusal's rule: 4 when bits run out, 2 when a value passes `maxCode` or as
+	        `Ints.readEg` refuses
+]=]
+function Ints.readEgMany(
+	r: Bits.Reader,
+	k: number,
+	count: number,
+	out: { number },
+	first: number,
+	maxCode: number
+): number
+	local buf = r.buf
+	local scale = POWER_OF_TWO[k + 1]
+	-- The remainder's u32 starts at most MAX_LOOKUP_CODE_BITS after the code's.
+	local lastFastBit = math.min(
+		r.stop * 8 - MAX_LOOKUP_CODE_BITS - k,
+		(buffer.len(buf) - 4) * 8 - MAX_LOOKUP_CODE_BITS
+	)
+	local bit = r.bit
+	for i = first, first + count - 1 do
+		local length = 0
+		local window = 0
+		if bit <= lastFastBit then
+			window = bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, LOOKUP_BITS)
+			length = LOOKUP_LENGTH[window + 1]
+		end
+
+		local value: number
+		if length > 0 then
+			bit += length
+			value = LOOKUP_VALUE[window + 1]
+			if k > 0 then
+				value = value * scale + bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, k)
+				bit += k
+			end
+		else
+			r.bit = bit
+			local slowValue, rule = Ints.readEg(r, k)
+			if slowValue == nil then
+				return rule
+			end
+			value = slowValue
+			bit = r.bit
+		end
+
+		if value > maxCode then
+			r.bit = bit
+			return 2
+		end
+
+		out[i] = value
+	end
+
+	r.bit = bit
+	return 0
 end
 
 --[=[

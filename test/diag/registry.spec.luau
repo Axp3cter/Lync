@@ -5,7 +5,18 @@
 
 	The code registry lints itself (v5.md §7.1, §9): `codes.luau` and `docs/codes/*.md` list the
 	same codes, every page's front matter and example are well formed, every code is named by a
-	test, and every page's example is, byte for byte, the message its trigger module raises.
+	test, and every page's example is, byte for byte, the output Lync gives for it:
+	- a thrown code's (declaration, caller, fault, internal) example is the message its trigger
+	  module raises; a fault is the same message, reported natively;
+	- a fact's example is the console line the console prints for it (v5.md §7.4), and its front
+	  matter lists its evidence in `Codes.evidence`'s order;
+	- an outcome's example is the result a request returns, and `src/types.luau`'s `Failure`
+	  lists exactly the outcomes.
+
+	A test names a thrown code as `code = "<code>"`, a fact as `reason = "<code>"` and an outcome
+	as `error = "<code>"`. The codes in `RAISED_BY_UNIT_F` are raised only by milestone 2's views,
+	configuration, validators and requests, which unit F builds (m2-plan.md §4): their triggers
+	are written against that API and their tests are F's, so those two checks wait for it.
 
 	A trigger runs as the module the page names, with `game:GetService` and `require` resolving
 	`ReplicatedStorage.Packages.Lync` to this package. The examples are the only prose a test
@@ -21,6 +32,7 @@ local luau = require("@lune/luau")
 
 local Check = require("../support/check")
 local Codes = require("../../src/diag/codes")
+local Console = require("../../src/diag/console")
 local Lync = require("../../src")
 
 -- Constants ---------------------------------------------------------------------------------------
@@ -28,11 +40,39 @@ local Lync = require("../../src")
 const PAGES = "docs/codes"
 const TESTS = "test"
 const CODES_SOURCE = "src/diag/codes.luau"
+const TYPES_SOURCE = "src/types.luau"
 const SINCE = "5.0.0"
 
 const MAX_BODY_BYTES = 200
 const MESSAGE_PATTERN = "^(.-):(%d+): (%[Lync%] (%l%w*): (.*))$"
+const LINE_PATTERN = "^%[Lync%] (%l%w*): (.*)$"
+const SUPPRESSED_EVIDENCE = "one count per suppressed reason"
 const JUDGEMENT_WORDS = { "suspicious", "illegal", "invalid", "bad", "exploit", "flagged" }
+
+const THROWN_FAMILIES = table.freeze({
+	declaration = true,
+	caller = true,
+	fault = true,
+	internal = true,
+})
+
+const NEEDLE_KEY_BY_FAMILY = table.freeze({
+	fact = "reason",
+	outcome = "error",
+})
+
+const RAISED_BY_UNIT_F = table.freeze({
+	wrongSide = true,
+	configureRange = true,
+	unknownTarget = true,
+	validatorError = true,
+	validatorYielded = true,
+	timeout = true,
+	rejected = true,
+	unanswered = true,
+	left = true,
+	shutdown = true,
+})
 
 -- `ReplicatedStorage.Packages.Lync` in a trigger, with its submodules as paths under `src/`.
 const LYNC_PACKAGE = table.freeze({
@@ -120,7 +160,8 @@ local function specTexts(directory: string, into: { string })
 end
 
 local function isNamedByTest(code: string, texts: { string }): boolean
-	local needle = `code = "{code}"`
+	local key = (NEEDLE_KEY_BY_FAMILY :: any)[(Codes.family :: any)[code]] or "code"
+	local needle = `{key} = "{code}"`
 	for _, text in texts do
 		if string.find(text, needle, 1, true) ~= nil then
 			return true
@@ -128,6 +169,64 @@ local function isNamedByTest(code: string, texts: { string }): boolean
 	end
 
 	return false
+end
+
+-- The line the console prints for a fact's first occurrence.
+local function consoleLineOf(code: string): string?
+	local printed: string? = nil
+	local host = {
+		side = "server",
+		warn = function(template: string)
+			printed = template
+		end,
+	}
+	Console.fact(Console.new(host :: any), code :: any, nil, nil, 0)
+
+	return printed
+end
+
+local function outcomeOf(code: string): string
+	return `\{ ok = false, error = "{code}" }`
+end
+
+local function expectWellFormed(code: string, message: string)
+	Check.expect(string.find(message, "\n", 1, true) == nil, `{code}'s example must be one line`)
+
+	local lowered = string.lower(message)
+	for _, word in JUDGEMENT_WORDS do
+		local isUsed = string.find(lowered, `%f[%a]{word}%f[%A]`) ~= nil
+		Check.expect(not isUsed, `{code}'s example must not use the word "{word}"`)
+	end
+end
+
+local function expectMessageGrammar(code: string, message: string)
+	local _, line, body, exampleCode, rest = string.match(message, MESSAGE_PATTERN)
+	Check.expect(line ~= nil, `{code}'s example must be "source:line: [Lync] code: ..."`)
+	Check.expectEqual(exampleCode, code, `{code}'s example code`)
+	Check.expect(#(body :: string) <= MAX_BODY_BYTES, `{code}'s example must be at most 200 bytes`)
+	Check.expect(
+		string.find(rest :: string, " must ", 1, true) ~= nil,
+		`{code}'s example must say "must"`
+	)
+end
+
+local function expectLineGrammar(code: string, message: string)
+	local lineCode = string.match(message, LINE_PATTERN)
+	Check.expectEqual(lineCode, code, `{code}'s example must be "[Lync] {code}: ..."`)
+	Check.expect(#message <= MAX_BODY_BYTES, `{code}'s example must be at most 200 bytes`)
+end
+
+local function expectTriggerRaisesExample(code: string, text: string)
+	local source, trigger = triggerOf(text)
+	Check.expect(source ~= nil, `{code} must name its trigger module: "The module \`...\`:"`)
+	Check.expect(trigger ~= nil, `{code} must have a luau trigger block`)
+	if RAISED_BY_UNIT_F[code] then
+		return
+	end
+
+	local message = messageOf(source :: string, trigger :: string)
+	Check.expect(message ~= nil, `{code}'s trigger must raise`)
+	Check.expectEqual(message, exampleOf(text), `{code}'s example`)
 end
 
 -- Tests -------------------------------------------------------------------------------------------
@@ -167,38 +266,50 @@ local tests = {
 
 			Check.expectEqual(fields.family, family, `{code} family`)
 			Check.expectEqual(fields.since, SINCE, `{code} since`)
-			if family == "fact" then
-				Check.expect(fields.evidence ~= nil, `{code} is a fact and must list its evidence`)
+			if family ~= "fact" then
+				continue
 			end
+
+			local evidence = (Codes.evidence :: any)[code]
+			local listed = if evidence == nil
+				then SUPPRESSED_EVIDENCE
+				else table.concat(evidence, ", ")
+			Check.expectEqual(fields.evidence, listed, `{code} evidence, in Codes.evidence's order`)
 		end
 	end,
 
-	["every example follows the message grammar of v5.md §7.1"] = function()
+	["every example follows its family's grammar (v5.md §7.1, §7.4)"] = function()
 		for code, text in pageCodes() do
 			local example = exampleOf(text)
 			Check.expect(example ~= nil, `{code} must have an example block`)
 
 			local message = example :: string
-			local _, line, body, exampleCode, rest = string.match(message, MESSAGE_PATTERN)
-			Check.expect(line ~= nil, `{code}'s example must be "source:line: [Lync] code: ..."`)
-			Check.expectEqual(exampleCode, code, `{code}'s example code`)
-			Check.expect(
-				string.find(message, "\n", 1, true) == nil,
-				`{code}'s example must be one line`
-			)
-			Check.expect(
-				#(body :: string) <= MAX_BODY_BYTES,
-				`{code}'s example must be at most 200 bytes`
-			)
-			Check.expect(
-				string.find(rest :: string, " must ", 1, true) ~= nil,
-				`{code}'s example must say "must"`
-			)
+			local family = (Codes.family :: any)[code]
+			expectWellFormed(code, message)
+			if THROWN_FAMILIES[family] then
+				expectMessageGrammar(code, message)
+			elseif family == "fact" then
+				expectLineGrammar(code, message)
+			else
+				Check.expectEqual(message, outcomeOf(code), `{code}'s example`)
+			end
+		end
+	end,
 
-			local lowered = string.lower(message)
-			for _, word in JUDGEMENT_WORDS do
-				local isUsed = string.find(lowered, `%f[%a]{word}%f[%A]`) ~= nil
-				Check.expect(not isUsed, `{code}'s example must not use the word "{word}"`)
+	["the Failure type lists exactly the outcome codes"] = function()
+		local source = fs.readFile(TYPES_SOURCE)
+		local union = string.match(source, "export type Failure = ([^\n]+)")
+		Check.expect(union ~= nil, "types.luau must declare export type Failure")
+
+		local typed: { [string]: boolean } = {}
+		for code in string.gmatch(union :: string, '"(%a+)"') do
+			typed[code] = true
+			Check.expectEqual((Codes.family :: any)[code], "outcome", `Failure's {code}`)
+		end
+
+		for code, family in Codes.family do
+			if family == "outcome" then
+				Check.expect(typed[code] == true, `{code} must be in the Failure type`)
 			end
 		end
 	end,
@@ -208,20 +319,25 @@ local tests = {
 		specTexts(TESTS, texts)
 
 		for code in Codes.family do
+			if RAISED_BY_UNIT_F[code] then
+				continue
+			end
+
 			Check.expect(isNamedByTest(code, texts), `{code} must be triggered by a test naming it`)
 		end
 	end,
 }
 
 for code, text in pageCodes() do
-	tests[`{code}: the example is the message its trigger raises`] = function()
-		local source, trigger = triggerOf(text)
-		Check.expect(source ~= nil, `{code} must name its trigger module: "The module \`...\`:"`)
-		Check.expect(trigger ~= nil, `{code} must have a luau trigger block`)
-
-		local message = messageOf(source :: string, trigger :: string)
-		Check.expect(message ~= nil, `{code}'s trigger must raise`)
-		Check.expectEqual(message, exampleOf(text), `{code}'s example`)
+	local family = (Codes.family :: any)[code]
+	tests[`{code}: the example is the output Lync gives`] = function()
+		if THROWN_FAMILIES[family] then
+			expectTriggerRaisesExample(code, text)
+		elseif family == "fact" then
+			Check.expectEqual(exampleOf(text), consoleLineOf(code), `{code}'s console line`)
+		else
+			Check.expectEqual(exampleOf(text), outcomeOf(code), `{code}'s result`)
+		end
 	end
 end
 

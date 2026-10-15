@@ -160,7 +160,7 @@ end
 
 local function encodedOf(case: Case): Bits.Writer
 	local w = Bits.writer()
-	Column.write(w, case.codes, case.first, case.count, case.lo, case.n)
+	Column.write(w, case.codes, case.first, case.count, case.n)
 
 	return w
 end
@@ -182,7 +182,7 @@ return {
 	["codes intervals near and at 2^53 exactly"] = function()
 		Prop.check("wide column", wideCaseOf, function(case: Case)
 			local w = encodedOf(case)
-			local chosen = { Column.choose(case.codes, case.first, case.count, case.lo, case.n) }
+			local chosen = { Column.choose(case.codes, case.first, case.count, case.n) }
 			Check.expectEqual(chosen, { slowChoice(case) }, "choice against the exact reference")
 			Check.expectEqual(w.bit, chosen[3], "bits written against chosen")
 
@@ -195,7 +195,7 @@ return {
 		local n = 2 ^ 53 - 1
 		local codes = { n - 1, 0, n - 1, n // 2, n // 2 + 1, 0 }
 		local w = Bits.writer()
-		Column.write(w, codes, 1, #codes, 0, n)
+		Column.write(w, codes, 1, #codes, n)
 		local out = {}
 		Check.expectEqual(Column.read(Bits.reader(Bits.finish(w)), out, 1, #codes, 0, n), 0)
 		Check.expectEqual(out, codes)
@@ -204,7 +204,7 @@ return {
 	["round-trips every interval kind at counts 0 to 40"] = function()
 		Prop.check("column round trip", caseOf, function(case: Case)
 			local w = encodedOf(case)
-			local _, _, bits = Column.choose(case.codes, case.first, case.count, case.lo, case.n)
+			local _, _, bits = Column.choose(case.codes, case.first, case.count, case.n)
 			Check.expectEqual(w.bit, bits, "bits written against chosen")
 
 			local r = Bits.reader(Bits.finish(w))
@@ -223,35 +223,35 @@ return {
 				return
 			end
 
-			local chosen = { Column.choose(case.codes, case.first, case.count, case.lo, case.n) }
+			local chosen = { Column.choose(case.codes, case.first, case.count, case.n) }
 			Check.expectEqual(chosen, { slowChoice(case) })
 		end, { runs = 1000 })
 	end,
 
 	["reproduces G8's columns (v5 §4.10)"] = function()
 		local aim = { 1024, 1024, 1024, 1024 }
-		Check.expectEqual({ Column.choose(aim, 1, 4, 0, 2048) }, { 2, 11, 22 })
+		Check.expectEqual({ Column.choose(aim, 1, 4, 2048) }, { 2, 11, 22 })
 		local target = { 4, 5, 6, 6 }
-		Check.expectEqual({ Column.choose(target, 1, 4, 0, 2 ^ 40) }, { 1, 0, 20 })
+		Check.expectEqual({ Column.choose(target, 1, 4, 2 ^ 40) }, { 1, 0, 20 })
 
 		local w = Bits.writer()
-		Column.write(w, aim, 1, 4, 0, 2048)
-		Column.write(w, aim, 1, 4, 0, 2048)
-		Column.write(w, target, 1, 4, 0, 2 ^ 40)
+		Column.write(w, aim, 1, 4, 2048)
+		Column.write(w, aim, 1, 4, 2048)
+		Column.write(w, target, 1, 4, 2 ^ 40)
 		Check.expectEqual(w.bit, 64)
 	end,
 
 	["writes and reads nothing for no rows"] = function()
 		local w = Bits.writer()
-		Column.write(w, {}, 1, 0, 0, 2)
+		Column.write(w, {}, 1, 0, 2)
 		Check.expectEqual(w.bit, 0)
-		Check.expectEqual({ Column.choose({}, 1, 0, 0, 2) }, { 0, 0, 0 })
+		Check.expectEqual({ Column.choose({}, 1, 0, 2) }, { 0, 0, 0 })
 		Check.expectEqual(readRule(buffer.create(0), 0, 0, 2), 0)
 	end,
 
 	["codes a bool's residual as its XOR with the previous row"] = function()
 		local w = Bits.writer()
-		Column.write(w, { 1, 1, 0, 0, 1 }, 1, 5, 0, 2)
+		Column.write(w, { 1, 1, 0, 0, 1 }, 1, 5, 2)
 		local r = Bits.reader(Bits.finish(w))
 		Check.expectEqual(Bits.read(r, 2), 3, "frame of reference")
 		Check.expectEqual({ Ints.readEg(r, 0) }, { 0, 0 }, "base")
@@ -293,7 +293,7 @@ return {
 		}
 		for _, codes in columns do
 			local case = { codes = codes, first = 1, count = #codes, lo = 0, n = 2 ^ 20 }
-			local mode = Column.choose(codes, 1, #codes, 0, 2 ^ 20)
+			local mode = Column.choose(codes, 1, #codes, 2 ^ 20)
 			local whole = Bits.finish(encodedOf(case))
 			for stopByte = 0, buffer.len(whole) - 1 do
 				local r = Bits.reader(whole, 0, stopByte)

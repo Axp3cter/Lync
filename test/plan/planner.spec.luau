@@ -163,6 +163,88 @@ return {
 		Check.expect(table.isfrozen(ir.byName.fighters.data :: any), "a codec must be frozen")
 	end,
 
+	["arena: W, the worst-case elements of a message (v5.md §4.8)"] = function()
+		local ir = arena().ir
+
+		-- No arrays or maps: each message is one element.
+		Check.expectEqual(ir.byName.chat.dataMaxElements, 1)
+		Check.expectEqual(ir.byName.strike.dataMaxElements, 1)
+		Check.expectEqual(ir.byName.announce.dataMaxElements, 1)
+		Check.expectEqual(ir.byName.buy.dataMaxElements, 1)
+		Check.expectEqual(ir.byName.buy.replyMaxElements, 1)
+		Check.expectEqual(ir.byName.chat.replyMaxElements, 0)
+	end,
+
+	["W counts nested arrays and maps, and t.array(t.bool(), 65535) plans with W = 65,536"] = function()
+		local ir = Lync.schema("elements", {
+			flags = Lync.event({ from = "client", data = t.array(t.bool(), 65_535) }),
+			grid = Lync.event({
+				from = "client",
+				data = {
+					rows = t.array(t.array(t.int(0, 9), 4), 3),
+					tags = t.optional(t.map(t.string(4), t.array(t.bool(), 2), 5)),
+				},
+			}),
+		}).ir
+
+		Check.expectEqual(ir.byName.flags.dataMaxElements, 65_536)
+		-- 1 + 3 × (1 + 4) + 5 × (1 + 0 + 2 × 1)
+		Check.expectEqual(ir.byName.grid.dataMaxElements, 1 + 15 + 15)
+	end,
+
+	["options a kind does not take are nil"] = function()
+		local ir = arena().ir
+
+		Check.expect(ir.byName.chat.timeout == nil, "an event has no timeout")
+		Check.expect(ir.byName.chat.maxRecords == nil, "an event has no maxRecords")
+		Check.expect(ir.byName.buy.priority == nil, "a request has no priority")
+		Check.expect(ir.byName.round.timeout == nil, "a collection has no timeout")
+		Check.expect(ir.byName.chat.key == nil, "an event has no key")
+	end,
+
+	["elementsTooMany: a message over 65,536 elements, at the definition's line"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(function()
+			Lync.schema("arena", {
+				grid = Lync.event({ from = "client", data = t.array(t.array(t.bool(), 2), 30_000) }),
+			})
+		end, { code = "elementsTooMany", at = at(line + 3), subject = "arena.grid", path = "data" })
+	end,
+
+	["zeroWidthElement: arrays of empty records, at the array's line"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(function()
+			Lync.schema("arena", {
+				amplify = Lync.event({ from = "client", data = t.array(t.array({}, 65_535), 7996) }),
+			})
+		end, {
+			code = "zeroWidthElement",
+			at = at(line + 3),
+			subject = "arena.amplify",
+			path = "data[]",
+		})
+	end,
+
+	["zeroWidthElement: an array of t.int(5, 5) and a map of one-item enums to {}"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(
+			function()
+				Lync.schema("arena", {
+					fives = Lync.event({ from = "client", data = t.array(t.int(5, 5), 4) }),
+				})
+			end,
+			{ code = "zeroWidthElement", at = at(line + 3), subject = "arena.fives", path = "data" }
+		)
+		Check.expectThrow(
+			function()
+				Lync.schema("arena", {
+					empty = Lync.event({ from = "client", data = t.map(t.enum({ "only" }), {}, 4) }),
+				})
+			end,
+			{ code = "zeroWidthElement", at = at(line + 8), subject = "arena.empty", path = "data" }
+		)
+	end,
+
 	["hasInstances: data or reply holding a t.instance"] = function()
 		local ir = Lync.schema("instances", {
 			pick = Lync.event({

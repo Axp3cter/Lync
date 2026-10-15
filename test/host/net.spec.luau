@@ -50,7 +50,7 @@ end
 -- Sends FRAMES frames `interval` apart; returns each frame's first arrival (nil when lost), and
 -- how many arrived twice.
 local function sendAll(link: Net.Link, lane: number, interval: number): ({ number? }, number)
-	local arrivals: { number? } = table.create(FRAMES)
+	local arrivals: { number? } = {}
 	local duplicateCount = 0
 	for i = 1, FRAMES do
 		local first, second = Net.schedule(link, (i - 1) * interval, lane, 100)
@@ -116,9 +116,15 @@ return {
 		local arrivals = sendAll(link, RELIABLE, INTERVAL)
 		for i = 1, FRAMES do
 			local arrival = arrivals[i] :: number
-			Check.expect(arrival >= (i - 1) * INTERVAL + 0.05, `frame {i} arrived before its latency`)
+			Check.expect(
+				arrival >= (i - 1) * INTERVAL + 0.05,
+				`frame {i} arrived before its latency`
+			)
 			if i > 1 then
-				Check.expect(arrival >= arrivals[i - 1] :: number, `frame {i} overtook frame {i - 1}`)
+				Check.expect(
+					arrival >= arrivals[i - 1] :: number,
+					`frame {i} overtook frame {i - 1}`
+				)
 			end
 		end
 	end,
@@ -179,14 +185,20 @@ return {
 			end
 
 			local expected = (1 - interval / jitter) ^ 2 / 2
-			expectNear(swappedCount / (FRAMES - 1), expected, RATE_TOLERANCE, `reorder at {interval}`)
+			expectNear(
+				swappedCount / (FRAMES - 1),
+				expected,
+				RATE_TOLERANCE,
+				`reorder at {interval}`
+			)
 		end
 	end,
 
 	["bursts add their share of loss, in runs of 1 / leave frames"] = function()
 		local burst = { enter = 0.01, leave = 0.25 }
 		local badFraction = burst.enter / (burst.enter + burst.leave)
-		local lossy = sendAll(linkOf(withQuiet({ loss = 0.05, burst = burst })), UNRELIABLE, INTERVAL)
+		local lossy =
+			sendAll(linkOf(withQuiet({ loss = 0.05, burst = burst })), UNRELIABLE, INTERVAL)
 		local expected = badFraction + (1 - badFraction) * 0.05
 		expectNear(lostFraction(lossy), expected, RATE_TOLERANCE, "loss with bursts")
 

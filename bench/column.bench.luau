@@ -3,7 +3,7 @@
 --[=[
 	column.bench
 
-	Measures the column coder (v5.md §4.3), EG-0 decoding and HalfSipHash on the Luau CLI, which
+	Measures the column coder (v5.md §4.3), EG-0 decoding (per value and batched) and HalfSipHash on the Luau CLI, which
 	has no Roblox types. Run from the repo root, once interpreted and once native, appending to the
 	results file of the current commit:
 
@@ -131,15 +131,15 @@ local function benchColumns(label: string)
 	for _, pattern in patternsOf() do
 		local codes = pattern.codes
 		w.bit = 0
-		Column.write(w, codes, 1, ROWS, 0, INTERVAL)
+		Column.write(w, codes, 1, ROWS, INTERVAL)
 		local encoded = Bits.finish(w)
-		local mode, k, bits = Column.choose(codes, 1, ROWS, 0, INTERVAL)
+		local mode, k, bits = Column.choose(codes, 1, ROWS, INTERVAL)
 		local out = table.create(ROWS, 0)
 
 		local seconds = bestSecondsOf(COLUMNS_PER_ROUND, {
 			function()
 				w.bit = 0
-				Column.write(w, codes, 1, ROWS, 0, INTERVAL)
+				Column.write(w, codes, 1, ROWS, INTERVAL)
 			end,
 			function()
 				w.bit = 0
@@ -193,6 +193,7 @@ local function benchEgZeroDecode(label: string)
 		Ints.writeEg(w, value, 0)
 	end
 	local encoded = Bits.finish(w)
+	local out = table.create(EG_VALUES, 0)
 
 	local seconds = bestSecondsOf(EG_ROUNDS, {
 		function()
@@ -201,11 +202,20 @@ local function benchEgZeroDecode(label: string)
 				Ints.readEg(r, 0)
 			end
 		end,
+		function()
+			Ints.readEgMany(Bits.reader(encoded), 0, EG_VALUES, out, 1, Ints.MAX)
+		end,
 	})
+	local perValue = 1e9 / (EG_ROUNDS * EG_VALUES)
 	report(
 		label,
 		'"bench":"ints","op":"readEg0","values":"small","unit":"ns/value"',
-		seconds[1] * 1e9 / (EG_ROUNDS * EG_VALUES)
+		seconds[1] * perValue
+	)
+	report(
+		label,
+		'"bench":"ints","op":"readEgMany0","values":"small","unit":"ns/value"',
+		seconds[2] * perValue
 	)
 end
 

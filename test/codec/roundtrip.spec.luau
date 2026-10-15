@@ -189,7 +189,7 @@ return {
 		local count = #elements
 
 		local countBits = 5
-		local _, _, columnBits = Column.choose(elements, 1, count, 0, 101)
+		local _, _, columnBits = Column.choose(elements, 1, count, 101)
 		local bytes = bytesOf(codec, { elements }, 1)
 		Check.expectEqual(buffer.len(bytes), math.ceil((countBits + columnBits) / 8), "bytes")
 		checkRoundTrip(codec, { elements }, 1)

@@ -170,8 +170,6 @@ local function writeOptionalNum(parts: { string }, value: number?)
 end
 
 local function writeDefinition(parts: { string }, definition: Ir.Definition)
-	local isRequest = definition.kind == "request"
-	local isCollection = definition.kind == "collection"
 	local limit = definition.limit
 
 	writeStr(parts, definition.name)
@@ -184,9 +182,9 @@ local function writeDefinition(parts: { string }, definition: Ir.Definition)
 	writeOptionalCodec(parts, definition.key)
 	writeOptionalNum(parts, if limit == nil then nil else limit.perSecond)
 	writeOptionalNum(parts, if limit == nil then nil else limit.burst)
-	writeOptionalNum(parts, if isRequest then definition.timeout else nil)
-	writeOptionalNum(parts, if isCollection then definition.maxRecords else nil)
-	writeOptionalNum(parts, if isCollection then definition.priority else nil)
+	writeOptionalNum(parts, definition.timeout)
+	writeOptionalNum(parts, definition.maxRecords)
+	writeOptionalNum(parts, definition.priority)
 	writeOptionalNum(parts, definition.reliableRate)
 end
 

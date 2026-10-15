@@ -19,6 +19,7 @@
 -- Imports -----------------------------------------------------------------------------------------
 
 local Fail = require("../diag/fail")
+local Limits = require("../wire/limits")
 local Quant = require("../wire/quant")
 
 -- Module ------------------------------------------------------------------------------------------
@@ -44,7 +45,7 @@ export type Node =
 	| { kind: "vector3f32" }
 	| { kind: "direction", bits: number }
 	| { kind: "rotation", bits: number }
-	| { kind: "cframe", position: Codec, rotation: Codec }
+	| { kind: "cframe", position: Codec, rotation: Codec, rotationBits: number }
 	| { kind: "color3" }
 	| { kind: "enum", items: { string } }
 	| { kind: "robloxEnum", name: string, byValue: { [number]: EnumItem } }
@@ -99,12 +100,9 @@ export type Declaration = {
 
 -- Constants ---------------------------------------------------------------------------------------
 
-const MIN_INT = -2 ^ 52
-const MAX_INT = 2 ^ 52 - 1
 const MAX_NUMBER_STEPS = 2 ^ 53 - 1
 const MAX_ANGLE_STEPS = 2 ^ 53
 const MAX_COUNT = 65_535
-const F32_MANTISSA_BITS = 23
 
 const CODEC_METATABLE = table.freeze({ __index = CodecMethods })
 
@@ -122,13 +120,14 @@ const IS_CUSTOM_OPTION: { [string]: boolean } = {
 }
 table.freeze(IS_CUSTOM_OPTION)
 
-const IS_MAP_KEY_KIND: { [string]: boolean } = {
+-- The kinds a map key or a collection key may have (v5.md §3.3, §3.4).
+const IS_KEY_KIND: { [string]: boolean } = {
 	int = true,
 	varint = true,
 	enum = true,
 	string = true,
 }
-table.freeze(IS_MAP_KEY_KIND)
+table.freeze(IS_KEY_KIND)
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -157,9 +156,7 @@ local function isRecord(value: unknown): boolean
 end
 
 local function toInteger(value: unknown): number?
-	-- selene's standard library predates math.isfinite.
-	-- selene: allow(incorrect_standard_library_use)
-	if typeof(value) ~= "number" or not math.isfinite(value) or math.floor(value) ~= value then
+	if typeof(value) ~= "number" or not Limits.isInteger(value) then
 		return nil
 	end
 
@@ -167,17 +164,15 @@ local function toInteger(value: unknown): number?
 end
 
 local function toFinite(value: unknown): number?
-	-- selene's standard library predates math.isfinite.
-	-- selene: allow(incorrect_standard_library_use)
-	if typeof(value) ~= "number" or not math.isfinite(value) then
+	if typeof(value) ~= "number" or not Limits.isFinite(value) then
 		return nil
 	end
 
 	return value
 end
 
-local function toName(value: unknown): string?
-	if typeof(value) ~= "string" or #value < 1 or #value > MAX_COUNT then
+local function toName(value: unknown, maxBytes: number): string?
+	if typeof(value) ~= "string" or #value < 1 or #value > maxBytes then
 		return nil
 	end
 
@@ -222,6 +217,22 @@ local function toPart(value: unknown, at: Fail.At, subject: string): Part
 	return value :: Part
 end
 
+-- An optional directly inside an optional, as an array element or as a map value would give one
+-- value two encodings, or a pair a Luau table can't hold (v5.md §3.3).
+local function toPresentPart(
+	value: unknown,
+	at: Fail.At,
+	subject: string,
+	requirement: string
+): Part
+	local part = toPart(value, at, subject)
+	if isCodec(part) and (part :: Codec).node.kind == "optional" then
+		return Fail.declaration("optionalPlacement", at, subject, requirement, Fail.NONE)
+	end
+
+	return part
+end
+
 local function toCodec(value: unknown, at: Fail.At, subject: string): Codec
 	if not isCodec(value) then
 		return Fail.declaration("notACodec", at, subject, "be a codec", value)
@@ -239,11 +250,9 @@ local function toFunction(value: unknown, at: Fail.At, subject: string): (...any
 end
 
 -- A `t.vector3` is stored in f32, so its step must be larger than the f32 spacing at the larger
--- bound, 2^(floor(log2 M) - 23), for every decoded component to re-quantize to its own code
--- (v5.md §3.3). `math.frexp` gives M = m × 2^e with m in [0.5, 1), so floor(log2 M) = e - 1.
+-- bound, for every decoded component to re-quantize to its own code (v5.md §3.3).
 local function checkVectorStep(min: number, max: number, step: number, at: Fail.At)
-	local _, exponent = math.frexp(math.max(math.abs(min), math.abs(max)))
-	local spacing = math.ldexp(1, exponent - 1 - F32_MANTISSA_BITS)
+	local spacing = Limits.f32Spacing(math.max(math.abs(min), math.abs(max)))
 	if step <= spacing then
 		Fail.declaration(
 			"vectorStep",
@@ -290,7 +299,7 @@ local function quantizedNode(
 		)
 	end
 
-	if stepValue == 1 and math.floor(minValue) == minValue then
+	if stepValue == 1 and Limits.isInteger(minValue) then
 		return Fail.declaration(
 			"numberStepIsInt",
 			at,
@@ -324,9 +333,6 @@ local function quantizedNode(
 
 	if kind == "vector3" then
 		checkVectorStep(minValue, maxValue, stepValue, at)
-	end
-
-	if kind == "vector3" then
 		return { kind = "vector3", min = minValue, max = maxValue, step = stepValue, steps = steps }
 	end
 
@@ -410,18 +416,18 @@ local function customNode(spec: unknown, at: Fail.At): Node
 	end
 
 	if options.encode == nil or options.decode == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have encode and decode")
+		return Fail.declaration("missingOption", at, "t.custom spec", "have encode and decode", Fail.NONE)
 	end
 
 	if options.maxBits == nil and options.maxBytes == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have maxBits or maxBytes")
+		return Fail.declaration("missingOption", at, "t.custom spec", "have maxBits or maxBytes", Fail.NONE)
 	end
 
 	if options.name == nil or options.version == nil then
-		return Fail.declaration("missingOption", at, "t.custom spec", "have name and version")
+		return Fail.declaration("missingOption", at, "t.custom spec", "have name and version", Fail.NONE)
 	end
 
-	local name = toName(options.name)
+	local name = toName(options.name, MAX_COUNT)
 	if name == nil then
 		return Fail.declaration(
 			"nameLength",
@@ -530,6 +536,9 @@ function Dsl.event(options: { [string]: any }): any
 	return declarationOf("event", options, atOf(debug.info(2, "sl")))
 end
 
+--- The kinds a map key or a collection key may have (v5.md §3.3, §3.4).
+Dsl.IS_KEY_KIND = IS_KEY_KIND
+
 --[=[
 	Returns whether a value is a codec made by a constructor of `t`.
 
@@ -541,6 +550,16 @@ function Dsl.isCodec(value: any): boolean
 end
 
 --[=[
+	Returns whether a value is a record: a table with no metatable.
+
+	@param  value any value
+	@return true for a plain table
+]=]
+function Dsl.isRecord(value: unknown): boolean
+	return isRecord(value)
+end
+
+--[=[
 	Declares a request (v5.md §3.4).
 
 	@param  options the request's options, checked by the planner
@@ -549,6 +568,27 @@ end
 ]=]
 function Dsl.request(options: { [string]: any }): any
 	return declarationOf("request", options, atOf(debug.info(2, "sl")))
+end
+
+--[=[
+	Converts a value to a finite number.
+
+	@param  value any value
+	@return the number, or nil when `value` is not a finite number
+]=]
+function Dsl.toFinite(value: unknown): number?
+	return toFinite(value)
+end
+
+--[=[
+	Converts a value to a name of 1 to `maxBytes` bytes.
+
+	@param  value    any value
+	@param  maxBytes the longest name allowed
+	@return the name, or nil when `value` is not a string of that length
+]=]
+function Dsl.toName(value: unknown, maxBytes: number): string?
+	return toName(value, maxBytes)
 end
 
 --[=[
@@ -605,7 +645,12 @@ end
 ]=]
 function Codecs.array(codec: unknown, maxCount: unknown): Codec
 	local at = atOf(debug.info(2, "sl"))
-	local inner = toPart(codec, at, "t.array codec")
+	local inner = toPresentPart(
+		codec,
+		at,
+		"t.array codec",
+		"not be a t.optional, since an absent element would have a second encoding"
+	)
 	local max = toCount(maxCount, at, "t.array maxCount")
 
 	return codecOf({ kind = "array", inner = inner, max = max }, at)
@@ -653,18 +698,25 @@ function Codecs.cframe(position: unknown, rotation: unknown): Codec
 	end
 
 	local rotationCodec = toCodec(rotation, at, "t.cframe rotation")
-	local rotationKind = rotationCodec.node.kind
-	if rotationKind ~= "rotation" then
+	local rotationNode = rotationCodec.node
+	if rotationNode.kind ~= "rotation" then
 		return Fail.declaration(
 			"paramRange",
 			at,
 			"t.cframe rotation",
 			"be a t.rotation codec",
-			rotationKind
+			rotationNode.kind
 		)
 	end
 
-	return codecOf({ kind = "cframe", position = positionCodec, rotation = rotationCodec }, at)
+	local node: Node = {
+		kind = "cframe",
+		position = positionCodec,
+		rotation = rotationCodec,
+		rotationBits = rotationNode.bits,
+	}
+
+	return codecOf(node, at)
 end
 
 --- Declares a Color3 as three bytes.
@@ -769,7 +821,7 @@ function Codecs.instance(className: unknown): Codec
 		return codecOf({ kind = "instance", class = nil }, at)
 	end
 
-	local class = toName(className)
+	local class = toName(className, MAX_COUNT)
 	if class == nil then
 		return Fail.declaration(
 			"paramRange",
@@ -798,7 +850,7 @@ function Codecs.int(min: unknown, max: unknown): Codec
 	end
 
 	local minValue = toInteger(min)
-	if minValue == nil or minValue < MIN_INT or minValue > MAX_INT then
+	if minValue == nil or minValue < Limits.INT_MIN or minValue > Limits.INT_MAX then
 		return Fail.declaration(
 			"intBounds",
 			at,
@@ -809,7 +861,7 @@ function Codecs.int(min: unknown, max: unknown): Codec
 	end
 
 	local maxValue = toInteger(max)
-	if maxValue == nil or maxValue < minValue or maxValue > MAX_INT then
+	if maxValue == nil or maxValue < minValue or maxValue > Limits.INT_MAX then
 		return Fail.declaration(
 			"intBounds",
 			at,
@@ -845,7 +897,7 @@ function Codecs.map(key: unknown, value: unknown, maxCount: unknown): Codec
 
 	local keyCodec = key :: Codec
 	local keyKind = keyCodec.node.kind
-	if not IS_MAP_KEY_KIND[keyKind] then
+	if not IS_KEY_KIND[keyKind] then
 		return Fail.declaration(
 			"mapKey",
 			at,
@@ -858,7 +910,12 @@ function Codecs.map(key: unknown, value: unknown, maxCount: unknown): Codec
 	local node: Node = {
 		kind = "map",
 		key = keyCodec,
-		value = toPart(value, at, "t.map value"),
+		value = toPresentPart(
+			value,
+			at,
+			"t.map value",
+			"not be a t.optional, since a Luau table cannot hold a nil value"
+		),
 		max = toCount(maxCount, at, "t.map maxCount"),
 	}
 
@@ -890,7 +947,14 @@ end
 function Codecs.optional(codec: unknown): Codec
 	local at = atOf(debug.info(2, "sl"))
 
-	return codecOf({ kind = "optional", inner = toPart(codec, at, "t.optional codec") }, at)
+	local inner = toPresentPart(
+		codec,
+		at,
+		"t.optional codec",
+		"not be a t.optional, since nil would have two encodings"
+	)
+
+	return codecOf({ kind = "optional", inner = inner }, at)
 end
 
 --[=[
@@ -942,7 +1006,7 @@ function Codecs.union(variants: unknown): Codec
 	local variantByName = variants :: { [unknown]: unknown }
 	local count = 0
 	for name in variantByName do
-		if toName(name) == nil then
+		if toName(name, MAX_COUNT) == nil then
 			return Fail.declaration(
 				"nameLength",
 				at,

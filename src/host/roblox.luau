@@ -52,7 +52,7 @@ const IS_STRUCTURED_LOGGING = false
 
 -- Private -----------------------------------------------------------------------------------------
 
-local function ignoreReceived(_player: Player?, _lane: Host.Lane, ...: unknown) end
+local function ignoreReceived() end
 
 local function disconnectorOf(connection: RBXScriptConnection): () -> ()
 	return function()
@@ -60,7 +60,11 @@ local function disconnectorOf(connection: RBXScriptConnection): () -> ()
 	end
 end
 
-local function listenOnServer(remotes: Remotes, reliable: RemoteEvent, unreliable: UnreliableRemoteEvent)
+local function listenOnServer(
+	remotes: Remotes,
+	reliable: RemoteEvent,
+	unreliable: UnreliableRemoteEvent
+)
 	reliable.OnServerEvent:Connect(function(player: Player, ...: unknown)
 		remotes.handler(player, RELIABLE, ...)
 	end)
@@ -164,7 +168,11 @@ local function transportOf(side: "server" | "client"): Host.Transport
 		elseif lane == RELIABLE then
 			(remotes.reliable :: RemoteEvent):FireClient(player :: Player, frame, instances)
 		else
-			(remotes.unreliable :: UnreliableRemoteEvent):FireClient(player :: Player, frame, instances)
+			(remotes.unreliable :: UnreliableRemoteEvent):FireClient(
+				player :: Player,
+				frame,
+				instances
+			)
 		end
 	end
 

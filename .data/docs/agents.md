@@ -37,4 +37,4 @@ Paths are relative to `.data/docs/`.
 
 ## Next
 
-- Milestone 1 (wire and codecs) with builders against draft 3.1 and its golden set.
+- Milestone 1 (wire and codecs): units A and B in parallel per `design/m1-plan.md`, then unit C.

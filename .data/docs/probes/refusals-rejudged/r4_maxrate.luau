@@ -5,8 +5,9 @@
 -- Two kernels, per player and check:
 --   bucket (the research's leaky bucket on |dv| between consecutive messages): L' = max(0, L - rate*dt) + d(v, v*);
 --          fails when L' > burst. Shown to drift on honest traffic: quantization makes each step look longer.
---   anchor (the form specified): anchor (a, t_a); fails when d(v, a) > rate*(t - t_a) + burst; on commit, when
---          t - t_a >= window and the frame is the newest so far, the anchor moves to (v, t).
+--   two-reference (the form specified): the newest committed value (p, t_p) and an anchor (a, t_a); fails when
+--          d(v, p) > rate*(t - t_p) + burst or d(v, a) > rate*(t - t_a) + burst. On commit of the newest frame so far,
+--          (p, t_p) = (v, t), and when t - t_a >= window the anchor moves to (v, t) too.
 -- d: Euclidean on vector3, or on (x, z) for plane "xz". t: server evaluation time (next 60 Hz step after arrival).
 local RATE = 16 -- studs/s: Roblox's default WalkSpeed
 local Q = 1 / 32 -- t.vector3 step
@@ -72,16 +73,19 @@ local function simulate(lane: string, msgs: number, seed: number, jitter: number
 	end
 	-- anchor kernel: largest d - rate*(t - t_a), i.e. the smallest burst with no failure
 	local ah, ax, az, at, newest = false, 0, 0, 0, 0
+	local px, pz, pt = 0, 0, 0
 	local need = 0
 	for _, m in sends do
 		if not ah then
 			ah, ax, az, at, newest = true, m.x, m.z, m.t, m.k
+			px, pz, pt = m.x, m.z, m.t
 		else
-			local d = math.sqrt((m.x - ax) ^ 2 + (m.z - az) ^ 2)
-			local e = d - RATE * (m.t - at)
-			if e > need then need = e end
+			local e1 = math.sqrt((m.x - px) ^ 2 + (m.z - pz) ^ 2) - RATE * (m.t - pt)
+			local e2 = math.sqrt((m.x - ax) ^ 2 + (m.z - az) ^ 2) - RATE * (m.t - at)
+			need = math.max(need, e1, e2)
 			if m.k > newest then
 				newest = m.k
+				px, pz, pt = m.x, m.z, m.t
 				if m.t - at >= WINDOW then ax, az, at = m.x, m.z, m.t end
 			end
 		end
@@ -100,7 +104,7 @@ for _, c in { { "unreliable", 0.02, false, 0 }, { "unreliable", 0.05, false, 0 }
 		local a, b, n = simulate(lane, 1_000_000, seed, jitter, stalls)
 		worst = math.max(worst, a); worstNeed = math.max(worstNeed, b); lates += n
 	end
-	print(string.format("%-10s jitter %.2f s stalls %-5s: bucket max level %.3f studs | anchor: burst needed %.3f, derived %.3f | %d late frames",
+	print(string.format("%-10s jitter %.2f s stalls %-5s: bucket max level %.3f studs | two-reference: burst needed %.3f, derived %.3f | %d late frames",
 		lane, jitter, tostring(stalls), worst, worstNeed, derived(jitter, slack), lates))
 end
 
@@ -113,7 +117,7 @@ for k = 1, POOL do
 	payloads[k] = { pos = vector.create(k * 0.25, 0.5, -k * 0.25) }
 end
 type Check = { key: string, rate: number, burst: number, window: number, planar: boolean, slot: number }
-local STRIDE = 6 -- has, ax, ay, az, t_a, newest key
+local STRIDE = 10 -- has, ax, ay, az, t_a, newest key, px, py, pz, t_p
 local state = buffer.create(PLAYERS * 4 * STRIDE * 8)
 local failures = 0
 local function evaluate(c: Check, player: number, payload: any, s: number, now: number): (boolean, boolean)
@@ -130,7 +134,15 @@ local function evaluate(c: Check, player: number, payload: any, s: number, now: 
 		d2 += dy * dy
 	end
 	local allow = c.rate * (now - buffer.readf64(state, o + 32)) + c.burst
-	return d2 <= allow * allow, s > buffer.readf64(state, o + 40) and now - buffer.readf64(state, o + 32) >= c.window
+	local ex = v.x - buffer.readf64(state, o + 48)
+	local ez = v.z - buffer.readf64(state, o + 64)
+	local e2 = ex * ex + ez * ez
+	if not c.planar then
+		local ey = v.y - buffer.readf64(state, o + 56)
+		e2 += ey * ey
+	end
+	local allowP = c.rate * (now - buffer.readf64(state, o + 72)) + c.burst
+	return d2 <= allow * allow and e2 <= allowP * allowP, s > buffer.readf64(state, o + 40)
 end
 local function commit(c: Check, player: number, payload: any, s: number, now: number)
 	local v: vector = payload[c.key]
@@ -138,8 +150,13 @@ local function commit(c: Check, player: number, payload: any, s: number, now: nu
 	if buffer.readf64(state, o) == 0 then
 		buffer.writef64(state, o, 1)
 	end
-	buffer.writef64(state, o + 8, v.x); buffer.writef64(state, o + 16, v.y); buffer.writef64(state, o + 24, v.z)
-	buffer.writef64(state, o + 32, now); buffer.writef64(state, o + 40, s)
+	if buffer.readf64(state, o + 8) == 0 or now - buffer.readf64(state, o + 32) >= c.window then
+		buffer.writef64(state, o + 8, v.x); buffer.writef64(state, o + 16, v.y); buffer.writef64(state, o + 24, v.z)
+		buffer.writef64(state, o + 32, now)
+	end
+	buffer.writef64(state, o + 40, s)
+	buffer.writef64(state, o + 48, v.x); buffer.writef64(state, o + 56, v.y); buffer.writef64(state, o + 64, v.z)
+	buffer.writef64(state, o + 72, now)
 end
 local function runChecks(checks: { Check }?, player: number, payload: any, s: number, now: number): number
 	if checks == nil then return 1 end
@@ -168,6 +185,6 @@ local function bench(name: string, checks: { Check }?)
 	print(string.format("%-52s %7.1f ns/op (sink %d)", name, best * 1e9 / N, sink % 7))
 end
 bench("runner, no checks (nil test)", nil)
-bench("runner, maxRate (anchor) vector3, 3-D", { { key = "pos", rate = 1e9, burst = 1e9, window = 0.01, planar = false, slot = 0 } })
-bench("runner, maxRate (anchor) vector3, plane xz", { { key = "pos", rate = 1e9, burst = 1e9, window = 0.01, planar = true, slot = 0 } })
+bench("runner, maxRate (two-reference) vector3, 3-D", { { key = "pos", rate = 1e9, burst = 1e9, window = 10, planar = false, slot = 0 } })
+bench("runner, maxRate (two-reference) vector3, plane xz", { { key = "pos", rate = 1e9, burst = 1e9, window = 10, planar = true, slot = 0 } })
 print(string.format("failures: %d (expected 0); state %d B per player per check", failures, STRIDE * 8))

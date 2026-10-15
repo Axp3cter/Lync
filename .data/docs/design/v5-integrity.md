@@ -1,34 +1,49 @@
 # Lync v5: client-side integrity (milestone 5)
 
-Draft 3.5, 2026-10-15. Part of the v5 design (`v5.md`). The tag, the replay window and the id permutation are part
-of the frame format and are specified in `v5.md` §4.5 (milestone 2). This file specifies the rest, and gives the
-case for each measure. Refused measures, re-judged, are in `v5-changes.md`. "Unmodified client" is defined in
-`v5.md` §1.
+Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in
+`v5-3.6-changes-integrity.md`. The tag, the replay window, the id permutation and the key derivation are part of
+the frame format and are specified in `v5.md` §4.5 (milestone 2). This file specifies the rest and gives the case
+for each measure; everything in it is milestone 5, except the published-place check (§11, milestone 6). Refused
+measures, re-judged, are in `v5-changes.md`. "Unmodified client" is defined in `v5.md` §1.
 
 ## 1. How measures are judged
 
 An executor reads and rewrites every Lync table, upvalue and constant on its client and can call Lync's own API
-`[client-security §1.2]`. Client-side measures cannot make a forged message impossible. Each is judged by the cost
-it imposes on tampering against its runtime, wire, size and developer cost, and by `v5.md` principle 2 that cost is
-weighed, never a veto by itself: where it matters, an option controls it. "A modified client with full memory
-access can defeat it" and "a universal counter exists" are not reasons on their own: Lync varies what a counter
-depends on per build (rotation), per server (permutation) and per session (the key), so a counter written against
-one has to be rebuilt or re-run against the next.
+`[client-security §1.2]`. Client-side measures cannot make a forged message impossible. Each is judged by the
+recurring work it imposes on a modified client against its runtime, wire, size and developer cost, and by `v5.md`
+principle 2 that cost is weighed, never a veto by itself: where it matters, an option controls it. "A modified
+client with full memory access can defeat it" and "a universal counter exists" are not reasons on their own: Lync
+varies what a counter depends on per build (§2), per server (permutation), per session (the key) and per player
+(§2.4), so a counter written against one has to be rebuilt or re-run against the next. Every measure is judged
+against the capability classes below `[security-tooling §9]` `[generation-methods §0]`.
 
-| Route `[client-security §1.4]` | What the modified client does | Measures that price it |
+| Capability class | What a modified client does with it | Measures that price it |
 |---|---|---|
-| raw sender, packet injector | fires Lync's remotes, or edits packets below the encoder | tag, replay window, the server's shape and budget checks |
-| replayer | resends captured frames | tag (reliable), replay window (unreliable) |
-| static forger | builds frames from the published format | tag, permutation, rotation |
-| extractor | reads key, count and permutation from memory, encodes itself | count lockstep (slips are `tagMismatch`/`frameGap`), permutation per session, rotation per build |
-| API driver | calls `Net.x:fire()` from executor code | traps and reachability, caller probe |
-| injector of inbound frames | fires Lync's client listener with fake frames | refused-frame report |
-| raw-state reader | reads replicated state from memory (ESP, radar, bots) | decoys, canaries |
-| timing tools | accelerates the client clock; pre-answers server asks | clock beacon, early answers |
+| none (no key): raw sender, replayer, static forger | fires Lync's remotes with built or captured frames | tag, replay window, permutation, the server's shape and budget checks (`v5.md` §4.5, §6.1) |
+| **code**: reading its own bytecode and constants | reads layouts, constants and lists from the shards | per-build values (§2): each build's must be read again |
+| **mem**: reading and writing Lync's upvalues, stack and GC objects | reads key, count and permutation; calls Lync's internal encoder and tag function | count lockstep (slips are `tagMismatch`/`frameGap`), per-session key and permutation, per-build values |
+| **api**: requiring client modules, calling Lync's API | fires definitions through Lync's own encoder | traps and reachability (§3), caller probe (§4), reactions and challenges (§7) |
+| **hook**: hooking functions and metamethods | changes values above the encoder; spies on remotes | server checks only; the tag, for edits below the encoder within `tag.cover` |
+| **signal**: firing or disabling its own connections | injects inbound frames into its own view | refused-frame report (§5) |
+| **packet**: send and receive hooks below Luau | reads, drops or edits frames | tag and replay window; the key derived from a `WELCOME` nonce (`v5.md` §4.5) |
+| **identity**: thread identity control | runs at identity 8 by default | caller probe, identity read (§4) |
+| **naming**: naming or hiding chunks and stack frames | makes executor code read as game code | caller probe, source check (§4) |
+| **clock**: clock and frame-rate control | accelerates or slows its clock; answers before an ask could arrive | clock beacon (§6), timing facts (§7) |
+| **state**: reading replicated state | reads everything Lync replicates to it (ESP, aim, auto-collect) | decoys (§8), canaries (§9) |
+| **share**: carrying artefacts between machines and accounts | runs a tool, layout, mask or value taken from another account | per-build values (§2), per-player variants (§2.4), per-viewer canaries (§9) |
 
-Tamper cost of the milestone 2 measures: the tag makes a forger read the key every session and keep the count in
-lockstep with Lync's own sends; the permutation makes a byte tool read this server's seed or table every session
-`[review-2 m5]`.
+- **Tamper cost of the milestone 2 measures.** The tag makes a forger hold this session's key and keep the count
+  in lockstep with Lync's own sends. The key reaches the client as a nonce it derives the key from under a
+  per-build secret (`v5.md` §4.5), so a packet-level hook must also read that secret from the shard each build; a
+  memory reader takes the derived key from Lync's state. The permutation makes a byte tool read this server's seed
+  every session `[review-2 m5]` `[generation-methods M8]`.
+- **Client-stated measures** (`REPORT`, the caller bit) are judged against the tools they target, which leave Lync
+  unpatched: executor code calling Lync's API and injectors of inbound frames. "A patched Lync suppresses it" is
+  true of every client-stated count and is no reason about one `[refusals-rejudged-2 Impl2]`.
+- **Facts, never consequences.** Lync drops only what it cannot deliver (malformed input, budgets, a trap's
+  messages, which have no handler) and reports facts. It has no quiet mitigation hooks (R22), no suspicion
+  weights or scores (R23) and no automatic kick, ban, throttle or client-visible rejection (R24): each would be
+  Lync deciding policy, which is the game's code (`v5.md` §0).
 
 ## 2. Per-build rotation (kept: author decision)
 

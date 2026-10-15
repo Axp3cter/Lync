@@ -104,3 +104,11 @@ RETURN R4 1
    46: 	return 0
 L1: LOADN R4 0
 RETURN R4 1
+== -O0 (debug.info stability)
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+== -O1 (debug.info stability)
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true

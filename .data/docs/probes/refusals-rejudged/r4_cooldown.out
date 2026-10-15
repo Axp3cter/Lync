@@ -1,0 +1,11 @@
+# Luau 0.742 (.data/projects/luau, scratch build); interpreted -O2, then the last two lines native --codegen
+cooldown   0.5 s: admitted at once after idle 5 (1 + 2/s = 5.00); second message admitted after 0.000 s (s - 2 = 0.0)
+cooldown   1.0 s: admitted at once after idle 3 (1 + 2/s = 3.00); second message admitted after 0.000 s (s - 2 = 0.0)
+cooldown   2.0 s: admitted at once after idle 2 (1 + 2/s = 2.00); second message admitted after 0.000 s (s - 2 = 0.0)
+cooldown   5.0 s: admitted at once after idle 1 (1 + 2/s = 1.40); second message admitted after 3.001 s (s - 2 = 3.0)
+cooldown  10.0 s: admitted at once after idle 1 (1 + 2/s = 1.20); second message admitted after 8.000 s (s - 2 = 8.0)
+cooldown  30.0 s: admitted at once after idle 1 (1 + 2/s = 1.07); second message admitted after 28.000 s (s - 2 = 28.0)
+within with reference (r.x, v.y, r.z):	11.350247383117676	planar distance (vector, f32):	11.350247383117676	equal:	true	f64:	11.350247794651885
+random pairs with equal planar distance by both forms:	1000000	of 1000000
+within with reference (r.x, v.y, r.z):	11.350247383117676	planar distance (vector, f32):	11.350247383117676	equal:	true	f64:	11.350247794651885
+random pairs with equal planar distance by both forms:	1000000	of 1000000

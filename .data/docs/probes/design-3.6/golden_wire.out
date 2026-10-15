@@ -1,0 +1,26 @@
+run: luau 0.740, CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+check HalfSipHash-2-4/32, key 00..07, empty:	a9 35 9f 5b 	(reference a9 35 9f 5b)
+G1 EG-0(0) stream bits: 1
+G1 EG-0(1) stream bits: 010
+G1 EG-0(2) stream bits: 011
+G1 EG-0(3) stream bits: 00100
+G1 EG-0(7) stream bits: 0001000
+G1 EG-2(5) stream bits: 01010
+G2 	03 00 94 06 12 00 
+G2b	95 06 44 30 
+G3 	4a 03 03 f4 01 00 
+G4 	00 48 2b 00 67 67 35 5e a9 22 
+G4c	01 48 2b 00 67 67 20 26 cc 0f 
+G5 	00 60 01 0c 00 04 b8 a6 11 cc 
+G6 serialization	01 05 00 61 72 65 6e 61 01 00 04 00 63 68 61 74 01 01 01 01 08 00 00 00 00 00 00 69 40 00 00 00 00 00 00 00 00 01 00 00 
+G6 hash         	6f 5c 47 f4 ce 67 b3 44 
+G7 	00 68 0c 00 00 00 00 78 e3 3a a2 77 3e 9b 25 02 00 00 00 28 00 61 72 65 6e 61 	(hash of the G6 schema)
+G8 	00 80 54 e2 6a ff bb da ff 01 c6 0e a8 ce 30 fe 
+   aim code 1024; modes (mode,k,cost): (2,11,22) (2,11,22) (1,0,20)
+G9 t.int() -4503599627370496: zigzag 9007199254740991, 107 bits:	00 00 00 00 00 00 20 00 00 00 00 00 00 00 
+G9 t.int() 4503599627370495: zigzag 9007199254740990, 105 bits:	00 00 00 00 00 00 f0 ff ff ff ff ff ff 01 
+G10	03 00 d4 01 29 00 00 00 00 00 44 8f 40 14 00 40 80 c0 00 41 81 c1 01 00 01 00 00 00 00 00 00 00 
+G11	ea 0a 
+DERIVE key	3a 33 49 1c 72 20 4e d1 	permutation seed 0x908e0dfe
+W1 	00 48 57 00 67 67 5c 4c 1f 9d 	(chat site, "gg")
+W2 	00 48 19 00 1a 77 5b 5a 	(literal buy site, slot 0)

@@ -1,3 +1,4 @@
+# Luau 0.742 (.data/projects/luau, scratch build), -O2; model output is deterministic (seed 42)
 model (64 live (6% of slots)): maxRecords 1024, real arrivals 3.2/s, life 20 s, decoy life 5 s, 7200 s simulated
 range  reuse adds seen: real 22160, decoy 1476 | G=1.99: decoy 1.000 real 0.0000 | G=2.5: decoy 1.000 real 0.0016 | G=5: decoy 1.000 real 0.0111 | G=30: decoy 1.000 real 0.0983 | G=120: decoy 1.000 real 0.3431 | best balanced accuracy 1.000 at G=0.5
 pool0  reuse adds seen: real 22069, decoy 1428 | G=1.99: decoy 1.000 real 0.0000 | G=2.5: decoy 1.000 real 0.0015 | G=5: decoy 1.000 real 0.0108 | G=30: decoy 1.000 real 0.0960 | G=120: decoy 1.000 real 0.3422 | best balanced accuracy 1.000 at G=0.5

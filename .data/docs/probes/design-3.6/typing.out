@@ -1,0 +1,99 @@
+== read_modifier.luau --solver=old
+./read_modifier.luau(2,19): TypeError: read keyword is illegal here
+./read_modifier.luau(4,7): TypeError: Key 'x' not found in table 'A'
+== read_modifier.luau --solver=new
+== read_consumer.luau --solver=old
+./read_consumer.luau(3,41): TypeError: Key 'x' not found in table 'A'
+./read_consumer.luau(4,1): TypeError: Expected this to be 'string', but got 'number'
+./read_consumer.luau(4,7): LocalUnused: Variable 'y' is never used; prefix with '_' to silence
+== read_consumer.luau --solver=new
+./read_consumer.luau(4,19): TypeError: Expected this to be 'string', but got 'number'
+./read_consumer.luau(4,7): LocalUnused: Variable 'y' is never used; prefix with '_' to silence
+== overloads_options.luau --solver=old
+== overloads_options.luau --solver=new
+./overloads_options.luau(12,1): TypeError: None of the overloads for function that accept 3 arguments are compatible.
+./overloads_options.luau(12,1): TypeError: Available overloads: (View, "landing", O<vector>) -> (); and (View, "flight", O<number>) -> ()
+./overloads_options.luau(13,1): TypeError: None of the overloads for function that accept 3 arguments are compatible.
+./overloads_options.luau(13,1): TypeError: Available overloads: (View, "landing", P<vector>) -> (); and (View, "flight", P<number>) -> ()
+./overloads_options.luau(14,1): TypeError: None of the overloads for function that accept 3 arguments are compatible.
+./overloads_options.luau(14,1): TypeError: Available overloads: (View, "landing", L) -> (); and (View, "flight", L) -> ()
+== field_handle.luau --solver=old
+./field_handle.luau(20,48): TypeError: Expected this to be 'number?', but got 'vector'
+caused by:
+  None of the union options are compatible. For example:
+Expected this to be 'number', but got 'vector'
+./field_handle.luau(21,26): TypeError: Expected this to be exactly
+	'{ fn: (string, Shot) -> number?, policy: "deliver" | "drop", tolerance: number }'
+but got
+	'{| fn: (string, Shot) -> number?, policy: "dorp", tolerance: number |}'
+caused by:
+  Property 'policy' is not compatible.
+Expected this to be exactly '"deliver" | "drop"', but got '"dorp"'; none of the union options are compatible
+./field_handle.luau(22,26): TypeError: Expected this to be exactly
+	'Collection<number>'
+but got
+	'Collection<string>'
+caused by:
+  Property 'get' is not compatible.
+Expected this to be exactly
+	'(Collection<number>, number) -> {  }?'
+but got
+	'(Collection<string>, string) -> {  }?'
+caused by:
+  Argument #1 type is not compatible.
+Expected this to be exactly
+	'Collection<string>'
+but got
+	'Collection<number>'
+caused by:
+  Property 'get' is not compatible.
+Expected this to be exactly
+	'(Collection<string>, string) -> {  }?'
+but got
+	'(Collection<number>, number) -> {  }?'
+caused by:
+  Argument #2 type is not compatible.
+Expected this to be exactly 'number', but got 'string'
+./field_handle.luau(23,9): TypeError: Expected this to be '"landing"', but got '"nope"'
+./field_handle.luau(23,1): TypeError: Other overloads are also not viable: (View, "flight") -> Field<Shot, number>; and (View, "target") -> Field<Shot, number>
+== field_handle.luau --solver=new
+./field_handle.luau(20,55): TypeError: Expected this to be 'number?', but got 'vector'
+./field_handle.luau(21,93): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+./field_handle.luau(22,26): TypeError: Expected this to be
+	'{ get: (Collection<number>, number) -> {  }? }'
+but got
+	'Collection<string>'; 
+this is because 
+	 * Expected the 2nd parameter of property `get` of the 1st parameter of property `get` of the 1st parameter of property `get` to be exactly `number`, but got `string`
+	 * Expected the 2nd parameter of property `get` of the 1st parameter of property `get` to be exactly `number`, but got `string`
+	 * Expected the 2nd parameter of property `get` to be exactly `number`, but got `string`
+./field_handle.luau(23,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./field_handle.luau(23,1): TypeError: Available overloads: (View, "landing") -> Field<Shot, vector>; (View, "flight") -> Field<Shot, number>; and (View, "target") -> Field<Shot, number>
+== result_types.luau --solver=old
+./result_types.luau(14,8): TypeError: Expected this to be 'number', but got 'number?'
+./result_types.luau(15,8): TypeError: Key 'value' not found in table '{ error: "left" | "timeout", minPing: number?, ok: false, pingAtAnswer: number?, pingAtSend: number?, roundTrip: number? }'
+== result_types.luau --solver=new
+./result_types.luau(14,8): TypeError: Operator '+' could not be applied to operands of types number? and number; there is no corresponding overload for __add
+./result_types.luau(15,8): TypeError: Key 'value' not found in table '{ error: "left" | "timeout", minPing: number?, ok: false, pingAtAnswer: number?, pingAtSend: number?, roundTrip: number? }'
+== field_handle.ts tsc --strict
+Version 6.0.2
+field_handle.ts(21,42): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+field_handle.ts(22,66): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+field_handle.ts(23,26): error TS2345: Argument of type 'Collection<string>' is not assignable to parameter of type 'Collection<number>'.
+  Type 'string' is not assignable to type 'number'.
+field_handle.ts(24,9): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(this: void, path: "landing"): Field<Shot, Vector3>', gave the following error.
+    Argument of type '"nope"' is not assignable to parameter of type '"landing"'.
+  Overload 2 of 3, '(this: void, path: "flight"): Field<Shot, number>', gave the following error.
+    Argument of type '"nope"' is not assignable to parameter of type '"flight"'.
+  Overload 3 of 3, '(this: void, path: "target"): Field<Shot, number>', gave the following error.
+    Argument of type '"nope"' is not assignable to parameter of type '"target"'.
+== field_handle_typefn.luau --solver=new (runtime path: a type function builds the overloads)
+./field_handle_typefn.luau(22,44): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./field_handle_typefn.luau(23,1): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./field_handle_typefn.luau(23,1): TypeError: Available overloads: (any, "landing") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; and (any, "flight") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }
+== result_types.ts tsc --strict
+result_types.ts(11,8): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+result_types.ts(12,4): error TS2339: Property 'value' does not exist on type '{ readonly ok: false; readonly error: "left" | "timeout"; readonly roundTrip?: number | undefined; readonly pingAtSend?: number | undefined; readonly pingAtAnswer?: number | undefined; readonly minPing?: number | undefined; }'.

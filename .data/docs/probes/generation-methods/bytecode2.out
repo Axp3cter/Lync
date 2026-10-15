@@ -1,0 +1,4 @@
+enc_plain: 50 defs 11214 B, 200 defs 44843 B (-O2 -g0); marginal 224 B per definition; 200 defs at -g1 52883 B
+enc_offset: 50 defs 17815 B, 200 defs 71250 B (-O2 -g0); marginal 356 B per definition; 200 defs at -g1 83114 B
+dec_plain: 50 defs 11142 B, 200 defs 44621 B (-O2 -g0); marginal 223 B per definition; 200 defs at -g1 52849 B
+dec_offset: 50 defs 17564 B, 200 defs 70258 B (-O2 -g0); marginal 351 B per definition; 200 defs at -g1 82098 B

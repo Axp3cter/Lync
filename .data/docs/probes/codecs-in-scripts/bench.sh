@@ -4,7 +4,7 @@
 # server: runtime and shard native (a --!native shard), game script as on a Roblox server (only @native functions).
 # native: every chunk native (upper bound).
 H=$1; G=$2; CPU=${3:-3}
-for f in "$G"/bench_*.luau "$G"/dec_*.luau; do
+for f in "$G"/bench_*.luau "$G"/dec_move6_*.luau; do
   for sc in client server native; do
     case $sc in
       client) m=interp; s=interp ;;

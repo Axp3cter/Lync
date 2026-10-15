@@ -11,7 +11,7 @@ for p in $PROBES; do
 	: > "$p.out"
 	for mode in "-O2" "-O2 --codegen"; do
 		for run in 1 2 3; do
-			echo "== $p, luau $mode, run $run ($("$LUAU" --help 2>&1 | head -0)$(basename "$LUAU"))" >> "$p.out"
+			echo "== $p, $(basename "$LUAU") $mode, run $run" >> "$p.out"
 			"$LUAU" $mode "$p.luau" >> "$p.out" 2>&1
 		done
 	done

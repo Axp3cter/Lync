@@ -3,7 +3,8 @@ scenario and form, the median over passes of each pass's median ns per call; the
 brackets."""
 import json, sys, statistics
 from collections import defaultdict
-rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip().endswith("}")]
+import re
+rows = [json.loads(m) for l in open(sys.argv[1]) for m in re.findall(r"\{\"scenario\":\"[a-z]+\",\"def\"[^{}]*\}", l)]
 med, mn = defaultdict(list), defaultdict(list)
 for r in rows:
     k = (r["def"], r["scenario"], r["form"])

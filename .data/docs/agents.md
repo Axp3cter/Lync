@@ -40,6 +40,8 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   No new agents beyond the five above; follow-ups go to an agent once it finishes its current task.
 - Process rule: every agent writes a header and a checklist first, then one section per edit, ticking it; an
   interrupted section is marked "not written" and the agent continues. Briefs are worded around what Lync builds.
+- Generation-methods units (the methods agent and unit 6) must come from Opus 5.5 only: launched with the Opus
+  model, transcript checked on return, and any section written on another model redone as its own unit.
 - Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
   interruptions: a unit written after one is redone as its own unit.
   1. `interest`: D1, U8, U13 → `research/interest-rewind.md` (on `ade0c89512482ae96`).

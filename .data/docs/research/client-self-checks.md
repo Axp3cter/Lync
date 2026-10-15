@@ -148,7 +148,7 @@ search is 2^64 per session; with a vetted altered set it is unanalysed.
 |---|---|---|---|---|---|
 | 1-3, reference rotations (today) | 2.33–2.37 µs | 27.1–27.8 µs | 0.29 µs | 3.64 µs | 2,234 B |
 | 1-3, altered rotations | 2.33–2.36 µs | 26.3–28.0 µs | 0.28 µs | 3.73 µs | 2,234 B |
-| 1-4 | 2.33–2.49 µs | 26.7–26.8 µs | 0.30 µs | 3.67 µs | — |
+| 1-4 | 2.33–2.49 µs | 26.7–26.8 µs | 0.30 µs | 3.67 µs | 2,538 B |
 | 2-3 | 3.62–4.21 µs | 45.3–47.7 µs | 0.52 µs | 6.25 µs | 2,842 B |
 | 2-4 | 3.83–3.93 µs | 48.2–48.5 µs | 0.48 µs | 6.59 µs | 3,146 B |
 | 2-4, altered rotations | 3.90–3.91 µs | 47.8–50.4 µs | 0.50 µs | 6.80 µs | 3,146 B |
@@ -157,8 +157,8 @@ search is 2^64 per session; with a vetted altered set it is unanalysed.
 
 - Rotation amounts and d cost nothing measurable. Each extra compression round adds about 19 ns per covered byte
   interpreted (26 ns at c = 1, 45 at 2, 64 at 3, 82 at 4) and about 2.7 ns native.
-- The busy model (70 upstream frames/s, v5.md §4.1) at about 64 B per frame: c = 2 costs a client about
-  0.1 ms/s more than c = 1, interpreted, and the server about 15 µs/s more per player, native. A tag failure costs
+- The busy model (70 upstream frames/s, v5.md §4.1) at about 64 B per frame: c = 2 costs a client 0.09–0.13 ms/s
+  more than c = 1, interpreted, and the server 13–16 µs/s more per player, native. A tag failure costs
   up to 5 PRFs at the variant's price.
 - Unrolling grows each shard by about 300 B per extra round per pass (word loop and tail); a loop with a literal
   bound keeps the size of 1-3. The milestone code used a loop.

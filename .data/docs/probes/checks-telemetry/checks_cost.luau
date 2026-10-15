@@ -148,7 +148,7 @@ for k = 1, POOL do
 end
 
 -- Server-known references: one vector per player, read by a game-supplied reference function.
-local roots: { vector } = table.create(PLAYERS)
+local roots: { vector } = {}
 for p = 1, PLAYERS do
 	roots[p] = vector.create(0, 0, 0)
 end
@@ -263,7 +263,7 @@ end
 -- Runs a definition's checks on one message: evaluate all, then (if the message is delivered) commit all.
 -- Returns 1 delivered, 0 dropped. A failing check calls `fail` (the fact record is costed separately: 20.5 ns
 -- native per occurrence, research/diagnostics.md §9).
-local pendingValues: { number? } = table.create(CHECKS_PER_PLAYER)
+local pendingValues: { number? } = {}
 local function runChecks(checks: { Check }?, player: number, payload: any, seq: number, now: number): number
 	if checks == nil then
 		return 1

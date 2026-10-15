@@ -1,0 +1,15 @@
+# lune 0.11.0 run stream_read.luau <scratch dir>; the .rbxl stays in the scratch dir
+set StreamingEnabled: ok
+set StreamingTargetRadius: ok
+set StreamingMinRadius: ok
+set StreamOutBehavior: ok
+set ModelStreamingBehavior: ok
+read back Workspace.StreamingEnabled = true
+read back Workspace.StreamingTargetRadius = 512
+read back Workspace.StreamingMinRadius = 64
+read back Workspace.StreamOutBehavior = Enum.StreamOutBehavior.Opportunistic
+read back Workspace.ModelStreamingBehavior = Enum.ModelStreamingBehavior.Improved
+read back Workspace.StreamingIntegrityMode = Enum.StreamingIntegrityMode.Default
+ModuleScript ServerStorage.ServerStorage.season2: reaches no client; declares namespace season2: true
+ModuleScript ReplicatedStorage.ReplicatedStorage.season2: reaches every client; declares namespace season2: true
+Workspace non-BasePart Workspace.Unreleased (Folder), attributes 1: replicated at join (streaming scope excludes only BaseParts and atomic/persistent models)

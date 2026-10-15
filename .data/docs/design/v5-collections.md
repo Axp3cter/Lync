@@ -407,3 +407,85 @@ of `refers` (`v5-integrity.md` §8).
   ("defusing since t") must be state on the record, so catch-up shows it: an event is never repaired after a
   relevancy gap. A lint for that has no exact trigger, since the schema doesn't say what a field means, so it stays
   documentation.
+
+## 11. Interpolation
+
+The client renders `:newest()` fields a delay D behind the newest state it received, between the samples it holds.
+Rewind (§12) needs D exactly, so it is part of the protocol.
+
+### 11.1 Decision: who chooses the delay
+
+- **Problem.** D sets how far behind the present a client renders, so it is part of the tick the client perceives.
+  Draft 3.5 had the client adapt D from its own arrival jitter. Whatever the client chooses, the server must take
+  its word for, and a client-chosen D is a client-stated rewind offset bounded by a formula: R20 again
+  `[interest-rewind §11.3]`.
+- **Options:** the client adapts D (smallest buffer for its own link; the server trusts it); one fixed D for every
+  player (no adaptation: underruns on jittery links, needless delay on clean ones); **the server computes D per
+  player from its own estimate and sends it**.
+- **Choice: the server chooses D.** It sees both directions in its ack round trip, so its jitter errs toward a
+  longer delay, never a shorter one.
+- **Timing estimates, per player** (server, `os.clock()` throughout, the one clock of every server timing,
+  `v5-3.6-inputs.md` §4 #28):
+  - a sample per state frame n: (arrival of the first upstream frame whose ack names n as its newest seq) − (n's
+    send time). Taking only the newest seq of each ack keeps the client's ack delay at one client flush, since the
+    ack-only rule (`v5.md` §4.1) sends an ack when a frame arrives, not about older ones;
+  - over the samples of the last 5 s: ackRtt = their minimum, jitter = their mean absolute deviation from their
+    mean. 5 s is chosen, unmeasured: it is the beacon estimator's window (`v5.md` §4.9); a longer one reacts more
+    slowly to a route change, a shorter one is noisier. With no sample in the window both keep their last values.
+- **D, exactly.** Target = max(2 / `stateRate`, 0.1 s) + 2 × jitter, Source's floor `cl_interp` 0.1 s and the
+  research's jitter term `[state-sync §6.3]`, in units of 4 ms rounded up, at most 255 units (1.02 s). Once a second
+  per player, D moves one unit toward the target. Both ends start at D₀ = ⌈max(2 / `stateRate`, 0.1) / 0.004⌉
+  units, which needs no message; a `stateRate` change sets D = max(D, the new D₀) at once.
+- **Wire.** `RATE` gains `delay u8` (D in 4 ms units) and goes to one player whenever its D changes, besides every
+  `stateRate` change; the client applies it as decoded. Cost: at most one `RATE` row (78 bits of fields) per player
+  per second. The unit and step are protocol constants: u8 × 4 ms covers jitter up to 0.41 s at 10 Hz, and one unit
+  a second changes the playback rate by 0.4%, below `GetServerTimeNow()`'s own 0.6% rate bound `[state-sync §6.1]`
+  (chosen, unmeasured for visibility).
+
+### 11.2 The rendering clock and sampling
+
+- **Target tick.** τ* = T_n + (c − a_n) × `stateRate` − D × `stateRate`, where n is the newest state frame received
+  (largest extended seq), T_n its tick, a_n its arrival on the client's `os.clock()` and c the time now. This is the
+  quantity §12.3 reconstructs on the server.
+- **Clock.** Once per client frame, at `RunService.PreRender`, the render tick τ follows τ*: e = τ* − τ; if |e| >
+  0.25 × `stateRate` or τ is unset, τ = τ*; otherwise τ advances by Δt × `stateRate` × (1 + 0.04 × sign(e)) when |e|
+  is more than one client flush (`stateRate` / 60 ticks), and by Δt × `stateRate` otherwise. Catching up or slowing
+  by 4% instead of jumping is the research's recommendation (Mirror's 2–4%, the upper end chosen)
+  `[state-sync §6.3]`; the snap threshold is the extrapolation cap, beyond which the buffer is empty anyway.
+- **Samples.** Per record, the client keeps (tick, `:newest()` values, `seg`) for its add and each applied row: the
+  newest sample at or before τ and every later one, at most ⌈D × `stateRate`⌉ + 2 (derived from the rows a record
+  can receive in D).
+- **Sampling at τ** (the same function on the server in §12.4). a is the newest sample with tick ≤ τ, b the next:
+  - a and b with equal `seg`: each field at α = (τ − T_a) / (T_b − T_a);
+  - a and b with different `seg` (a cut between them): a's values;
+  - no b: from the two newest samples when their `seg` is equal, at α for min(τ, T_newest + 0.25 × `stateRate`),
+    else the newest's values. The 0.25 s extrapolation cap is Source's `cl_extrapolate_amount` `[state-sync §6.3]`;
+  - no a: the oldest sample's values.
+- **Per codec:** `t.vector3`, `t.vector3f32`, `t.number`, `t.f32`, `t.f64` and a `t.cframe`'s position lerp;
+  `t.angle` lerps along the shorter arc; `t.rotation`, `t.direction` and a `t.cframe`'s rotation nlerp; every other
+  field takes a's value. α above 1 extrapolates with the same formulas.
+
+### 11.3 Cuts
+
+- **Problem.** A teleport or respawn between two samples interpolates through the space between. The client must
+  know a cut happened between two samples it holds even when the rows around it were lost or deferred, and rows are
+  encoded once for every viewer.
+- **Options:** a list of cut slots in reliable state chunks (ordered with the reliable lane, not with rows, so a row
+  after the cut can be interpolated before the list arrives); per-viewer "cut pending" flags in rows (breaks
+  encode-once); **a per-record segment bit in every add and row**, flipped by each cut.
+- **Choice: the segment bit.** `Net.c:cut(key)` flips the record's `seg` at the next state tick (several calls before
+  one state tick flip it once). Samples with different `seg` are never interpolated together (§11.2), on the client
+  or in rewind. Cost: 1 bit per add and per row (inside §5's 3/8 B mean). Limit: two cuts at different ticks between
+  two samples one viewer receives leave `seg` equal, and that viewer interpolates across both; stored values are
+  never affected, only rendering between them.
+
+### 11.4 API and cost
+
+- **`Net.c:interpolated(key)`** (client) returns a frozen record: reliable fields as `get` returns them,
+  `:newest()` fields sampled at τ. It returns nil when `get` does.
+- **Cost.** Per call, one frozen record (320 B for the 6-field fighter, as §2's clone) and one sample per
+  `:newest()` field. Unmeasured on the client; the nearest probes are the server's position-only lerp at 141–146 ns
+  interpreted and a bracket-lerp with two rotation decodes at 389–437 ns `[interest-rewind §11.7]`. Memory: §11.2's
+  samples per record. Wire: §11.1's `RATE` and §11.3's bit.
+- **A game with its own interpolation** reads `get` and the fields' sample ticks through `changed`, and sets
+  `rewind`'s `delay` to the constant it uses (§12.2); Lync can't see its clock.

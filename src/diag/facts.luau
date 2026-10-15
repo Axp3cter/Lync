@@ -35,14 +35,14 @@ local Facts = {}
 
 --- What happened, frozen when delivered; `evidence` holds the reason's fields (Codes.evidence).
 export type Fact = {
-	read reason: Codes.Code,
-	read player: Player?,
-	read namespace: string?,
-	read definition: string?,
-	read count: number,
-	read first: number,
-	read last: number,
-	read evidence: { read [string]: number },
+	reason: Codes.Code,
+	player: Player?,
+	namespace: string?,
+	definition: string?,
+	count: number,
+	first: number,
+	last: number,
+	evidence: { [string]: number },
 }
 
 -- An open coalescing window. `count`, `first`, `last` and the evidence cover the occurrences
@@ -172,14 +172,15 @@ local function evidenceOf(
 	e3: number?,
 	e4: number?,
 	e5: number?
-): { read [string]: number }
+): { [string]: number }
 	local values = { e1, e2, e3, e4, e5 }
-	local evidence = {}
+	local evidence: { [string]: number } = {}
 	for i, name in Codes.evidence[reason] do
 		evidence[name] = values[i]
 	end
+	table.freeze(evidence)
 
-	return table.freeze(evidence)
+	return evidence
 end
 
 local function deliver(
@@ -191,7 +192,7 @@ local function deliver(
 	count: number,
 	first: number,
 	last: number,
-	evidence: { read [string]: number }
+	evidence: { [string]: number }
 )
 	sender.deliveredCount += 1
 	s.serverDeliveredCount += 1
@@ -206,7 +207,8 @@ local function deliver(
 		last = last,
 		evidence = evidence,
 	}
-	emit(s, table.freeze(fact))
+	table.freeze(fact)
+	emit(s, fact)
 end
 
 local function suppress(
@@ -284,7 +286,8 @@ local function closeCapWindow(s: State, sender: Sender)
 	}
 	table.clear(sender.suppressedByReason)
 	sender.suppressedCount = 0
-	emit(s, table.freeze(fact))
+	table.freeze(fact)
+	emit(s, fact)
 end
 
 -- Closes what has ended for one sender, and answers whether it now holds nothing.

@@ -32,6 +32,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | append to `research/generation-methods.md`, `probes/generation-methods/run4.sh` | running |
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
+| `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -59,7 +60,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       tables → append to `research/generation-methods.md`.
   6b. `methods, part 2b` (Opus, on `a90ea3732751c0bdf`): per-build generated traps, decoys and canaries; composition with
       `codecs-in-scripts.md` (site-bound ids) → append to `research/generation-methods.md`.
-  7. `server facts A`: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` → `research/server-facts.md`.
+  7. `server facts A`: U9, U10 → `research/server-facts.md` (on `a37cd6952a2f7bad9`).
   8. `server facts B`: U11 decoy-adjacent facts, U14 server-issued challenges → append to `research/server-facts.md`.
   9. `clock and timing`: U3 beacon window rules, U4 `roundTrip`/`ping` → append to `research/server-facts.md`.
   10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),

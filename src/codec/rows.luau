@@ -319,10 +319,10 @@ local function readVector3(r: Bits.Reader, codec: Ir.Codec): (number?, number, n
 			return nil, 2, 0
 		end
 
-		local min, step = axis.min, axis.step
-		return Quant.unnumber(xCode, min, step),
-			Quant.unnumber(yCode, min, step),
-			Quant.unnumber(zCode, min, step)
+		local min, step, max = axis.min, axis.step, axis.max
+		return Quant.unnumber(xCode, min, step, max),
+			Quant.unnumber(yCode, min, step, max),
+			Quant.unnumber(zCode, min, step, max)
 	end
 
 	local xBits = Bits.read(r, 32)
@@ -442,7 +442,7 @@ local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): 
 		if code > codec.steps then
 			return nil, 2
 		end
-		return Quant.unnumber(code, codec.min, codec.step), 0
+		return Quant.unnumber(code, codec.min, codec.step, codec.max), 0
 	elseif codec.kind == "string" or codec.kind == "buffer" then
 		local length = Bits.read(r, codec.width)
 		if length == nil then

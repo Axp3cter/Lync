@@ -104,9 +104,9 @@ local function valueOf(
 		local y = nextCode(streams, `{key}.y`, n, pattern)
 		local z = nextCode(streams, `{key}.z`, n, pattern)
 		return Vector3.new(
-			Quant.unnumber(x, axis.min, axis.step),
-			Quant.unnumber(y, axis.min, axis.step),
-			Quant.unnumber(z, axis.min, axis.step)
+			Quant.unnumber(x, axis.min, axis.step, axis.max),
+			Quant.unnumber(y, axis.min, axis.step, axis.max),
+			Quant.unnumber(z, axis.min, axis.step, axis.max)
 		)
 	elseif codec.kind == "direction" then
 		local n = 2 ^ codec.bits

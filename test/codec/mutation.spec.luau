@@ -303,11 +303,7 @@ return {
 	["random mutations never raise"] = function()
 		local pool = { Instance.new("Part"), Instance.new("Model"), Instance.new("Part") }
 		Prop.check("mutated payload", function(size: number)
-			local planned = nil
-			while planned == nil do
-				local ok, codec = pcall(Gen.plan, Gen.codec(3, size))
-				planned = if ok then codec else nil
-			end
+			local planned = Gen.plannedCodec(3, size)
 
 			local count = math.random(1, 2 * Column.MIN_ROWS + 1)
 			local style = Gen.style(pool)

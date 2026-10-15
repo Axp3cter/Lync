@@ -25,6 +25,7 @@ local Run = require("../../src/codec/run")
 
 const MAX_RUN = 2 * Column.MIN_ROWS + 1
 const SUBJECT = "gen.e:fire"
+const ZERO_WIDTH = { intSingle = true, enumSingle = true }
 
 local t = Lync.types
 
@@ -108,10 +109,12 @@ local function checkEveryCount(codec: Ir.Codec, name: string, pool: { Instance }
 	end
 end
 
-local function nestingsOf(codec: any): { [string]: any }
+-- A 0-bit leaf can't be an array element alone (`zeroWidthElement`), so it travels with a bool.
+local function nestingsOf(codec: any, name: string): { [string]: any }
+	local element = if ZERO_WIDTH[name] then { value = codec, flag = t.bool() } else codec
 	return {
 		optional = t.optional(codec),
-		array = t.array(codec, MAX_RUN),
+		array = t.array(element, MAX_RUN),
 		map = t.map(t.int(0, 50), codec, MAX_RUN),
 		union = t.union({ empty = {}, holds = { value = codec, flag = t.bool() } }),
 		record = { value = codec, after = t.int(0, 3) },
@@ -133,7 +136,7 @@ return {
 		math.randomseed(2)
 		local pool = instancePool()
 		for name, codec in leafCodecs() do
-			for nesting, nested in nestingsOf(codec) do
+			for nesting, nested in nestingsOf(codec, name) do
 				checkEveryCount(Gen.plan(nested), `{nesting} of {name}`, pool)
 			end
 		end
@@ -156,11 +159,7 @@ return {
 	["random nested codecs round trip"] = function()
 		local pool = instancePool()
 		Prop.check("nested codec", function(size: number)
-			local planned = nil
-			while planned == nil do
-				local ok, codec = pcall(Gen.plan, Gen.codec(3, size))
-				planned = if ok then codec else nil
-			end
+			local planned = Gen.plannedCodec(3, size)
 
 			local count = math.random(1, MAX_RUN)
 			local style = Gen.style(pool)

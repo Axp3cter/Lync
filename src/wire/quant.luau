@@ -7,8 +7,14 @@
 	`t.direction`, smallest-three `t.rotation` and `t.color3`, as pure arithmetic on numbers.
 
 	Callers check ranges and refusals (NaN, out-of-range values, a zero direction) before
-	quantizing; decoders check codes against their widths. Nothing here touches Roblox types.
+	quantizing; decoders check codes against their widths. Nothing here touches Roblox types: a
+	decoded direction is rounded to f32 through a buffer, as a `Vector3` stores it, so that the
+	canonical rule matches the codec's `Vector3` path.
 ]=]
+
+-- Imports -----------------------------------------------------------------------------------------
+
+local Fail = require("../diag/fail")
 
 -- Module ------------------------------------------------------------------------------------------
 
@@ -21,6 +27,9 @@ const SQRT2 = math.sqrt(2)
 const STEP_TOLERANCE = 1e-9
 const AXIS_TOLERANCE = 1e-6
 const COLOR_STEPS = 255
+
+--- How many re-encodings the direction encoder may take to reach a canonical code (v5.md §3.3).
+const MAX_DIRECTION_STEPS = 4
 
 --- The 24 axis-aligned rotation matrices, row-major, in ascending lexicographic order of entries.
 const AXIS: { { number } } = {
@@ -64,10 +73,20 @@ end
 table.freeze(AXIS)
 table.freeze(AXIS_INDEX_BY_KEY)
 
+-- State -------------------------------------------------------------------------------------------
+
+--- Four bytes through which a decoded component is rounded to f32.
+local f32Scratch = buffer.create(4)
+
 -- Private -----------------------------------------------------------------------------------------
 
 local function signOf(v: number): number
 	return if v < 0 then -1 else 1
+end
+
+local function toF32(x: number): number
+	buffer.writef32(f32Scratch, 0, x)
+	return buffer.readf32(f32Scratch, 0)
 end
 
 local function directionCode(c: number, maxCode: number): number
@@ -121,6 +140,52 @@ local function axisIndexOf(
 	end
 
 	return AXIS_INDEX_BY_KEY[key]
+end
+
+-- The octahedral codes of a direction by v5.md §3.3's formula, before the canonical rule.
+local function firstDirectionCodes(x: number, y: number, z: number, bits: number): (number, number)
+	local sum = math.abs(x) + math.abs(y) + math.abs(z)
+	local px = x / sum
+	local py = y / sum
+	if z < 0 then
+		local foldedX = (1 - math.abs(py)) * signOf(px)
+		local foldedY = (1 - math.abs(px)) * signOf(py)
+		px = foldedX
+		py = foldedY
+	end
+
+	local maxCode = 2 ^ bits - 1
+	return directionCode(px, maxCode), directionCode(py, maxCode)
+end
+
+local function decodedDirection(qx: number, qy: number, bits: number): (number, number, number)
+	local maxCode = 2 ^ bits - 1
+	local cx = 2 * qx / maxCode - 1
+	local cy = 2 * qy / maxCode - 1
+	local z = 1 - math.abs(cx) - math.abs(cy)
+	if z < 0 then
+		local foldedX = (1 - math.abs(cy)) * signOf(cx)
+		local foldedY = (1 - math.abs(cx)) * signOf(cy)
+		cx = foldedX
+		cy = foldedY
+	end
+
+	local length = math.sqrt(cx * cx + cy * cy + z * z)
+	return cx / length, cy / length, z / length
+end
+
+-- E(q) of v5.md §3.3: the first codes of the f32 direction that codes decode to.
+local function reencodedDirection(qx: number, qy: number, bits: number): (number, number)
+	local x, y, z = decodedDirection(qx, qy, bits)
+	return firstDirectionCodes(toF32(x), toF32(y), toF32(z), bits)
+end
+
+local function isLowerDirection(ax: number, ay: number, bx: number, by: number): boolean
+	if ax ~= bx then
+		return ax < bx
+	end
+
+	return ay < by
 end
 
 -- Takes the quaternion by the branch with the largest of (trace, r00, r11, r22), ties in that order.
@@ -197,44 +262,74 @@ function Quant.color(c: number): number
 end
 
 --[=[
-	Quantizes a direction by the octahedral mapping.
+	Quantizes a direction by the octahedral mapping, to a canonical code.
+
+	From the first code q it takes q <- E(q), E(q) the first code of the f32 direction q decodes
+	to, until q is a fixed point or the codes enter a 2-cycle, whose lower member by (x, y) it
+	returns (v5.md §3.3). Measured: the first code moves for 0.26% of random directions at 8
+	bits and 0.0009% at 16, always to a fixed point in one step.
 
 	@param  x    the direction's x, finite
 	@param  y    the direction's y, finite
 	@param  z    the direction's z, finite; x, y and z are not all zero
 	@param  bits the width of each code, 8 to 16
-	@return the code of the mapped x, in [0, 2^bits - 1]
-	@return the code of the mapped y, in [0, 2^bits - 1]
+	@return the canonical code of the mapped x, in [0, 2^bits - 1]
+	@return the canonical code of the mapped y, in [0, 2^bits - 1]
+	@error  internal, when re-encoding reaches no fixed point or 2-cycle within 4 steps
 ]=]
 function Quant.direction(x: number, y: number, z: number, bits: number): (number, number)
-	local sum = math.abs(x) + math.abs(y) + math.abs(z)
-	local px = x / sum
-	local py = y / sum
-	if z < 0 then
-		local foldedX = (1 - math.abs(py)) * signOf(px)
-		local foldedY = (1 - math.abs(px)) * signOf(py)
-		px = foldedX
-		py = foldedY
+	local qx, qy = firstDirectionCodes(x, y, z, bits)
+	local previousX = -1
+	local previousY = -1
+	for _ = 1, MAX_DIRECTION_STEPS do
+		local nextX, nextY = reencodedDirection(qx, qy, bits)
+		if nextX == qx and nextY == qy then
+			return qx, qy
+		end
+
+		if nextX == previousX and nextY == previousY then
+			if isLowerDirection(previousX, previousY, qx, qy) then
+				return previousX, previousY
+			end
+
+			return qx, qy
+		end
+
+		previousX = qx
+		previousY = qy
+		qx = nextX
+		qy = nextY
 	end
 
-	local maxCode = 2 ^ bits - 1
-	return directionCode(px, maxCode), directionCode(py, maxCode)
+	-- `Fail.caller` never returns; neither solver accepts its call as a pair of results.
+	local unreachable: any = Fail.caller(
+		"internal",
+		"t.direction encode",
+		`reach a fixed point or a 2-cycle of encode(decode(q)) within {MAX_DIRECTION_STEPS} steps`,
+		Fail.NONE,
+		"report this as a Lync bug"
+	)
+	return unreachable, 0
 end
 
 --[=[
-	Returns whether a direction code is canonical: the code its own decoded direction encodes to
-	(v5.md §3.3). Codes on the fold edge that decode to one direction as another code does are not.
+	Returns whether a direction code is canonical (v5.md §3.3): a fixed point of E, or the lower
+	member by (x, y) of a 2-cycle of E, where E(q) is the first code of the f32 direction q decodes
+	to. Codes on the fold edge that decode to another code's direction are not.
 
 	@param  qx   the code of the mapped x
 	@param  qy   the code of the mapped y
 	@param  bits the width of each code
-	@return true when `Quant.direction(Quant.undirection(qx, qy, bits))` is `(qx, qy)`
+	@return true when `Quant.direction` can return `(qx, qy)`
 ]=]
 function Quant.directionIsCanonical(qx: number, qy: number, bits: number): boolean
-	local x, y, z = Quant.undirection(qx, qy, bits)
-	local encodedX, encodedY = Quant.direction(x, y, z, bits)
+	local nextX, nextY = reencodedDirection(qx, qy, bits)
+	if nextX == qx and nextY == qy then
+		return true
+	end
 
-	return encodedX == qx and encodedY == qy
+	local backX, backY = reencodedDirection(nextX, nextY, bits)
+	return backX == qx and backY == qy and isLowerDirection(qx, qy, nextX, nextY)
 end
 
 --[=[
@@ -371,19 +466,7 @@ end
 	@return the direction's z
 ]=]
 function Quant.undirection(qx: number, qy: number, bits: number): (number, number, number)
-	local maxCode = 2 ^ bits - 1
-	local cx = 2 * qx / maxCode - 1
-	local cy = 2 * qy / maxCode - 1
-	local z = 1 - math.abs(cx) - math.abs(cy)
-	if z < 0 then
-		local foldedX = (1 - math.abs(cy)) * signOf(cx)
-		local foldedY = (1 - math.abs(cx)) * signOf(cy)
-		cx = foldedX
-		cy = foldedY
-	end
-
-	local length = math.sqrt(cx * cx + cy * cy + z * z)
-	return cx / length, cy / length, z / length
+	return decodedDirection(qx, qy, bits)
 end
 
 --[=[

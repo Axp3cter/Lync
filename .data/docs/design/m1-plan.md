@@ -666,3 +666,14 @@ as entries only, without reordering.
 | C11 | m3 | Remove `rotationBitsOf`, `fieldsOf`, the inline cast and the two narrowing `assert`s, using B2's aliases. | Type check; existing tests |
 | C12 | t1 | `Leaves.rotationCodes` loses its `maxSteps` test seam; the test uses a test-local copy. | Rotation specs |
 | C13 | m5 | `leaves.luau` uses `Limits` (A6): one f32-spacing function, `math.isfinite`, `math.floor`. | Existing tests |
+
+### 7.4 Lead rulings during the fixes
+
+- **B5 and C10 are replaced.** A `never`-closed dispatch and `Complete<{ read … }>` are type errors under the old solver,
+  and Lync's own source stays clean on both solvers (principle 3; users' luau-lsp may check `Packages`). Exhaustiveness
+  is proved by tests instead: one spec builds a codec of every IR kind and runs it through every kind dispatch
+  (planner widths and worst cases, serialization, row and column encode and decode), failing on any kind a dispatch
+  doesn't handle. B owns the planner and serialization half, C the codec half.
+- **W for answers** is `1 + E(reply)`; kinds without answers have 0 (`v5.md` §4.8 to say so at the next design pass).
+- **Direction encoder:** it always returns a canonical code, iterating E and taking the lower member of a 2-cycle,
+  like rotation (unit A, in progress); C7's rule-6 refusal waits for it.

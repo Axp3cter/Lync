@@ -212,19 +212,25 @@ return {
 		end
 	end,
 
-	["finds exactly 511 non-canonical direction codes at 8 bits, and encodes none"] = function()
+	-- A decoded direction is a Vector3, stored in f32, so these decode through real Vector3s.
+	["finds exactly 511 non-canonical direction codes at 8 bits, and encodes only canonical ones"] = function()
 		local nonCanonicalCount = 0
 		for qx = 0, 255 do
 			for qy = 0, 255 do
-				local x, y, z = Quant.undirection(qx, qy, 8)
-				local encodedX, encodedY = Quant.direction(x, y, z, 8)
-				local isFixed = encodedX == qx and encodedY == qy
-				Check.expectEqual(Quant.directionIsCanonical(qx, qy, 8), isFixed, `({qx}, {qy})`)
+				local decoded = Vector3.new(Quant.undirection(qx, qy, 8))
+				local encodedX, encodedY = Quant.direction(decoded.X, decoded.Y, decoded.Z, 8)
+				local isCanonical = Quant.directionIsCanonical(qx, qy, 8)
+				local isKept = encodedX == qx and encodedY == qy
+				Check.expectEqual(
+					isKept,
+					isCanonical,
+					`({qx}, {qy}) is kept exactly when canonical`
+				)
 				Check.expect(
 					Quant.directionIsCanonical(encodedX, encodedY, 8),
 					`E({qx}, {qy}) is canonical`
 				)
-				if not isFixed then
+				if not isCanonical then
 					nonCanonicalCount += 1
 				end
 			end
@@ -234,14 +240,39 @@ return {
 		Check.expect(Quant.directionIsCanonical(255, 255, 8), "(255, 255) is the canonical member")
 	end,
 
-	["re-encodes random direction codes at 16 bits to canonical codes"] = function()
+	["encodes random directions to canonical codes that decode and re-encode to themselves"] = function()
+		for _, case in
+			{
+				{ bits = 8, count = 100_000 },
+				{ bits = 10, count = 1_000_000 },
+				{ bits = 12, count = 1_000_000 },
+				{ bits = 16, count = 1_000_000 },
+			}
+		do
+			local bits = case.bits
+			for _ = 1, case.count do
+				local direction = Vector3.new(randomDirection())
+				local qx, qy = Quant.direction(direction.X, direction.Y, direction.Z, bits)
+				Check.expect(Quant.directionIsCanonical(qx, qy, bits), `{direction} at {bits} bits`)
+
+				local decoded = Vector3.new(Quant.undirection(qx, qy, bits))
+				local againX, againY = Quant.direction(decoded.X, decoded.Y, decoded.Z, bits)
+				Check.expect(
+					againX == qx and againY == qy,
+					`({qx}, {qy}) at {bits} bits re-encodes to itself`
+				)
+			end
+		end
+	end,
+
+	["keeps exactly the canonical codes among random codes at 16 bits"] = function()
 		local maxCode = 2 ^ 16 - 1
 		for _ = 1, 100_000 do
 			local qx, qy = math.random(0, maxCode), math.random(0, maxCode)
-			local x, y, z = Quant.undirection(qx, qy, 16)
-			local encodedX, encodedY = Quant.direction(x, y, z, 16)
-			local isFixed = encodedX == qx and encodedY == qy
-			Check.expectEqual(Quant.directionIsCanonical(qx, qy, 16), isFixed, `({qx}, {qy})`)
+			local decoded = Vector3.new(Quant.undirection(qx, qy, 16))
+			local encodedX, encodedY = Quant.direction(decoded.X, decoded.Y, decoded.Z, 16)
+			local isKept = encodedX == qx and encodedY == qy
+			Check.expectEqual(isKept, Quant.directionIsCanonical(qx, qy, 16), `({qx}, {qy})`)
 			Check.expect(
 				Quant.directionIsCanonical(encodedX, encodedY, 16),
 				`E({qx}, {qy}) is canonical`

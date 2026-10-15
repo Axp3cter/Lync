@@ -62,7 +62,7 @@ end
 
 -- Decodes a code into a Vector3 component, stored in f32, and returns the code it re-encodes to.
 local function recoded(axis: Ir.NumberCodec, code: number): number?
-	local component = Vector3.new(Quant.unnumber(code, axis.min, axis.step), 0, 0).X
+	local component = Vector3.new(Quant.unnumber(code, axis.min, axis.step, axis.max), 0, 0).X
 
 	return (Leaves.vector3Codes(component, component, component, axis))
 end

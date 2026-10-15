@@ -566,9 +566,9 @@ function readColumns(
 			return rule
 		end
 
-		local min, step = codec.min, codec.step
+		local min, step, max = codec.min, codec.step, codec.max
 		for i = 1, count do
-			out[i] = Quant.unnumber(out[i], min, step)
+			out[i] = Quant.unnumber(out[i], min, step, max)
 		end
 		return 0
 	elseif codec.kind == "angle" then
@@ -782,12 +782,12 @@ function readColumns(
 			return rule
 		end
 
-		local min, step = axis.min, axis.step
+		local min, step, max = axis.min, axis.step, axis.max
 		for i = 1, count do
 			out[i] = Vector3.new(
-				Quant.unnumber(out[i], min, step),
-				Quant.unnumber(yCodes[i], min, step),
-				Quant.unnumber(zCodes[i], min, step)
+				Quant.unnumber(out[i], min, step, max),
+				Quant.unnumber(yCodes[i], min, step, max),
+				Quant.unnumber(zCodes[i], min, step, max)
 			)
 		end
 		return 0

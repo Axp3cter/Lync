@@ -175,7 +175,7 @@ return {
 		Check.expectEqual(ir.byName.chat.replyMaxElements, 0)
 	end,
 
-	["W counts nested arrays and maps, and t.array(t.bool(), 65535) plans with W = 65,536"] = function()
+	["W counts nested arrays and maps; t.array(t.bool(), 65535) has W = 65,536"] = function()
 		local ir = Lync.schema("elements", {
 			flags = Lync.event({ from = "client", data = t.array(t.bool(), 65_535) }),
 			grid = Lync.event({
@@ -241,7 +241,7 @@ return {
 			})
 		end, {
 			code = "zeroWidthElement",
-			at = at(line + 12),
+			at = at(line + 11),
 			subject = "arena.empty",
 			path = "data",
 		})

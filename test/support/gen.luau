@@ -117,7 +117,7 @@ local function lengthUpTo(max: number, size: number): number
 end
 
 local function numberOf(codec: Ir.NumberCodec): number
-	return Quant.unnumber(codeBelow(codec.steps + 1), codec.min, codec.step)
+	return Quant.unnumber(codeBelow(codec.steps + 1), codec.min, codec.step, codec.max)
 end
 
 local function rotationOf(bits: number): CFrame
@@ -226,22 +226,27 @@ end
 --[=[
 	Returns a random codec from the DSL, nested to at most `depth` levels.
 
-	@param  depth how many levels of optional, array, map, union and record may wrap the leaves
-	@param  size  how large its parameters may grow
+	An optional is never placed where the DSL refuses one: directly inside an optional, as an
+	array element or as a map value (`optionalPlacement`).
+
+	@param  depth             how many levels of optional, array, map, union and record may wrap
+	                          the leaves
+	@param  size              how large its parameters may grow
+	@param  isOptionalAllowed whether the codec may be an optional; true when nil
 	@return the codec or record, for `Gen.plan`
 ]=]
-function Gen.codec(depth: number, size: number): any
+function Gen.codec(depth: number, size: number, isOptionalAllowed: boolean?): any
 	if depth <= 0 or chance(0.3) then
 		return leafCodec(size)
 	end
 
-	local roll = math.random(1, 5)
+	local roll = math.random(if isOptionalAllowed == false then 2 else 1, 5)
 	if roll == 1 then
-		return t.optional(Gen.codec(depth - 1, size))
+		return t.optional(Gen.codec(depth - 1, size, false))
 	elseif roll == 2 then
-		return t.array(Gen.codec(depth - 1, size), math.random(1, MAX_ELEMENTS))
+		return t.array(Gen.codec(depth - 1, size, false), math.random(1, MAX_ELEMENTS))
 	elseif roll == 3 then
-		return t.map(keyCodec(), Gen.codec(depth - 1, size), math.random(1, MAX_ELEMENTS))
+		return t.map(keyCodec(), Gen.codec(depth - 1, size, false), math.random(1, MAX_ELEMENTS))
 	elseif roll == 4 then
 		local variants = {}
 		for i = 1, math.random(1, 3) do
@@ -294,6 +299,22 @@ function Gen.plan(codec: any): Ir.Codec
 	local schema = Lync.schema("gen", { e = Lync.event({ from = "client", data = codec }) })
 
 	return (schema :: any).ir.byName.e.data
+end
+
+--[=[
+	Returns a random codec, nested to at most `depth` levels, that the planner accepts.
+
+	@param  depth how many levels may wrap the leaves
+	@param  size  how large its parameters may grow
+	@return its IR
+]=]
+function Gen.plannedCodec(depth: number, size: number): Ir.Codec
+	while true do
+		local ok, planned = pcall(Gen.plan, Gen.codec(depth, size))
+		if ok then
+			return planned
+		end
+	end
 end
 
 --[=[
@@ -366,14 +387,9 @@ function Gen.value(codec: Ir.Codec, size: number, style: Style): any
 		end
 		return Gen.value(codec.inner, size, style)
 	elseif codec.kind == "array" then
-		-- An absent element would leave a hole, and an array's length is then any border.
-		local inner = codec.inner
-		local elementStyle = if inner.kind == "optional"
-			then { absentChance = 0, variantCount = style.variantCount, instances = style.instances }
-			else style
 		local array = {}
 		for i = 1, lengthUpTo(codec.max, size) do
-			array[i] = Gen.value(inner, size, elementStyle)
+			array[i] = Gen.value(codec.inner, size, style)
 		end
 		return array
 	elseif codec.kind == "map" then

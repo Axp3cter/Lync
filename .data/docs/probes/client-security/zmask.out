@@ -1,0 +1,16 @@
+kind       size  plain permid xorfix stream  (zstd-3 compressed bytes; raw size for reference)
+inputs       16     25     25     25     25
+inputs       64     73     73     73     73
+inputs      256    189    198    266    266
+inputs     1024    637    653   1034   1034
+inputs     4096   2457   2531   4106   4106
+chatlike     16     25     25     25     25
+chatlike     64     73     73     73     73
+chatlike    256    135    182    266    266
+chatlike   1024    355    502   1034   1034
+chatlike   4096   1104   1520   4106   4106
+random       16     25     25     25     25
+random       64     73     73     73     73
+random      256    266    266    266    266
+random     1024   1034   1034   1034   1034
+random     4096   4106   4106   4106   4106

@@ -1,1 +1,25 @@
 == field_order, luau -O2, run 1
+check: 16 pooled orders and the per-session RMW order round-trip
+## encode one 78-bit record (400000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+gen seed0 (straight line)              339.08     308.60     448.85     1.00     1.00     1.00
+gen rotated (per-build order)          324.40     297.99     464.18     1.02     0.92     1.24
+gen pool, lookup per message           334.38     309.79     507.05     1.05     0.91     1.29
+gen pool, bound per session            330.74     303.32     495.71     1.00     0.89     1.23
+table-driven, name order               605.02     563.27     989.98     1.82     1.55     2.77
+table-driven, per-session order        752.39     575.87    1000.32     2.02     1.78     2.79
+gen RMW, constant offsets              333.16     310.43     500.20     1.03     0.77     1.47
+gen RMW, per-session offsets           363.66     334.15     503.47     1.06     0.81     1.48
+## decode one 78-bit record (server, per player) (400000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+gen seed0                              248.28     235.41     315.37     1.00     1.00     1.00
+gen pool, lookup per message           251.25     221.38     287.12     0.99     0.75     1.16
+gen per-session offsets (closure)      258.19     243.25     357.04     1.05     0.77     1.43
+table-driven, per-session order        569.36     520.96     788.27     2.32     1.74     3.04
+## encode 3-field byte record (original writeHit) (400000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+straight line (seed 0)                  73.70      67.87      82.80     1.00     1.00     1.00
+closure table (original runtime)       164.42     155.58     194.64     2.24     2.11     2.77
+straight line, per-session offsets      86.21      72.45     121.79     1.22     0.98     1.59
+sink	2869201390605
+== field_order, luau -O2, run 2

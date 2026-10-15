@@ -5,8 +5,8 @@ Each extension is opt-in, plugs into the seams of `v5.md` §8, and lists what it
 
 Draft 3.6 moved the rest of this file into the core, where it is specified in full: `interest`, `rewind` and
 interpolation in `v5-collections.md`; checks, claims, telemetry and sealed delivery in `v5-checks.md`; upstream
-string references (`strings`) in `v5.md` §4. Two extensions remain. No draft 3.6 research covers them, so each lists
-what is fixed and, for each value still open, what decides it.
+string references (`strings`) in `v5.md` §4, the wire unit's. Two extensions remain. No draft 3.6 research covers
+them, so each lists what is fixed and, for each value still open, what decides it.
 
 ## `acked`
 
@@ -27,9 +27,11 @@ what is fixed and, for each value still open, what decides it.
   buffer of a declared depth in state ticks plays inputs out `[state-sync §4.1]`. Since-ack redundancy matched the
   best fixed copy count at the byte cost of two copies in the research's simulation, and copies help only up to the
   buffer's depth.
-- **Takes from the core:** the upstream unreliable seq (`v5.md` §4.4), the downstream unreliable header (§4.1).
+- **Takes from the core:** the upstream unreliable seq (`v5.md` §4.4), the downstream unreliable header
+  (`v5.md` §4.1).
 - **Open:** the copy cap (the research names 32, after Quake 3's `MAX_PACKET_USERCMDS`), the jitter-buffer depth
-  and whether the server sets it from its own jitter estimate as `rewind`'s delay is set (`v5-collections.md`), and
-  the header field's width. Decided by a research unit with the research's loss models on Lync's tick rates.
-- **Name.** `inputs` is unrelated to the `:input()` codec marker (`v5-checks.md` §6.1), which only records that a
+  and whether the server sets it from its own jitter estimate, as it sets the interpolation delay
+  (`v5-collections.md` §11.1), and the header field's width. Decided by a research unit with the research's loss
+  models on Lync's tick rates.
+- **Name.** `inputs` is unrelated to the `:input()` codec marker (`v5-checks.md` §7.1), which only records that a
   free-form leaf is an input.

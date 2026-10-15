@@ -23,8 +23,8 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
 | **code**: reading its own bytecode and constants | reads layouts, constants and lists from the shards | per-build values (§2): each build's must be read again |
 | **mem**: reading and writing Lync's upvalues, stack and GC objects | reads key, count and permutation; calls Lync's internal encoder and tag function | count lockstep (slips are `tagMismatch`/`frameGap`), per-session key and permutation, per-build values |
 | **api**: requiring client modules, calling Lync's API | fires definitions through Lync's own encoder | traps and reachability (§3), caller probe (§4), reactions and challenges (§7) |
-| **hook**: hooking functions and metamethods | changes values above the encoder; spies on remotes | server checks only; the tag, for edits below the encoder within `tag.cover` |
-| **signal**: firing or disabling its own connections | injects inbound frames into its own view | refused-frame report (§5) |
+| **hook**: hooking functions and metamethods | changes values above the encoder; spies on remotes; replaces Lync's own functions | server checks; the tag, for edits below the encoder within `tag.cover`; the self-check of Lync's tables, for replaced entries (§5) |
+| **signal**: firing or disabling its own connections | injects inbound frames into its own view | refused and injected frame counts (§5) |
 | **packet**: send and receive hooks below Luau | reads, drops or edits frames | tag and replay window; the key derived from a `WELCOME` nonce (`v5.md` §4.5) |
 | **identity**: thread identity control | runs at identity 8 by default | caller probe, identity read (§4) |
 | **naming**: naming or hiding chunks and stack frames | makes executor code read as game code | caller probe, source check (§4) |
@@ -103,6 +103,10 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
 - **Runtime path.** It has no build and so no private value: `layout.vary` varies field order, offsets and tag
   constants per server from what `WELCOME` carries (`v5.md` §4.5, §7.5), which prices only tools that hard-code a
   no-build game's layout `[generation-methods M14]`.
+- **Per place.** A game with several places can build each separately: each run draws its own `rotationSeed`, so
+  layouts and tag constants differ between places with no setting, and a teleport opens a new connection whose
+  `HELLO` names that place's build. Code generated per client or per server at run time is refused: no engine
+  member delivers code to a client `[refusals-rejudged-4 R8]`.
 - **What the values price, overall:** a modified client that encodes or decodes outside Lync's own functions
   (static forgers, extractors encoding outside `fire`, byte scripts carried between accounts) must re-read the
   shard's code, or recalibrate through its encoder, every build. Not priced: **api** (Lync applies every value for
@@ -172,11 +176,11 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
     before decode, so any layout it carries is never decoded; a tool that reads its own variant reads the layouts
     in the same module in the same pass. Per-variant layouts therefore add no recurring work beyond the mask, while
     costing N times the upstream codec bytecode in the place and the server shard (about 1.1 MB at 200 definitions
-    and 16 variants), a value hold, a second join rule, and weaving, whose scripts every player shares
-    `[codecs-in-scripts §8]`. Verifying under the assigned mask alone keeps a client from choosing its variant, the
-    property `[interest-rewind §13.2]` rule 4 asks for. Per-variant tag constants or key secrets are not used:
-    naming the other variant would take 5 × (N − 1) full hashes per failing frame, 31.4 µs native per 64 B frame
-    at N = 16 `[generation-methods M13]`.
+    and 16 variants), a value hold and a second join rule, and they don't compose with weaving, whose scripts every
+    player shares `[codecs-in-scripts §8]`. Verifying under the assigned mask alone keeps a client from choosing
+    its variant, the property `[interest-rewind §13.2]` rule 4 asks for. Per-variant tag constants or key
+    secrets are not used: naming the other variant would take 5 × (N − 1) full hashes per failing frame, 31.4 µs
+    native per 64 B frame at N = 16 `[generation-methods M13]`.
 - **Cost.** Place: N modules of one integer. Server: the masks and `VARIANT_OF`, 13,312 B at N = 256; one index
   per player; one XOR per accepted frame (within noise); up to 5 table lookups per failing frame, +0.5 µs
   interpreted and +0.24 µs native at 64 B `[generation-methods M13]`. Client: one XOR per frame; one `ScreenGui`
@@ -240,8 +244,9 @@ build found no client code using), so one reason with one evidence value per tri
   shape as a real definition, so no comparison of artefacts separates it. A trap has no handler: `connect`,
   `handle` or `validate` on it, or `:trap()` on a definition that has one, throws `trapHandled` at the caller. Its
   messages have nothing to deliver to and are dropped; an ask is answered `rejected`, indistinguishable from a
-  `validate` refusal (`v5.md` §5.2). What a trap's name looks like, and so whether a reader passes it by, is the
-  developer's choice; Lync guarantees only the rest: no artefact, byte or answer tells it apart.
+  `validate` refusal (`v5.md` §5.2). A trapped definition reports `basis` 1, never 0. What a trap's name looks
+  like, and so whether a reader passes it by, is the developer's choice; Lync guarantees only the rest: no
+  artefact, byte or answer tells it apart.
 - **Inferred** (`basis` 0, generated path, `check.reachability` true). A client-sent definition of a complete
   namespace is reachable when its name appears after `.` or `:` as a field access, or as a string literal, anywhere
   in the client scan set. A message of an unreachable definition is delivered and reported. The rule
@@ -252,7 +257,8 @@ build found no client code using), so one reason with one evidence value per tri
   id is delivered and reported.
 - **Prices** **api** drivers firing a definition unmodified client code never fires (declared, inferred), and
   drivers calling a closed definition through the shard (generic). It doesn't price drivers that fire only what
-  game code fires (the caller probe covers those, §4), or **packet** and blind senders (an unknown id is already
+  game code fires (the caller probe covers those, §4): a driver that fires only names client scripts reference
+  passes traps and unreferenced definitions alike. Nor **packet** and blind senders (an unknown id is already
   `malformed`).
 - **Cost.** Run time: one flag check and one table index per message. Wire: none; a declared trap is an ordinary
   definition and takes an id like one. Build: the scan at 11.0–12.3 MB/s interpreted and 19.4–20.1 MB/s native,
@@ -496,10 +502,10 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 - **t_s** is the flush that passed the frame holding the outgoing message to the engine (for a held send, the flush
   that released it). **t_r** is the decode of the frame holding the incoming message.
 - **Bound b** per player, at t_r: the minimum over the last 10 s of the player's `Player:GetNetworkPing()` samples,
-  one taken at each t_s of an ask, a stimulus or a challenge and at each t_r of an answer, and of Lync's own ack
-  round trips where state frames flow (`v5-collections.md`). Engine ping excludes deserialization and processing,
-  so it sits below the full path; the ack round trip is not smoothed and follows a latency drop within one state
-  frame. Kept as 10 one-second minima, 40 B per player.
+  one taken at each t_s of an ask, a stimulus or a challenge and at each t_r of an answer or challenge attempt,
+  and of Lync's own ack round trips where state frames flow (`v5-collections.md`). Engine ping excludes
+  deserialization and processing, so it sits below the full path; the ack round trip is not smoothed and follows
+  a latency drop within one state frame. Kept as 10 one-second minima, 40 B per player.
 - **Factor default, derived.** An option `factor` compares elapsed time with factor × b. On `v5.md` §9's default
   network an unmodified automatic answer's `roundTrip` / ping is 0.97 at p1; after a one-way latency drop from
   0.10 s to 0.03 s, `roundTrip` over a ping-only minimum falls to 0.52–0.59 within 0.5 s (smoothing time constant
@@ -551,7 +557,8 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
      t_r − t_s of the oldest candidate < `factor` × b;
   3. **case 2, below the floor:** `floor` > 0 and (t_r − t_s) − b < `floor`, measured to the oldest candidate the
      receipt shows received (the oldest candidate, without a receipt).
-  Each is the fact `earlyReaction` (§10). The message is always delivered `[refusals-rejudged-2]` (R25).
+  Each is the fact `earlyReaction` (§10). The message is always delivered: Lync drops nothing for a timing fact
+  `[server-facts §U10.5]`.
 - **Pipeline:** `v5.md` §6.1 step 5's report-only checks, after `limit`. Stimuli are recorded in the flush that
   builds each player's frame.
 - **Prices** **api** and **clock**: a client acting on data Lync hadn't delivered (a bot pre-firing a timed prompt,
@@ -626,7 +633,7 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   with probability at most `attempts`/`values` (3/10^4 at the docs' values). Deadlines and `after` are server time,
   so **clock** changes nothing. Not priced: a bot that reads the token (from Lync's decoded payload, the UI or a
   collection: **state**, **mem**) and answers through the game's action, which is byte-identical to a person's
-  answer except for its timing; screen readers of the OCR kind, human farms.
+  answer except for its timing; programs that read the screen (OCR, trained solvers); human farms.
 - **Known causes on an unmodified client** `[decoy-challenge-facts §7]`. `timeout`: the player is away; slower than
   `within` (people with physical disabilities often need more time, WCAG 2.2 SC 2.2.1); a prompt a gamepad or
   touch screen can't answer; a visual-only prompt for a player who can't see it (no scriptable screen-reader API
@@ -650,7 +657,7 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 |---|---|---|---|---|---|
 | `within` | number (real) | s | 1–3600 | required | one open record held up to `within` plus extensions |
 | `values` | integer | token values | 2–2^32 | required (it must match how the game shows the token) | none; must fit a declared answers field |
-| `attempts` | integer | values received | 1–255 | required (it depends on the answer's form: the docs give at least 3 for typed codes, 1 for one button) | none; the blind-guess bound rises in proportion |
+| `attempts` | integer | values received | 1–255 | required (it depends on the answer's form; the docs give at least 3 for typed codes) | none; the blind-guess bound rises in proportion |
 
 ## 8. Decoys
 
@@ -806,16 +813,69 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 
 ## 10. Facts
 
-Evidence is numbers only. "Client-stated" means the number comes from the client's own `REPORT`: a modified client
-can send any value or none.
+Evidence is numbers only; times are in seconds and −1 marks "no such moment". "Client-stated" means the number
+comes from the client's own frame or `REPORT`: a modified client can send any value or none. Coalescing, caps and
+console lines are `v5.md` §7.3's; a fact's `definition` is named where a row says so.
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `unreachable` | a message of a trapped definition (`declared` 1), or of a client-sent definition the build found no reference to in the scanned client code (`declared` 0; generated path, `check.reachability`) | trap: dropped, ask `rejected`; inferred: delivered | `declared` | declared: client code firing a definition the server marked with `:trap()`, a mistake in the game's declaration; inferred: a script outside the scanned code (§3), cloned to a client at run time, firing the definition |
-| `earlyAnswer` | an answer to a server ask arriving sooner than `earlyAnswer.factor` × the smallest `GetNetworkPing()` sampled for the player in the last 10 s | delivered | `roundTrip`, `minPing` (s) | `GetNetworkPing` is smoothed, so it lags a sudden drop in latency (by how much is unmeasured, `v5.md` §10) |
-| `reportedIdentity` | a `REPORT` with `identitySucceeded` > 0 | none | `reported` (client-stated count), `probes` (client-stated) | Lync called from the Studio command bar or a plugin (Studio only) |
-| `reportedSourceUnlisted` | a `REPORT` with `sourceUnlisted` > 0 | none | `reported`, `probes` (both client-stated) | a client script firing the definition from a place the clone mapping (§4) doesn't cover, such as a script game code cloned outside the starter containers |
+| `unreachable` | a message of a client-sent definition that is: `basis` 1, trapped with `:trap()`; 0, of a complete namespace and unreferenced in the client scan set (generated path, `check.reachability`); 2, on the generic id of a closed definition (woven build, `weave.ids` not `"generic"`) (§3) | 1: dropped (no handler), ask `rejected`; 0, 2: delivered | `basis` | 1: client code firing a definition the server traps, a mistake in the game's declaration; the Studio command bar or a plugin calling it (Studio only). 0: a script outside the client scan set firing the definition (a `ModuleScript` stored in `ServerStorage` or inside a `Tool` and cloned to a client at run time; `check.clientRoots` removes it); a shard reached through a `require` the scan can't resolve and then iterated or indexed by a computed key. 2: code not in the woven place (an asset inserted at run time) firing the definition; the command bar or a plugin calling the shard (Studio only) |
+| `earlyAnswer` | `challenge` 0: an answer to a server ask whose `roundTrip` < `earlyAnswer.factor` × `minPing`; 1: a value closing a challenge as `answered` whose `after` < `earlyAnswer.factor` × `minPing` (§7) | delivered | `roundTrip` (s; `after` for a challenge), `minPing` (s, b of §7.1), `challenge` | `minPing` above the true path: `GetNetworkPing` is smoothed and lags a sudden latency drop where no ack round trip is in the bound (simulated: a ping-only `roundTrip`/`minPing` of 0.52–0.59 within 0.5 s of a one-way drop from 0.10 to 0.03 s, smoothing assumed). `challenge` 1 also: game client code that sends the answers field when no prompt is shown, matching by chance with probability 1/`values` per value |
+| `earlyReaction` | for a message of a definition with `reactsTo`, §7.3's case 1, 2 or 3 | delivered | `case` (1 before stimulus, 2 below floor, 3 never sent), `exact` (1 decided by the receipt or by never-sent, 0 by time), `elapsed` (s, t_r − t_s; −1 in case 3), `minPing` (s, b), `floor` (s, 0 when off), `behind` (frames: the oldest candidate's frame number − the extended receipt in exact case 1, else 0) | every case: game code acting on the same information delivered another way (the entity replicated through `Workspace`, another remote, a client timer that knows when the stimulus comes). Case 1 exact: a key the game reuses for more than `track` stimuli while an older one is still being answered; a Lync bug. Case 1 by time: those, and b above the true path (as `earlyAnswer`); on `v5.md` §9's default network 0 of 200,000 instant responses at b of 0.10 and 0.12 s. Case 2: a response fired by game code from the stimulus handler; a stimulus a player can predict; a person faster than the floor; b 0.02 s above the true path, at which 1.35% of 0.10 s reactions read under a 0.10 s floor. Case 3: the game showing the entity by another path while the viewer's audience or interest excludes the record |
+| `unsolicitedAnswer` | a non-nil value in an answers field (§7.4) from a player with no open challenge; `definition` is the answers definition | none (the message is delivered as usual) | `closedAgo` (s since that player's last challenge closed; −1 if none this session), `closedAs` (0 answered, 1 mismatched, 2 timeout, 3 cancelled, −1 none), `matchesLast` (1 the value equals that challenge's token, 0 not, −1 none) | an answer after the deadline (`closedAs` 2, `matchesLast` 1, small `closedAgo`): the player needed more than `within`; a repeated answer (`closedAs` 0, `matchesLast` 1): a double press or game code that resends; game client code that fills the field on messages sent with no prompt shown; an answer entered after the game cancelled |
+| `reportedIdentity` | a `REPORT` with `identitySucceeded` > 0 | none | `reported`, `probes` (both client-stated) | Lync called from the Studio command bar or a plugin (Studio only) |
+| `reportedSourceUnlisted` | an accepted upstream frame with `caller` 1 (§4); `definition` set when the frame holds messages of one definition only | none (delivered) | `lane`, `messages` (the frame's message count); client-stated | a call started with no game frame on its thread (`task.spawn(view.fire, view, v)`, `coroutine.wrap`, a signal connected directly to `view.fire`) under `callerProbe.noOuterFrame = "unlisted"`; `fire` reached through a function value a library calls with no game frame between (a promise library); a script outside the clone mapping (one game code cloned outside the starter containers); a character model game code renamed; the Studio command bar (Studio only) |
 | `reportedRefusedFrames` | a `REPORT` with `refusedFrames` > 0 | none | `reported` (client-stated) | a Lync bug, in which case the client also lost that server frame |
-| `clockRate` | at the end of a fit, the last `clock.reportFits` fits each had a slope above `clock.reportSlope` | none | `slope` (this fit's), `fits` (the run of consecutive fits above the threshold so far) | at the default threshold, none while the engine's 0.6% bound holds and fit noise stays under 0.4%; at a threshold of 0.0068 or less, a client correcting its clock at the maximum slew for `reportFits` fits, plus fit noise (0.03–0.08% at σ = 20–50 ms, estimated) |
-| `decoyReferenced` | a delivered message whose `refers` field holds a key of a decoy sent to that player | delivered | `sentAgo` (s since the decoy's add) | game code that targets every record it holds (aim assist, "target everything"); a behaviour that places decoys where game code reads them |
-| `canaryEchoed` | an inbound string or buffer value that is, or within `canary.scanBytes` contains, a live canary sent to that player | delivered | `sentAgo` (s since the record's add) | game code that sends a record's fields back to the server, canary included; a player's text containing a live canary by chance, probability 62^−12 per 12-byte window per canary sent to that player |
+| `reportedInjectedFrames` | a `REPORT` with `injectedFrames` > 0 | none | `reported` (client-stated) | none, while §5's Studio check holds (events queued before the listener connected are the case it settles) |
+| `reportedSelfCheck` | a `REPORT` with `selfCheckFailures` > 0 | none | `reported`, `item` (index in the build's list, which `manifest.json` names), `kind` (1 source differs, 2 line differs, 3 entry is another value, 4 table not frozen); all client-stated | kinds 3 and 4: none (§5: a frozen table can't be written or unfrozen by game code, plugins or the command bar). Kinds 1 and 2: a Lync emission bug, which the build's check removes before release; whether `debug.info(1, "s")` and `debug.info(f, "s")` agree within one module on Roblox is unverified (§12) |
+| `clockRate` | at the end of a fit, the player's last `clock.reportFits` fits each counted (§6 rules 5–6): \|`slope`\|, \|`firstHalf`\| and \|`secondHalf`\| above `clock.reportSlope`, all of one sign | none | `slope` (s/s, signed, positive = client clock fast), `fits` (the run so far), `firstHalf`, `secondHalf` (s/s), `othersSlope` (s/s; 0 when `others` is 0), `others` (fits), `drift` (s: o of the first window since the last restart minus o of this fit's last window, sign as `slope`) | a one-way delay whose lower envelope rises (`slope` < 0) or falls (> 0) by more than `reportSlope` s/s across both halves of `reportFits` fits, for at least 60 + 5 × (`reportFits` − 1) s: a queue building or draining on the client's uplink (other traffic on the link; multi-second queues are reported on consumer links, Gettys & Nichols 2011, unmeasured on Roblox) or in the server's inbound processing (then `othersSlope` is within fit noise of `slope`; unmeasured on Roblox). Simulated: a 1 s queue built over 60 s fires for 300 of 300 players, 0.5 s over 60 s for 0 at the default and 232 of 300 at `reportSlope` 0.0068. At `reportSlope` ≤ 0.0069 only: a clock correcting at the documented 0.6% bound plus fit noise (simulated maximum 0.00691). Not causes (simulated): network jitter, one delay step of any size, hitches up to 10 s. `drift` bounds a queue at its depth (p50 0.70 s, max 1.03 s at the first fact), where a modified clock's grows |
+| `tagVariant` | a tagged upstream frame that fails under the player's assigned mask at every candidate, and whose tag XOR the keyed hash at one candidate is another variant's mask (§2.4); in place of `tagMismatch` | frame dropped; e unchanged; counts toward `desync` | `lane`, `variant` (the matching mask's), `assigned` (the player's), `skipped` (reliable: j, the candidate's offset from e; unreliable: −1, 0 or 1, the neighbour of the extended seq) | chance: a frame failing for a `tagMismatch` cause matches one of the N − 1 other masks with probability (N − 1) × 5 × 2^−32 (reliable) or (N − 1) × 3 × 2^−32 (unreliable): for a keyless sender at the default budgets one per 37.7 days at N = 2, 14.3 h at 64, 3.5 h at 256, each beside about 4.5 × 10^6 `tagMismatch` occurrences from the same player, while a carried mask matches on every frame; a Lync bug installing a variant other than the one assigned |
+| `variantMissing` | local, client: `build.playerVariants` ≥ 2 and no variant installed 10 s after the connection's first `WELCOME` | keeps waiting; tagged sends stay held | none | a server error before the variant was parented; game code removing `PlayerGui.Lync` before the client bound it; a variant arriving more than 10 s after `WELCOME` (arrival time unmeasured, §12) |
+| `decoyReferenced` | a delivered message whose `refers` field, or any element of it, holds a key in the sender's decoy history for that collection (§8): a decoy of that player live now, or removed less than r ago; one occurrence per matching element | delivered | `sentAgo` (s since the decoy's add to that player), `removedAgo` (s since its remove; −1 while live) | §8's seven causes |
+| `decoyInteraction` | game code calls `Net.c:reportInteraction(player, key, kind)` with `key` in `player`'s decoy history for `c`; `definition` is the collection | none (the call is the game's; Lync records it) | `kind` (the game's integer), `sentAgo`, `removedAgo` (as above), `heldAtPerceived` (1 the decoy was alive for that player at some tick of the perceived window of the message being dispatched; 0 not; −1 no window: called outside a handler's synchronous part, or `c` has no `rewind`) | §8's seven causes |
+| `canaryEchoed` | an inbound string or buffer value that is, or within its first `canary.scanBytes` bytes contains, a live canary sent to some player (§9): without `canary.perViewer`, to the sender | delivered | `sentAgo` (s since the record's add), `sentToUserId` (the player it was sent to; without `perViewer`, the sender), `sameViewer` (1 the sender; without `perViewer`, always 1) | `sameViewer` 1: game code that sends a record's fields back, canary included; a player's text containing a live canary by chance, probability 62^−12 per 12-byte window per canary sent to that player. `sameViewer` 0: chance only, about 62^−8 × (viewers sent the add) / 2^23 per 12-byte window (5.5 × 10^−20 at 100 viewers), since an unmodified client never receives another viewer's suffix |
+
+## 11. Published-place attestation (milestone 6)
+
+- **What it states** `[refusals-rejudged-1 R11]`. A server runs one place version until it is shut down, and its
+  clients get their scripts from it, so the client scripts an unmodified client runs are the published version's.
+  `lync check --published` compares that version's shard parts, woven copies and scanned client scripts with the
+  build's manifest, through one Luau Execution task (mechanism, codes and the decision for an unreadable `Source`:
+  `v5-tooling.md` §3.4, §4.3).
+- **What it prices.** None of §1's classes: it finds published client code that differs from the reviewed build (a
+  collaborator's Studio publish over a CI release, a shard pair from another run, an edited shard). A modified
+  client is untouched by it, and it attests nothing about what any client runs beyond the unmodified case.
+- **Run-time self-attestation stays refused.** No API lets an unmodified client read its own code (`Source` needs
+  `PluginOrOpenCloud`, `Script:GetHash` is `LocalUserSecurity`), and anything the shard computes about itself a
+  modified client computes by running the same shard, which proves only what a valid tag already proves. §5's
+  self-check is different in kind: it reports changes to Lync's own live tables, not an attestation of code.
+- **Cost.** Zero at run time and on the wire; one task and one SHA-256 per listed script per check.
+
+## 12. Pending measurements
+
+Each has the default or assumption the design uses until it is measured (`v5.md` principle 8); `v5.md` §10 lists
+the Roblox-wide items.
+- **Seeds:** an OS entropy source in Lune and the entropy of `HttpService:GenerateGUID()` in Studio; until checked,
+  those builds have a public-quality seed (§2.1).
+- **Variants:** a server-parented `PlayerGui` child's arrival time after `WELCOME` (join latency, the
+  `build.playerVariants` default, `variantMissing`'s 10 s); measured from `os.clock()` at a `ReplicatedFirst`
+  script's start to the module's `ChildAdded` (§2.4).
+- **Caller probe** (Studio, before release): a member that fails at identity 2 and succeeds at 8, and its cost on
+  devices; whether a caught capability failure writes a client log line (if it does, `oneIn` returns to sampling);
+  whether unmodified sources follow the clone mapping (if not, the source check is removed); the command bar's
+  identity and source string; whether a script renamed or moved after loading keeps its source string; whether
+  `task.spawn` and signal routes leave no outer frame (§4).
+- **Listener check** (Studio, gating): `debug.info(2, "f")` nil for every engine delivery under both
+  `SignalBehavior` values, queued events included; if not, the check is removed (§5).
+- **Self-check:** whether `debug.info(1, "s")` and `debug.info(f, "s")` agree within one module on Roblox; what
+  `debug.info` reports for a Lua function an executor hooked in place (kinds 1–2's reach) (§5).
+- **Clock:** fit noise and slew on devices, delay-envelope ramps on client uplinks, server inbound backlog under
+  load; every figure in §6 is simulated (the 0.01 and 3 defaults).
+- **Timing:** `GetNetworkPing`'s smoothing and per-call cost on servers (the 0.5 factor, §7.1); whether remotes
+  fired at `PostSimulation` leave in that frame's network step (0–16.7 ms inside every elapsed time); real answer
+  times for human-gated prompts; reliable-lane stalls on mobile and whether a backgrounded client keeps receiving
+  (challenge `timeout` causes); `Random:NextInteger` cost on servers (§7).
+- **Decoys:** the camera-turn window for "behind" placements, derived only (§8).
+- **Canaries:** the engine's cost of one `FireClient` per recipient against one `FireAllClients` (the
+  `canary.perViewer` default, §9).
+- **Published place:** whether a Luau Execution task can read `Source` (§11; `v5-tooling.md` §4.3).

@@ -218,13 +218,14 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
 - **Fixed severities**, for codes where no setting makes the finding right or wrong: declaration codes, the
   configuration and environment codes, `staleShard`, `editedShard`, `unpairedShard`, `definitionTooLarge`,
   `publishedShardDiffers`, `publishedShardMissing` and `publishedWovenDiffers` are errors; `staleManifest`,
-  `regenerateSkipped`, `lyncHeaderMismatch` and `publishedScriptChanged` are warnings. Each is a mistake in the configuration, a failure of the environment, a mismatch between artefacts
-  of one build, or a statement of what the build made against what the configuration asked `[build-checks §3.5]`.
+  `regenerateSkipped`, `lyncHeaderMismatch` and `publishedScriptChanged` are warnings. Each is a mistake in the
+  configuration, a failure of the environment, a mismatch between artefacts of one build, or a statement of what the
+  build made against what the configuration asked `[build-checks §3.5]`.
 - **`[check]` severities**, for every other code: `check.<code>` takes `"off"`, `"warn"` or `"error"`. Its default
-  follows one rule, in this order: `"off"` when the trigger names an instance that carries no traffic between a
-  client and the server (today `foreignBindable`); `"error"` when no known cause in an unmodified game is correct
-  code; `"warn"` when some known cause is correct code. `"off"` stops the check: no Diagnostic and no manifest entry of that code.
-  Computations that another product reads still run: `check.dynamicAccess = "off"` leaves the namespace
+  follows one rule, in this order: `"off"` when the trigger names an instance that carries no traffic between a client
+  and the server (today `foreignBindable`); `"error"` when no known cause in an unmodified game is correct code;
+  `"warn"` when some known cause is correct code. `"off"` stops the check: no Diagnostic and no manifest entry of that
+  code. Computations that another product reads still run: `check.dynamicAccess = "off"` leaves the namespace
   incomplete.
 
 ### 3.3 Scans
@@ -246,10 +247,11 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
     the generator carries the SHA-256 of each runtime module of its version, and the subtree of a `ModuleScript`
     whose first line is `-- Lync <version> runtime` is excluded only when every module in it matches. A subtree that
     carries the header and doesn't match is scanned and reported as `lyncHeaderMismatch`.
-- **Namespace values** (for `dynamicAccess`, reachability, the caller probe's source lists and weave closure): the result of a `require` or `TS.import` whose static path matches the client shard's full instance
-  path suffix, never its leaf name alone, since `client` is a common module name `[build-checks §2.3]`; followed
-  through aliases, fields, module returns and same-named function parameters (`v5-integrity.md` §3). The
-  incompleteness predicate is computed once per run and every reader takes the same set.
+- **Namespace values** (for `dynamicAccess`, reachability, the caller probe's source lists and weave closure): the
+  result of a `require` or `TS.import` whose static path matches the client shard's full instance path suffix, never
+  its leaf name alone, since `client` is a common module name `[build-checks §2.3]`; followed through aliases, fields,
+  module returns and same-named function parameters (`v5-integrity.md` §3). The incompleteness predicate is computed
+  once per run and every reader takes the same set.
 - **Inputs.**
   - *CLI over files:* the script files and `project.sourcemap` for their instance paths and containers, plus
     non-script instances when the sourcemap includes them.
@@ -379,8 +381,9 @@ the only regenerate-on-edit path.
   passes the output intact is unverified, §8); where that fails it draws with `math.random` seeded from `os.clock()`
   and `os.time()` (`"public"`).
 - **Decision: how a run names the built place.**
-  - *Problem.* Foreign remotes in the tree, staged-path mapping, the streaming settings and the `scripts` inventory
-    need the built place, which exists only after `rojo build`, so on a developer's machine it is often absent.
+  - *Problem.* Foreign remotes in the tree, staged-path mapping, the streaming settings and a scan from a place
+    (`scan.source` `"place"`) need the built place, which exists only after `rojo build`, so on a developer's machine
+    it is often absent.
   - *Options:* a `[check] place` key `[interest-rewind §12.3]` (a missing file fails every local run, or is skipped
     silently); **a `--place <file>` flag** `[build-checks Impl4]`; both (two ways).
   - *Choice: the flag,* on `lync build` and `lync check`. CI passes it after `rojo build`; a local run without it
@@ -478,18 +481,21 @@ server-observed report on definitions every unmodified client reaches only throu
 - **Choice: the place-file pass,** CLI only. It never opens a developer file or Studio script, so nothing is merged
   and no editor races it. Verified end to end with Lune: `rojo build`, dump, weave, write, re-read identical
   `[codecs-in-scripts §2]`; the same round trip in the Rust host is unverified (§8). `rojo serve` keeps syncing
-  unwoven sources, so play tests use the shard path and releases the woven path; the differential of §5.4 makes them
-  write the same bytes. Studio-only projects never weave, and no `weave.*` key applies to them.
+  unwoven sources, so play tests use the shard path and releases the woven path; the gate of §5.4 makes them
+  deliver the same values. Studio-only projects never weave, and no `weave.*` key applies to them.
 
 ### 5.2 The command
 
-`lync weave <place> -o <file>` reads the built place, the manifest and the schema modules. It refuses to run (exit
-2) when its generator's `coreDigest` differs from the manifest's. It plans once at the manifest's `rotationSeed`,
-regenerates the shards and compares them with the place's, so a place whose shards are from another run fails with
-`editedShard` (`regenerated` 1) and nothing is written. Fragments, site table and shards therefore come from one
-planner run `[codecs-in-scripts §8]`. It writes the output place with the woven scripts and rewritten shards (the
-server shard gains the site table and site decoders; with `weave.dropClosed`, the client shard loses closed
-encoders), and rewrites the manifest (§1.2). There is no `lync build --weave`: weaving's input is the built place,
+`lync weave <place> -o <file>` reads the built place, the manifest and the schema modules. It refuses with
+`generatorMismatch` (exit 2) when its generator's `coreDigest` differs from the manifest's. It plans once at the
+manifest's `rotationSeed`, taking the scan result the manifest records (reachability lists and completeness)
+rather than rescanning, regenerates the shards and compares them with the place's: a place whose shards are from
+another run, or edited, fails with `editedShard` (`regenerated` 1) and nothing is written. Fragments, site table
+and shards therefore come from one planner run `[codecs-in-scripts §8]`. It scans the place itself only for sites
+and closure. It writes the output place with the woven scripts and rewritten shards (the server shard gains the
+site table and site decoders; with `weave.dropClosed`, the client shard loses closed encoders), rewrites line 1 of
+every part it changes with the new digest, which it records as `wovenDigest` `[build-checks §3.2]`, and rewrites
+the manifest (§1.2). There is no `lync build --weave`: weaving's input is the built place,
 which exists only after `rojo build`.
 
 ### 5.3 Sites and forms
@@ -499,15 +505,17 @@ which exists only after `rojo build`.
   them; `TS.import(script, base, segments…)` resolves as `base.segment…`. A definition alias is a local initialised
   by `binding.def`. Neither may be reassigned in its scope.
 - **Resolved site:** a call `binding.def:verb(…)` or `alias:verb(…)`, dot or colon (roblox-ts emits both). It is
-  **woven** when it is a statement, its argument is a table constructor whose keys are constant strings equal to the
-  record's field set (any single expression for a non-record codec), and no shadowed builtin is in scope; otherwise
-  it stays on the shard with the `weave*` code of §3.4 that names why. A **literal site** has every field value
+  **woven** when its argument is a table constructor whose keys are constant strings equal to the record's field set
+  (any single expression for a non-record codec) and no free name of its fragment is shadowed; otherwise it stays on
+  the shard with the `weave*` code of §3.4 that names why. A **literal site** has every field value
   constant.
 - **Forms** `[codecs-in-scripts §6]`:
-  - client sites: inline (W2) when the definition has at most `weave.inlineMaxSites` woven client sites in the
-    place, else a call into the shard's scalar entry with the fields as arguments (W3); with `weave.literals`, a
-    literal site is folded at build time into one run header, one reserve and one constant write, whatever the
-    count;
+  - client sites in statement context: inline (W2) when the definition has at most `weave.inlineMaxSites` woven
+    client sites in the place, else a call into the shard's scalar entry with the fields as arguments (W3); with
+    `weave.literals`, a literal site is folded at build time into one run header, one reserve and one constant
+    write, whatever the count;
+  - client sites in expression context, every request (`invoke` yields and returns a result) included: W3, a call
+    that is valid wherever the original call was `[codecs-in-scripts §4.1]`;
   - server sites: W3 only, with `weave.server = "call"`, since inlining into an interpreted game script loses the
     native shard's code;
   - never a `local function` helper: at `-O2` it is inlined and a refusal reports the helper's line, not the call's
@@ -527,8 +535,9 @@ which exists only after `rojo build`.
   fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in the
   client scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site or of an alias declaration
   whose uses are all woven `[codecs-in-scripts §4.2]`. The scope is the client scan set, as for reachability: server
-  handlers name every definition they handle, so a scope of all scripts would close none. A generated trap has no
-  site, so it is closed and keeps only its generic id; `weave.dropClosed` keeps trap encoders.
+  handlers name every definition they handle, so a scope of all scripts would close none. A declared trap that no
+  client code names is closed like any such definition; with `weave.dropClosed` its encoder goes too, so a driver
+  calling it raises at the caller and sends nothing: the developer's trade-off, stated in the option's row.
 - **Gate**, per script, before anything is written `[codecs-in-scripts §4.3]`:
 
   | Check | On failure |
@@ -537,10 +546,10 @@ which exists only after `rojo build`.
   | no shadowed builtin at a site | site unwoven, `weaveShadowed` |
   | the woven script compiles | script unwoven, `weaveCompile` |
   | line count unchanged | `internal` (exit 3) |
-  | differential: for 200 value sets per site, drawn by xorshift32 seeded from the site's canonical index, the woven bytes equal the shard encoder's at the build's `rotationSeed` with every per-build method on, and a refused value raises the same message | `internal` (exit 3) |
+  | differential, for 200 value sets per site drawn by xorshift32 seeded with the site's canonical index plus 1 (never 0, xorshift32's fixed point), at the build's own `[build]` settings and `rotationSeed`, under the identity permutation and under permutation seed 1: with `weave.ids = "generic"`, the woven bytes equal the shard encoder's; otherwise the woven id is the site table's id for that site, and the server shard's site decoder gives from the woven bytes the value the generic decoder gives from the shard encoder's bytes `[codecs-in-scripts §7.3]`; in every mode a refused value raises the same message | `internal` (exit 3) |
 
   The 200 value sets are chosen, as in the prototype, which found woven and shard bytes identical over 3,466 B at
-  `-O1` and `-O2` (`codecs-in-scripts/diff.out`).
+  `-O1` and `-O2` (`codecs-in-scripts/diff.out`); a gate miss found later in a released build would raise it.
 - **Correctness never depends on finding every site:** an unwoven call stays on the shard, and completeness gates
   only closure.
 
@@ -548,38 +557,39 @@ which exists only after `rojo build`.
 
 - **Ids** (`weave.ids`): generic ids stay as `v5.md` §4.6 defines them. `"site"` adds one up-space id per woven
   client site, `"definition"` one per woven definition, after the generic ids, in canonical order by (script
-  instance path, line), ties between scripts sharing a path broken by the SHA-256 of their woven source; they are
-  permuted per server like every id. A site id's layout is its definition's layout minus the fields the site writes
-  as constants (`"site"` only), so a fully literal site sends no payload bits. A site-id message is delivered as a
+  instance path, ordinal, line, column of the call's first token) (§1); they are permuted per server like every id.
+  A site id's layout is its definition's layout minus the fields the site writes as constants (`"site"` with
+  `weave.literals` only; with `weave.literals = false` a site writes no constants and its layout is its
+  definition's), so a fully literal site sends no payload bits. A site-id message is delivered as a
   message of its definition: the same `limit`, `validate`, handlers and element charge `[codecs-in-scripts §7.1]`.
   A message on the generic id of a closed definition is the fact `v5-integrity.md` §3 specifies.
 - **Decision: what the up-id table's hash covers, and its name.**
-  - *Problem.* Two builds at one fixed `build.seed` can differ in their site tables or generated traps, which set
-    which up ids exist and what each delivers; `buildId` and the schema hash don't pin them, and a disagreement
-    decodes wrong values silently.
-  - *Options:* a hash of the site table alone (`weaveHash`, `[codecs-in-scripts §7.3]`), which misses traps and
-    constants; **a hash of everything the two shards must agree on beyond `buildId` and the schema hash**
+  - *Problem.* Two weaves at one fixed `build.seed` can differ in their id modes and site tables, which set which
+    up ids exist and what each delivers; `buildId` and the schema hash don't pin them, and a disagreement decodes
+    wrong values silently.
+  - *Options:* a hash of the site table alone (`weaveHash`, `[codecs-in-scripts §7.3]`), which misses the id mode
+    and the constants; **a hash of everything the two shards must agree on beyond `buildId` and the schema hash**
     `[generation-methods M16]`; a per-shard code hash, which adds no wire safety and which a modified client sets
     freely `[build-checks §4]`.
   - *Choice:* HalfSipHash-2-4, zero key, low 32 bits, over a canonical serialization of the id mode, the site table
-    in canonical order (each site's script path, line and definition's canonical id), each site's constant fields
-    and values, and the generated trap set (count, canonical positions, source codec of each). Not covered: values
-    `buildId` pins (field order, tag constants, offsets), per-player variant data, the secrets (`rotationSeed`, the
+    in canonical order (each site's script path, ordinal, line, column and definition's canonical id), and each
+    site's constant fields and values. Not covered: values `buildId` pins (field order, tag constants, offsets, and
+    every `[build]` option, `v5-integrity.md` §2), per-player variant data, the secrets (`rotationSeed`, the
     key-derivation secret, the canary key: a public hash over a secret is an offline check for guesses) and the
-    per-server permutation seed. It is 0 with no site ids and no generated traps, so `v5.md` §4.10's G7 and every
-    unwoven `HELLO` are unchanged. Named **`idTableHash`**, for the table it pins: `weaveHash` would misname an
-    unwoven build with traps, and `layoutHash` collides with the `layout` field and option of the runtime path.
-    `HELLO` carries it and a mismatch is refused (`v5.md` §4.6); `lync build` writes it without weaving whenever
-    `build.traps` > 0.
+    per-server permutation seed. It is 0 exactly when the id mode is `"generic"`; otherwise it is the hash, with 0
+    replaced by 1. Named **`idTableHash`**, for the table it pins: `weaveHash` would misname a field the protocol
+    always carries, and `layoutHash` collides with the `layout` field and option of the runtime path. `HELLO`
+    carries it at protocol version 2, so G7 is re-cut with `idTableHash` 0 (`v5.md` §4.6, §4.10), and a mismatch is
+    refused.
 
 ### 5.6 Composition
 
-- Per-build values reach woven sites from the same IR as the shard: field order, offsets (folded into the constant
-  word at a literal site), traps; the tag is computed at flush and never woven `[generation-methods M16]`.
+- Per-build values reach woven sites from the same IR as the shard: field order and offsets (folded into the
+  constant word at a literal site); the tag is computed at flush and never woven `[generation-methods M16]`.
 - Per-player variants compose only in tag scope: woven scripts in starter containers are copied to every player, so
   `build.playerVariantScope = "upstream"` with `lync weave` is `configRange` `[codecs-in-scripts §8]`.
-- The schema hash, `staleShard` and the unwoven golden vectors are unchanged; woven fixture vectors (a site id; a
-  fully literal site with no payload bits) join the golden set (`v5.md` §4.10).
+- The schema hash, `staleShard` and the unwoven golden vectors other than G7 (re-cut, §5.5) are unchanged; woven
+  fixture vectors (a site id; a fully literal site with no payload bits) join the golden set (`v5.md` §4.10).
 
 ### 5.7 Options
 
@@ -587,11 +597,11 @@ Read only by `lync weave`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `weave.inlineMaxSites` | integer | woven client sites per definition | 0–65,535 (0: never inline) | 2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3) | per site, mean over the measured mix at `-g1`: an unwoven site 124 B, W3 177 B, W2 654 B; client time per call (interpreted, median): `move6` W2 437 ns, W3 562 ns; `strike` 663 and 676; `chat` 144 and 164 `[codecs-in-scripts §6.1, §6.3]` |
+| `weave.inlineMaxSites` | integer | woven client sites per definition | 0–65,535 (0: never inline) | 2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3; a measured phone load cost per KB would change it) | per site, mean over the measured mix at `-g1`: an unwoven site 124 B, W3 177 B, W2 654 B; client time per call (interpreted, median): `move6` W2 437 ns, W3 562 ns; `strike` 663 and 676; `chat` 144 and 164 `[codecs-in-scripts §6.1, §6.3]` |
 | `weave.literals` | boolean | — | — | `true` (derived: no run-time cost; 85–165 ns less per literal call) | a literal site's checks move to the build; a refused literal is `weaveLiteralRefused` |
 | `weave.server` | `"off"` \| `"call"` | — | — | `"call"` (derived: W3 is faster than the shard entry on the server with no correctness cost) | +53 B per server site (W3, the client mix's mean); server time per call `move6` 291 against 453 ns, `strike` 333 against 471, `chat` 115 against 176 (native shard, interpreted script) |
-| `weave.ids` | `"generic"` \| `"definition"` \| `"site"` | — | — | `"site"` (chosen: the only mode with constant elision and per-site ids) | `"site"`: ⌈log2(D + S)⌉ − ⌈log2 D⌉ bits per upstream run (D = 20: +1 at S = 20, +2 at 60–100, +4 at 300; +1 bit is 9–18 B/s per player at 70 upstream frames/s), the closed-generic fact, constant elision (1–8 bits per message at the measured shapes, the whole payload at a fully literal site), `idTableHash` (4 B per namespace per connection); `"definition"`: at most +1 bit per run and the fact; `"generic"`: no wire change |
-| `weave.dropClosed` | boolean | — | — | `false` (derived: with `true`, code outside the build calling a closed definition raises at the caller instead of sending, so an unmodified client running such code breaks) | `true`: the client shard drops closed definitions' encoders (0.43× unwoven bytes at 1 site per definition); the server still decodes and reports the generic id |
+| `weave.ids` | `"generic"` \| `"definition"` \| `"site"` | — | — | `"site"` (chosen: the only mode with constant elision and per-site ids) | `"site"`: ⌈log2(D + S)⌉ − ⌈log2 D⌉ bits per upstream run (D = 20: +1 at S = 20, +2 at 60–100, +4 at 300; +1 bit is 9–18 B/s per player at 70 upstream frames/s), the closed-generic fact, constant elision (1–8 bits per message at the measured shapes, the whole payload at a fully literal site); `"definition"`: at most +1 bit per run and the fact; `"generic"`: no wire change |
+| `weave.dropClosed` | boolean | — | — | `false` (derived: with `true`, code outside the build calling a closed definition raises at the caller instead of sending, so an unmodified client running such code breaks, and a declared trap no client code names loses its encoder, so a driver calling it sends nothing) | `true`: the client shard drops closed definitions' encoders (0.43× unwoven bytes at 1 site per definition); the server still decodes and reports the generic id |
 | `weave.handlers` | boolean | — | — | `false` (derived: it is the one transform whose result the byte differential can't check) | per delivered message of an unpacked definition: client 419 → 342 ns, server 355 → 262 ns `[codecs-in-scripts §6.4]`; build time to prove the precondition (unmeasured) |
 
 ### 5.8 Handler unpacking (`weave.handlers`)
@@ -600,7 +610,8 @@ A function literal passed to `connect`, `validate` or `handle` at a resolved bin
 the record's top-level fields as arguments when every occurrence of its value parameter is a read `param.f`, with
 `f` a constant field name of the record: never written, passed, returned, compared, captured by a closure, given to
 `#`, `next` or `typeof`, or indexed by a non-constant. The parameter is replaced in place by one parameter
-`__lync_<f>` per field and each `param.f` by `__lync_<f>`, so every line keeps its number. The rewritten call
+`__lync_<i>` per top-level field, i its 1-based index in field order (field names need not be identifiers), and each
+`param.f` by its `__lync_<i>`, so every line keeps its number. The rewritten call
 registers through the shard's fields entry; the delivery passes the decoded locals to fields-form functions and
 builds the payload table only when a table-form function is also registered for the definition, so handlers from
 outside the place still receive the table.
@@ -638,8 +649,8 @@ Unverified facts a default, a code's known cause or a mechanism above rests on (
 - the `Source` cap of 200,000 characters set the ordinary way (the part cap, §1.1), and how many characters a
   `StringValue` holds (`ServerStorage.Lync.Config`, `.Manifest`);
 - a host API reporting a module's native IR instruction count (the server-part bound, §1.1);
-- an OS entropy source in Lune, and the entropy source of `HttpService:GenerateGUID()` in Studio (private
-  `rotationSeed`, §4.1, §4.2);
+- whether Lune's `process.exec` returns `od`'s reading of `/dev/urandom` intact, and the entropy source of
+  `HttpService:GenerateGUID()` in Studio (private `rotationSeed`, §4.1, §4.2);
 - whether a Luau Execution task can read `Source` (`--published`, §4.3);
 - whether plugin code runs in the play-test server DataModel and what `GetDescendants` costs in Studio (§4.2);
 - `EncodingService:ComputeStringHash` speed in Studio and in a Luau Execution task (§4.2, §4.3);

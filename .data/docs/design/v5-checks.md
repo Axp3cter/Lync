@@ -4,7 +4,7 @@ Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 a
 This file specifies, completely:
 - **checks** (§1–§6): `within`, `monotonic`, `maxTotal`, `derive` and `maxRate`, declared on the server view;
 - **claims** (§7): the `:claim()` and `:input()` codec markers, the claim requirement and the `freeFormField` lint;
-- **telemetry** (§8): `:aim`, `:series`, `:atom`, delivery to game code, and what Lync's docs must say about
+- **telemetry** (§8): `aim`, `series`, `atom`, delivery to game code, and what Lync's docs must say about
   Roblox's terms;
 - **sealed delivery** (§9): server-sent values sent before they become visible and revealed by a key.
 
@@ -154,15 +154,16 @@ the evidence set stays flat (`span` and `against` are R35's).
 
 - A `reference` or `fn` call runs in its own `xpcall`, with the validator's rules (`v5.md` §6.1 step 6): a throw is
   reported natively as `validatorError`, a yield as `validatorYielded`, spaced per (code, definition) per
-  `observe.window`; the message names the function (`arena.strike:field("origin"):within reference`). The message is dropped
-  (an ask is answered `rejected`), checks after it are not evaluated, and occurrences already recorded stand. A
+  `observe.window`; the message names the function (`arena.strike:field("origin"):within reference`). The message is
+  dropped (an ask is answered `rejected`), checks after it are not evaluated, and occurrences already recorded stand. A
   return of the wrong type is raised inside that call, so it is a throw.
 - A function returning nil skips its check for that message, counted in `checksSkipped`; nothing is committed for
   that check.
 - **Cost:** +18–38 ns per protected call `[diagnostics §9]`, once per game function and once for the validator.
-- **`perceived()`.** Whether a `reference` or `fn` may call `perceived(player)` is `v5-collections.md`'s rule; checks
-  run during the dispatch of the message's frame, as validators do. (Awaiting the collections unit's decision; see
-  the change record.)
+- **`Lync.perceived(player)`** may be called inside a `reference` or `fn`, as in the validator and the handler
+  before its first yield, for the message's own player; it returns the perceived ticks of the message's frame, the
+  same value in each call. Anywhere else it throws `perceivedOutsideDispatch` (`v5-collections.md` §12.5). So a
+  `within` reference can read rewound state: `Net.fighters:rewound(Lync.perceived(player), key)`.
 
 ## 2. `within`
 
@@ -202,7 +203,8 @@ fails; a negative m fails every value. Decoded values are never NaN (`v5.md` §3
    §5.1, §9); 1.6 studs at the default `WalkSpeed` of 16 studs/s (documented), and 13.6 studs more after a 0.85 s
    reliable-lane stall (the simulated p99, `v5.md` §4.9). For physics the client owns, the engine's replication
    delay adds an unmeasured amount (§11). A reference that reads `rewind` at the client's perceived tick
-   (`v5-collections.md`) removes the latency term for records Lync replicates.
+   (`Net.c:rewound(Lync.perceived(player), key)`, `v5-collections.md` §12.5) removes the latency term for records
+   Lync replicates.
 2. **Teleports, respawns and seat changes** between send and arrival.
 3. **Quantization:** up to √3 · step/2 for `t.vector3` (0.027 studs at 1/32), step/2 for `t.number`, π/n for
    `t.angle`, the octahedral error for `t.direction` (0.2369° at 10 bits; `v5.md` §3.3).
@@ -231,8 +233,8 @@ State 0 B; wire 0 B.
 `Net.input:field("seq"):monotonic({ order = "increasing", policy = "drop" })` `[checks-telemetry C2]`: a number that
 unmodified client code never decreases in send order (`"nondecreasing"`) or always raises (`"increasing"`).
 - **Frame key.** On the reliable lane, the frame's tag count (`v5.md` §4.5); on the unreliable lane, its extended
-  upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in call order (`v5.md` §4.1), so they share a key and are
-  compared in order.
+  upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in call order (`v5.md` §4.1), so they share
+  a key and are compared in order.
 - **State:** the stored key s* and value v*, two f64 per (player, check).
 - Codecs: `t.int(min, max)`, `t.int()`, `t.number`, `t.f32`, `t.f64`. `t.angle` wraps, so it is `fieldKind`, as is
   every other codec.
@@ -670,9 +672,9 @@ Each declaration keeps one ring per player of `ring` entries; one ring per defin
 ring (a second `aim` or `series`, on the definition or any of its fields, throws `telemetryTwice`).
 - **Timing** (`Net.<def>:series(options?)`): one entry per frame carrying a delivered message of the definition.
 - **Values** (`Net.<def>:field(path):series(options?)`): the same, plus the field's value. Scalars (`t.int`,
-  `t.number`, `t.f32`, `t.f64`, `t.angle`, `t.bool` as 0 or 1, a list enum's 0-based index, a Roblox enum item's `Value`) are stored as
-  the nearest f32, so integers above 2^24 lose precision; vectors (`t.vector3`, `t.vector3f32`, `t.direction`) as three
-  f32. Lync stores values; differences are the analyst's.
+  `t.number`, `t.f32`, `t.f64`, `t.angle`, `t.bool` as 0 or 1, a list enum's 0-based index, a Roblox enum item's
+  `Value`) are stored as the nearest f32, so integers above 2^24 lose precision; vectors (`t.vector3`, `t.vector3f32`,
+  `t.direction`) as three f32. Lync stores values; differences are the analyst's.
 - **Aim** (`Net.<def>:field(path):aim(options?)`): the field's look direction as yaw and pitch. Each aim codec gives
   a unit direction (x, y, z): `t.direction` itself; `t.rotation` and `t.cframe` their `LookVector`; a record
   `{ yaw = t.angle(…), pitch = t.angle(…) }` the vector (−sin yaw · cos pitch, sin pitch, −cos yaw · cos pitch).
@@ -960,9 +962,9 @@ readings are the research's, unverified, and not legal advice):
   time at the reveal: N bytes take N/R, R being the engine's downstream rate for that player (unmeasured, §11).
 - **Options:** (a) withhold until the reveal (draft 3.5's recipe, R34's earlier reason); (b) **send it sealed under a
   per-seal 64-bit key and reveal the key** `[refusals-rejudged-1 R34 (a)]`.
-- **Choice: (b)**, for the case where the reveal time matters; (a) stays the game's choice. A reveal is 67–79 bits for the first 127 seals,
-  then the client decrypts N bytes at 210–231 ns/B interpreted (CLI), so sealing shortens the reveal whenever R is
-  below 4.3–4.8 MB/s divided by the device factor (both unmeasured on Roblox).
+- **Choice: (b)**, for the case where the reveal time matters; (a) stays the game's choice. A reveal is 67–79 bits for
+  the first 127 seals, then the client decrypts N bytes at 210–231 ns/B interpreted (CLI), so sealing shortens the
+  reveal whenever R is below 4.3–4.8 MB/s divided by the device factor (both unmeasured on Roblox).
 - **Protects,** before the reveal: the plaintext is not on the client at all, only ciphertext under a key the client
   doesn't hold, so readers of memory, packets and state, and accounts sharing artefacts, face 2^63 expected key
   trials per seal; HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide the maximum PRF security" for its key and
@@ -992,7 +994,8 @@ Net.nextRound:connect(function(layout) end)
 - **`fire`** on a sealed definition returns a `Seal` with `reveal()` and `discard()`; calling either on a seal
   already revealed or discarded throws `sealSettled`. Generated path: `fire`'s return type is `Seal` for sealed
   definitions; runtime path: a type function on the presence of `sealed` in the definition's table type, under the
-  new solver (unverified until milestone 1's typing proofs, `v5.md` §3.5, §11). roblox-ts: `fire(this: void, target, data): Seal`.
+  new solver (unverified until milestone 1's typing proofs, `v5.md` §3.5, §11). roblox-ts: `fire(this: void, target,
+  data): Seal`.
 - **Client types** are unchanged: `connect` handlers receive the decoded value at the reveal.
 
 ### 9.3 Wire
@@ -1011,8 +1014,8 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 - **Ciphertext** = plaintext XOR keystream; keystream block j (j = 0 … `blocks` − 1) = HalfSipHash-2-4/64 under the
   seal key K_i over (i mod 2^32 as u32le, j as u32le). Sealing and opening are the same operation.
 - **Size.** A sealed message's worst case is 8 × ⌈W/8⌉ B of tail plus a header of at most 2 + 107 + the EG-0 length
-  of ⌈W/8⌉ bits; `messageTooLarge` applies to it. A reveal is 2 bits + the seal id's EG-0 + 64 bits: 67 bits for id 0, at
-  most 79 bits for ids below 127 (derived); a discard is 2 bits + the id's EG-0.
+  of ⌈W/8⌉ bits; `messageTooLarge` applies to it. A reveal is 2 bits + the seal id's EG-0 + 64 bits: 67 bits for id 0,
+  at most 79 bits for ids below 127 (derived); a discard is 2 bits + the id's EG-0.
 - **Encode once.** One key per seal, not per viewer: a seal's chunk and its reveal are identical for every recipient,
   so they are shared chunks and stay eligible for `FireAllClients` (`v5.md` §4.2). Per-player values are separate
   fires.
@@ -1048,8 +1051,8 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 - **Refused with a `v5.md` §4.8 rule:** `kind` 3 (rule 2); a seal while `outstanding` are held, or `blocks` above ⌈W/8⌉
   (rule 2); with `hideLength`, `blocks` other than ⌈W/8⌉ (rule 3); a seal id already held, or a reveal or discard
   naming no held seal (rule 7).
-- **At the reveal** it decrypts and decodes the plaintext under §4.8 (padding bytes past the encoding must be zero,
-  rule 4); a violation refuses the frame holding the reveal. Refusals are counted in `refusedFrames` and sent in
+- **At the reveal** it decrypts and decodes the plaintext under `v5.md` §4.8 (padding bytes past the encoding must
+  be zero, rule 4); a violation refuses the frame holding the reveal. Refusals are counted in `refusedFrames` and sent in
   `REPORT`, as for any downstream frame (`v5-integrity.md` §5). The value is then delivered to `connect` handlers
   at the reveal's place in run order, and the ciphertext is freed; a discard frees it.
 

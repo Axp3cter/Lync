@@ -18,3 +18,6 @@ for g in 0 1 2; do
 	for v in base functions; do printf '%s' "-g$g $v strings in bytecode: "; strings -n 3 "$W/$v.g$g.bc" | tr '\n' ' '; echo; done
 done
 for v in base locals functions; do printf '%s' "debug.info n at -O2 -g1, $v: "; "$B/luau" -O2 -g1 "$W/$v.luau"; done
+# instruction streams at -g1, base against functions, with the text annotations of closure names removed
+for v in base functions; do "$B/luau-compile" --text -O2 -g1 "$W/$v.luau" | grep -E "^[A-Z]" | grep -v "^Function" | sed "s/ \['[A-Za-z]*'\]//" > "$W/$v.ops"; done
+if cmp -s "$W/base.ops" "$W/functions.ops"; then echo "-g1 instructions, base vs functions: identical ($(wc -l < "$W/base.ops") instructions)"; else echo "-g1 instructions differ"; fi

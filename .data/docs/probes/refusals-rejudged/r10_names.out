@@ -16,3 +16,4 @@
 debug.info n at -O2 -g1, base: encodeHit		hit
 debug.info n at -O2 -g1, locals: encodeHit		hit
 debug.info n at -O2 -g1, functions: h		hit
+-g1 instructions, base vs functions: identical (75 instructions)

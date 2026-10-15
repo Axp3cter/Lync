@@ -34,6 +34,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | running |
 | `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
+| `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | append to `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -54,7 +55,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   1. ~~`interest`~~ done.
   2. ~~`rewind`~~ done.
   3. ~~`checks`~~ done.
-  4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
+  4. `telemetry` (on `a8535342774a83e31`): D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
   6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through

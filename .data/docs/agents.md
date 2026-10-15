@@ -31,3 +31,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   `probes/build/`). Design at draft 3.5. No milestone work without the author's go-ahead.
 - Security re-judgment in progress: the three agents above, then an architect writes draft 3.6, then a critic
   reviews it.
+- Author direction for the architect: codecs spread into game scripts can work. Reconsider it as a design
+  problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
+  and harder to isolate), transforming the built output rather than the developer's source if that removes the
+  script-rewrite problems. If no such form holds up, say why plainly; that outcome is acceptable.

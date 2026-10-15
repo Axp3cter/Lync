@@ -36,6 +36,7 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a0c447a56e69a6bc0` | builder | milestone 1 unit B: schema DSL, planner, IR, schema hash, diagnostics registry and code pages, typing proofs | `src/init.luau`, `src/types.luau`, `src/plan/`, `src/diag/`, `docs/codes/`, `test/{plan,diag,types}/` | done (146 tests; G6 exact; typing proofs pass; column-block worst case; byte-exact examples); done (sizes test from `MIN_ROWS`; 18 byte-exact examples); `vectorStep` done (230 tests; 19 byte-exact pages); reusable for planner and registry work |
 | `afa262a830e0db8b1` | builder | milestone 1 unit C: runtime interpreter, column integration, golden set G2–G8, `columnMinRows` | `src/codec/`, `test/codec/`, `test/golden/`, `test/support/{gen,frame}.luau` | done (G2–G4, G8 exact; `columnMinRows` = 3); workaround removed (227 tests); done (242 tests; canonical rotations verified exhaustively at 7–8 bits and 10^7 at 9–15); reusable for codec work |
 | `abc0b8963b21872e9` | critic | milestone 1 code review: correctness against the design, hostile decode input (fuzzing), hot-path cost, types, style, tests | `reviews/m1-code.md`, `probes/review-m1/` | running |
+| `a8d693323bb70d522` | builder | milestone 2 unit E: `Host` seams, facts, counters, console, buckets, simulated world and network model | `src/host/`, `src/diag/`, `docs/codes/`, `src/session/buckets.luau`, `test/support/{world,net}.luau`, `test/{host,diag}/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

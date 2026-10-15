@@ -233,7 +233,7 @@ return {
 					fives = Lync.event({ from = "client", data = t.array(t.int(5, 5), 4) }),
 				})
 			end,
-			{ code = "zeroWidthElement", at = at(line + 3), subject = "arena.fives", path = "data" }
+			{ code = "zeroWidthElement", at = at(line + 4), subject = "arena.fives", path = "data" }
 		)
 		Check.expectThrow(
 			function()
@@ -241,7 +241,7 @@ return {
 					empty = Lync.event({ from = "client", data = t.map(t.enum({ "only" }), {}, 4) }),
 				})
 			end,
-			{ code = "zeroWidthElement", at = at(line + 8), subject = "arena.empty", path = "data" }
+			{ code = "zeroWidthElement", at = at(line + 12), subject = "arena.empty", path = "data" }
 		)
 	end,
 

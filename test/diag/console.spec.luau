@@ -12,6 +12,7 @@
 
 local Check = require("../support/check")
 local Console = require("../../src/diag/console")
+local Counters = require("../../src/diag/counters")
 local Facts = require("../../src/diag/facts")
 local World = require("../support/world")
 
@@ -34,7 +35,7 @@ return {
 	["100 players make at most 2 lines per code per window, with constant text"] = function()
 		local world = World.new({ seed = 1 })
 		local host = world.server.host
-		local facts = Facts.new(host, Console.new(host))
+		local facts = Facts.new(host, Console.new(host), Counters.new())
 		local players: { Player } = {}
 		for _ = 1, 100 do
 			table.insert(players, world:join().player :: Player)
@@ -142,7 +143,7 @@ return {
 	["the window follows observe.window"] = function()
 		local world = World.new({ seed = 6 })
 		local host = world.server.host
-		local facts = Facts.new(host, Console.new(host))
+		local facts = Facts.new(host, Console.new(host), Counters.new())
 		Facts.configure(facts, 5, 16, 256)
 		Facts.record(facts, "frameGap", nil, nil, nil, 1)
 		Facts.record(facts, "frameGap", nil, nil, nil, 1)

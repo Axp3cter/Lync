@@ -26,7 +26,7 @@ return Lync.schema("arena", {
 raises:
 
 ```example
-PENDING
+ReplicatedStorage.Net.schema:6: [Lync] zeroWidthElement: arena.crowd data must have elements that cost at least 1 bit; send the count as a t.int
 ```
 
 ## Fix

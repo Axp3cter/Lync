@@ -24,7 +24,7 @@ local charge = t.number(0, 1, 0.35)
 raises:
 
 ```example
-ReplicatedStorage.Net.schema:5: [Lync] numberStep: t.number step must divide max - min into a whole number of steps, got 0.34999999999999998
+ReplicatedStorage.Net.schema:5: [Lync] numberStep: t.number step must divide max - min into a whole number of steps, got 0.35
 ```
 
 ## Fix

@@ -12,6 +12,7 @@
 
 local Check = require("../support/check")
 local Console = require("../../src/diag/console")
+local Counters = require("../../src/diag/counters")
 local Facts = require("../../src/diag/facts")
 local World = require("../support/world")
 
@@ -20,6 +21,7 @@ local World = require("../support/world")
 type Setup = {
 	world: World.World,
 	facts: Facts.State,
+	counters: Counters.State,
 	delivered: { Facts.Fact },
 }
 
@@ -55,13 +57,14 @@ const EVIDENCE_CASES = table.freeze({
 local function setUp(seed: number): Setup
 	local world = World.new({ seed = seed })
 	local host = world.server.host
-	local facts = Facts.new(host, Console.new(host))
+	local counters = Counters.new()
+	local facts = Facts.new(host, Console.new(host), counters)
 	local delivered: { Facts.Fact } = {}
 	Facts.observe(facts, function(fact: Facts.Fact)
 		table.insert(delivered, fact)
 	end)
 
-	return { world = world, facts = facts, delivered = delivered }
+	return { world = world, facts = facts, counters = counters, delivered = delivered }
 end
 
 local function playersOf(setup: Setup, count: number): { Player }
@@ -296,6 +299,35 @@ return {
 		Check.expectEqual(#setup.delivered, 2, "the others keep observing")
 		Check.expectEqual(#setup.world:claimLines(setup.world.server, "desync"), 1, "lines")
 		setup.world:expectQuiet()
+	end,
+
+	["every occurrence counts in its reason's counter, past coalescing and caps"] = function()
+		local setup = setUp(12)
+		Facts.configure(setup.facts, WINDOW, 1, 256)
+		local players = playersOf(setup, 2)
+		for _ = 1, 3 do
+			Facts.record(setup.facts, "replayed", players[1], nil, nil, 7, 70, 1)
+		end
+		Facts.record(setup.facts, "malformed", players[1], nil, nil, 0, 4)
+		Facts.record(setup.facts, "malformed", players[2], nil, nil, 0, 4)
+		Facts.record(setup.facts, "frameGap", nil, nil, nil, 1)
+		stepAndSweep(setup, WINDOW)
+
+		local side = Counters.snapshot(setup.counters).facts
+		Check.expectEqual(side.replayed, 3, "replayed, coalesced and suppressed")
+		Check.expectEqual(side.malformed, 2, "malformed, one suppressed")
+		Check.expectEqual(side.frameGap, 1, "a local fact")
+		Check.expectEqual(side.suppressed, 0, "suppressed is a delivery, not an occurrence")
+		Check.expectEqual(side.overLimit, 0, "every fact reason has its counter")
+
+		local first = Counters.snapshot(setup.counters, players[1]).facts
+		Check.expectEqual(first.replayed, 3, "the first player's replayed")
+		Check.expectEqual(first.malformed, 1, "the first player's malformed")
+		Check.expectEqual(
+			Counters.snapshot(setup.counters, players[2]).facts.malformed,
+			1,
+			"the second's"
+		)
 	end,
 
 	["facts and their evidence are frozen"] = function()

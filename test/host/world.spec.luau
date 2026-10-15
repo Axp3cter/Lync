@@ -14,6 +14,7 @@
 
 local Check = require("../support/check")
 local Console = require("../../src/diag/console")
+local Counters = require("../../src/diag/counters")
 local Facts = require("../../src/diag/facts")
 local Host = require("../../src/host/host")
 local World = require("../support/world")
@@ -57,7 +58,7 @@ local StubEndpoint = {}
 function StubEndpoint.new(_side: "server" | "client", host: Host.Host, options: any?): Stub
 	local stub: Stub = {
 		host = host,
-		facts = Facts.new(host, Console.new(host)),
+		facts = Facts.new(host, Console.new(host), Counters.new()),
 		received = {},
 		options = options,
 		stepCount = 0,

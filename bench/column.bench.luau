@@ -3,9 +3,9 @@
 --[=[
 	column.bench
 
-	Measures the column coder (v5.md §4.3), EG-0 decoding (per value and batched) and HalfSipHash on the Luau CLI, which
-	has no Roblox types. Run from the repo root, once interpreted and once native, appending to the
-	results file of the current commit:
+	Measures the column coder (v5.md §4.3), EG-0 decoding (per value and batched) and HalfSipHash
+	on the Luau CLI, which has no Roblox types. Run from the repo root, once interpreted and once
+	native, appending to the results file of the current commit:
 
 	luau -O2 bench/column.bench.luau -a interpreted >> bench/results/<short sha>.json
 	luau -O2 --codegen bench/column.bench.luau -a native >> bench/results/<short sha>.json

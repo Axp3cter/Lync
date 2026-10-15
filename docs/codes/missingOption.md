@@ -25,7 +25,7 @@ return Lync.schema("arena", {
 raises:
 
 ```example
-ReplicatedStorage.Net.schema:6: [Lync] missingOption: arena.chat must have the option from, "client" or "server"
+ReplicatedStorage.Net.schema:6: [Lync] missingOption: arena.chat from must be given, "client" or "server", got nil
 ```
 
 ## Fix

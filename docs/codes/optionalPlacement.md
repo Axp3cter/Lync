@@ -24,7 +24,7 @@ local titles = t.array(t.optional(t.string(16)), 8)
 raises:
 
 ```example
-PENDING
+ReplicatedStorage.Net.schema:5: [Lync] optionalPlacement: t.array codec must not be a t.optional, since an absent element would have a second encoding
 ```
 
 ## Fix

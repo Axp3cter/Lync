@@ -222,37 +222,39 @@ function Ints.readEgMany(
 	)
 	local bit = r.bit
 	for i = first, first + count - 1 do
-		local length = 0
-		local window = 0
 		if bit <= lastFastBit then
-			window = bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, LOOKUP_BITS)
-			length = LOOKUP_LENGTH[window + 1]
+			local window = bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, LOOKUP_BITS)
+			local length = LOOKUP_LENGTH[window + 1]
+			if length > 0 then
+				bit += length
+				local value = LOOKUP_VALUE[window + 1]
+				if k > 0 then
+					value = value * scale + bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, k)
+					bit += k
+				end
+
+				if value > maxCode then
+					r.bit = bit
+					return 2
+				end
+
+				out[i] = value
+				continue
+			end
 		end
 
-		local value: number
-		if length > 0 then
-			bit += length
-			value = LOOKUP_VALUE[window + 1]
-			if k > 0 then
-				value = value * scale + bit32.extract(buffer.readu32(buf, bit // 8), bit % 8, k)
-				bit += k
-			end
-		else
-			r.bit = bit
-			local slowValue, rule = Ints.readEg(r, k)
-			if slowValue == nil then
-				return rule
-			end
-			value = slowValue
-			bit = r.bit
+		r.bit = bit
+		local value, rule = Ints.readEg(r, k)
+		if value == nil then
+			return rule
 		end
 
 		if value > maxCode then
-			r.bit = bit
 			return 2
 		end
 
 		out[i] = value
+		bit = r.bit
 	end
 
 	r.bit = bit

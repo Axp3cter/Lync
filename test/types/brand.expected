@@ -1,0 +1,7 @@
+== lsp-new (exit 1)
+test/types/brand.luau(28,34): TypeError: Expected this to be
+	'"REVEAL record"'
+but got
+	'{ _value: number, name: string }'
+== lsp-old (exit 1)
+test/types/brand.luau(27,15): TypeError: Unknown type 'Types.Infer'

@@ -26,7 +26,7 @@ return Lync.schema("arena", {
 raises:
 
 ```example
-PENDING
+ReplicatedStorage.Net.schema:6: [Lync] elementsTooMany: arena.grid data must decode into at most 65536 elements in the worst case, got 133121
 ```
 
 ## Fix

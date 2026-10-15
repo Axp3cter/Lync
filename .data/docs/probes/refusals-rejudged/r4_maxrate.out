@@ -22,3 +22,25 @@ runner, maxRate (anchor) vector3, 3-D                  278.9 ns/op (sink 0)
 runner, maxRate (anchor) vector3, plane xz             267.2 ns/op (sink 0)
 failures: 0 (expected 0); state 48 B per player per check
 == native -O2 --codegen run 2
+-- A. honest traffic at exactly rate 16 studs/s, t.vector3 step 1/32, 60 Hz, 3 x 10^6 messages per line, window 10 s
+unreliable jitter 0.02 s stalls false: bucket max level 149.067 studs | anchor: burst needed 0.298, derived 0.641 | 37969 late frames
+unreliable jitter 0.05 s stalls false: bucket max level 1.798 studs | anchor: burst needed 0.563, derived 1.121 | 673080 late frames
+reliable   jitter 0.02 s stalls false: bucket max level 309.260 studs | anchor: burst needed 0.299, derived 0.641 | 0 late frames
+reliable   jitter 0.02 s stalls true : bucket max level 321.778 studs | anchor: burst needed 13.408, derived 14.241 | 0 late frames
+-- B. cost per message, table-driven runner (best of 7, ns)
+runner, no checks (nil test)                            15.7 ns/op (sink 0)
+runner, maxRate (anchor) vector3, 3-D                   82.9 ns/op (sink 0)
+runner, maxRate (anchor) vector3, plane xz              77.3 ns/op (sink 0)
+failures: 0 (expected 0); state 48 B per player per check
+== interpreted -O2 run 2
+-- A. honest traffic at exactly rate 16 studs/s, t.vector3 step 1/32, 60 Hz, 3 x 10^6 messages per line, window 10 s
+unreliable jitter 0.02 s stalls false: bucket max level 149.067 studs | anchor: burst needed 0.298, derived 0.641 | 37969 late frames
+unreliable jitter 0.05 s stalls false: bucket max level 1.798 studs | anchor: burst needed 0.563, derived 1.121 | 673080 late frames
+reliable   jitter 0.02 s stalls false: bucket max level 309.260 studs | anchor: burst needed 0.299, derived 0.641 | 0 late frames
+reliable   jitter 0.02 s stalls true : bucket max level 321.778 studs | anchor: burst needed 13.408, derived 14.241 | 0 late frames
+-- B. cost per message, table-driven runner (best of 7, ns)
+runner, no checks (nil test)                            33.0 ns/op (sink 0)
+runner, maxRate (anchor) vector3, 3-D                  282.3 ns/op (sink 0)
+runner, maxRate (anchor) vector3, plane xz             260.5 ns/op (sink 0)
+failures: 0 (expected 0); state 48 B per player per check
+== native -O2 --codegen run 3

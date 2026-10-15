@@ -71,7 +71,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `af1f4117f854b6350` | architect (Opus) | open items: stream/acked decoding conflicts (`in` timing, instances in streams, hash kind, 411 figure, stream-bytes name, role markers) | `design/v5-3.6-open-streams.md` | done on Opus 5.5: `in` on every downstream state frame (≤ 1 B), instances refused in stream data, kind 5, §15.7 re-derived in decode units, `streamBytesExceeded`, role markers allowed with the claim requirement at `connect`; no golden changed; retired |
 | `a89a494b2c94478ee` | architect (Opus) | open items: naming across files; "For runtime" list | `design/v5-3.6-open-naming.md` | done on Opus 5.5: 53 kept, 30 renamed, 4 split; convention gains American spelling, a `Malformed` message phrase, `clockMilliseconds`; `inbound.elements` → `inbound.decodeUnits` (lead accepted); 11 items for runtime; retired |
 | `a01235cc829a6ff2f` | architect (Opus) | open items: remaining semantic conflicts outside runtime text | `design/v5-3.6-open-semantics.md`, `probes/open-semantics-3.6/` | done on Opus 5.5: 9 items (field naming by role: handles for declarations, typed path unions for options naming fields; `REPORT` sizes from §4.6; `pvs` buffer errors; `freeFormRoleMissing` covers streams; `rewind` exclusion list completed); no golden changed; retired |
-| `ae2bb0e6f8e366dce` | critic (Opus) | final review of merged 3.6: every name against the convention; one message traced end to end (client event, server reply and collection update, input stream) across all five files | `reviews/v5-3.6-final.md`, `probes/review-3.6-final/` | done on Opus 5.5: names 0 blocking, 2 major, 11 minor; trace 1 blocking (`DEPTH` lacks a namespace index), 5 major, 16 minor; G3, G4, G4c, G5, G10 and ROT reproduced from the text; reuse for the re-check |
+| `ae2bb0e6f8e366dce` | critic (Opus) | final review of merged 3.6: every name against the convention; one message traced end to end (client event, server reply and collection update, input stream) across all five files | `reviews/v5-3.6-final.md`, `probes/review-3.6-final/` | done on Opus 5.5: names 0 blocking, 2 major, 11 minor; trace 1 blocking (`DEPTH` lacks a namespace index), 5 major, 16 minor; G3, G4, G4c, G5, G10 and ROT reproduced from the text; re-check done: 34 fixed, 1 partly (A5), 6 new (1 major: μ 0.10 fails the gate 4 of 7 runs; μ ≥ 0.239 needed, which drops the units default below the busy model; 5 minor); reuse for the next re-check |
 | `aa3ac179b751edc26` | architect (Opus) | consistency: `v5.md` §0–§3, §5.2 and header (Needs elsewhere, lead decisions, renames) | `design/v5-3.6-consistency-core-api.md`, `probes/consistency-3.6-core-api/` | done on Opus 5.5 (stopped once by mistake, resumed): 33 items applied, 57 renames plus 12 named under the convention, 4 open (stream hash kind 4 vs 5; `streamBytesExceeded` vs `streamChunkBytesExceeded`; two names for the naming critic; header's extensions line) |
 | `a16a77f14df4e38ea` | architect (Opus) | consistency: `v5.md` §4 (incl. golden regeneration) | `design/v5-3.6-consistency-wire.md`, `probes/design-3.6/golden_wire.*` | done on Opus 5.5 (stopped once by mistake, resumed): 21 applied, 1 changed (stream hash kind 5), 3 rejected, 35 confirmed; about 45 renames plus 9 named; G6, G7, G10, S0 regenerated and every vector re-checked; 8 open |
 | `a60b226001890347a` | architect (Opus) | consistency: `v5-integrity.md` | `design/v5-3.6-consistency-integrity.md` | done on Opus 5.5 (stopped once by mistake, resumed): 56 items (50 applied, 5 changed, 1 rejected), about 110 renames plus 8 named, 2 open (`WELCOME` bits for the two report switches; §7.3 splitting rule) |
@@ -80,6 +80,24 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aebc577709fa651ed` | architect (Opus) | consistency: `v5-tooling.md` | `design/v5-3.6-consistency-tooling.md` | done on Opus 5.5 (stopped once by mistake, resumed): 32 items (24 applied, 5 in place, 2 superseded, 1 rejected), about 63 renames, `pvs` byte format defined, 4 open |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
+
+## Stopped (author, 2026-10-15)
+
+Work is paused until the author says to begin again. State at the pause:
+- Draft 3.6 written, reviewed per area and end to end, reconciled, final pass applied; "Draft 3.5 to 3.6" merged
+  into `design/v5-changes.md`. `v5-extensions.md` is gone (everything is in the core).
+- Open, from `reviews/v5-3.6-final.md` "Re-check after the final pass":
+  - **Major:** `v5.md` §7.5's μ = 0.10 fails the §9 gate in 4 of 7 runs (largest ratio 1.239 on single-message
+    frames; 3-sweep medians jump up to 45%). μ ≥ 0.239 passes, but then §7.5's rule gives 1,000 decode units/s,
+    below the busy model's 2,690. Proposed: 7 sweeps per gate run and re-run; if it still flaps, raise the target to
+    2.5 ms/s at μ = 0.25 (5,000 units/s) or lower the frame budgets.
+  - **Minor (5):** `AtomSample.vector` typed `vector?` (rejects `Vector3`); `DEPTH` row size now wrong; roblox-ts
+    `Field<S, …>` vs `Field<D, T>`; `burstLoss` fractions lack the `Fraction` suffix; merged counts omit the wire,
+    tooling and checks totals and a few outcomes.
+  - **Partly fixed:** A5, the core example has no reliable claim event (changing it re-cuts G8, ROT or W1, W2).
+- Next when resumed, one agent at a time, reusing: the runtime consistency architect (`a7c10e3a2c92ae769`) fixes the
+  six items and settles μ by the rule above; the final critic (`ae2bb0e6f8e366dce`) re-runs the gate and re-checks.
+  Then the design is frozen and, on the author's go-ahead, the build plan is written.
 
 ## Next
 

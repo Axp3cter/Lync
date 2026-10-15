@@ -33,9 +33,6 @@ local Columns = {}
 const WIDE_LO = -2 ^ 52
 const WIDE_N = 2 ^ 53
 
---- The widest interval of codes [0, n - 1] that `Column` codes exactly.
-const EXACT_INTERVAL = 2 ^ 52
-
 const AXIS_COUNT = 24
 const DROPPED_COUNT = 4
 const COLOR_CODES = 256
@@ -45,43 +42,6 @@ const COLOR_CODES = 256
 -- A union variant's record codec is always a record; the cast names that for the checker.
 local function fieldsOf(variant: Ir.Variant): { Ir.Field }
 	return (variant.record :: any).fields
-end
-
--- `Column` adds a code to half the interval (encoding the first row) and a residual to the
--- previous code (decoding) before wrapping, which passes 2^53 and rounds when codes on [0, n - 1]
--- have n > 2^52. Residuals depend only on codes modulo n, so such columns are coded on the
--- centred interval [-floor(n / 2), ceil(n / 2) - 1] instead: the same bits, exactly.
-local function writeCodes(w: Bits.Writer, codes: { number }, count: number, n: number)
-	if n <= EXACT_INTERVAL then
-		Column.write(w, codes, 1, count, 0, n)
-		return
-	end
-
-	local high = n - n // 2 - 1
-	for i = 1, count do
-		if codes[i] > high then
-			codes[i] -= n
-		end
-	end
-	Column.write(w, codes, 1, count, -(n // 2), n)
-end
-
-local function readCodes(r: Bits.Reader, out: { any }, count: number, n: number): number
-	if n <= EXACT_INTERVAL then
-		return Column.read(r, out, 1, count, 0, n)
-	end
-
-	local rule = Column.read(r, out, 1, count, -(n // 2), n)
-	if rule ~= 0 then
-		return rule
-	end
-
-	for i = 1, count do
-		if out[i] < 0 then
-			out[i] += n
-		end
-	end
-	return 0
 end
 
 local writeColumns: (
@@ -162,7 +122,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		writeCodes(w, codes, count, max - min + 1)
+		Column.write(w, codes, 1, count, 0, max - min + 1)
 	elseif codec.kind == "varint" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -182,7 +142,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		writeCodes(w, codes, count, codec.steps + 1)
+		Column.write(w, codes, 1, count, 0, codec.steps + 1)
 	elseif codec.kind == "angle" then
 		local codes: { number } = table.create(count, 0)
 		for i = first, last do
@@ -192,7 +152,7 @@ function writeColumns(
 			end
 			codes[i - first + 1] = code
 		end
-		writeCodes(w, codes, count, codec.steps)
+		Column.write(w, codes, 1, count, 0, codec.steps)
 	elseif codec.kind == "enum" then
 		local index = codec.index
 		local codes: { number } = table.create(count, 0)
@@ -589,7 +549,7 @@ function readColumns(
 		return 0
 	elseif codec.kind == "int" then
 		local min = codec.min
-		local rule = readCodes(r, out, count, codec.max - min + 1)
+		local rule = Column.read(r, out, 1, count, 0, codec.max - min + 1)
 		if rule ~= 0 then
 			return rule
 		end
@@ -601,7 +561,7 @@ function readColumns(
 	elseif codec.kind == "varint" then
 		return Column.read(r, out, 1, count, WIDE_LO, WIDE_N)
 	elseif codec.kind == "number" then
-		local rule = readCodes(r, out, count, codec.steps + 1)
+		local rule = Column.read(r, out, 1, count, 0, codec.steps + 1)
 		if rule ~= 0 then
 			return rule
 		end
@@ -613,7 +573,7 @@ function readColumns(
 		return 0
 	elseif codec.kind == "angle" then
 		local steps = codec.steps
-		local rule = readCodes(r, out, count, steps)
+		local rule = Column.read(r, out, 1, count, 0, steps)
 		if rule ~= 0 then
 			return rule
 		end

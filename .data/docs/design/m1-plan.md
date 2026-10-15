@@ -539,3 +539,70 @@ Builders stop at the payload. The following belong to later milestones, and none
   - To fold into `v5.md` §4.7 at the next design pass: defaulted options are serialized present with resolved
     values; options a kind does not take are absent; a union variant is a full codec (type byte 23); `hasInstances`
     covers `data` or `reply`.
+
+### 6.1 Design rulings from draft 3.2 (architect)
+
+These change milestone 1 code; the design text is `v5.md` draft 3.2.
+- **`columnMinRows` is 3** (`v5.md` §4.9). G8 (4 rows) stays a column block; G2b (2 rows) stays single rows.
+- **Serialization** (`v5.md` §4.7) now states unit B's four choices as written in this section; nothing changes in
+  code.
+- **`t.vector3f32` in a column block** is three raw columns, x, y, z (`v5.md` §4.3), as unit C built it.
+- **Codes:** `notADefinition` and unit B's interpretations of `duplicateName`, `nameLength`, `mapKey` and
+  `newestWidth` are now design (`v5.md` §3.3, §3.4).
+- **`t.rotation` canonical codes** (`v5.md` §3.3, decision "quantizers are idempotent"):
+  - `Quant.unrotation` keeps its signature. A new `Quant.canonicalRotation(flag, index, a, b, c, bits): boolean`
+    decodes the code, builds the `CFrame` (`CFrame.new(0, 0, 0, x, y, z, w)`), re-encodes it from
+    `GetComponents()`, and compares. Because it builds a `CFrame`, it lives in `src/codec/leaves.luau`, not in
+    `quant.luau`, which stays pure.
+  - The row and column decoders return rule 6 for a non-canonical code.
+  - The encoder repeats `q ← encode(decode(q))` until the code is canonical, at most 2 repeats. Exceeding that is
+    `internal`.
+  - Tests:
+    - exhaustive at 7 and 8 bits: every code is either refused or re-encodes to itself, and every encoder output is
+      canonical;
+    - 10^7 random rotations at 9–15 bits;
+    - the worst-case error search re-run with the new encoder, its figures written into `v5.md` §3.3.
+  - Benchmark: rotation decode with the check, interpreted and native.
+- **`t.vector3` f32 rule** (`v5.md` §3.3):
+  - The encoder accepts a component up to one f32 spacing past a bound, 2^(⌊log2 |bound|⌋ − 23), and encodes it as
+    the end code.
+  - The planner refuses `step ≤ 2^(⌊log2 max(|min|, |max|)⌋ − 23)` with the new declaration code `vectorStep`,
+    with a registry page and a test.
+  - This applies to `t.vector3` and to a `t.cframe` position.
+  - Property test: for every code at the bounds and 10^4 random interior codes, decode into a `Vector3`, re-encode,
+    and get the same code.
+
+### 6.2 Interfaces fixed for milestone 2 (architect)
+
+Milestone 2's plan adopts these. Milestone 1's code may implement them now; the golden set doesn't change.
+
+```luau
+-- Encode: the refusal path's root is a parameter, not hard-wired to `data` (v5.md §7.1 roots).
+export type Root = "data" | "reply" | "record" | "patch"
+Rows.encodeValue(w: Bits.Writer, codec: Ir.Codec, value: any, instances: Instances, subject: string, root: Root)
+Run.encode(w: Bits.Writer, codec: Ir.Codec, values: { any }, count: number, instances: Instances,
+	subject: string, root: Root)
+Rows.collect(codec: Ir.Codec, value: any, into: Instances)    -- one row's instances, for chunks with row prefixes
+
+-- Decode: a chunk's instances come from the frame's array, by offset and the count in the chunk header,
+-- never from #list, since unreplicated instances arrive as nil (v5.md §4.2, §3.3).
+export type Chunk = { list: { Instance? }, offset: number, count: number, firstSeen: number }
+export type Miss = { row: number, what: number, value: number }   -- what: 1 enum value, 2 nil instance, 3 IsA
+Rows.beginChunk(list: { Instance? }, offset: number, count: number): Chunk
+Rows.read(r: Bits.Reader, codec: Ir.Codec, chunk: Chunk, row: number, misses: { Miss }): (any, number)
+Rows.endChunk(chunk: Chunk): number                          -- rule 9 over the chunk's entries; nil entries count
+Run.decode(r: Bits.Reader, codec: Ir.Codec, count: number, chunk: Chunk, misses: { Miss },
+	out: { any }): number                                    -- no longer begins or ends the chunk
+```
+
+- **Indices.** Instance index widths use `chunk.count`. Rule 9's "repeats an earlier entry" compares non-nil
+  entries only.
+- **`unresolved`.** A message with an unknown Roblox enum value, a nil required instance or an `IsA` failure decodes
+  with rule 0. The decoder appends `{ row, what, value }` to `misses`, the caller's array, which is cleared per chunk
+  and allocates only when a row is unresolved; `value` is the enum value or the chunk-local instance index. That
+  row's value is undefined.
+  - The milestone 2 pipeline drops each missed row.
+  - On the server, it reports the fact `unresolved` with `what` and `value`, and answers an ask `rejected`.
+  - On a client, it counts `unresolvedMessages` (`v5.md` §7.3, §7.4).
+- **Rows with prefixes.** Request and answer chunks call `beginChunk` once, write or read each row's prefix and
+  then `Rows.read`, and call `endChunk` once. `Run.decode` callers do the same around it.

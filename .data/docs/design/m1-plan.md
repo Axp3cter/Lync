@@ -555,8 +555,10 @@ These change milestone 1 code; the design text is `v5.md` draft 3.2.
     `GetComponents()`, and compares. Because it builds a `CFrame`, it lives in `src/codec/leaves.luau`, not in
     `quant.luau`, which stays pure.
   - The row and column decoders return rule 6 for a non-canonical code.
-  - The encoder repeats `q ← encode(decode(q))` until the code is canonical, at most 2 repeats. Exceeding that is
-    `internal`.
+  - **Superseded by the lead after unit C's measurement** (2-cycles, `v5.md` §3.3): canonical is the fixed point of
+    E(q) = encode(decode(q)) or the lower member of a 2-cycle; `canonicalRotation` checks that (one E, two for a
+    cycle code). The encoder iterates E from its first code, stops at a fixed point or a 2-cycle (returning the lower
+    member), and raises `internal` past 4 steps. Unit B registers `internal`.
   - Tests:
     - exhaustive at 7 and 8 bits: every code is either refused or re-encodes to itself, and every encoder output is
       canonical;

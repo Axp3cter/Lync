@@ -881,23 +881,29 @@ function readColumns(
 		local axisRow = 0
 		local otherRow = 0
 		for i = 1, count do
-			local flag = out[i]
-			local index, a, b, c = 0, 0, 0, 0
-			if flag == 1 then
+			local rotation: CFrame?
+			if out[i] == 1 then
 				axisRow += 1
-				index = axes[axisRow]
+				rotation = Leaves.rotationOf(1, axes[axisRow], 0, 0, 0, bits, 0, 0, 0)
 			else
 				otherRow += 1
-				index = dropped[otherRow]
-				a, b, c = aCodes[otherRow], bCodes[otherRow], cCodes[otherRow]
+				rotation = Leaves.rotationOf(
+					0,
+					dropped[otherRow],
+					aCodes[otherRow],
+					bCodes[otherRow],
+					cCodes[otherRow],
+					bits,
+					0,
+					0,
+					0
+				)
 			end
 
-			if not Leaves.canonicalRotation(flag, index, a, b, c, bits) then
+			if rotation == nil then
 				return 6
 			end
-
-			-- Cast: canonical codes decode.
-			out[i] = Leaves.rotationOf(flag, index, a, b, c, bits, 0, 0, 0) :: CFrame
+			out[i] = rotation
 		end
 		return 0
 	elseif codec.kind == "cframe" then

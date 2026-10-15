@@ -10,12 +10,22 @@ is, so it could not always fit an unreliable frame (v5.md §3.4, §4.9).
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-shout = Lync.event({ from = "client", lane = "unreliable", data = t.string(1000) }),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+return Lync.schema("arena", {
+	shout = Lync.event({ from = "client", lane = "unreliable", data = t.string(1000) }),
+})
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:9: [Lync] unreliableTooLarge: arena.shout data must encode in at most 960 bytes, got 1002
+ReplicatedStorage.Net.schema:6: [Lync] unreliableTooLarge: arena.shout data must encode in at most 960 bytes, got 1002
 ```
 
 ## Fix

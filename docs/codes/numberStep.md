@@ -11,12 +11,20 @@ since: 5.0.0
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-charge = t.number(0, 1, 0.35),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+local charge = t.number(0, 1, 0.35)
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:14: [Lync] numberStep: t.number step must divide max - min into a whole number of steps, got 0.34999999999999998
+ReplicatedStorage.Net.schema:5: [Lync] numberStep: t.number step must divide max - min into a whole number of steps, got 0.34999999999999998
 ```
 
 ## Fix

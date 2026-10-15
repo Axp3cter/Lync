@@ -11,12 +11,20 @@ written as a list, such as `{ t.bool() }`, has fields named by numbers.
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-return Lync.schema("", {
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+return Lync.schema("", {})
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:4: [Lync] nameLength: Lync.schema name must be a string of 1 to 64 bytes, got ""
+ReplicatedStorage.Net.schema:5: [Lync] nameLength: Lync.schema name must be a string of 1 to 64 bytes, got ""
 ```
 
 ## Fix

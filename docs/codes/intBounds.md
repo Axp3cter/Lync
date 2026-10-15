@@ -10,12 +10,20 @@ given, or neither, for `t.int()`.
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-health = t.int(100, 0),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+local health = t.int(100, 0)
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:29: [Lync] intBounds: t.int max must be an integer from min to 2^52 - 1, got 0
+ReplicatedStorage.Net.schema:5: [Lync] intBounds: t.int max must be an integer from min to 2^52 - 1, got 0
 ```
 
 ## Fix

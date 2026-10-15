@@ -31,6 +31,7 @@ export type Code =
 	| "unknownOption"
 	| "missingOption"
 	| "notACodec"
+	| "notADefinition"
 	| "intBounds"
 	| "numberStep"
 	| "numberStepIsInt"
@@ -52,6 +53,7 @@ const FAMILY: { [Code]: Family } = {
 	unknownOption = "declaration",
 	missingOption = "declaration",
 	notACodec = "declaration",
+	notADefinition = "declaration",
 	intBounds = "declaration",
 	numberStep = "declaration",
 	numberStepIsInt = "declaration",

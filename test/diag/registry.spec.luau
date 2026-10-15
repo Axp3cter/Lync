@@ -4,8 +4,12 @@
 	registry.spec
 
 	The code registry lints itself (v5.md §7.1, §9): `codes.luau` and `docs/codes/*.md` list the
-	same codes, every page's front matter and example are well formed, and every code is named by
-	a test.
+	same codes, every page's front matter and example are well formed, every code is named by a
+	test, and every page's example is, byte for byte, the message its trigger module raises.
+
+	A trigger runs as the module the page names, with `game:GetService` and `require` resolving
+	`ReplicatedStorage.Packages.Lync` to this package. The examples are the only prose a test
+	compares (v5.md §9).
 
 	Paths are relative to the repo root, where the runner runs.
 ]=]
@@ -13,9 +17,11 @@
 -- Imports -----------------------------------------------------------------------------------------
 
 local fs = require("@lune/fs")
+local luau = require("@lune/luau")
 
 local Check = require("../support/check")
 local Codes = require("../../src/diag/codes")
+local Lync = require("../../src")
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -27,6 +33,12 @@ const SINCE = "5.0.0"
 const MAX_BODY_BYTES = 200
 const MESSAGE_PATTERN = "^(.-):(%d+): (%[Lync%] (%l%w*): (.*))$"
 const JUDGEMENT_WORDS = { "suspicious", "illegal", "invalid", "bad", "exploit", "flagged" }
+
+-- `ReplicatedStorage.Packages.Lync` in a trigger, with its submodules as paths under `src/`.
+const LYNC_PACKAGE = table.freeze({
+	wire = table.freeze({ bits = "wire/bits" }),
+	codec = table.freeze({ rows = "codec/rows" }),
+})
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -59,6 +71,42 @@ local function exampleOf(text: string): string?
 	return string.match(text, "\n```example\n(.-)\n```")
 end
 
+local function triggerOf(text: string): (string?, string?)
+	local source = string.match(text, "\nThe module `([^`]+)`:\n")
+	local trigger = string.match(text, "\n```luau\n(.-)\n```")
+	return source, trigger
+end
+
+local function requireFromTrigger(path: unknown): any
+	if path == LYNC_PACKAGE then
+		return Lync
+	end
+
+	Check.expect(typeof(path) == "string", "a trigger must require only Lync and its modules")
+	return (require :: any)(`../../src/{path}`)
+end
+
+-- Runs a trigger module and returns the message it raised, or nil when it returned.
+local function messageOf(source: string, trigger: string): string?
+	local services = { ReplicatedStorage = { Packages = { Lync = LYNC_PACKAGE } } }
+	local environment = {
+		game = {
+			GetService = function(_game: any, name: string): any
+				return services[name]
+			end,
+		},
+		require = requireFromTrigger,
+		Enum = Enum,
+	}
+	local chunk = luau.load(trigger, { debugName = `={source}`, environment = environment })
+	local ok, message = pcall(chunk)
+	if ok then
+		return nil
+	end
+
+	return tostring(message)
+end
+
 local function specTexts(directory: string, into: { string })
 	for _, name in fs.readDir(directory) do
 		local path = `{directory}/{name}`
@@ -83,7 +131,7 @@ end
 
 -- Tests -------------------------------------------------------------------------------------------
 
-return {
+local tests = {
 	["every code has a page, and every page a code"] = function()
 		local textByCode = pageCodes()
 		for code in Codes.family do
@@ -163,3 +211,17 @@ return {
 		end
 	end,
 }
+
+for code, text in pageCodes() do
+	tests[`{code}: the example is the message its trigger raises`] = function()
+		local source, trigger = triggerOf(text)
+		Check.expect(source ~= nil, `{code} must name its trigger module: "The module \`...\`:"`)
+		Check.expect(trigger ~= nil, `{code} must have a luau trigger block`)
+
+		local message = messageOf(source :: string, trigger :: string)
+		Check.expect(message ~= nil, `{code}'s trigger must raise`)
+		Check.expectEqual(message, exampleOf(text), `{code}'s example`)
+	end
+end
+
+return tests

@@ -11,12 +11,24 @@ enums, `t.instance` and `t.custom` are refused, alone or inside another codec (v
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-name = t.string(20):newest(),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+return Lync.schema("arena", {
+	fighters = Lync.collection({
+		data = { name = t.string(20):newest() },
+	}),
+})
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:26: [Lync] newestWidth: arena.fighters data.name must have a fixed-width codec to use :newest(), got "string"
+ReplicatedStorage.Net.schema:7: [Lync] newestWidth: arena.fighters data.name must have a fixed-width codec to use :newest(), got "string"
 ```
 
 ## Fix

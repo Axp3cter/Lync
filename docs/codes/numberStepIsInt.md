@@ -10,12 +10,20 @@ exactly and without quantization (v5.md §3.3).
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-score = t.number(0, 100, 1),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+local score = t.number(0, 100, 1)
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:14: [Lync] numberStepIsInt: t.number step must not be 1 with an integer min, got 1; use t.int(min, max)
+ReplicatedStorage.Net.schema:5: [Lync] numberStepIsInt: t.number step must not be 1 with an integer min, got 1; use t.int(min, max)
 ```
 
 ## Fix

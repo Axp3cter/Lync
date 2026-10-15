@@ -277,13 +277,13 @@ return {
 		})
 	end,
 
-	["paramRange: a schema entry that is not a definition, at the schema's line"] = function()
+	["notADefinition: a schema entry that is not a definition, at the schema's line"] = function()
 		local line = debug.info(1, "l")
 		Check.expectThrow(function()
 			Lync.schema("arena", {
 				chat = t.string(200),
 			})
-		end, { code = "paramRange", at = at(line + 2), subject = "arena.chat" })
+		end, { code = "notADefinition", at = at(line + 2), subject = "arena.chat" })
 	end,
 
 	["mapKey: a collection key that is not an integer, list enum or string"] = function()

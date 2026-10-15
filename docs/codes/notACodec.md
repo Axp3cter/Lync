@@ -12,12 +12,25 @@ called, such as `t.direction` for `t.direction(11)`.
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-data = { target = t.int(1, 2 ^ 40), aim = t.direction },
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+return Lync.schema("arena", {
+	strike = Lync.event({
+		from = "client",
+		data = { target = t.int(1, 2 ^ 40), aim = t.direction },
+	}),
+})
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:7: [Lync] notACodec: arena.strike data.aim must be a codec or a record of codecs, got function
+ReplicatedStorage.Net.schema:6: [Lync] notACodec: arena.strike data.aim must be a codec or a record of codecs, got function
 ```
 
 ## Fix

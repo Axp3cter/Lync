@@ -16,6 +16,7 @@
 
 -- Imports -----------------------------------------------------------------------------------------
 
+local Column = require("../wire/column")
 local Dsl = require("./dsl")
 local Fail = require("../diag/fail")
 local Ints = require("../wire/ints")
@@ -56,9 +57,18 @@ const MAX_UNRELIABLE_BYTES = 960
 
 -- An EG-0 code of a zigzagged `t.int()` value is at most 2 × 53 + 1 bits (v5.md §4.10, G9).
 const VARINT_BITS = 107
--- A frame counts its instances in a u16 (v5.md §4.5), so an index into a chunk's list of them
--- needs at most 16 bits.
+-- A frame counts its instances in a u16 (v5.md §4.5), so a chunk lists at most 65,535 and an
+-- index into the list needs at most 16 bits.
+const MAX_INSTANCES = 65_535
 const INSTANCE_INDEX_BITS = 16
+-- A column's frame-of-reference header: `mode:u2`, then `base:EG0`, then `width:u6` (v5.md §4.3).
+const MODE_BITS = 2
+const REFERENCE_WIDTH_BITS = 6
+-- `t.int()` and Roblox enum columns code values on [-2^52, 2^52 - 1] (v5.md §4.3).
+const WIDE_INTERVAL = 2 ^ 53
+-- The 24 axis-aligned rotations, and the 4 components smallest-three can drop (v5.md §3.3).
+const AXIS_ROTATIONS = 24
+const QUATERNION_COMPONENTS = 4
 -- An ask row starts `slot:u4 epoch:u1`, an answer row also `outcome:u2` (v5.md §5.2).
 const ASK_PREFIX_BITS = 5
 const ANSWER_PREFIX_BITS = 7
@@ -251,7 +261,146 @@ local function numberCodecOf(min: number, max: number, step: number, steps: numb
 	return codec
 end
 
--- Returns the worst-case bits and tail bytes of a codec's single-row encoding (v5.md §3.3).
+--[=[
+	Returns the worst case of an integer column of `n` codes over one or more rows, as bits that do
+	not depend on the row count and bits per row.
+
+	The reference encoder writes the cheapest mode (v5.md §4.3), so a column never costs more than
+	frame of reference does, and that costs at most a header with base n - 1, the largest zigzagged
+	residual, then u(bit length of n - 1) per row.
+]=]
+local function integerColumnOf(n: number): (number, number)
+	local headerBits = MODE_BITS + Ints.egBits(n - 1, 0) + REFERENCE_WIDTH_BITS
+	return headerBits, Ints.bitLength(n - 1)
+end
+
+--[=[
+	Returns the worst case of a codec's columns in a column block (v5.md §4.3), flattened depth
+	first: bits that do not depend on the row count, bits per row, and tail bytes per row. Over r
+	rows, r >= 1, the block costs at most headerBits + r × rowBits and r × rowTail tail bytes.
+
+	A column over a subset of rows (present optionals, one variant's rows) is charged its header in
+	full and each row at the widest of the alternatives, which bounds every split of the rows.
+]=]
+local function columnCostOf(codec: Ir.Codec): (number, number, number)
+	if codec.kind == "bool" then
+		local headerBits, rowBits = integerColumnOf(2)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "int" then
+		local headerBits, rowBits = integerColumnOf(codec.max - codec.min + 1)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "varint" or codec.kind == "robloxEnum" then
+		local headerBits, rowBits = integerColumnOf(WIDE_INTERVAL)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "number" then
+		local headerBits, rowBits = integerColumnOf(codec.steps + 1)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "angle" then
+		local headerBits, rowBits = integerColumnOf(codec.steps)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "enum" then
+		local headerBits, rowBits = integerColumnOf(#codec.items)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "instance" then
+		local headerBits, rowBits = integerColumnOf(MAX_INSTANCES)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "string" or codec.kind == "buffer" then
+		local headerBits, rowBits = integerColumnOf(codec.max + 1)
+		return headerBits, rowBits, codec.max
+	elseif codec.kind == "f32" then
+		return 0, 32, 0
+	elseif codec.kind == "f64" then
+		return 0, 64, 0
+	elseif codec.kind == "vector3f32" then
+		return 0, 96, 0
+	elseif codec.kind == "custom" then
+		return 0, codec.maxBits, codec.maxBytes
+	elseif codec.kind == "vector3" then
+		local headerBits, rowBits = integerColumnOf(codec.axis.steps + 1)
+		return 3 * headerBits, 3 * rowBits, 0
+	elseif codec.kind == "direction" then
+		local headerBits, rowBits = integerColumnOf(2 ^ codec.bits)
+		return 2 * headerBits, 2 * rowBits, 0
+	elseif codec.kind == "color3" then
+		local headerBits, rowBits = integerColumnOf(256)
+		return 3 * headerBits, 3 * rowBits, 0
+	elseif codec.kind == "rotation" then
+		-- A flag column, the axis index over flagged rows, then the dropped index and three
+		-- components over the others.
+		local flagHeader, flagBits = integerColumnOf(2)
+		local axisHeader, axisBits = integerColumnOf(AXIS_ROTATIONS)
+		local droppedHeader, droppedBits = integerColumnOf(QUATERNION_COMPONENTS)
+		local componentHeader, componentBits = integerColumnOf(2 ^ codec.bits)
+		local headerBits = flagHeader + axisHeader + droppedHeader + 3 * componentHeader
+		local rowBits = flagBits + math.max(axisBits, droppedBits + 3 * componentBits)
+		return headerBits, rowBits, 0
+	elseif codec.kind == "cframe" then
+		local positionHeader, positionBits, positionTail = columnCostOf(codec.position)
+		local rotationHeader, rotationBits = columnCostOf(codec.rotation)
+		return positionHeader + rotationHeader, positionBits + rotationBits, positionTail
+	elseif codec.kind == "optional" then
+		local presenceHeader, presenceBits = integerColumnOf(2)
+		local innerHeader, innerBits, innerTail = columnCostOf(codec.inner)
+		return presenceHeader + innerHeader, presenceBits + innerBits, innerTail
+	elseif codec.kind == "array" then
+		local countHeader, countBits = integerColumnOf(codec.max + 1)
+		local innerHeader, innerBits, innerTail = columnCostOf(codec.inner)
+		return countHeader + innerHeader, countBits + codec.max * innerBits, codec.max * innerTail
+	elseif codec.kind == "map" then
+		local countHeader, countBits = integerColumnOf(codec.max + 1)
+		local keyHeader, keyBits, keyTail = columnCostOf(codec.key)
+		local valueHeader, valueBits, valueTail = columnCostOf(codec.value)
+		local headerBits = countHeader + keyHeader + valueHeader
+		local rowBits = countBits + codec.max * (keyBits + valueBits)
+		return headerBits, rowBits, codec.max * (keyTail + valueTail)
+	elseif codec.kind == "union" then
+		local indexHeader, indexBits = integerColumnOf(#codec.variants)
+		local headerBits = indexHeader
+		local maxRowBits = 0
+		local maxRowTail = 0
+		for _, variant in codec.variants do
+			local variantHeader, variantBits, variantTail = columnCostOf(variant.record)
+			headerBits += variantHeader
+			maxRowBits = math.max(maxRowBits, variantBits)
+			maxRowTail = math.max(maxRowTail, variantTail)
+		end
+		return headerBits, indexBits + maxRowBits, maxRowTail
+	elseif codec.kind == "record" then
+		local headerBits = 0
+		local rowBits = 0
+		local rowTail = 0
+		for _, field in codec.fields do
+			local fieldHeader, fieldBits, fieldTail = columnCostOf(field.codec)
+			headerBits += fieldHeader
+			rowBits += fieldBits
+			rowTail += fieldTail
+		end
+		return headerBits, rowBits, rowTail
+	elseif codec.kind == "convert" then
+		return columnCostOf(codec.base)
+	end
+
+	error(`a codec must have a known kind, got {codec.kind}`)
+end
+
+-- Returns the worst-case bits of `count` elements of `rowBits` each in single rows, or as a column
+-- block once `count` reaches `Column.MIN_ROWS` (v5.md §4.3): the larger of the two forms.
+local function elementsBitsOf(
+	count: number,
+	rowBits: number,
+	headerBits: number,
+	columnRowBits: number
+): number
+	local singleRowsBits = math.min(count, Column.MIN_ROWS - 1) * rowBits
+	if count < Column.MIN_ROWS then
+		return singleRowsBits
+	end
+
+	return math.max(singleRowsBits, headerBits + count * columnRowBits)
+end
+
+-- Returns the worst-case bits and tail bytes of a codec's single-row encoding (v5.md §3.3), with
+-- its arrays and maps in whichever form costs more.
 local function sizeOf(codec: Ir.Codec): (number, number)
 	if codec.kind == "bool" then
 		return 1, 0
@@ -298,11 +447,21 @@ local function sizeOf(codec: Ir.Codec): (number, number)
 		return 1 + innerBits, innerTail
 	elseif codec.kind == "array" then
 		local innerBits, innerTail = sizeOf(codec.inner)
-		return codec.width + codec.max * innerBits, codec.max * innerTail
+		local headerBits, columnBits = columnCostOf(codec.inner)
+		local elementsBits = elementsBitsOf(codec.max, innerBits, headerBits, columnBits)
+		return codec.width + elementsBits, codec.max * innerTail
 	elseif codec.kind == "map" then
 		local keyBits, keyTail = sizeOf(codec.key)
 		local valueBits, valueTail = sizeOf(codec.value)
-		return codec.width + codec.max * (keyBits + valueBits), codec.max * (keyTail + valueTail)
+		local keyHeader, keyColumnBits = columnCostOf(codec.key)
+		local valueHeader, valueColumnBits = columnCostOf(codec.value)
+		local elementsBits = elementsBitsOf(
+			codec.max,
+			keyBits + valueBits,
+			keyHeader + valueHeader,
+			keyColumnBits + valueColumnBits
+		)
+		return codec.width + elementsBits, codec.max * (keyTail + valueTail)
 	elseif codec.kind == "union" then
 		local maxBits = 0
 		local maxTail = 0
@@ -1066,7 +1225,7 @@ function Planner.plan(name: string, definitions: { [string]: any }, at: Fail.At)
 		local declaration = toDeclaration(value)
 		if declaration == nil then
 			return Fail.declaration(
-				"paramRange",
+				"notADefinition",
 				at,
 				`{namespaceName}.{definitionName}`,
 				"be made by Lync.event, Lync.request or Lync.collection",

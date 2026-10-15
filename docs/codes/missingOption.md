@@ -10,9 +10,19 @@ A required option is absent: `from` on an event or a request, `perSecond` in a `
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-chat = Lync.event({ data = t.string(200) }),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+return Lync.schema("arena", {
+	chat = Lync.event({ data = t.string(200) }),
+})
 ```
+
+raises:
 
 ```example
 ReplicatedStorage.Net.schema:6: [Lync] missingOption: arena.chat must have the option from, "client" or "server"

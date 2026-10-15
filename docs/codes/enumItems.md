@@ -10,12 +10,20 @@ since: 5.0.0
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-phase = t.enum({}),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+local phase = t.enum({})
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:38: [Lync] enumItems: t.enum items must hold 1 to 65535 names, got 0
+ReplicatedStorage.Net.schema:5: [Lync] enumItems: t.enum items must hold 1 to 65535 names, got 0
 ```
 
 ## Fix

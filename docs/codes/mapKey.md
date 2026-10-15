@@ -11,12 +11,20 @@ order (v5.md §3.3, §3.4).
 
 ## Example
 
+The module `ReplicatedStorage.Net.schema`:
+
 ```luau
-flags = t.map(t.bool(), t.int(0, 10), 8),
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lync = require(ReplicatedStorage.Packages.Lync)
+local t = Lync.types
+
+local flags = t.map(t.bool(), t.int(0, 10), 8)
 ```
 
+raises:
+
 ```example
-ReplicatedStorage.Net.schema:16: [Lync] mapKey: t.map key must be a t.int, list t.enum or t.string codec, got "bool"
+ReplicatedStorage.Net.schema:5: [Lync] mapKey: t.map key must be a t.int, list t.enum or t.string codec, got "bool"
 ```
 
 ## Fix

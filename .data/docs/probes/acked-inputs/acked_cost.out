@@ -1,0 +1,31 @@
+Luau 0.742 (.data/projects/luau, Release build), Xeon 2.1 GHz shared host; 3 runs per mode
+== luau -O2 run 1
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 489.0 us (4939.6 ns per row); core copy per viewer 4.15 us (42.0 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 978.0 ms/s, core copy 8.31 ms/s
+client decode + rebuild per frame: 390.9 us (3948.6 ns per row); 20 Hz: 7.82 ms/s, 60 Hz: 23.45 ms/s
+== luau -O2 run 2
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 515.3 us (5205.3 ns per row); core copy per viewer 4.11 us (41.5 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 1030.6 ms/s, core copy 8.21 ms/s
+client decode + rebuild per frame: 400.9 us (4049.2 ns per row); 20 Hz: 8.02 ms/s, 60 Hz: 24.05 ms/s
+== luau -O2 run 3
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 511.7 us (5169.0 ns per row); core copy per viewer 4.09 us (41.3 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 1023.5 ms/s, core copy 8.19 ms/s
+client decode + rebuild per frame: 397.3 us (4013.3 ns per row); 20 Hz: 7.95 ms/s, 60 Hz: 23.84 ms/s
+== luau -O2 --codegen run 1
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 120.8 us (1220.2 ns per row); core copy per viewer 3.48 us (35.1 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 241.6 ms/s, core copy 6.96 ms/s
+client decode + rebuild per frame: 162.0 us (1636.2 ns per row); 20 Hz: 3.24 ms/s, 60 Hz: 9.72 ms/s
+== luau -O2 --codegen run 2
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 120.1 us (1212.8 ns per row); core copy per viewer 3.54 us (35.7 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 240.1 ms/s, core copy 7.08 ms/s
+client decode + rebuild per frame: 162.0 us (1636.4 ns per row); 20 Hz: 3.24 ms/s, 60 Hz: 9.72 ms/s
+== luau -O2 --codegen run 3
+rows 99, fields 12, block 537 B (core pieces 1193 B); round trip ok (99 rows)
+server encode per viewer: 117.0 us (1182.0 ns per row); core copy per viewer 3.53 us (35.7 ns per row)
+at 100 viewers x 99 rows x 20 Hz: acked 234.0 ms/s, core copy 7.06 ms/s
+client decode + rebuild per frame: 177.7 us (1794.5 ns per row); 20 Hz: 3.55 ms/s, 60 Hz: 10.66 ms/s

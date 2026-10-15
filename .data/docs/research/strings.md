@@ -27,9 +27,9 @@ models are `probes/compression/traffic.py`, unchanged (same seeds and lengths as
 
 - [x] 1. Downstream tables
 - [x] 2. Upstream references
-- [ ] 3. Cost and saving
-- [ ] 4. What it protects and what it doesn't
-- [ ] 5. Facts, counters, codes and options
+- [x] 3. Cost and saving
+- [x] 4. What it protects and what it doesn't
+- [x] 5. Facts, counters, codes and options
 - [ ] 6. Text for `v5.md` §4 and the golden vectors
 - [ ] Implications
 
@@ -202,3 +202,194 @@ value of a declared field enters, by one rule with no judgement:
 - **Not adopted here: form B** (client-originated tables; R33): still no upstream traffic model with repeated
   client strings, so no default for its cap can be derived. Nothing in this design blocks it; it would add a second
   definition direction and is a separate decision.
+
+## 3. Cost and saving (measured)
+
+### 3.1 Bytes on the docs' traffic models
+
+Per recipient, string-carrying values only, in Lync's bit layout (lengths in the bit section, bytes in the tail),
+with each model's formatted strings sent as structured fields (compression §5's templates) on both sides, so the
+columns isolate interning. Interned includes every definition, the strings chunk's framing (§1.3: 5 bits for
+namespace 0's segment entry and the chunk's `ns`, EG0 per table, 3.5 bits mean alignment, +2 bits in an events-only
+frame) and frame 0, the join's catch-up (`strings_model.out`, verified).
+
+| Model (fields interned) | inline B/s | interned B/s, small `maxEntries` | interned B/s, `maxEntries` 4096 | table after the run |
+|---|---|---|---|---|
+| shooter 20 Hz, 30 players, `kill { killer, victim }` broadcast, `t.string(20)` | 51.86 | 6.82 (64: w 6), −86.8% | 10.68, −79.4% | 30 entries, 294 B |
+| mmo 20 Hz, `name` in catch-up adds, `t.string(20)` | 24.18 (17.69 after the join) | 5.04 (64), −79.1% (2.44 after) | 7.52, −68.9% (4.16 after) | 35 entries, 295 B |
+| tycoon 10 Hz, 5 min: record `label`, `purchase.item`, `notify { item, level }` in `t.string(32)`; chat inline | 80.48 | 22.54 (256: w 8), −72.0% | 25.76, −68.0% | 121 entries, 1,009 B |
+
+- **Cross-check with compression §5** (byte-aligned LEB128 lengths and ids, frame 0 excluded): mmo inline 18.5 B/s
+  against 17.69 here (5-bit lengths), per-connection interning 4.5 against 2.44–4.16 here; the shooter's whole
+  formatted line interned was 67.4 B/s and templates 9.6, against structured references 6.82–10.68 here.
+- **The join** (mmo frame 0, 121 adds naming 29 distinct names): 973.6 B inline, 390.9 B interned at w 6, 503.4 B at
+  w 12. A definition costs w + L_t bits more than the literal it replaces, so a value seen once costs more interned
+  (tycoon frame 0: 10.8 → 14.3 B); interning pays from the second sending of a value to the same player.
+- **Random ids against creation order.** Single rows: equal (both u(w)). Column blocks: the join's id column of 121
+  adds costs 709 bits in creation order and 735 random at `maxEntries` 64, 1,461 random at 4096
+  (`strings_model.out`): random ids cost +26 bits per such catch-up at 64 and +752 bits (94 B) at 4096. The price of
+  §4.2's privacy is set by `maxEntries`, which the developer chooses.
+- **Server egress:** the kill feed saves 45.03 B/s × 30 = 1.35 KB/s at 30 viewers (w 6).
+- **Fixed cost:** none for a frame without definitions, none for a namespace without tables. Seed-0 golden frames and
+  the schema hash of every schema without a table are unchanged (§6).
+
+### 3.2 CPU (`strings_cost.out`, medians of 11 rounds, range over 3 runs; native / interpreted, ns)
+
+| Operation | Native | Interpreted |
+|---|---|---|
+| server encode, plain `t.string(20)`: length + tail copy | 34.6–37.2 | 101–105 |
+| server encode, reference (map lookup, one recipient's bit test, 13 bits) | 25.4–27.0 | 127–128 |
+| each further (value, recipient) bit test | 5.6–6.0 | 23.3–23.7 |
+| entry creation (random free id, two map writes), over a map miss | ≈ 150–170 (255–277 − 101–111) | ≈ 290–360 (407–483 − 115–121) |
+| server decode upstream: literal / reference with the bit check | 73.7–80.5 / 20.0–21.6 | 117–123 / 86.9–92.8 |
+| client decode: literal / reference | 76.0–80.3 / 32.5–35.8 | 130–138 / 79.9–83.5 |
+| client decode of one definition (3 checks, 2 map writes) / `readstring` alone | 247–310 / 55–67 | 303–353 / 71–85 |
+
+- **Tag.** A reference also shrinks the tagged frame: a 20-byte value as 13 bits saves 19.4 B of cover, at 28.5–37.2
+  ns per covered byte on the client interpreted and 4.0 ns per byte on the server native (`v5.md` §7.5 `tag.cover`):
+  550–720 ns client and 78 ns server per value sent upstream, more than every table operation above (derived).
+- **Kill feed, 4.95 values/s, server native:** with the holder-count skip (broadcast to every welcomed player, all
+  holding) 4.95 × 25–27 = 0.13 µs/s, against 0.18 µs/s inline; without it 4.95 × (26 + 30 × 5.8) = 1.0 µs/s at 30
+  viewers and 3.0 µs/s at 100; 30 creations once, 4.8 µs. Client: 0.25 µs/s saved on references (4.95 × ≈ 50 ns
+  interpreted), 30 definitions once, ≈ 7.5 µs per connection.
+- **Interpreted servers** (scripts not marked native): a reference costs 127 against 101–105 ns plain, +25 ns per
+  value, before the tag's per-byte saving.
+- **Not measured:** the leave scan (one pass over ⌈`maxEntries`/8⌉ bytes and a decrement per set bit, once per
+  connection end), Roblox's `Random:NextInteger` (the CLI has none; the probe's xorshift stands in), devices.
+
+### 3.3 Memory (`strings_cost.out`, R33's `r33_intern.out`)
+
+- **Per live entry, server:** 64 B (string → id and id → string maps, 32 B each measured at 1,024 entries), plus the
+  string itself when the table alone keeps it alive (length + ≈ 25 B: 45 B measured for 20 B; 0 when game state holds
+  it, Luau strings being interned).
+- **Per table, server:** 4 B × `maxEntries` (free-id list u16, measured 8,192 B at 4,096; holder counts u16, derived),
+  plus per player one bitset of ⌈`maxEntries`/8⌉ B (a 512 B buffer measured 1,024 B of heap).
+- **Per held entry, client:** 32 B (id → string as a hash, random ids) + 32 B for the reverse map when a client-sent
+  field uses the table + the string (length + ≈ 25 B; the table keeps it alive). A `table.create(maxEntries)` array
+  costs 16 B per slot whatever the fill (65,536 B at 4,096), smaller only above half full.
+- **Worked:** kill feed, `maxEntries` 64, 30 entries, 30 players: ≈ 3.2 KB per server plus 30 bitsets of 8 B; 2,964 B
+  per client. Bound at `maxEntries` 4,096 with the default `maxBytes` 4,096 × 20 = 81,920 B: 462,848 B per server table
+  + 1,024 B per player (565 KB at 100 players); 446,464 B per client. The bound is the developer's two numbers;
+  nothing in it is per message or chosen by a client (§4.1).
+
+### 3.4 Interaction with the budgets
+
+- **Inbound bytes** (`inbound.*.bytes`, `v5.md` §7.5): references shrink upstream frames, so more values fit one
+  budget; the CPU bound stays an upper bound, since a reference is a leaf decoding in 20.0–21.6 ns native (bit check
+  included), under p(L)'s 133 ns per leaf, and it removes per-byte work (tag, string read).
+- **Elements** (§4.8): a reference or literal is one value, not an element, so W, `inbound.elements` and
+  `elementsTooMany` don't change. Each table's definition count in a strings chunk is a count and is charged to the
+  client's per-frame allowance and to `elementsSent`, so the 2^22 split rule (§4.1) covers it.
+- **Downstream:** `state.budget` charges every byte sent, strings chunks included; the kill feed's 45 B/s is 0.28% of
+  the 16,000 B/s default. Join holds hold literals (§1.3), so both holds' byte and element charges stay exact.
+
+## 4. What it protects and what it doesn't
+
+### 4.1 Server memory a client can choose (R33's point)
+
+- **Upstream references pin nothing.** A reference names an entry the server created from its own sends; decoding it
+  allocates nothing (the delivered string is the server's) and stores nothing. Per player the server keeps one
+  bitset of fixed size, ⌈`maxEntries`/8⌉ B, whatever the client sends (verified in the design: §1.4, §2).
+- **Where a client does reach table contents:** only through game code that relays client text into an interned
+  downstream field (a typed pet name broadcast to everyone, say). Then each distinct relayed value can become an
+  entry. Bound: the table's caps, shared by the server, not per player; reclaimed when no connected player holds the
+  entries. The most such a client can cause is a full table, after which new values travel as literals for every
+  recipient: bytes return toward inline, at most inline + 1 bit per value, and `stringLiteralsFull` counts it. Which
+  fields carry client-originated text is the developer's knowledge: such fields are left unmarked (compression §5
+  called them transient).
+- **Protects nothing.** Interning is compression. It hides no string from its recipient (a definition is the literal
+  it replaces) and adds no integrity measure.
+
+### 4.2 What a client learns from tables
+
+- **Content:** exactly the values of messages sent to it, the same bytes inline would carry. Definitions reach a
+  viewer only for references in chunks it receives (§1.3), so visibility classes, interest, scoped events and
+  withheld fields (`v5-collections.md` §8–§10) withhold the definitions with the values.
+- **Co-recipients:** nothing, under §1.2's choice: a shared chunk's bits are one encoding whatever each recipient
+  holds, and a viewer's strings chunk depends only on its own bits. Option (c) would have leaked who among a cell
+  chunk's recipients lacked an entry.
+- **Ids carry nothing about others** (derived). Ids are drawn uniformly among free ids, and frees depend on which
+  players hold entries, never on id labels. So the process is unchanged by any relabelling of the ids a viewer V
+  doesn't hold, and given V's held set H the id of the next definition V receives is uniform over the
+  `maxEntries` − |H| ids outside H, whether the entry is new or old, and whatever the number of live entries. V can't
+  tell how many entries exist, whether a value was sent to anyone before, or when. With creation-order ids, an id's
+  value would give the count of entries created before it, and gaps the number created for others.
+- **One bit about others: fullness.** A literal outside the join hold means the table was at a cap when the value was
+  sent: other players' traffic filled it. V learns that the table is full at that moment (and, from a later
+  definition of a new value, that it has room again). Nothing else.
+- **Colluding clients** see the same id for the same value; they could compare the values themselves.
+- **Decoys** (`v5-integrity.md` §8): a decoy's interned values go through the same path as a real record's, so its
+  references and definitions look like a real record's to its viewer; entries made only for decoys are held only by
+  their viewer and reclaimed when it leaves.
+- **Sealed and canary fields** are outside the mechanism (`internPlacement`, `canaryInterned`, §1.1).
+- **What the server learns** from upstream references is which entries the client holds, which it already knows.
+
+### 4.3 How it fails on an unmodified client
+
+- A `maxEntries` or `maxBytes` below the game's live vocabulary: values beyond it travel as literals
+  (`stringLiteralsFull`); nothing breaks.
+- A Lync bug that refuses one reliable frame on a client: that frame's definitions are lost and later references to
+  them make later frames fail rule 2 too, counted in `refusedFrames` and `REPORT`, whose fact
+  `reportedRefusedFrames` already lists "a Lync bug" as its only cause (`v5-integrity.md` §10).
+- A modified client sending references to entries it wasn't sent: `malformed` rule 2, frame dropped (§2); a modified
+  encoder that sends literals only: accepted, more bytes.
+
+## 5. Facts, counters, codes and options
+
+### 5.1 Facts
+
+No new fact. One existing row gains clauses (`v5.md` §7.3); the trigger is exact and the evidence unchanged:
+
+| Reason | Exact trigger (new clauses) | Action | Evidence | Known causes on an unmodified client |
+|---|---|---|---|---|
+| `malformed`, rule 2 | an upstream interned value with `entry` 1 whose `id` is ≥ `maxEntries`, or whose bit in the sender's bitset for that table is 0 | frame dropped | `lane`, `rule` | none: the server sets a player's bit when it commits the definition to that player's stream, before the client can receive it, never clears it during the connection, and reclaims an id only when no connected player's bit is set |
+
+- **Downstream refusals** (a client's decoder applying §6's clauses) are counted in the client's `refusedFrames` and
+  delivered through `REPORT` as `reportedRefusedFrames`, unchanged: known cause "a Lync bug".
+- **Considered, not adopted: a fact for an upstream literal of a value the sender holds.** Its trigger needs the
+  definition's downstream frame number per (player, entry), 4 B each, and the receipt `rcv` to know the client had
+  decoded it; `rcv`'s upward extension after a 256-frame stall would then make the fact for an unmodified client, and
+  unreliable frames have no receipt at all. It would identify an encoder other than Lync's, which the keyed tag
+  already prices (a raw sender needs the key), and canonical decode accepts both forms by design.
+
+### 5.2 Counters (`Lync.counters`, `v5.md` §7.4; qualifier `<namespace>.<table>`, a new qualifier kind)
+
+| Counter | Side | Kind | Counted at | Reads as |
+|---|---|---|---|---|
+| `stringEntries`, `stringBytes` | server | level, server-wide | each creation and reclamation | live entries and their bytes, against `maxEntries` and `maxBytes` |
+| `stringDefinitions` | server | count | each definition written to a player's strings chunk | bytes spent defining; per player with `player` |
+| `stringLiteralsFull` | server | count | each value sent literal because the table was at a cap | a cap below the live vocabulary |
+| `stringLiteralsHeld` | server | count | each value encoded literal in the server's join hold | the join's literal cost |
+| `stringEntriesFreed` | server | count | each reclamation | churn of the vocabulary |
+| `stringReferencesReceived` | server | count | each upstream reference decoded (§6.1 step 4) | how much clients reference |
+| `stringEntriesHeld` | client | level | each definition decoded | the client's table size |
+
+Cost: 8.1–8.7 ns native per increment (`v5.md` §7.4's measured figure); one more number per table in a snapshot.
+
+### 5.3 Declaration codes (registered in `v5.md` §7.1)
+
+| Code | Family | Trigger |
+|---|---|---|
+| `internPlacement` | declaration | `:intern` on a codec other than `t.string`, inside the `data` of an unreliable server-sent event, or inside a sealed event's `data` (§1.1) |
+| `internTable` | declaration | `:intern(x)` where `x` is not a `Lync.strings` entry of the same schema |
+| `stringsUnused` | declaration | a `Lync.strings` entry that no codec of the schema marks (its L_t and default `maxBytes` would be undefined) |
+| `canaryInterned` | caller (exists) | `:canary()` on an interned field (`v5-integrity.md` §9) |
+
+`Lync.strings`'s option errors are `unknownOption`, `missingOption` (`maxEntries`) and `paramRange`, as for every
+schema constructor (`v5.md` §7.1); `Lync.strings` joins the list of schema entries `notADefinition` accepts.
+
+### 5.4 Options
+
+`Lync.strings({ … })`, in the shared schema (both ends need them: the id width, and rule 2's limits), hashed:
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `maxEntries` | integer | entries | 1–65,536 (chosen: ids fit the u16 free list and holder counts; the per-player bitset is 8 KB at the top) | required: the game's live vocabulary, which no input in the docs fixes | w = ⌈log2 `maxEntries`⌉ bits per reference and per definition; random ids cost column bits that grow with w (§3.1); server 4 B per id plus ⌈`maxEntries`/8⌉ B per player; 64 B per live entry on the server, 32–64 B per held entry on a client (§3.3) |
+| `maxBytes` | integer | B | 1 to `maxEntries` × m (m: the largest `maxBytes` of the `t.string` codecs marked with the table) | `maxEntries` × m, derived: the largest sum `maxEntries` entries of those codecs can reach, so it never binds before `maxEntries` | at most `maxBytes` + ≈ 25 B per entry of string storage on each end (§3.3) |
+
+| Method | Allowed on (else) | Effect | Client type | Wire |
+|---|---|---|---|---|
+| `:intern(table)` | a `t.string`, outside unreliable server events and sealed events (`internPlacement`) | values may travel as references into `table`; the server's values enter it | `string` | `entry:u1`, then `id:u(w)` or the plain `t.string` form (§1.3) |
+
+No `Lync.configure` option: what enters is the declaration's rule, the literal/reference choice is the reference
+encoder's fixed rule, and a run-time switch would be a second way to declare the same thing (`v5.md` principle 4).

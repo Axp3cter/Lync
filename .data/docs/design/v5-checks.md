@@ -169,7 +169,7 @@ the evidence set stays flat (`span` and `against` are R35's).
 - **Problem** (collections review B2, checked). Luau lets a coroutine yield across `xpcall`, so a game function that
   yields under `xpcall` (`task.wait`, `WaitForChild`, a DataStore call) suspends the thread running the inbound
   pipeline: that frame's remaining messages, and the flush, wait until the engine resumes it, and a re-entrancy flag
-  sees the yield only at the next entry (`v5-collections.md` §8.5's case; checked again here with luau 0.740: a
+  sees the yield only at the next entry (`reviews/v5-3.6-collections.md` B2; checked again here with luau 0.740: a
   "flush" coroutine calling a yielding function under `xpcall` returned `suspended` and never reached its end).
 - **Rule: every game function a check calls runs in a thread of its own.** Lync resumes a runner thread with the
   function and its arguments; the runner calls it and yields a completion marker with the results. After
@@ -875,23 +875,25 @@ fields):
 ```ts
 interface ServerEvent<T> {
 	series(this: void, options?: { ring?: number }): void; // timing only
-	atom(this: void, options: { before?: number; after?: number; fields?: ReadonlyArray<NumericPath<T>>;
-		series?: ServerEvent<unknown>; pending?: number }): void;
+	atom(this: void, options: { before: number; after: number; fields?: ReadonlyArray<NumericPath<T>>;
+		series?: TelemetrySource; pending?: number }): void;
 }
+// the server views of client-sent events and client requests (review m10; type names provisional, `v5.md` §3.6)
+type TelemetrySource = ServerEvent<unknown> | ServerRequest<unknown, unknown>;
 interface Field<D, T> { // aim on aim codecs, series on value codecs
 	aim(this: void, options?: { ring?: number }): void;
 	series(this: void, options?: { ring?: number }): void;
 }
 declare namespace telemetry {
 	function atoms(this: void, fn: (batch: AtomBatch) => void): Connection;
-	function read(this: void, player: Player, def: ServerEvent<unknown>): Stream | undefined;
+	function read(this: void, player: Player, def: TelemetrySource): Stream | undefined;
 	function decode(this: void, batch: AtomBatch): ReadonlyArray<Atom>;
 }
 ```
 
 `NumericPath<T>` is emitted per definition as a literal union, never computed by type-level recursion. Caller
 errors: `unknownField`, `fieldKind` (the codec isn't one the call takes),
-`telemetryTwice`, `seriesMissing` (`series =` a definition with neither `:aim` nor `:series`), `viewPlacement`, and
+`telemetryTwice`, `seriesMissing` (`series =` a definition with neither an `aim` nor a `series`), `viewPlacement`, and
 the option codes of §10.
 
 ### 8.7 What Lync does not do
@@ -907,8 +909,11 @@ Each follows "Lync reports facts" (R23) and "no automatic consequence" (R22, R24
   diagnostics export is a recipe `[diagnostics §5.4]`. Game code owns the 500 HTTP requests/min per server, the
   "Allow HTTP Requests" setting (documented, creator-docs `cloud-services/http-service.md`) and the legal obligations
   (§8.11).
-- **No user ids and no client text in the data.** A batch carries the `Player`; the buffer carries no id. Atoms and
-  series take numeric codecs only, so a batch can't carry chat or any other text a player typed.
+- **No id added by Lync, and no client text.** A batch carries the `Player`; Lync writes no id into the buffer.
+  `fields` and value series are copied as decoded, so a field that holds an id puts that id in the buffer: in the
+  §8.6 example, `strike.target` is a `fighters` key, which `v5.md` §3.4's example sets to a `UserId`, so every atom
+  holds the struck player's id (review M5). Atoms and series take numeric codecs only, so a batch can't carry chat
+  or any other text a player typed.
 
 ### 8.8 The export recipe (docs)
 
@@ -923,30 +928,30 @@ binary data", documented, `HttpService.yaml`), retrying with backoff (documented
 
 ### 8.9 Known causes in the samples of an unmodified client
 
-`checks-telemetry/telemetry_samples.out`, a model: `v5.md` §9's network, frame times drawn per case, not measured on
-devices. Flush rate by reading of `v5.md` §5.1's rule ("reset": time since the last flush; "carry": an accumulator
-that keeps the remainder):
+`checks-telemetry/telemetry_samples_accum.out` (draft 3.6, review m7): the research's model rerun with `v5.md` §5.1's
+pinned accumulator as the flush rule (`telemetry_samples_accum.luau`; luau 0.740, seed 742); `v5.md` §9's network,
+frame times drawn per case, not measured on devices.
 
-| Case | Flushes/s, reset | Flushes/s, carry | Server inter-arrival under reset, mean ± sd (ms) | Aim entries per 0.75 s, min / mean / max (reset) |
-|---|---|---|---|---|
-| 30 FPS, low-end mobile | 29.1 | 29.1 | 35.9 ± 12.5 | 15 / 20.8 / 24 |
-| 45 FPS, GPU-bound | 44.1 | 44.1 | 23.9 ± 10.5 | 25 / 31.4 / 35 |
-| 60 FPS cap, steady | 40.0 | 60.0 | 26.3 ± 13.1 | 21 / 28.5 / 35 |
-| 120 FPS cap | 47.8 | 60.0 | 22.0 ± 10.4 | 26 / 34.2 / 40 |
-| 144 FPS cap | 47.8 | 60.0 | 22.0 ± 9.5 | 27 / 34.1 / 37 |
-| 240 FPS cap | 53.3 | 60.0 | 19.8 ± 9.5 | 32 / 37.9 / 42 |
+| Case | Flushes/s | Server inter-arrival, mean ± sd (ms) | p1–p99 (ms) | Aim entries per 0.75 s window, min / mean / max | Largest gap in a window (ms) |
+|---|---|---|---|---|---|
+| 30 FPS, low-end mobile | 29.2 | 35.9 ± 12.5 | 16.1–78.6 | 16 / 20.8 / 24 | 142.6 |
+| 45 FPS, GPU-bound | 44.0 | 23.9 ± 10.4 | 4.6–55.9 | 24 / 31.4 / 36 | 117.1 |
+| 60 FPS cap, steady | 60.0 | 17.6 ± 9.0 | 0.7–41.8 | 36 / 42.8 / 46 | 73.4 |
+| 60 FPS cap, 3% spikes | 58.3 | 18.1 ± 9.5 | 0.7–45.1 | 34 / 41.5 / 46 | 85.2 |
+| 120 FPS cap | 60.0 | 17.5 ± 9.1 | 0.6–41.5 | 35 / 42.7 / 47 | 80.2 |
+| 144 FPS cap | 60.0 | 17.6 ± 9.4 | 0.6–42.6 | 37 / 42.7 / 46 | 69.2 |
+| 240 FPS cap | 60.0 | 17.5 ± 9.0 | 0.6–41.7 | 36 / 42.8 / 46 | 79.6 |
 
 The docs state each cause, so analysis doesn't read them as anything else:
 1. **Frame rate sets the sample rate** (29–60 Hz across devices), so analysis by index is wrong on every device;
-   every entry carries its time and atoms their count `n`. Which reading `v5.md` §5.1 takes is the runtime unit's
-   (this table supports the carry reading's 60 Hz).
-2. **The network dominates timing:** server-side sd 9.5–13.1 ms against client flush sd 0.8–8.4 ms; a timing series
+   every entry carries its time and atoms their count `n`.
+2. **The network dominates timing:** server-side sd 9.0–12.5 ms against client flush sd 0.2–5.6 ms; a timing series
    resolves a hand only at intervals well above 20 ms.
 3. **Game code produces machine-regular timing:** a script firing "if now − last ≥ 0.1" sends at intervals fixed by
-   its frame grid (at 60 FPS only 83, 84, 100, 101, 116, 117 and 133 ms; seen at the server as 108.4 ± 15.6 ms).
+   its frame grid (at a steady 60 FPS only 100, 101, 116 and 117 ms; seen at the server as 108.1 ± 11.5 ms).
    Automatic weapons, auto-collect and cooldown loops give the same low variance.
-4. **Loss and late frames:** 5% loss leaves gaps of 90–182 ms in a window; in arrival order 0.53% of aim deltas run
-   backwards at 0.02 s jitter (13.5% at 0.05 s), in key order none. Analysis sorts by `key`.
+4. **Loss and late frames:** 5% loss leaves gaps of 69–143 ms in a window; in arrival order 1.41% of aim deltas run
+   backwards at 0.02 s jitter (21.7% at 0.05 s), in key order none. Analysis sorts by `key`.
 5. **Yaw near the poles:** one `t.direction(10)` step moves yaw by up to 0.24° level, 1.4° at 80° pitch, 13.6° at
    89°, 180° at 89.9°. Analysis uses the angle between reconstructed directions, never yaw differences; the docs
    give the formula.
@@ -956,7 +961,7 @@ The docs state each cause, so analysis doesn't read them as anything else:
    teleport resets, cutscenes, seats.
 8. **Quantization:** the aim codec's error (0.2369° at `t.direction(10)`) is far above the export's 0.0055°.
 9. **Truncated and partial atoms:** truncated after join, or when frames of the series definition exceed
-   `ring`/(`before` + `after`) per second (85.3 at the defaults); partial on leave.
+   `ring`/(`before` + `after`) per second (85.3 at `ring` 64 with a 0.75 s window); partial on leave.
 10. **Server load:** arrival time is when Lync's handler runs, so a server frame hitch stamps several frames with
     nearly one time (magnitude unverified, §11).
 
@@ -970,14 +975,14 @@ player.
 |---|---|---|---|---|---|---|
 | field | `field(path):aim` | field handle | — | a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field | — | 65–73 ns native, 221–228 ns interpreted per sampled frame from a decoded direction; the record form adds four trigonometric calls (unmeasured) |
 | field | `field(path):series`, or `series` on the definition for timing only | field handle or none | — | a codec of §8.2's values | none: timing only | timing: 22–24 ns native, 91–93 ns interpreted per sampled frame; values: unmeasured (§11) |
-| `ring` | `:aim`, `:series` | integer | entries | 16–1024 | 64 (chosen: at least the 45 entries of the default window at 60 frames/s; atoms truncate above 85.3 frames/s) | E × `ring` per player: 768 B for aim at 64 |
-| `before` | `:atom` | number (real) | s | 0–2 | 0.5 (the reported VACnet window `[anticheat-design §5.1]`) | needs `ring` ≥ (`before` + `after`) × the series' frames per second, else bit 1 |
-| `after` | `:atom` | number (real) | s | 0–1 | 0.25 (VACnet, as `before`) | a pending slot held `after` s plus up to one server frame |
-| `fields` | `:atom` | array of string | — | paths of §8.2's value codecs on the atom's definition, at most 16 values (a vector counts 3) | `{}` | 8 B per value per atom; trigger 35–38 ns native, 151–163 ns interpreted for 5 values |
-| `series` | `:atom` | a definition with `:aim()` or `:series()` | — | — | nil: no entries | completion 252–260 ns native, 477–506 ns interpreted per atom of 46 entries |
-| `pending` | `:atom` | integer | atoms per player | 1–64 | 8 (chosen: sustains 8/(`after` + 1/60 s) = 30 atoms/s per player at the default `after`; a definition firing faster needs more) | (19 + 8 · F) B each |
+| `ring` | `aim`, `series` | integer | entries | 16–1024 | 64 (chosen: a capacity, 1.07 s of entries at 60 frames/s; a window of `before` + `after` seconds truncates above `ring`/(`before` + `after`) frames/s, 85.3 for 0.75 s) | E × `ring` per player: 768 B for aim at 64 |
+| `before` | `atom` | number (real) | s | 0–2 | required (scope audit F1: the window is the analyst's choice; the docs cite VACnet's reported 0.5 s `[anticheat-design §5.1]` as an example) | needs `ring` ≥ (`before` + `after`) × the series' frames per second, else bit 1 |
+| `after` | `atom` | number (real) | s | 0–1 | required (as `before`; VACnet's 0.25 s is the docs' example) | a pending slot held `after` s plus up to one server frame |
+| `fields` | `atom` | array of string | — | paths of §8.2's value codecs on the atom's definition, at most 16 values (a vector counts 3) | `{}` | 8 B per value per atom; trigger 35–38 ns native, 151–163 ns interpreted for 5 values |
+| `series` | `atom` | a definition with an `aim` or a `series` | — | — | nil: no entries | completion 252–260 ns native, 477–506 ns interpreted per atom of 46 entries |
+| `pending` | `atom` | integer | atoms per player | 1–64 | 8 (chosen, a capacity: sustains 8/(`after` + 1/60 s) atoms/s per player, 30 at `after` 0.25 s; a definition firing faster needs more) | (19 + 8 · F) B each |
 | `telemetry.batch` | `Lync.configure` | integer | atoms | 1–256 | 16 (chosen: the hand-off is 41–44 ns per atom amortised at 16; a larger batch holds more memory per player) | at most `batch` × the atom size held per (player, definition); 0.66–0.71 µs per hand-off plus 88–131 ns per connection |
-| `telemetry.seconds` | `Lync.configure` | number (real) | s | 1–600 | 30 (chosen: equal to `observe.window`'s default, so an atom reaches game code no later than a coalesced fact) | an open batch is held up to this long |
+| `telemetry.seconds` | `Lync.configure` | number (real) | s | 1–600 | 30 (chosen; at or below `observe.window`, an atom reaches game code no later than a coalesced fact of its message) | an open batch is held up to this long |
 
 - **Memory per player** (derived from the layouts): aim ring 768 B, timing ring 512 B, vector ring 1,280 B at 64;
   pending 8 × 51 B = 408 B for 4 values; batch buffer 16 × 591 B = 9.5 KB for 45-entry windows, at most
@@ -997,22 +1002,27 @@ One page, linked from the telemetry reference, quoting each source `[checks-tele
 readings are the research's, unverified, and not legal advice):
 - **Sources it quotes:** the current Creator Terms §14.b (Experience Data), §14.c (User PII), §14.d; the Creator Terms
   in force from 2026-11-01, §3.9 (Game data) and §5.4 (personal information); the Privacy and Cookie Policy's
-  definition of personal information; the Community Standards' ban on "programmatic calls to third-party advertising
-  and measurement services"; `RTBF-and-creators.md`, `automate-right-to-erasure.md` and `players/users.md`. Until
+  definition of personal information; the Community Standards' three lines under "Advertising Integrations" (the ban
+  on "programmatic calls to third-party advertising and measurement services", the bar on sharing "personally
+  identifiable user engagement information with advertisers", and the prohibition on "creating personalized activity
+  profiles of users"); `RTBF-and-creators.md`, `automate-right-to-erasure.md` and `players/users.md`. Until
   2026-11-01 the page cites both versions of the Creator Terms.
 - **What it says:**
-  - exported telemetry is personal data under the Privacy Policy; Lync puts no id in the buffer, and the key game
-    code adds makes it personal;
+  - exported telemetry is personal data under the Privacy Policy; Lync adds no id, but the key game code adds makes
+    it personal, and an atom's `fields` may already hold other players' ids (a collection key such as
+    `strike.target`, §8.7);
   - use it for the purposes the terms name: security, fraud prevention, improving the game;
   - send it to systems you control, over HTTPS (the only scheme `HttpService` allows), with credentials in Secrets;
   - never to advertising or measurement services; sending it to any other third party is restricted (current §14.b,
     §5.4 from 2026-11-01): read the clause and decide; Lync can't decide it for you;
   - don't sell or share it, join it to other personal information, or use it to build cross-platform profiles;
-    quote §14.c(ii) and §5.4 on records about an individual user without interpreting them as permission;
+    quote §14.c(ii), §5.4 and the Community Standards' activity-profiles line on records about an individual user,
+    without interpreting them as permission;
   - protect it from unauthorized access (§14.d, §5.4);
   - set a retention period, and delete a player's telemetry on every erasure request (webhook or daily message),
     keyed by `Player.UserId`, which is domain-scoped for players who first joined after the rollout, so the request's
-    id finds it;
+    id finds it; index exported atoms also by every id their `fields` hold, so a struck player's erasure request
+    finds the atoms that name them;
   - Lync never exports, stores or scores telemetry and never acts on it; what the game does with it, and any
     consequence for a player, is the game's decision;
   - privacy law (the RTBF page names GDPR, CCPA, LGPD and PIPA) applies on its own terms; the page is not legal
@@ -1034,8 +1044,9 @@ readings are the research's, unverified, and not legal advice):
   the first 127 seals, then the client decrypts N bytes at 210–231 ns/B interpreted (CLI), so sealing shortens the
   reveal whenever R is below 4.3–4.8 MB/s divided by the device factor (both unmeasured on Roblox).
 - **Protects,** before the reveal: the plaintext is not on the client at all, only ciphertext under a key the client
-  doesn't hold, so readers of memory, packets and state, and accounts sharing artefacts, face 2^63 expected key
-  trials per seal; HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide the maximum PRF security" for its key and
+  doesn't hold, so readers of memory, packets and state, and accounts sharing artefacts, face 2^63 expected trials
+  to search one seal's key, or 2^(min(64, h) − 1) to recover S (§9.4), which opens every later seal on that server;
+  h is the entropy of S's sources, unmeasured (§11, review M7); HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide the maximum PRF security" for its key and
   output size (documented, the SipHash README). Unlike every measure in `v5.md` §6.2, its secret is not on the client
   before the reveal.
 - **Doesn't protect:** anything after the reveal (every client gets the plaintext then, a modified one no sooner);
@@ -1068,7 +1079,9 @@ Net.nextRound:connect(function(layout) end)
 
 ### 9.3 Wire
 
-Each message of a sealed definition is one row (`v5.md` §4.3's runs):
+Each message of a sealed definition is one row, and runs of a sealed definition are always single-row, as request
+and control runs are (`v5.md` §4.3; review M6: a sealed row is not a codec, so a column block has nothing to
+flatten):
 
 ```
 sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8 × blocks bytes in the tail
@@ -1087,16 +1100,19 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 - **Encode once.** One key per seal, not per viewer: a seal's chunk and its reveal are identical for every recipient,
   so they are shared chunks and stay eligible for `FireAllClients` (`v5.md` §4.2). Per-player values are separate
   fires.
-- **Schema hash:** `sealed` joins `v5.md` §4.7's option list after `reliableRate` (presence u8, then `outstanding`
-  `num` and `hideLength` u8); the wire unit owns the serialization numbering (§10). Golden frames at seed 0 without
-  `sealed` don't change.
+- **Schema hash:** `sealed` is the last option of `v5.md` §4.7's list, after `perceived`: its presence u8 is written
+  for every definition, then, when present, `outstanding` `num` and `hideLength` u8. So G6 and G7 changed in draft
+  3.6 (`v5.md` §4.10; review m9).
 
 ### 9.4 Keys
 
-- **Server secret S** (64 bits): two `NextInteger(0, 2^32 − 1)` draws from a `Random.new()` instance created without
-  a seed (internal entropy source, documented, creator-docs `datatypes/Random.yaml`), used for nothing else, drawn at
-  the server's first sealed send and never sent. Roblox does not document `Random` as cryptographic (unverified,
-  §11); S is never sent, and a revealed key is one PRF output under it, not generator state.
+- **Server secret S** (64 bits), drawn at the server's first sealed send and never sent: S = HalfSipHash-2-4/64
+  under the zero key over 24 B, the two `NextInteger(0, 2^32 − 1)` draws (u32le each) of a `Random.new()` instance
+  created without a seed and used for nothing else (internal entropy source, documented, creator-docs
+  `datatypes/Random.yaml`), then the 16 bytes of the hex digits of `HttpService:GenerateGUID(false)` (a version 4
+  random UUID, documented, `HttpService.yaml`; security None). S then has the entropy of the stronger of two
+  independent sources, at no wire or per-seal cost (review M7). Neither source documents its entropy (unverified,
+  §11). A revealed key is one PRF output under S, not generator state.
 - **Seal key** K_i = HalfSipHash-2-4/64 under S over (d as u32le, i as u64le), with d the server's number for the
   definition (sealed definitions numbered from 0 in order of first sealed send) and i the definition's seal counter
   from 0 on this server, which is also the wire `seal` id. Keys are computed at the reveal, so the server stores no
@@ -1104,14 +1120,25 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 
 ### 9.5 Recipients and `outstanding`
 
-- **Recipients** are the seal's target resolved at the flush that encodes it (`v5.md` §3.5); a player in the join
-  hold receives it from the hold, as any send (`v5.md` §5.3). A player who joins later doesn't receive it.
-- **Outstanding** counts, per (player, definition), seals queued to that player and not yet revealed or discarded.
-  A recipient already at `outstanding` is skipped for that seal, which never reaches them, and the server records
-  the local fact `sendDropped` with `cause` 5.
-- **`reveal()` and `discard()`** queue the reveal or discard message, in call order, to the seal's recipients still
-  connected; called before the seal's own flush, both leave in the same flush after it. Each decrements the
-  recipients' counts. A leaving player's counts are freed.
+- **Problem** (review B2). A seal and its reveal must reach a player together or not at all: a reveal naming no held
+  seal, or a seal while `outstanding` are held, refuses the client's whole reliable frame (§9.6), and §5.3's join
+  hold drops sends past 32,768 B, so it could drop one and keep the other.
+- **Recipients** are the players to whom the seal row was queued: the seal's target resolved at the flush that
+  encodes it (`v5.md` §3.5), less those skipped for `outstanding` (below) and those whose join hold refused the row
+  (`sendDropped` cause 1, `v5.md` §5.3). A refused player is not a recipient and gets no reveal or discard.
+- **Outstanding** counts, per (player, definition), seal rows queued to that player whose reveal or discard row has
+  not yet been queued to them. A player already at `outstanding` is skipped for that seal, which never reaches them,
+  and the server records the local fact `sendDropped` with `cause` 5.
+- **`reveal()` and `discard()`** queue the reveal or discard row, in call order, to each recipient still connected;
+  called before the seal's own flush, both leave in the same flush after it. A recipient's count falls when its row
+  is queued. **Reveal and discard rows are never refused by the join hold's caps**, so a recipient that holds a seal
+  always receives its reveal or discard: each row is at most 2 + 107 + 64 bits (22 B), and a player holds at most
+  `outstanding` (≤ 256) seals per sealed definition, so the hold can exceed 32,768 B by at most 256 × 22 B = 5,632 B
+  per sealed definition (derived). A leaving player's counts are freed.
+- **Late joiners.** A player who joins after a seal was queued doesn't receive it (review m6). The recipe: on
+  `PlayerAdded`, fire the same value to the joiner, `local s2 = Net.nextRound:fire(player, layout)`, and reveal it
+  with the round's seal; a joiner after the reveal gets `Net.nextRound:fire(player, layout):reveal()`, which
+  queues seal and reveal in one flush.
 
 ### 9.6 Client decode
 
@@ -1168,7 +1195,7 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
 - **Caller:**
   - `fieldKind`: a check or telemetry call on a field handle whose codec that call doesn't take (`v5.md` §7.1 uses
     it for every call that names a field);
-  - `checkPool`: two `maxTotal` checks in one pool with different `cap` or `seconds`;
+  - `checkPool`: two `maxTotal` checks in one pool with different `cap`, `seconds` or field unit (§4.2);
   - `viewPlacement`: a check or telemetry call on a definition outside its scope (§1.2, §8.1);
   - `telemetryTwice`: a second `aim` or `series` (on the definition or any of its fields), or a second `atom`, on
     one definition;
@@ -1180,7 +1207,10 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
   - `unknownField` (`v5.md` §3.4) for a path naming no field.
 - **Build:** `freeFormField` (`v5-tooling.md` §3.4).
 - **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
-  `checksExempted` (a message inside a `resetChecks` window, §1.6), `atomsDelivered`, `atomsSkipped` (§8.5).
+  `checksUndrawn` (a message `oneIn` didn't draw, §5.2), `checksExempted` (a message inside a `resetChecks` window,
+  §1.6), `atomsDelivered`, `atomsSkipped` (§8.5); a check function's throw or yield adds to the existing
+  `validatorErrors` (§1.7).
+- **Build option:** `check.freeFormCodes` (§7.4; `v5-tooling.md` §2).
 - **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§8.10).
 - **Runtime constant:** `maxTotal` buckets, 16 (§4.1).
 - **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§7.1); the `sealed` option (§9.3).
@@ -1190,10 +1220,13 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
 Each has a default or a rule the design uses; none blocks the milestone.
 - Roblox's server build for checks and telemetry, and whether a Roblox server runs Lync's modules native; state
   lookup by `Player` against the probes' slot index.
-- `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §9.4).
+- `Random:NextInteger` on Roblox servers (`oneIn`, §5.2); the seed entropy of an unseeded `Random.new()` and of
+  `HttpService:GenerateGUID`, and whether either is cryptographic (h of §9.1, S of §9.4).
+- The runner thread's cost native and in Roblox's build (§1.7).
 - The engine's downstream rate per player (sealing against withholding, §9.1); HalfSipHash over 12 B (§9.7).
 - The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks (the c of
-  the docs' `burst` derivation, §6.2).
+  the docs' `burst` derivation, §6.2); reliable-lane stall lengths on mobile (`maxTotal` cause 2 and its 10%
+  headroom, `limit`'s 2 s slack behind the reliable c; review m11).
 - Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
   (`monotonic` cause 4).
 - Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).

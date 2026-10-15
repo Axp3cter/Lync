@@ -195,7 +195,7 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   most 2/`state.rate`); charged is every byte sent to that player since (reliable frames, unreliable events).
 - **Decision: who weighs records.**
   - *Problem.* Under the budget some rows wait, and which wait (the owner's record, a near one, one just entered) is a
-    judgement about the game: draft 3.6's first text fixed the Iris sphere's bands and ×4 owner and first-send boosts
+    judgement about the game: an earlier text of this draft fixed the Iris sphere's bands and ×4 owner and first-send boosts
     `[state-sync §2.1, §3.3]`, figures from other engines that bound no quantity of Lync's.
   - *Options:* Lync's fixed bands (cheap; Lync decides importance for every game); a table of band values (the
     developer sets numbers, Lync still fixes the shape); **a developer weight function, with Lync's selection rule
@@ -261,7 +261,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `position` | path string of a top-level `t.vector3`, `t.vector3f32` or `t.cframe` field | — | — | required | none |
-| `radius` | number (real) | studs | 8–4096 | required | R, the cell side. Larger means more members: about 2.6x an exact circle of R are included `[state-sync §7.2]`, so more catch-up bytes and more records in the bucket pass (20–60 ns native each, §7) |
+| `radius` | number (real) | studs | 8–4096 | required | R, the cell side. Larger means more members: about 2.6x an exact circle of R are included `[state-sync §7.2]`, so more catch-up bytes and more pending records for §7's selection |
 | `lookAhead` | number (real) | s | 0–1 | 0.2 (chosen: 1/`stateRate` at the default 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; fixed at 0.2, not recomputed for other rates; a measured round-trip distribution would change it) | one multiply-add per moving record per state tick; a record moving toward a viewer arrives up to `lookAhead` × its speed early |
 | `focus` | `(player: Player) -> Vector3?` or nil | — | — | nil: §8.3's engine focus | one call per viewer per state tick, in §8.7's thread |
 | `pvs` | a table in `v5-tooling.md` §2's format: the base64 string the module `[[pvs]] output` names returns, or a `buffer` of the decoded bytes (from a bake, a `DataStore` value, or the developer's own table); or nil | — | the table's cell must divide R (§8.5) | nil | decoded once at the call; 2 × N × N_c bits of server memory, N the table's cells and N_c the interest cells it covers (§8.5); one bit test per (viewer, cell) |

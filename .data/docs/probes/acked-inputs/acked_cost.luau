@@ -122,6 +122,14 @@ local function wEG(v, k) -- v < 2^31
 	local q = bit32.rshift(v, k) + 1
 	local z = 31 - bit32.countlz(q)
 	local pz = bit32.lshift(1, z)
+	if z > 15 then
+		wbits(pz, z + 1)
+		wbits(q - pz, z)
+		if k > 0 then
+			wbits(bit32.band(v, bit32.lshift(1, k) - 1), k)
+		end
+		return
+	end
 	local word = bit32.bor(bit32.lshift(q - pz, z + 1), pz)
 	local len = 2 * z + 1
 	if k == 0 then

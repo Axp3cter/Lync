@@ -412,21 +412,24 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
 - **Options:** a fresh thread per call (`coroutine.create`, then `resume`; 250–264 ns per call interpreted on the
   CLI, the callback's own work excluded); **a pooled thread per call site, replaced after a yield or throw** (one
   `resume`, 119 ns); `pcall` on Lync's thread (44 ns; can't detect a yield in time).
-- **Choice: a pooled thread per call site.** Each call resumes the site's thread with the callback and its
-  arguments; the thread runs the callback, sets a done flag and yields the result back. After `resume`:
+- **Choice: a reused runner thread per call site, with three outcomes** (the one rule for every game callback Lync
+  runs, `v5.md` §6.1). Each call resumes the site's runner with the callback and its arguments; the runner runs the
+  callback, sets a done flag and yields the result back. After `resume`:
   - `false` from `resume`: the callback threw. Lync reports `<site>Error` natively with its message (spacing of
     `v5.md` §7.2) and makes a new thread for the site;
-  - `true` with the done flag unset: the callback yielded. Lync reports `<site>Yielded`, abandons the thread (it is
-    never resumed or closed by Lync; whatever it returns when the engine resumes it is discarded) and makes a new
-    one;
-  - otherwise the result is used.
+  - `true` with the done flag unset: the callback yielded. Lync reports `<site>Yielded`, closes the runner with
+    `task.cancel` and makes a new one. A closed thread never resumes (Roblox docs, per the `luau` skill's references),
+    so the callback's wait returning later runs no game code against a tick that has moved on. The runner is then
+    suspended, the state `task.cancel` accepts: it errors only on the running thread or on one that has resumed
+    another coroutine (same source);
+  - `true` with the done flag set: the callback returned, and its result is used.
   Either fault gives the call its declared fallback at once, in the same tick: `focus` keeps the viewer's last cell,
   `predicate` takes `predicateOnError`, `weight` counts as 1, a binding or gate takes its `onError` (§9). Codes:
   `focusError`/`focusYielded`, `predicateError`/`predicateYielded`, `weightError`/`weightYielded`,
   `bindingError`/`bindingYielded`. Checked on the CLI: normal, yielding and throwing callbacks give `ok`,
   `yielded` and `threw`, and the next call after a yield runs on a new thread.
 - **Cost.** One `resume` per call, 119 ns interpreted on the CLI (unmeasured native and on Roblox, §15); one thread
-  allocation per fault.
+  allocation per fault, and one `task.cancel` per yield (unmeasured; the CLI has no `task` library).
 
 ## 9. Visibility classes
 

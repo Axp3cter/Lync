@@ -414,7 +414,8 @@ counter and a cost, so each has an option (below); whether such a fact informs a
 - **Refused frames.** The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it
   refuses is counted (`refusedFrames`, `v5.md` §7.4). It prices **signal** injectors of non-canonical frames into
   the client's own view (`getconnections`, `firesignal`) `[security-tooling §9]`, who must build canonical frames
-  for this build and server or patch Lync. Cost: none beyond decode.
+  for this build and server or patch Lync. **Universal counter:** no: a canonical frame needs this build's layout and
+  this server's permutation. Cost: none beyond decode.
 - **Injected frames** `[refusals-rejudged-3 R1 (d)]`. The function Lync passes to `Reliable.OnClientEvent:Connect`
   and `Unreliable.OnClientEvent:Connect` reads `debug.info(2, "f")` as its first statement, in that function itself
   and never in a helper, which `-O2` could inline. That function is the default `transport`'s (`v5.md` §8): with a
@@ -479,10 +480,10 @@ counter and a cost, so each has an option (below); whether such a fact informs a
 
 ## 6. Clock beacon
 
-- **Client.** After the connection's first `WELCOME`, a `BEACON` (control type 6, up: ⌊`GetServerTimeNow()` ×
-  1000⌋ mod 2^16 as u16, read when the frame is encoded) is due once `clock.beacon` tenths of a second of
-  `os.clock()` have passed since the last frame carrying one was passed to `FireServer` (for the first, since the
-  first `WELCOME`). A due `BEACON` is pending reliable data (`v5.md` §5.1): the next flush puts it in its reliable
+- **Client.** Once the connection's frames can be tagged (after its first `WELCOME` and, with variants, once the
+  mask is installed, §2.4), a `BEACON` (control type 6, up: ⌊`GetServerTimeNow()` × 1000⌋ mod 2^16 as u16, read
+  when the frame is encoded) is due once `clock.beacon` tenths of a second of `os.clock()` have passed since the
+  last frame carrying one was passed to `FireServer` (for the first, since that moment). A due `BEACON` is pending reliable data (`v5.md` §5.1): the next flush puts it in its reliable
   frame, with other data or alone. It never counts toward `missedFlush` and never enters the join hold; under
   `Lync.scheduler("manual")` it waits for the game's next `Lync.flush()`. With a pending `REPORT` it shares the
   frame `[clock-facts, BEACON gap]`. Without forcing, a client sending fewer than 3 reliable messages a second got
@@ -495,13 +496,17 @@ counter and a cost, so each has an option (below); whether such a fact informs a
      extended stamp. Each beacon gives o = arrival − stamp (s).
   3. **Windows** on one server grid: index ⌊t / 5⌋, t the arrival; each window keeps its minimum o. At each epoch
      boundary (t a multiple of 5 s), a player with 12 consecutive windows ending there gets a fit: the Theil–Sen
-     slope of the 12 minima (median of the 66 pairwise slopes).
-  4. **Sign:** s = −(that slope), in seconds of client-clock gain per second of server `os.clock()`; positive is a
-     fast client clock, negative a slow one.
+     slope of the 12 minima, the median of the 66 pairwise slopes. The median of an even count, here and for
+     `othersSlope`, is the mean of the two middle order statistics.
+  4. **The quantity:** s = −(that slope), in s/s: the negated Theil–Sen slope of the window minima of (arrival
+     `os.clock()` − extended stamp). It is the client's clock error rate plus the rate of change of the one-way
+     delay's lower envelope `[clock-facts §U3.1]`: a fast client clock and a draining queue both make it positive, a
+     slow clock and a building queue negative. The fact states s; its causes are §10's.
   5. **Split halves:** for a fit with |s| > `clock.reportSlope`, windows 1–6 and 7–12 are fitted too (15 pairs
      each, the 8th order statistic), giving `firstHalf` and `secondHalf`. The fit **counts** when s, `firstHalf`
      and `secondHalf` all exceed `clock.reportSlope` in magnitude with s's sign. One level shift lies inside one
-     half, so the other is flat; a rate, from a modified clock or a delay ramp, shows in both.
+     half, so the other is flat; a rate, from a modified clock or a delay ramp, shows in both. It is shown against
+     one step only: two steps spread over both halves can pass it (§10, §12).
   6. **Run:** consecutive counting fits of one sign; a non-counting fit, a sign change or a restart ends it.
      `clockRate` (§10) fires at the end of each fit that makes the run at least `clock.reportFits` long.
   - The first 30 s after join are ignored, and an arrival gap over 3 × `clock.beacon` restarts the estimate.
@@ -529,17 +534,18 @@ counter and a cost, so each has an option (below); whether such a fact informs a
 - **Prices** **clock**: tools that accelerate or slow the client clock while Lync's stamps follow it. Not priced:
   stamps kept on unmodified time, or patched; a client that blocks Lync's frames, which leaves a count gap
   (`frameGap` on the next reliable frame) and, blocking every beacon, no fit (`clockRestarts` counts the gaps).
+  **Universal counter:** yes, keeping the `GetServerTimeNow()` reads of Lync's beacon on unmodified time.
 - **Cost** `[clock-facts §U3.6, BEACON gap]` `[security-costs claim 9]`. Wire: a forced `BEACON`-only frame is 9 B
   with the tag, 11 B with a `REPORT` (`v5.md` §4.6); riding another frame, 20 bits of chunk plus 2–4 bits of toc;
   ≤ 9 B/s and one `FireServer` a second per idle client at the default (≤ 18 B/s at 5). Client: ≤ 1.8 µs per
   forced frame interpreted. Server, native: 8.8 ns per beacon, 1.52–1.59 µs per fit, 0.56–0.60 µs for the halves
   (only beyond the threshold), 1.72–2.10 µs per epoch to sort 100 slopes, ≤ 0.12 µs per fact: ≤ 71 µs/s at 100
-  players (0.007% of a core), plus ≤ 16 µs/s for 100 idle players' forced frames. Memory: one number per player
-  (the first window's o, for `drift`) and one reused array of slopes per server.
+  players (0.007% of a core), plus ≤ 16 µs/s for 100 idle players' forced frames. Memory: per player 12 window
+  minima, an index and the first window's o (for `drift`); one reused array of slopes per server.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 | ≤ 9 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME` |
+| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 (chosen inside the derived bound: no 5 s window is empty without a restart while 3P ≤ 4.5 s, P ≤ 1.5 s `[clock-facts, BEACON gap]`) | ≤ 9 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME` |
 | `clock.reportSlope` | number (real) | s/s (seconds of drift per second) | 0.001–1 | 0.01 (derived above) | none; server-only |
 | `clock.reportFits` | integer | consecutive counting fits | 1–12 | 3 (derived above) | none; server-only |
 

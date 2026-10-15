@@ -1,2 +1,41 @@
 # Luau 0.742 (built from .data/projects/luau, Release), Xeon 2.1 GHz, best of 5
 ## interpreted -O2
+push: one record, one tick (24 B slot)                        137.5 ns/op  (sink 5)
+sample at fractional tick: lerp xyz + 2 rot decodes + nlerp    388.0 ns/op  (sink 5)
+perceived tick from ack (ring lookup, clamp, window)          134.4 ns/op  (sink 0)
+as-received: record one acked row (per viewer, record)         56.1 ns/op  (sink 5)
+as-received: bracket P with own samples + lerp + 2 decodes    388.6 ns/op  (sink 1)
+error of truth-at-P against the client's own samples, studs (16 studs/s strafe, 20 Hz, D = 2 ticks):
+  rows missing    0%: mean 0.000  p99 0.000  max 0.000
+  rows missing    5%: mean 0.005  p99 0.162  max 1.235
+  rows missing   33%: mean 0.084  p99 1.331  max 4.894
+  rows missing   50%: mean 0.245  p99 2.552  max 8.662
+memory (slot 24 B; ring K = ceil((maxRewind + 0.25 s) * rate) + 2; as-received M = 4 x u32 per pair):
+  shooter 30                     20 Hz maxRewind 0.5 s: K= 17 ring   12240 B (  408 B/record), seq map   6120 B, as-received    15300 B
+  shooter 30                     20 Hz maxRewind 1.0 s: K= 27 ring   19440 B (  648 B/record), seq map   9720 B, as-received    15300 B
+  shooter 30                     60 Hz maxRewind 0.5 s: K= 47 ring   33840 B ( 1128 B/record), seq map  16920 B, as-received    15300 B
+  shooter 30                     60 Hz maxRewind 1.0 s: K= 77 ring   55440 B ( 1848 B/record), seq map  27720 B, as-received    15300 B
+  shooter 100                    20 Hz maxRewind 0.5 s: K= 17 ring   40800 B (  408 B/record), seq map  20400 B, as-received   170000 B
+  shooter 100                    20 Hz maxRewind 1.0 s: K= 27 ring   64800 B (  648 B/record), seq map  32400 B, as-received   170000 B
+  mmo 300 tracked, 100 viewers   20 Hz maxRewind 0.5 s: K= 17 ring  122400 B (  408 B/record), seq map  20400 B, as-received   510000 B
+  mmo 300 tracked, 100 viewers   20 Hz maxRewind 1.0 s: K= 27 ring  194400 B (  648 B/record), seq map  32400 B, as-received   510000 B
+## native -O2 --codegen
+push: one record, one tick (24 B slot)                          9.5 ns/op  (sink 5)
+sample at fractional tick: lerp xyz + 2 rot decodes + nlerp     80.2 ns/op  (sink 5)
+perceived tick from ack (ring lookup, clamp, window)           26.0 ns/op  (sink 0)
+as-received: record one acked row (per viewer, record)          8.3 ns/op  (sink 5)
+as-received: bracket P with own samples + lerp + 2 decodes    107.8 ns/op  (sink 1)
+error of truth-at-P against the client's own samples, studs (16 studs/s strafe, 20 Hz, D = 2 ticks):
+  rows missing    0%: mean 0.000  p99 0.000  max 0.000
+  rows missing    5%: mean 0.005  p99 0.162  max 1.235
+  rows missing   33%: mean 0.084  p99 1.331  max 4.894
+  rows missing   50%: mean 0.245  p99 2.552  max 8.662
+memory (slot 24 B; ring K = ceil((maxRewind + 0.25 s) * rate) + 2; as-received M = 4 x u32 per pair):
+  shooter 30                     20 Hz maxRewind 0.5 s: K= 17 ring   12240 B (  408 B/record), seq map   6120 B, as-received    15300 B
+  shooter 30                     20 Hz maxRewind 1.0 s: K= 27 ring   19440 B (  648 B/record), seq map   9720 B, as-received    15300 B
+  shooter 30                     60 Hz maxRewind 0.5 s: K= 47 ring   33840 B ( 1128 B/record), seq map  16920 B, as-received    15300 B
+  shooter 30                     60 Hz maxRewind 1.0 s: K= 77 ring   55440 B ( 1848 B/record), seq map  27720 B, as-received    15300 B
+  shooter 100                    20 Hz maxRewind 0.5 s: K= 17 ring   40800 B (  408 B/record), seq map  20400 B, as-received   170000 B
+  shooter 100                    20 Hz maxRewind 1.0 s: K= 27 ring   64800 B (  648 B/record), seq map  32400 B, as-received   170000 B
+  mmo 300 tracked, 100 viewers   20 Hz maxRewind 0.5 s: K= 17 ring  122400 B (  408 B/record), seq map  20400 B, as-received   510000 B
+  mmo 300 tracked, 100 viewers   20 Hz maxRewind 1.0 s: K= 27 ring  194400 B (  648 B/record), seq map  32400 B, as-received   510000 B

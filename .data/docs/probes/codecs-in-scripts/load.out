@@ -2,3 +2,4 @@
 {"file":"weapon_woven.luau","bytecode_g0":2197,"bytecode_g1":2542,"load_us":2.87,"native_compile_us":423.67}
 {"file":"big0.luau","bytecode_g0":6024,"bytecode_g1":7383,"load_us":14.13,"native_compile_us":1425.23}
 {"file":"bigw0.luau","bytecode_g0":7478,"bytecode_g1":9073,"load_us":16.71,"native_compile_us":1708.82}
+{"file":"gen/shard.luau","bytecode_g0":5984,"bytecode_g1":7128,"load_us":7.79,"native_compile_us":1254.15}

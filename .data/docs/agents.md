@@ -29,6 +29,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a6b292c4df871349d` | researcher | client shard self-checks: finishes `security-tooling.md` §2; U1 captured `FireServer`, U2 tag rounds and rotation amounts, U7 caller information in the tag | `research/security-tooling.md` §2, `research/client-self-checks.md`, `probes/client-self-checks/` | running |
 | `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | append to `research/interest-rewind.md`, `probes/interest-rewind/` | running |
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
+| `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -52,7 +53,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.
-  6a. `methods, part 2a` (Opus): per-player tag or key binding, runtime-path per-session parameters through
+  6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through
       tables → append to `research/generation-methods.md`.
   6b. `methods, part 2b` (Opus): per-build generated traps, decoys and canaries; composition with
       `codecs-in-scripts.md` (site-bound ids) → append to `research/generation-methods.md`.

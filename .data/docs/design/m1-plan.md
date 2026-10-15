@@ -550,7 +550,7 @@ These change milestone 1 code; the design text is `v5.md` draft 3.2.
 - **Codes:** `notADefinition` and unit B's interpretations of `duplicateName`, `nameLength`, `mapKey` and
   `newestWidth` are now design (`v5.md` §3.3, §3.4).
 - **`t.rotation` canonical codes** (`v5.md` §3.3, decision "quantizers are idempotent"):
-  - `Quant.unrotation` keeps its signature. A new `Quant.canonicalRotation(flag, index, a, b, c, bits): boolean`
+  - `Quant.unrotation` keeps its signature. A new `Leaves.canonicalRotation(flag, index, a, b, c, bits): boolean`
     decodes the code, builds the `CFrame` (`CFrame.new(0, 0, 0, x, y, z, w)`), re-encodes it from
     `GetComponents()`, and compares. Because it builds a `CFrame`, it lives in `src/codec/leaves.luau`, not in
     `quant.luau`, which stays pure.

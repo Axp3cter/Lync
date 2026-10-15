@@ -344,3 +344,44 @@ choices) and G9 (the `t.int()` extremes) are new.
 3. `[rotate]` removed from `lync.toml`: with rotation kept, the build seed is its one switch, which closes the knob
    overlap redundancy-2 S7 had left to the author.
 4. Chunk and message caps as protocol constants (16,256 / 16,000 B reliable, 960 B unreliable).
+
+---
+
+# Draft 3.1 to 3.2
+
+2026-10-15. Folds in what the milestone 1 build found: the builders' rulings recorded in `m1-plan.md` §6, the
+`columnMinRows` benchmark, and four open questions. New builder work and milestone 2 interfaces are in
+`m1-plan.md` §6.1–§6.2.
+
+**Count:** 18 items. Accepted 15, changed 3, rejected 0.
+
+**`columnMinRows` benchmark** (unit C, `bench/rows.luau`): bits of n single rows against one column block, summed
+over `strike`, `announce`, `fighters` and a `{ t.int(0, 100) }` record, 200 draws.
+
+| n | constant | ±1 noise | Gaussian σ = 50 | 10% sparse |
+|---|---|---|---|---|
+| 1 | 174.7/295.1 | 174.8/295.7 | 174.6/280.2 | 174.5/294.3 |
+| 2 | 348.3/351.0 | 349.1/407.7 | 349.9/425.5 | 348.9/356.9 |
+| 3 | 523.1/352.9 | 523.6/467.4 | 523.7/535.5 | 523.7/382.2 |
+| 4 | 697.9/353.3 | 698.1/517.9 | 698.2/642.8 | 697.9/403.2 |
+
+| # | Item | Outcome | Reason |
+|---|---|---|---|
+| 1 | `columnMinRows` | accepted | 3: the smallest n where the block is no larger in 3 of 4 patterns (`v5.md` §4.9, §4.10). |
+| 2 | Serialization: defaulted options present with resolved values | accepted | One byte sequence per schema whether a default is written out or not (`v5.md` §4.7). |
+| 3 | Serialization: options a kind doesn't take are absent | accepted | As 2. |
+| 4 | Serialization: a union variant is a full codec (type 23) | accepted | The record serializer is reused as is. |
+| 5 | `hasInstances` covers `data` or `reply` | accepted | One flag per definition; an ask run of a definition whose only instances are in `reply` pays one EG-0 bit (`v5.md` §4.1). |
+| 6 | `t.vector3f32` in a column block: three raw columns | accepted | Consistent with `t.f32` (`v5.md` §4.3). |
+| 7 | `notADefinition` | accepted | One fact, one code (`v5.md` §3.4). |
+| 8 | `duplicateName` for a repeated enum item | accepted | |
+| 9 | `nameLength` (namespace 1–64 B, others 1–65,535 B) | accepted | |
+| 10 | `mapKey` for a wrong collection key | accepted | Same constraint as a map key. |
+| 11 | `newestWidth`'s codec list | accepted | Listed exactly in `v5.md` §3.3. |
+| 12 | Worst-case sizes bound column blocks too | accepted | `v5.md` §3.4. |
+| 13 | `t.rotation` is not idempotent | changed | Neither (a) nor (b): canonical means idempotent and is checked as such. The decoder refuses a code whose decode doesn't re-encode to itself (rule 6), and the encoder iterates to a canonical code. (a) fails on f32 near-ties, because the decoded `CFrame` is f32; (b) lets error grow per relay hop. Cost: one more encode per decoded rotation. Verification and error re-measurement go to milestone 1 (`v5.md` §3.3, `m1-plan.md` §6.1). |
+| 14 | `t.vector3` bounds that aren't f32 values | changed | A one-f32-spacing tolerance at the bounds, mapping to the end code, so any bounds work. Also a rule the item didn't ask for: `step` must exceed the f32 spacing at the largest bound (`vectorStep`), without which interior codes can't round-trip through a `Vector3` either (e.g. `t.vector3(-1e6, 1e6, 0.01)`). Requiring f32-exact bounds was not chosen: it would refuse ordinary bounds such as 0.1 without making anything more precise. |
+| 15 | Refusal path root hard-wired to `data` | accepted | A `root` parameter (`m1-plan.md` §6.2). |
+| 16 | Instance count from `#instances` | accepted | The count comes from the chunk header; the chunk addresses the frame's array by offset, so nil entries are safe. |
+| 17 | No channel for `unresolved` | changed | Beyond a channel: a caller-provided `misses` list, which allocates only when a row is unresolved. The server reports the existing fact `unresolved`, its `value` now defined. A client counts `unresolvedMessages` and raises no fact, since streaming makes nil instances routine and the server is trusted (`v5.md` §7.3, §7.4). |
+| 18 | Rule 9 checked per run | accepted | `beginChunk`/`endChunk` around rows with prefixes (`m1-plan.md` §6.2). |

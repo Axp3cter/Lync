@@ -31,10 +31,10 @@ server build is not measured. Type checks of the probes: luau-analyze 0.740 (the
 - [x] C1. `within`
 - [x] C2. `monotonic`
 - [x] C3. `maxTotal`
-- [ ] C4. `:claim()` (and `:input()`)
-- [ ] C5. U12: the free-form field lint
-- [ ] C6. Cost probe: the fix and the results
-- [ ] C7. Implications (checks and U12)
+- [x] C4. `:claim()` (and `:input()`)
+- [x] C5. U12: the free-form field lint
+- [x] C6. Cost probe: the fix and the results
+- [x] C7. Implications (checks and U12)
 
 ### C0. Common frame
 
@@ -184,7 +184,7 @@ docs give the formula: `maxDistance` = speed × 0.25 s plus the quantization err
 
 **Cost** (measured, C6; net of the runner's per-message baseline):
 - vector field: 50–56 ns native and 101–109 ns interpreted per message;
-- number field: 47–49 ns native and 104–116 ns interpreted;
+- number field: 47–49 ns native and 108–116 ns interpreted;
 - a failure adds the fact record, 20.5 ns native (DIAG §5.2).
 - State: 0 B. Wire: 0 B.
 
@@ -245,7 +245,7 @@ therefore also needs `within` against `GetServerTimeNow()`. `monotonic` bounds t
 | `order` | `"nondecreasing" \| "increasing"` | — | — | `"nondecreasing"` | none |
 | `policy` | `"drop" \| "clamp" \| "deliver"` | — | `clamp` only with `"nondecreasing"` | required | none beyond a store |
 
-**Cost** (measured, C6, net): 57–63 ns native and 172–183 ns interpreted per message. The raw compare is 3.1–5.9 ns
+**Cost** (measured, C6, net): 57–63 ns native and 175–183 ns interpreted per message. The raw compare is 3.3–5.9 ns
 native; the rest is the table-driven runner. State: 16 B per player per check. Wire: 0 B.
 
 ### C3. `maxTotal`
@@ -313,6 +313,230 @@ headroom per the measurement.
 | `policy` | `"drop" \| "clamp" \| "deliver"` | — | — | required | none |
 
 **Cost** (measured, C6, net):
-- 74–84 ns native and 236–251 ns interpreted per message. A message that crosses into a new bucket also clears up
+- 74–84 ns native and 240–248 ns interpreted per message. A message that crosses into a new bucket also clears up
   to 16 sums; the probe includes that at the rate it occurs.
 - State: 144 B per player per check or pool. Wire: 0 B.
+
+### C4. `:claim()` and `:input()`
+
+**Semantics.** Two codec methods in the shared schema. Both are non-generic and return the same codec type (v5.md
+§3.3's rule): `t.int(1, 2 ^ 40):claim()`, `t.string(200):input()`.
+- **Roles.** A leaf is *input* (the client's own control or choice) or *claim* (what the client asserts about the
+  world: a hit target, a shot origin, an amount gained, a completion time; AC §3.2).
+  - Unmarked leaves are inputs (`v5-changes.md` M4).
+  - A leaf's role is the nearest marker on it or on a codec enclosing it within the payload. So `{ … }:claim()`
+    marks a whole record, and an inner `:input()` overrides it for its own leaves.
+- **Placement.** Markers are allowed only in client-sent payloads: `data` of `from = "client"` events and
+  requests, and `reply` of `from = "server"` requests. Anywhere else (server-sent `data`, a client request's
+  `reply`, collection fields) is the declaration error `rolePlacement` at the definition's line.
+- **Decision: hashing.**
+  - (a) Not hashed. That makes an exception to "every value in the schema goes into the schema hash" (v5.md
+    §3.4).
+  - **(b) Hashed** as a wrapper codec, type 26 `role`: role u8 (1 input, 2 claim), then the codec (§4.7).
+  - Choose (b). There is no exception, and it costs 2 B of hash input per marker and nothing at run time. A
+    changed role gives `MISMATCH` between builds, and those never meet in production, since both sides' shards come
+    from one build run (INT §2).
+- **The server requirement.**
+  - A claim leaf in `data` is *verified* when the definition has a validator, or when at least one check (C1–C3)
+    is declared on that leaf or on a record that encloses it.
+  - This departs from `v5-extensions.md`, which requires `validate`: here a check also counts, so
+    `Net.strike:within("origin", …)` alone verifies a shot origin.
+  - Lync keeps one flag per definition, "has an unverified claim", and recomputes it whenever `validate` or a check
+    is declared. Per message, that costs one boolean test.
+- **Exact trigger and action.**
+  - A message of a definition whose flag is set is dropped at step 6, before validators (an ask is answered
+    `rejected`), and counted (`claimsUnverified`).
+  - It is also reported natively as **`claimUnverified`** (family `fault`), at most once per definition per
+    `observe.window` (v5.md §7.2 spacing). The message is
+    `[Lync] claimUnverified: arena.strike data.target must have a validator or a check, got none`. It carries no
+    fix, since there are two (§7.1: a fix only when there is exactly one).
+  - It is a fault rather than a fact because its cause is the game's declarations, not what a player sent.
+  - Known causes: none on the client side. On the server, game code declares neither, or declares them after the
+    definition's first messages arrive.
+- **Replies** of server requests can carry markers for the lint (C5) but have no run-time requirement, since
+  answers have no validator step (C0).
+- **Types:** unchanged; a marker doesn't change `T`.
+
+**What it protects.** Nothing by itself at run time, and it raises no fact of its own (a validator returning
+`false` stays counter-only, v5.md §7.2).
+- **What it guarantees:** no message holding a claim reaches `connect` or `handle` without passing a game
+  validator or a Lync check. This is AC §3.2's "the handler only runs after every claim passes", with the verifier
+  kept out of the shared schema (M8).
+- **What it adds:** it is the link that turns the lint (C5) into protection. A flagged field gets `:claim()`, and
+  then the server has to verify it.
+- **What defeats it:** a validator that returns `true` unconditionally, which Lync can't tell apart, and marking a
+  claim `:input()` to silence the lint.
+
+**`:input()`** has one effect: it silences U12 on a free-form leaf (C5). Every unmarked leaf is already an input.
+
+**Least work.** One marker per claim field in the schema, plus the one server line that verifies it, which the
+game needs anyway.
+
+```luau
+-- shared schema
+strike = Lync.event({ from = "client", lane = "unreliable", data = {
+	target = t.int(1, 2 ^ 40):claim(), origin = t.vector3(-2048, 2048, 1 / 32):claim(), aim = t.direction(11),
+} }),
+-- server
+Net.strike:within("origin", { reference = rootOf, maxDistance = 6, policy = "drop" })
+Net.strike:refers("target", "fighters") -- INT §8
+Net.strike:validate(function(player, s) return Fighters.alive(s.target) end)
+```
+
+| Marker | Placement | Default | Cost |
+|---|---|---|---|
+| `:claim()` | any codec in a client-sent payload | unmarked leaves are inputs | 0 B wire; 2 B hash input; per message one flag test; requires a validator or a check per claim leaf of `data` |
+| `:input()` | as `:claim()` | — | 0 B wire; 2 B hash input; no run-time effect |
+
+### C5. U12: the free-form field lint `freeFormField`
+
+**Exact rule.** For each client-sent payload (`data` of `from = "client"` events and requests, and `reply` of
+`from = "server"` requests), the planner walks the codec tree depth first in name order:
+- it walks into records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base,
+  and `t.cframe`'s position codec (its rotation is input-shaped);
+- it reports one warning per **free-form leaf** that has no role marker on itself or on an enclosing codec (C4).
+
+A leaf is free-form when it is:
+- `t.f32`, `t.f64` or `t.vector3f32` (unbounded floats);
+- `t.int()` (an unbounded integer);
+- `t.int(min, max)` with max − min + 1 > 65,536;
+- `t.number(min, max, step)` or `t.vector3(min, max, step)` with n + 1 > 65,536 codes per component (n from
+  v5.md §3.3);
+- `t.string`, `t.buffer`, `t.instance` or `t.custom`.
+
+Never free-form: `t.bool`, both enum forms, `t.angle`, `t.direction`, `t.rotation`, `t.color3`, and smaller
+`t.int` and `t.number`.
+
+The threshold 65,536 (2^16) is a constant, chosen, not measured (below). The research's wording was "free `f64`,
+unbounded `str`, `inst` of another player, large ints" (AC §3.2). This rule makes each term exact for v5's
+codecs.
+
+**Channel.** A build diagnostic (family `build`; `v5-tooling.md` §3) from `lync build`, `lync check` and, in
+milestone 6, the Studio plugin.
+- It is placed at the definition's line, which is the line schema constructors record (v5.md §7.1); codec calls
+  record none. The field path goes in the message:
+  `warning[freeFormField]: arena.strike data.target is client-sent and free-form (integer with 1099511627776 values); mark it :input() or :claim()`.
+- Severity follows the `[check]` entry `freeFormField = "warn" | "error" | "off"`, default `"warn"`.
+- The runtime path's planner computes it and drops it. On the runtime path there is no build to report to, and a
+  line in every session is the channel M11 refused (`v5-changes.md:214`).
+
+**Measured on stand-in codecs** (verified, `lint_freeform.out`):
+- **The §3.4 `arena` schema** gives 2 warnings.
+  - `chat data` is a false positive: chat text is an input, and gets `:input()`.
+  - `strike data.target` (`t.int(1, 2 ^ 40)`) is a true positive: a hit target is a claim. So v5.md §3.4's own
+    example needs `:claim()`, and then a validator or check (C4).
+  - With those two markers, 0 warnings.
+- **A demo set** gives 7 warnings.
+  - Fields that should be claims: `collect.coins` (`t.int(0, 1e6)`), `hit.damage` (`t.f32`), `hit.origin` (131,073
+    codes per axis), `hit.part` (`t.instance`).
+  - Fields that are inputs: `settings.volume` (`t.number(0, 1, 1e-5)`, 100,001 codes), `settings.name`, and
+    `confirm reply.note`.
+  - Correctly silent: `move.stick` (255 codes), `move.look` (`t.angle`).
+
+**What it catches.** Outcome and world claims written in free-form shapes: amounts, damage, positions, instance
+targets, large ids, free text carrying structure. It moves the question "how would an exploiter abuse this?" onto
+the field's line (AC §3.2). It costs nothing at run time: it only adds friction for the developer.
+
+**What it misses** (false negatives, all in `lint_freeform.out`'s demo set):
+- outcomes in input-shaped codecs: `finish.won` (`t.bool`), `finish.place` (`t.int(1, 12)`), `collect.coin`
+  (`t.int(1, 500)`);
+- a completion time `t.number(0, 600, 0.01)`, which has 60,001 codes and so falls under the threshold;
+- small ids, and choices among a server-provided set (a claim of eligibility).
+
+The rule is syntax, not meaning: the compiler can't recognise outcomes (AC §3.2).
+
+**False positives:**
+- chat and other free text;
+- names and search strings;
+- fine settings sliders;
+- cosmetic camera or UI coordinates.
+
+Each takes one `:input()`. The 2^16 threshold puts every v5.md §3.4 input and these demo inputs (255-code sticks,
+enums, slot indices) below it, and ids, currency up to 10^6 and fine positions above it. Moving it changes only
+which fields need a marker, so it is a constant, not an option ("none is a knob", v5.md §4.9).
+
+| Option (`lync.toml`) | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `[check] freeFormField` | `"warn" \| "error" \| "off"` | — | — | `"warn"` | build time only: one codec-tree walk per client-sent payload; 0 B and 0 ns at run time; one marker per flagged field |
+
+### C6. Cost probe: the fix and the results
+
+**The fix** (`checks_cost.luau`). The atom-copy line ran `NA = N // 10` copies but `bench` divided by `N`, so it
+printed a tenth of the cost. `bench` now takes the count it divides by.
+- The old `.out` printed 9.8 ns interpreted and 6.4 ns native.
+- The real figure is 87–90 ns interpreted and 55–61 ns native per 180 B atom. That agrees with ×10 of the old
+  line.
+
+Two more fixes were made while extending the probe, both affecting only the new runner lines. Each run now starts
+from empty state, and the clock keeps rising across runs: a restart at 0 made the token bucket refill negatively
+and sent `monotonic` down its late-frame branch. The probe asserts that only the failing case fails (14,000,000 of
+14,000,000 counted).
+
+**Results** (verified, `checks_cost.out`; ns per message, the range over 3 process runs, each the best of 7).
+"Net" subtracts the same run's no-checks baseline (loop, payload fetch, nil test).
+
+| Line | Interpreted | Native |
+|---|---|---|
+| raw `within` (distance² ≤ max², buffer state) | 53–61 | 7.4–8.3 |
+| raw `monotonic` (strict >) | 16–18 | 3.3–5.9 |
+| raw `maxTotal`, 16 buckets | 74–78 | 14–21 |
+| aim ring write (telemetry) | 51–53 | 7.5–13.4 |
+| atom copy, 45 samples, 180 B (telemetry; fixed) | 87–90 | 55–61 |
+| runner baseline, definition with no checks | 46–50 | 22 |
+| `within`, vector field, reference function, net | 101–109 | 50–56 |
+| `within`, number field, net | 108–116 | 47–49 |
+| `monotonic` with the frame key, net | 175–183 | 57–63 |
+| `maxTotal`, sliding 16 buckets, net | 240–248 | 74–84 |
+| `maxTotal`, token bucket, net | 195–241 | 65–66 |
+| `within` + `monotonic` + `maxTotal` on one message, net | 508–541 | 176–183 |
+| `within` failing every message, `drop`, net (fact record excluded) | 105–107 | 49–53 |
+| clamp of a vector to the sphere | 56–58 | 53–63 |
+
+**Reading.**
+- **Dispatch, not arithmetic, is the cost.** The raw kernels are 3–21 ns native; through the table-driven runner
+  each check costs 47–84 ns native. The rest is reading the check descriptor, looking up the payload field by
+  string key, the reference call, and a call per check.
+  - The checks are declared at run time on the server view, so neither path generates them.
+  - Building one specialised closure per check at declaration would remove part of the dispatch (not measured).
+  - The research's "27–49 ns native" for three checks (AC §4.2) measured kernels without dispatch.
+- **At scale** (derived): 100 players × 60 messages/s, each with all three checks, is 1.06–1.10 ms/s native (about
+  0.11% of one core) and 3.0–3.2 ms/s interpreted.
+  - Add per message +18–38 ns for the `xpcall` when the definition has references but no validator (DIAG §9).
+  - Add +20.5 ns native per failure for the fact record (DIAG §5.2).
+- **The clamp line shows no native speed-up.** That points to its vector arithmetic not being lowered by this
+  build's codegen. It was not investigated further. It runs only on failures under `clamp`.
+- **Memory** (derived): 100 players × 10 `maxTotal` checks is 144 KB. A `monotonic` check is 16 B per player, and
+  `within` is 0 B.
+- **Not measured:** Roblox's server build, `vector` against a real `Vector3` (the same native type in Roblox, per
+  the skill's references), and the state lookup by `Player` rather than a slot index.
+
+### C7. Implications (checks and U12)
+
+1. Declare the three checks on the server view as `Net.<def>:<check>(path, options)`. References are server
+   functions, and bounds and retunes stay off the client and out of the hash (C0).
+2. Keep `:claim()` and `:input()` as codec methods in the shared schema, and hash them as codec type 26, so the
+   planner and the lint see them with no exception to the hash rule (C4).
+3. Make `policy` required and add `"deliver"` beside `drop` and `clamp`. Lync then never picks a consequence, and
+   games can tune tolerances from facts first (C0, R25).
+4. Run checks after `limit` and before validators, with references inside the validator's `xpcall`. Commit
+   `monotonic` and `maxTotal` state only for delivered messages (C0).
+5. Ship one fact, `constraint`, with the flat evidence `check`, `kind`, `policy`, `observed`, `bound`, `late`,
+   following `unresolved`'s pattern (C0).
+6. Order `monotonic` by the frame key (tag count, or unreliable seq) and accept late frames that are ≤ the stored
+   value. Without it, 1.3% of unmodified unreliable traffic fails on the default network (C2,
+   `monotonic_reorder.out`).
+7. Build `maxTotal` as a 16-bucket sliding window. It bounds any 15/16 window to exactly `cap`, where a token
+   bucket allows 1.94 × `cap`, for 128 B more state (C3, `maxtotal_bounds.out`).
+8. Let a check on a claim leaf satisfy the claim's verification, as `validate` does, and drop unverified claim
+   messages with the native fault `claimUnverified` (C4).
+9. Add `resetChecks(player)` so games can reset counters at rounds and respawns without an `exempt` window (C0,
+   C2).
+10. Adopt `freeFormField` as a build-only warning with the exact 2^16 rule. It flags the real claim in v5.md §3.4
+    (`strike.target`) and one chat false positive, and misses input-shaped outcomes by design (C5).
+11. Update v5.md §3.4's example: `strike.target` gets `:claim()` plus a validator or check, and `chat` gets
+    `:input()` (C5).
+12. State the checks' cost as 47–84 ns native per check (176–183 ns for three), and note that dispatch dominates.
+    A per-check closure built at declaration is the measured-later way to cut it (C6).
+13. Register the new codes: `constraint` (fact); `claimUnverified` (fault); `rolePlacement` (declaration);
+    `checkKind`, `checkOption`, `checkPool` (caller); `freeFormField` (build). Register the counters
+    `checksSkipped` and `claimsUnverified` (C0, C4, C5).

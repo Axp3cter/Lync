@@ -1,0 +1,30 @@
+== interpreted (luau 0.742 -O2)
+frame 64 B (cover all)
+  accepted at e:   today    2.60 us   mask    2.53 us
+  failing (5 counts): today   12.57 us   mask+lookup   13.07 us
+  failing, rehash under 15 other variants (N = 16):    199.0 us
+frame 1024 B (cover all)
+  accepted at e:   today   27.43 us   mask   27.97 us
+  failing (5 counts): today  138.91 us   mask+lookup  141.80 us
+  failing, rehash under 15 other variants (N = 16):   2170.9 us
+mask map, 256 variants: 13312 B
+chance cross matches at full default budget (120 reliable x 5 counts + 240 unreliable x 3 extensions per s):
+  N =   2:     1320 candidates/s, one chance match per    3253763 s (903.8 h)
+  N =  16:    19800 candidates/s, one chance match per     216918 s (60.3 h)
+  N =  64:    83160 candidates/s, one chance match per      51647 s (14.3 h)
+  N = 256:   336600 candidates/s, one chance match per      12760 s (3.5 h)
+== native (--codegen)
+frame 64 B (cover all)
+  accepted at e:   today    0.45 us   mask    0.43 us
+  failing (5 counts): today    1.97 us   mask+lookup    2.21 us
+  failing, rehash under 15 other variants (N = 16):     31.4 us
+frame 1024 B (cover all)
+  accepted at e:   today    4.02 us   mask    3.93 us
+  failing (5 counts): today   20.33 us   mask+lookup   19.75 us
+  failing, rehash under 15 other variants (N = 16):    314.1 us
+mask map, 256 variants: 13312 B
+chance cross matches at full default budget (120 reliable x 5 counts + 240 unreliable x 3 extensions per s):
+  N =   2:     1320 candidates/s, one chance match per    3253763 s (903.8 h)
+  N =  16:    19800 candidates/s, one chance match per     216918 s (60.3 h)
+  N =  64:    83160 candidates/s, one chance match per      51647 s (14.3 h)
+  N = 256:   336600 candidates/s, one chance match per      12760 s (3.5 h)

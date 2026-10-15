@@ -28,7 +28,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a5072800c2daf5fdc` | researcher | **the methods agent**: concrete generation methods in Lync's pipeline; re-checks M1–M12 against their probes and goes further (per-player tag binding, generated traps/decoys/canaries, runtime-path per-session parameters) | `research/generation-methods.md`, `probes/generation-methods/` | M1–M12 done, all on Opus 5.5; key finding: the build seed is public, so per-build values price nothing until a private `rotationSeed` exists (M1); per-session/per-player layouts vary upstream only; retired |
 | `a6b292c4df871349d` | researcher | client shard self-checks: finishes `security-tooling.md` §2; U1 captured `FireServer`, U2 tag rounds and rotation amounts, U7 caller information in the tag | `research/security-tooling.md` §2, `research/client-self-checks.md`, `probes/client-self-checks/` | done on Opus 5.5, nothing unwritten; U1 captured method (≤ 8 ns less, `__namecall` spies only), U2 rounds (vetted rotation pool, `build.tagRounds`), U7 one caller bit in the lane byte, replacing `sourceUnlisted`; retired |
 | `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | `research/interest-rewind.md` §11–§13, `probes/interest-rewind/` | done on Opus 5.5, nothing unwritten; rewind 24 B per record per tick, perceived tick from acks plus ping, server-chosen interpolation delay in `RATE`; staged release via `Lync.release`; variant timing rule; retired |
-| `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
+| `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md` C0–C7, `probes/checks-telemetry/` | done on Opus 5.5: `within`, `monotonic` (frame-keyed order), `maxTotal` (16-bucket window), `:claim()`/`:input()`, `freeFormField` lint, one `constraint` fact; retired |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | `research/generation-methods.md` M15–M16, `probes/generation-methods/run4.sh` | done on Opus 5.5: `build.traps` 0–8 (reopens R13), `decoyFrom`, `canary.perViewer`; weaving composition table and `weaveHash` coverage; retired |
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
@@ -53,7 +53,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   interruptions: a unit written after one is redone as its own unit.
   1. ~~`interest`~~ done.
   2. ~~`rewind`~~ done.
-  3. `checks`: D3, U12 → `research/checks-telemetry.md` (on `aaaa767102bda45cc`).
+  3. ~~`checks`~~ done.
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
@@ -68,6 +68,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       the `v5-changes.md` section.
   11. Critic on draft 3.6, then the architect applies it.
   - R40 Studio trap line → the integrity architect unit.
+  - Checks C0 proposes `policy = clamp`, which rewrites a client value instead of dropping it; weigh against "Lync only drops bad input" (§1) in the architect pass.
   - Self-checks open questions (direct method-call path for Instances, command-bar identity, renamed-script source, `task.spawn`) → add to `v5.md` §10 pending measurements in the architect pass.
   - Codecs-in-scripts found a reachability gap in `v5-integrity.md` §3 (namespace iteration) → the integrity architect unit.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design

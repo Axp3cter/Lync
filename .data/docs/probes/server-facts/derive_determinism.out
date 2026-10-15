@@ -1,0 +1,35 @@
+# Luau 0.742 (built from .data/projects/luau, CMake Release),  Intel(R) Xeon(R) Processor @ 2.10GHz, FMA3 present, 2026-10-15
+## interpreted -O2
+-- A. exact-bit hashes (compare interpreted vs native)
+math.lerp            ef2a5530
+a + (b - a) * t      ef2a5530
+vector.lerp          666588d0
+projectile closed    add54cc0
+sin, atan2, exp      47f4de60
+math.lerp ~= a+(b-a)*t: 0 of 200000, max |diff| 0 studs
+-- B. f32 (vector) vs f64 (number), projectile end point, quantized at step 1/32
+max |f32 - f64| per component: 9.78e-05 studs
+components whose index differs (fails tolerance 0): 154 of 300000 (0.051%)
+components differing by more than 1 step (fail tolerance 1 step): 0
+-- C. per-frame integration vs closed form, vertical launch 50 studs/s, after 1.0 s
+ 30 FPS: -51.3700 studs (closed form -48.1000): off by 3.270 studs = 104.6 steps of 1/32
+ 60 FPS: -49.7350 studs (closed form -48.1000): off by 1.635 studs = 52.3 steps of 1/32
+144 FPS: -48.7812 studs (closed form -48.1000): off by 0.681 studs = 21.8 steps of 1/32
+240 FPS: -48.5087 studs (closed form -48.1000): off by 0.409 studs = 13.1 steps of 1/32
+## native -O2 --codegen
+-- A. exact-bit hashes (compare interpreted vs native)
+math.lerp            ec01e3a0
+a + (b - a) * t      ef2a5530
+vector.lerp          ae883860
+projectile closed    add54cc0
+sin, atan2, exp      47f4de60
+math.lerp ~= a+(b-a)*t: 57506 of 200000, max |diff| 2.27e-13 studs
+-- B. f32 (vector) vs f64 (number), projectile end point, quantized at step 1/32
+max |f32 - f64| per component: 9.78e-05 studs
+components whose index differs (fails tolerance 0): 154 of 300000 (0.051%)
+components differing by more than 1 step (fail tolerance 1 step): 0
+-- C. per-frame integration vs closed form, vertical launch 50 studs/s, after 1.0 s
+ 30 FPS: -51.3700 studs (closed form -48.1000): off by 3.270 studs = 104.6 steps of 1/32
+ 60 FPS: -49.7350 studs (closed form -48.1000): off by 1.635 studs = 52.3 steps of 1/32
+144 FPS: -48.7812 studs (closed form -48.1000): off by 0.681 studs = 21.8 steps of 1/32
+240 FPS: -48.5087 studs (closed form -48.1000): off by 0.409 studs = 13.1 steps of 1/32

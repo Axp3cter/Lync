@@ -383,7 +383,7 @@ trapped definition reports `basis` 1, never 0 or 2.
   unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Build: following views extends the scan's
   fixed point by the same rule (§3). Wire: the caller bit, 0 or 1 B per upstream frame (`v5.md` §4.1). `REPORT`: a
   forced frame alone is 8–17 B with the tag (derived: `v5.md` §4.6's 8–12 B for four counts of 0–60, plus at most
-  11 bits for `noOuterFrame` at 60 and 21 bits for a self-check failure at item 202, kind 3); at most 60 forced
+  11 bits for `noOuterFrame` at 60 and 23 bits for a self-check failure at item 202, kind 3); at most 60 forced
   frames a second, only while a count changes every flush, about 0.14 ms/s of client CPU interpreted at that bound
   `[refusals-rejudged-2 R26]`.
 
@@ -408,7 +408,8 @@ trapped definition reports `basis` 1, never 0 or 2.
 
 ## 5. Inbound frames and self-check
 
-Three client counts that `REPORT` (§4) carries within one flush, each client-stated.
+Three client counts that `REPORT` (§4) carries within one flush, each client-stated. Two of them have a universal
+counter and a cost, so each has an option (below); whether such a fact informs anything is the developer's.
 
 - **Refused frames.** The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it
   refuses is counted (`refusedFrames`, `v5.md` §7.4). It prices **signal** injectors of non-canonical frames into
@@ -416,14 +417,17 @@ Three client counts that `REPORT` (§4) carries within one flush, each client-st
   for this build and server or patch Lync. Cost: none beyond decode.
 - **Injected frames** `[refusals-rejudged-3 R1 (d)]`. The function Lync passes to `Reliable.OnClientEvent:Connect`
   and `Unreliable.OnClientEvent:Connect` reads `debug.info(2, "f")` as its first statement, in that function itself
-  and never in a helper, which `-O2` could inline. The engine resumes the listener as the first function of its
+  and never in a helper, which `-O2` could inline. That function is the default `transport`'s (`v5.md` §8): with a
+  registered `transport` seam, whose wrapper calls Lync's handler from its own function, the check is off and
+  `injectedFrames` stays 0, as the seam's documentation states. The engine resumes the listener as the first function of its
   thread, so nothing is below it; a synchronous call from other code leaves a function below it. A frame so entered
   is decoded and delivered as usual and counted in `injectedFrames`. It prices **signal** injection of canonical
   frames (replayed captures, frames built with Lync's own encoder) fired synchronously into the listener. It
   doesn't see injection fired from a thread of its own (a deferred fire starts like an engine delivery), **packet**
   receive injection, which the engine delivers normally (non-canonical frames still reach `refusedFrames`), or a
-  client that patches Lync. Cost: 30.0–38.2 ns per frame interpreted, at most 3.1 µs/s at the busy model's 80
-  downstream frames a second. No option: the cost leaves no game a trade to make (`v5.md` principle 2).
+  client that patches Lync. **Universal counter:** yes, firing the listener from a thread of its own
+  (`task.defer(listener, frame)`). Cost: 30.0–38.2 ns per frame interpreted, at most 3.1 µs/s at the busy model's
+  80 downstream frames a second. Option `report.injectedFrames` (below).
   - **Unverified, gating (§12):** that `debug.info(2, "f")` is nil inside the listener for every engine delivery,
     under both `Workspace.SignalBehavior` values, including events queued before the listener connected (the
     engine "queues it and delivers it, in order, as soon as a handler connects"). The design assumes it holds; if
@@ -457,12 +461,18 @@ Three client counts that `REPORT` (§4) carries within one flush, each client-st
     environment-safety capability turns fast calls back into hookable ones. Also **mem** (the counts zeroed before
     `REPORT`), **naming** (`debug.setinfo` makes a hook report any source and line), hooks that leave Lync's
     functions alone (engine functions, **packet**, values changed above the API), and hooks installed and removed
-    between two passes. Checks of engine functions and the environment stay refused: they inspect functions
-    generation can't change, which `newcclosure` makes look unchanged, and one bypass covers every Lync game.
+    between two passes. **Universal counter:** yes, that spoof. Checks of engine functions and the environment
+    stay refused: they inspect functions generation can't change, which `newcclosure` makes look unchanged, and one
+    bypass covers every Lync game.
   - **Cost.** Per item, interpreted: kind 3 alone 31.7–33.8 ns, kinds 3–4 48.7–51.4 ns, kinds 1–2 77.1–84.9 ns; a
     pass over 202 items 21.9–24.7 µs, so 22–25 µs of client CPU a second for 200 views. While an item fails, up to
-    one forced `REPORT` a second, 3 B of fields beyond the others. Shard: four values per item. No option: the
-    cost scales with the list, not with traffic.
+    one forced `REPORT` a second, 3 B of fields beyond the others. Shard: four values per item. Option
+    `report.selfCheck` (below); the frozen tables stay frozen either way.
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `report.injectedFrames` | boolean | — | — | `true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line removes in every game informs nothing) | as above; 1 bit in `WELCOME` |
+| `report.selfCheck` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; 1 bit in `WELCOME` |
+
 - Downstream tags and a client replay window stay refused: a per-recipient tag ends `FireAllClients`, a shared key
   is held by every client that could inject, and a frame number would change the seed-0 golden frames to catch
   replays only `[refusals-rejudged-3 R1]`.

@@ -156,7 +156,7 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
 
 
 if __name__ == "__main__":
-    print(f"inputs_sim: {SECONDS:.0f} s per run, seeds 3-7 (one RNG per stream, so every scheme sees the same losses per send), input {ABS} bits; see docstring")
+    print(f"inputs_sim: {SECONDS:.0f} s per run, seed 3 (inputs), 4-7 (jitter and loss per direction: every scheme sees the same losses per send), input {ABS} bits; see docstring")
     print("not delivered = missing + late (% of played indices); up B/s = stream chunk bits only;"
           " copies/s = elements decoded; latency = mean playout - sample (ms)")
     for net in (("bern", 0.05), ("ge", 0.05), ("ge", 0.15)):

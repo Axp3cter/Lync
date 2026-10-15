@@ -1,0 +1,18 @@
+slide16  greedy: max sum over 60 s 2000 (2.00 cap), over 56.25 s 1000 (1.00 cap), over 1 s 1000; long-run 16.67 per s (cap/seconds 16.67)
+bucket   greedy: max sum over 60 s 1999 (2.00 cap), over 56.25 s 1937 (1.94 cap), over 1 s 1015; long-run 18.33 per s (cap/seconds 16.67)
+slide16  steady at 100% of cap/seconds, one 0.00 s stall: 10 of 12000 amounts refused
+slide16  steady at 90% of cap/seconds, one 0.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 100% of cap/seconds, one 0.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 90% of cap/seconds, one 0.00 s stall: 0 of 12000 amounts refused
+slide16  steady at 100% of cap/seconds, one 0.85 s stall: 10 of 12000 amounts refused
+slide16  steady at 90% of cap/seconds, one 0.85 s stall: 0 of 12000 amounts refused
+bucket   steady at 100% of cap/seconds, one 0.85 s stall: 0 of 12000 amounts refused
+bucket   steady at 90% of cap/seconds, one 0.85 s stall: 0 of 12000 amounts refused
+slide16  steady at 100% of cap/seconds, one 2.00 s stall: 10 of 12000 amounts refused
+slide16  steady at 90% of cap/seconds, one 2.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 100% of cap/seconds, one 2.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 90% of cap/seconds, one 2.00 s stall: 0 of 12000 amounts refused
+slide16  steady at 100% of cap/seconds, one 5.00 s stall: 84 of 12000 amounts refused
+slide16  steady at 90% of cap/seconds, one 5.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 100% of cap/seconds, one 5.00 s stall: 0 of 12000 amounts refused
+bucket   steady at 90% of cap/seconds, one 5.00 s stall: 0 of 12000 amounts refused

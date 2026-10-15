@@ -29,7 +29,7 @@ first case, the baseline in the same run. `run.sh` runs each probe 3 times inter
 - [x] 8. `tag.cover` 16,384 default ≤ 0.23 ms/s per player; 0.022 / 0.0035 µs/B (`tag_cover.luau`)
 - [x] 9. Clock beacon: one 66-slope fit per 5 s per player (`clock_fit.luau`)
 - [x] 10. Canary scan up to 256 B: per-offset lookup cost (`canary_scan.luau`)
-- [ ] 11. Other figures used to refuse or narrow a measure (`tag_cover.luau`, `per_viewer.luau`, `enum_rotation.luau`, `getfenv_deopt.luau`)
+- [x] 11. Other figures used to refuse or narrow a measure (`tag_cover.luau`, `per_viewer.luau`, `enum_rotation.luau`, `getfenv_deopt.luau`)
 - [ ] 12. R39: an unused per-frame transform hook slot vs none (`frame_hook.luau`)
 
 ## Results
@@ -324,3 +324,20 @@ nothing in the plain input. Per offset, range over 3 runs:
   byte through the scan: 3.5–3.8 ms/s native as specified, 0.34–0.39 ms/s with the bitset; interpreted 1.8–2.0 ms/s
   with the prefix map, the best interpreted form (the bitset loses interpreted, where map lookups are cheap).
 - The scan needs no build step; the prefix map and bitset are built when canaries are added (12 B each).
+
+### 11. Other figures used to refuse or narrow a measure
+
+Found while reading; each with its source, probe and result. (a)–(c) are reported under claims 7 and 8.
+
+| # | Figure (source) | Used against | Probe, output | Result | Verdict |
+|---|---|---|---|---|---|
+| a | failing `pcall` 2.2–3.3 µs, "error string construction dominates" (`client-security.md` §2.2) | caller probe sampled, then every call (R18; `v5-integrity.md` §4) | `caller_probe.luau` | `error(table)` = `error(string, 0)` ≈ 2.4–2.6 µs; C-raised 3.9–4.5 µs | magnitude true on the CLI; reason false (claim 7) |
+| b | HalfSipHash 2-4 "about twice the per-byte cost" (`client-security.md` §3.1, §7) | `tagRounds` option dropped to a constant (R30, U2) | `tag_cover.luau` | 1.8–1.9x per byte, 1.1–1.4x fixed | true (claim 8) |
+| c | 64-bit tag: "8 B and a longer finalization per frame" (`v5.md` §4.5) | 64-bit tag not chosen (R28) | `tag_cover.luau` | +3–10% at ≥ 1 KB, +16–39% at ≤ 64 B | true, small (claim 8) |
+| d | rotating enum and union-variant order: "≤ 2 bits per column worse than PACKED; do not permute them" (`client-security.md` §3.4, draft wire) | per-build rotation limited to record fields (R14; `v5-integrity.md` §2) | `enum_rotation.luau`, `enum_rotation.out` | v5 column coder, identity against 200 random permutations: uniform random values +0 (±3) bits; constant columns −2 to +1; 8-row structured columns (±1 walk, sparse, ascending, runs) +0 to +13; 64-row structured columns +2 to +38, and +150 for an ascending 32-item column (132 → 282 bits). Single rows: 0 bits | false: the cost is 0 to tens of bits per column, depending on data order; it falls only on multi-row column blocks of structured values |
+| e | per-viewer slot permutation "costs per-viewer slot encoding" (`v5-changes.md:114`, `:566`; R15) | slot permutation refused | `per_viewer.luau` part A | copy then rewrite the 6-bit slot at its build-known offset: 1.07x the copy native (+0.25 ns/row), 1.72x interpreted (+34 ns/row) | true in kind, small; its refusal reason (keys travel in adds) is not a cost |
+| f | "`getfenv` forms deoptimise every script" (`v5-changes.md:101`; `client-security.md` §2.2, magnitude unmeasured; R9, R18) | hook and environment checks | `getfenv_deopt.luau` (+ `getfenv_deopt_safe.luau`, `getfenv_deopt_unsafe.luau`), `getfenv_deopt.out` | the same fast-call loop after `getfenv(1)` in its module: 4.9x slower interpreted (58.7 → 291 ns), 52x native (5.3 → 280 ns) | true, and large |
+| g | runtime field shuffle "up to 7 padding bits per string field" (`client-security.md` §3.4, draft wire; R4) | runtime field shuffling | derived from `v5.md` §4.1–4.2 | v5 single rows have no in-row alignment; string bytes go to the tail | false for v5: 0 bits (claim 1) |
+| h | per-session permutation build "≈ 50 ns per definition (estimate)" (`client-security.md` §3.4) | per-session id shuffle (R3) | `id_shuffle.luau` | Fisher–Yates + inverse for 200 ids: 26 ns/id native, 124 ns/id interpreted; affine map 0.49 µs per player | estimate within 2.5x; irrelevant at join |
+| i | downstream tags at "100 players × 60 Hz" with the draft-1 5.5 µs/1024 B hash (`v5-changes.md:102`) | downstream tags (R1) | `downstream_tag.luau` | busy model is 80 frames/s; build hash 3.1–3.7 µs, this probe 2.5–4.2 µs native per 1024 B; at 80/s and 1 KB: 2.0–3.4% native, 24–34% interpreted | see claim 3 |
+| j | three per-byte tag figures: 13–23 ns (estimate), 35 ns (draft-1 probe), 22 ns (build) interpreted (`client-security.md` §3.1, `v5-design-1-redundancy.md`, `v5.md` §4.5) | `tag.cover` default and masking's "tag rate" | `tag_cover.luau` | this probe: 37.5–38.7 ns/B (loop), 27.9–33.4 (unrolled, nested); draft-1 probe re-run: 38–40 ns/B on 0.740 and 0.742; native 3.8–3.9 and 2.2 ns/B | 13–23 not reproduced; 35 reproduced; 22 not reproduced by these implementations (claim 8) |

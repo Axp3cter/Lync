@@ -31,6 +31,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | append to `research/generation-methods.md`, `probes/generation-methods/run4.sh` | running |
+| `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -53,7 +54,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   3. `checks`: D3, U12 → `research/checks-telemetry.md` (on `aaaa767102bda45cc`).
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
-  5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.
+  5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
   6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through
       tables → append to `research/generation-methods.md`.
   6b. `methods, part 2b` (Opus, on `a90ea3732751c0bdf`): per-build generated traps, decoys and canaries; composition with

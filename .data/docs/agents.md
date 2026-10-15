@@ -27,6 +27,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `ad69e26579bcfc07b` | prover | re-measures every performance figure used to refuse or narrow a security measure, plus generated cheaper forms | `probes/security-costs/RESULTS.md` | running |
 | `a5072800c2daf5fdc` | researcher | **the methods agent**: concrete generation methods in Lync's pipeline; re-checks M1–M12 against their probes and goes further (per-player tag binding, generated traps/decoys/canaries, runtime-path per-session parameters) | `research/generation-methods.md`, `probes/generation-methods/` | running |
 | `a6b292c4df871349d` | researcher | client shard self-checks: finishes `security-tooling.md` §2; U1 captured `FireServer`, U2 tag rounds and rotation amounts, U7 caller information in the tag | `research/security-tooling.md` §2, `research/client-self-checks.md`, `probes/client-self-checks/` | running |
+| `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | append to `research/interest-rewind.md`, `probes/interest-rewind/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -45,7 +46,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 - Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
   interruptions: a unit written after one is redone as its own unit.
   1. ~~`interest`~~ done.
-  2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md`.
+  2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md` (on `a0f684951116653fa`).
   3. `checks`: D3, U12 → `research/checks-telemetry.md`.
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
   5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.

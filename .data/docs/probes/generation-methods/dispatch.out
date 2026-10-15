@@ -1,1 +1,8 @@
 == interpreted (luau 0.742 -O2)
+(1) build-fixed upvalue            56.7 ns per fire
+(2) view field set at WELCOME      78.4 ns per fire
+(3) per-call pool index            76.5 ns per fire
+== native (--codegen)
+(1) build-fixed upvalue            41.3 ns per fire
+(2) view field set at WELCOME      50.1 ns per fire
+(3) per-call pool index            52.1 ns per fire

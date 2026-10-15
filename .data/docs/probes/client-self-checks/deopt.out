@@ -1,0 +1,30 @@
+== -O2
+encoder step, safe environment                   112.9 ns
+encoder step, safe environment (again)            49.4 ns
+encoder step, after getfenv(2) from a module     183.8 ns
+encoder step, after (again)                      183.5 ns
+the getfenv(2) call itself                        44.2 ns
+== -O1
+encoder step, safe environment                    60.0 ns
+encoder step, safe environment (again)            76.7 ns
+encoder step, after getfenv(2) from a module     193.6 ns
+encoder step, after (again)                      217.5 ns
+the getfenv(2) call itself                        39.0 ns
+== -O2 run 1
+encoder step, safe environment                    87.8 ns
+encoder step, safe environment (again)            45.6 ns
+encoder step, after getfenv(2) from a module     168.3 ns
+encoder step, after (again)                      173.3 ns
+the getfenv(2) call itself                        46.1 ns
+== -O2 run 2
+encoder step, safe environment                    47.6 ns
+encoder step, safe environment (again)            42.7 ns
+encoder step, after getfenv(2) from a module     169.6 ns
+encoder step, after (again)                      172.5 ns
+the getfenv(2) call itself                        47.5 ns
+== -O2 run 3
+encoder step, safe environment                    49.2 ns
+encoder step, safe environment (again)            51.8 ns
+encoder step, after getfenv(2) from a module     193.8 ns
+encoder step, after (again)                      186.1 ns
+the getfenv(2) call itself                        55.8 ns

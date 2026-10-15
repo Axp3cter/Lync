@@ -1,0 +1,210 @@
+== per_viewer, luau -O2, run 1
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1401.29    1244.08    2179.60     1.00     1.00     1.00
+re-encode + mark                      6058.55    5320.34    7905.84     4.17     2.70     5.31
+copy + mark patch                     2936.46    2608.78    3343.08     2.03     1.30     2.54
+copy + slot patch (R15)               2498.33    2207.98    2732.89     1.69     1.07     2.08
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        43.11      33.07      74.13     1.00     1.00     1.00
+re-encode, full k search             99173.25   85565.70  136165.44  2241.11  1477.73  3080.40
+re-encode, shared k costs            50395.92   39153.32   62755.19  1077.71   682.34  1533.94
+re-encode, shared chunk's k          27954.39   24465.70   41155.48   640.80   394.05   802.40
+encode the shared chunk (once/flush)   87953.43   79488.58  124337.66  2044.85  1304.58  2730.77
+behaviour + diff (1 decoy)             269.29     200.62     498.24     6.33     3.62    12.86
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        39.74      34.38      66.53     1.00     1.00     1.00
+re-encode, full k search            158218.26  147155.39  191318.81  3946.24  2875.80  4332.32
+re-encode, shared k costs           190768.09  170419.08  208082.49  4717.59  2867.79  5548.66
+re-encode, shared chunk's k          49191.86   46960.89   58098.39  1264.66   721.39  1518.69
+encode the shared chunk (once/flush)   80579.76   74806.03  100498.99  2094.83  1180.98  2923.10
+behaviour + diff (1 decoy)             260.02     212.20     563.06     6.54     3.64    16.38
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        45.73      39.83      87.56     1.00     1.00     1.00
+re-encode, full k search           1294159.35 1151437.81 1537033.10 26796.35 13149.52 34294.99
+re-encode, shared k costs          1329566.81 1251652.83 1778790.77 28802.99 15183.77 38893.43
+re-encode, shared chunk's k         379289.39  362365.64  414141.93  8135.37  4392.62 10397.74
+encode the shared chunk (once/flush)   81049.02   75798.80  102183.21  1763.69   926.94  2565.48
+behaviour + diff (1 decoy)             428.98     290.54     780.93     8.18     6.35    16.67
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975
+== per_viewer, luau -O2, run 2
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1381.69    1315.00    2111.18     1.00     1.00     1.00
+re-encode + mark                      5757.93    5548.04    6320.13     4.08     2.65     4.81
+copy + mark patch                     2645.46    2323.55    4268.51     1.83     1.10     3.25
+copy + slot patch (R15)               2437.26    2195.76    2592.43     1.72     1.08     1.87
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        45.19      33.11      77.52     1.00     1.00     1.00
+re-encode, full k search             99063.35   85349.95  114664.26  2056.35  1479.17  3300.55
+re-encode, shared k costs            40536.11   37887.04   51461.27   922.17   595.39  1554.20
+re-encode, shared chunk's k          26417.91   24596.78   40471.78   634.67   383.31  1133.89
+encode the shared chunk (once/flush)   88659.98   76823.36  105257.35  2040.88  1198.39  2948.96
+behaviour + diff (1 decoy)             367.93     225.75     472.51     8.06     3.14    13.23
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        35.49      33.19      39.43     1.00     1.00     1.00
+re-encode, full k search            145194.40  138724.89  166308.39  4027.63  3756.81  4386.07
+re-encode, shared k costs           178158.34  169462.40  246476.20  5016.89  4356.87  6582.54
+re-encode, shared chunk's k          48616.71   44330.91   64031.88  1349.61  1222.20  1885.04
+encode the shared chunk (once/flush)   75473.87   70759.26  124678.08  2166.18  1886.70  3162.30
+behaviour + diff (1 decoy)             256.77     209.42     507.39     6.86     5.90    12.87
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        46.33      39.77      75.94     1.00     1.00     1.00
+re-encode, full k search           1222090.62 1096902.35 1679625.76 27175.69 15895.20 32241.84
+re-encode, shared k costs          1353389.49 1182304.00 1483090.21 29719.19 16487.88 36210.77
+re-encode, shared chunk's k         401939.96  352830.18  492710.67  8754.99  4646.17 12118.50
+encode the shared chunk (once/flush)   85475.79   71078.42  127819.71  1800.25   935.98  3025.65
+behaviour + diff (1 decoy)             434.07     210.23    1128.53     7.05     2.77    28.38
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975
+== per_viewer, luau -O2, run 3
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1474.99    1330.89    2533.84     1.00     1.00     1.00
+re-encode + mark                      6524.53    5677.98    8483.59     4.24     2.59     5.37
+copy + mark patch                     2714.60    2421.43    4703.90     1.84     1.24     3.36
+copy + slot patch (R15)               2552.90    2298.03    4414.95     1.81     0.99     2.95
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        37.78      36.15      68.35     1.00     1.00     1.00
+re-encode, full k search             99436.98   91882.33  136826.20  2502.36  1720.22  2732.25
+re-encode, shared k costs            45027.46   41530.33   48969.82  1195.90   621.28  1329.80
+re-encode, shared chunk's k          28150.23   26558.53   39391.43   719.29   394.42   922.30
+encode the shared chunk (once/flush)   84999.47   81906.71  125103.69  2168.73  1384.24  2460.88
+behaviour + diff (1 decoy)             276.58     234.06     557.79     6.84     3.82    15.17
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        38.56      36.26      58.01     1.00     1.00     1.00
+re-encode, full k search            170736.83  156253.03  242590.86  4341.60  2921.32  5739.96
+re-encode, shared k costs           198604.01  178120.52  247525.93  4940.31  3445.69  6575.66
+re-encode, shared chunk's k          49893.81   46125.36   56872.35  1292.03   854.01  1468.61
+encode the shared chunk (once/flush)   85654.87   78331.26  115339.79  2164.11  1476.47  2662.38
+behaviour + diff (1 decoy)             286.41     244.46     513.20     7.64     4.94    10.03
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        46.76      43.26     110.82     1.00     1.00     1.00
+re-encode, full k search           1188951.83 1127208.06 1637556.94 25345.65 10444.98 28542.15
+re-encode, shared k costs          1371742.97 1215836.53 1682505.25 26869.31 12377.56 31652.38
+re-encode, shared chunk's k         451884.92  367158.21  585079.96  8057.68  5279.31 11840.73
+encode the shared chunk (once/flush)   82802.20   77576.36  122839.84  1745.96   699.99  2414.55
+behaviour + diff (1 decoy)             485.74     234.19     756.01     9.41     3.77    11.87
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975
+== per_viewer, luau -O2 --codegen, run 1
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1190.31    1074.01    2335.59     1.00     1.00     1.00
+re-encode + mark                      1049.62     960.23    2095.61     0.88     0.67     0.94
+copy + mark patch                     1208.29    1127.14    2636.25     1.06     0.82     1.63
+copy + slot patch (R15)               1348.03    1170.36    2108.47     1.07     0.78     1.78
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        34.03      32.20      49.41     1.00     1.00     1.00
+re-encode, full k search             19272.16   17382.51   22439.22   566.35   396.87   660.66
+re-encode, shared k costs            12634.44   12011.59   14696.56   361.53   297.47   416.79
+re-encode, shared chunk's k           9442.98    8894.65    9884.76   275.79   198.18   290.02
+encode the shared chunk (once/flush)   16690.60   15557.51   20103.63   471.91   363.41   597.62
+behaviour + diff (1 decoy)             208.24     189.35     245.75     6.00     4.97     6.64
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        34.69      30.57      57.91     1.00     1.00     1.00
+re-encode, full k search             31207.83   29210.03   48654.71   907.46   607.26  1020.95
+re-encode, shared k costs            36987.97   33739.71   44778.97  1067.11   612.52  1352.99
+re-encode, shared chunk's k          17624.33   15550.33   19985.76   500.42   287.06   584.99
+encode the shared chunk (once/flush)   16109.13   14570.45   19893.20   476.13   251.62   539.41
+behaviour + diff (1 decoy)             251.28     186.54     409.20     6.96     3.22    12.00
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        39.84      38.25      52.66     1.00     1.00     1.00
+re-encode, full k search            235483.51  215819.69  336435.23  5899.24  4377.94  8263.18
+re-encode, shared k costs           261053.63  238418.60  284391.86  6527.31  4779.65  7332.52
+re-encode, shared chunk's k         131681.83  120193.94  206813.90  3360.40  2500.60  5277.88
+encode the shared chunk (once/flush)   16453.97   15467.16   27502.04   417.41   301.48   701.85
+behaviour + diff (1 decoy)             392.55     182.09    1227.75     9.85     3.92    30.15
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975
+== per_viewer, luau -O2 --codegen, run 2
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1064.30    1031.00    1625.36     1.00     1.00     1.00
+re-encode + mark                      1015.66     956.30    1421.94     0.95     0.81     1.11
+copy + mark patch                     1164.03    1115.63    1959.51     1.07     0.72     1.74
+copy + slot patch (R15)               1190.67    1116.25    1602.53     1.12     0.72     1.42
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        34.11      31.40      49.66     1.00     1.00     1.00
+re-encode, full k search             19494.57   17830.04   29002.53   544.19   427.17   923.62
+re-encode, shared k costs            12826.55   12156.84   21951.47   379.61   253.31   699.07
+re-encode, shared chunk's k           9949.82    9070.89   15599.31   280.45   209.67   489.49
+encode the shared chunk (once/flush)   16941.79   14723.81   22701.95   476.18   347.57   692.88
+behaviour + diff (1 decoy)             202.23     186.88     341.48     6.11     4.07    10.87
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        35.90      32.39      56.67     1.00     1.00     1.00
+re-encode, full k search             33037.47   30055.27   44075.22   933.33   777.78  1172.25
+re-encode, shared k costs            38009.54   35390.50   50913.27  1079.61   714.49  1391.18
+re-encode, shared chunk's k          18402.24   17137.48   23322.30   528.42   312.34   649.69
+encode the shared chunk (once/flush)   17354.82   15317.07   24809.81   477.39   311.17   705.29
+behaviour + diff (1 decoy)             238.19     202.30     389.49     6.31     4.12    10.89
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        41.38      38.95      43.35     1.00     1.00     1.00
+re-encode, full k search            254525.01  236420.01  279665.53  6201.20  5597.73  7180.12
+re-encode, shared k costs           282664.29  256581.68  358283.42  6744.55  5991.12  8732.23
+re-encode, shared chunk's k         147907.73  127918.49  171172.26  3627.06  3114.53  4275.57
+encode the shared chunk (once/flush)   17208.66   16480.80   25921.81   418.44   382.19   647.48
+behaviour + diff (1 decoy)             263.99     209.48     524.21     6.62     5.18    13.09
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975
+== per_viewer, luau -O2 --codegen, run 3
+check: copy + mark patch equals a per-viewer re-encode with the mark
+## newest rows: one viewer's 32 rows per state tick (time per viewer) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (encode-once)                    1183.21    1035.60    1256.86     1.00     1.00     1.00
+re-encode + mark                      1017.57     921.29    1364.27     0.86     0.77     1.15
+copy + mark patch                     1252.19    1123.67    1565.81     1.07     0.94     1.32
+copy + slot patch (R15)               1182.97    1125.39    1656.09     1.05     0.90     1.41
+check: shared-k re-encode writes the same bytes as the full search at d = 1, 16, 256
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 1 decoys, 5 columns (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        33.13      30.12      60.64     1.00     1.00     1.00
+re-encode, full k search             19146.72   17592.69   31235.11   563.55   486.77   879.63
+re-encode, shared k costs            13101.85   12047.28   20267.29   381.14   326.90   564.69
+re-encode, shared chunk's k          10124.73    9413.14   15336.27   296.88   235.31   509.17
+encode the shared chunk (once/flush)   16852.35   15560.70   26473.87   503.53   277.92   804.13
+behaviour + diff (1 decoy)             206.16     183.17     292.51     6.23     3.14     8.88
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 16 decoys, 5 columns (1142 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        34.68      30.95      48.67     1.00     1.00     1.00
+re-encode, full k search             33497.46   30488.71   46352.66   965.47   677.75  1140.99
+re-encode, shared k costs            39538.78   35457.09   60864.32  1166.66   755.86  1758.92
+re-encode, shared chunk's k          22447.36   16961.99   27611.76   655.47   449.28   783.35
+encode the shared chunk (once/flush)   16668.15   14793.23   26929.32   486.73   328.85   785.56
+behaviour + diff (1 decoy)             217.93     174.61     353.49     6.43     3.88    10.31
+## decoys: one viewer's partition state chunk per flush, 19 real changed rows + 256 decoys, 5 columns (200 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+copy (no decoys)                        41.21      36.12      50.24     1.00     1.00     1.00
+re-encode, full k search            246640.82  227569.65  338287.61  6085.11  4871.38  7209.84
+re-encode, shared k costs           277396.46  257468.04  441530.26  6592.61  5343.48  9125.35
+re-encode, shared chunk's k         140407.39  132072.09  219340.03  3556.16  3057.58  4365.84
+encode the shared chunk (once/flush)   17239.92   15502.44   20783.08   413.68   356.31   514.72
+behaviour + diff (1 decoy)             322.44     210.09     582.72     7.52     4.87    16.13
+shared chunk 64 B; per-viewer chunk bytes, full search / shared k: d=1 68/68 B, d=16 140/144 B, d=256 920/1072 B
+sink	18586975

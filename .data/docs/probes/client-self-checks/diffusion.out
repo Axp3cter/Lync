@@ -1,0 +1,13 @@
+samples 400; bias noise floor about 0.113
+reference                    full 3 b2 0.500 b3 0.487
+altered (6,16,9,11,13,16)    full 3 b2 0.500 b3 0.487
+multiples of 8               full 4 b2 0.500 b3 0.500
+all 16                       full 4 b2 0.500 b3 0.500
+all 1                        full None b2 0.500 b3 0.500
+random sets 40: no worse than the reference (full <= 3, b3 <= ref + 0.02): 24
+rounds to full dependency among random sets: {3: 24, 4: 16}
+    worst b3: (25, 12, 31, 2, 3, 26) full 4 b2 0.500 b3 0.500
+    worst b3: (26, 19, 7, 27, 13, 31) full 4 b2 0.500 b3 0.500
+    worst b3: (20, 5, 7, 23, 28, 18) full 4 b2 0.500 b3 0.500
+    worst b3: (30, 22, 4, 2, 23, 30) full 4 b2 0.500 b3 0.500
+    worst b3: (31, 19, 17, 5, 29, 11) full 4 b2 0.500 b3 0.500

@@ -1,0 +1,138 @@
+== mask_cpu, luau -O2, run 1
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2818.46    2678.22    3610.95     1.00     1.00     1.00
+PRF CTR keystream                    13673.35   13073.16   15214.00     4.79     4.21     5.17
+xorshift keystream (1 PRF/frame)      2062.02    2016.23    2508.83     0.73     0.56     0.94
+session pad slice                      527.99     500.30     827.88     0.19     0.14     0.31
+per byte at 64 B: PRF CTR keystream 213.65 ns/B; session pad slice 8.25 ns/B; tag rate (tag13u4 over n B) 44.04 ns/B; xorshift keystream (1 PRF/frame) 32.22 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           8185.60    7275.54   10049.29     1.00     1.00     1.00
+PRF CTR keystream                    52906.49   49512.15   59151.39     6.56     5.76     7.07
+xorshift keystream (1 PRF/frame)      5615.77    5261.55    5933.80     0.68     0.56     0.75
+session pad slice                     1825.55    1614.24    2186.13     0.22     0.19     0.27
+per byte at 256 B: PRF CTR keystream 206.67 ns/B; session pad slice 7.13 ns/B; tag rate (tag13u4 over n B) 31.97 ns/B; xorshift keystream (1 PRF/frame) 21.94 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)          29457.27   27133.96   34195.01     1.00     1.00     1.00
+PRF CTR keystream                   211708.31  205414.20  226746.44     7.09     6.23     7.80
+xorshift keystream (1 PRF/frame)     19715.49   18595.76   21911.74     0.65     0.57     0.77
+session pad slice                     7005.63    6561.65    8294.31     0.23     0.20     0.30
+per byte at 1024 B: PRF CTR keystream 206.75 ns/B; session pad slice 6.84 ns/B; tag rate (tag13u4 over n B) 28.77 ns/B; xorshift keystream (1 PRF/frame) 19.25 ns/B
+sink	341253604827
+== mask_cpu, luau -O2, run 2
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2636.04    2388.25    3840.38     1.00     1.00     1.00
+PRF CTR keystream                    13317.04   12261.55   13988.38     4.84     3.47     5.72
+xorshift keystream (1 PRF/frame)      1953.31    1815.42    2663.75     0.71     0.55     1.00
+session pad slice                      508.25     447.02     814.94     0.18     0.14     0.34
+per byte at 64 B: PRF CTR keystream 208.08 ns/B; session pad slice 7.94 ns/B; tag rate (tag13u4 over n B) 41.19 ns/B; xorshift keystream (1 PRF/frame) 30.52 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           8204.93    7301.14   10525.18     1.00     1.00     1.00
+PRF CTR keystream                    55649.58   50366.52   64745.39     6.60     5.36     8.42
+xorshift keystream (1 PRF/frame)      5975.64    5053.64    7053.51     0.73     0.50     0.88
+session pad slice                     1910.58    1612.57    2982.99     0.23     0.17     0.38
+per byte at 256 B: PRF CTR keystream 217.38 ns/B; session pad slice 7.46 ns/B; tag rate (tag13u4 over n B) 32.05 ns/B; xorshift keystream (1 PRF/frame) 23.34 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)          30764.18   28758.36   39597.21     1.00     1.00     1.00
+PRF CTR keystream                   218279.92  204907.57  237875.43     6.92     5.76     7.61
+xorshift keystream (1 PRF/frame)     19883.55   19219.70   25823.83     0.65     0.53     0.77
+session pad slice                     7382.17    6613.99    9762.74     0.24     0.19     0.28
+per byte at 1024 B: PRF CTR keystream 213.16 ns/B; session pad slice 7.21 ns/B; tag rate (tag13u4 over n B) 30.04 ns/B; xorshift keystream (1 PRF/frame) 19.42 ns/B
+sink	341253604827
+== mask_cpu, luau -O2, run 3
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2621.52    2465.74    3609.22     1.00     1.00     1.00
+PRF CTR keystream                    12969.84   12264.84   14678.32     4.93     4.07     5.83
+xorshift keystream (1 PRF/frame)      1989.85    1864.84    2788.78     0.76     0.55     1.08
+session pad slice                      498.78     469.00     762.18     0.19     0.14     0.29
+per byte at 64 B: PRF CTR keystream 202.65 ns/B; session pad slice 7.79 ns/B; tag rate (tag13u4 over n B) 40.96 ns/B; xorshift keystream (1 PRF/frame) 31.09 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           8390.87    7373.15    9088.19     1.00     1.00     1.00
+PRF CTR keystream                    54795.79   50675.61   57381.27     6.55     6.12     7.18
+xorshift keystream (1 PRF/frame)      5874.07    5648.90    7019.20     0.73     0.66     0.84
+session pad slice                     1965.13    1777.26    2728.04     0.25     0.21     0.33
+per byte at 256 B: PRF CTR keystream 214.05 ns/B; session pad slice 7.68 ns/B; tag rate (tag13u4 over n B) 32.78 ns/B; xorshift keystream (1 PRF/frame) 22.95 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)          30088.11   27226.41   31437.11     1.00     1.00     1.00
+PRF CTR keystream                   212615.63  202928.20  228088.39     7.27     6.53     7.87
+xorshift keystream (1 PRF/frame)     19723.69   18095.54   27061.60     0.68     0.58     0.86
+session pad slice                     7309.15    6488.82    8881.23     0.25     0.21     0.29
+per byte at 1024 B: PRF CTR keystream 207.63 ns/B; session pad slice 7.14 ns/B; tag rate (tag13u4 over n B) 29.38 ns/B; xorshift keystream (1 PRF/frame) 19.26 ns/B
+sink	341253604827
+== mask_cpu, luau -O2 --codegen, run 1
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            372.30     359.87     405.63     1.00     1.00     1.00
+PRF CTR keystream                     1087.93     963.88    1180.12     2.88     2.56     3.17
+xorshift keystream (1 PRF/frame)       201.83     175.58     213.14     0.53     0.47     0.57
+session pad slice                       75.82      65.50     104.37     0.20     0.18     0.27
+per byte at 64 B: PRF CTR keystream 17.00 ns/B; session pad slice 1.18 ns/B; tag rate (tag13u4 over n B) 5.82 ns/B; xorshift keystream (1 PRF/frame) 3.15 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            801.06     739.89     831.97     1.00     1.00     1.00
+PRF CTR keystream                     3936.59    3767.19    5677.50     4.92     4.68     7.30
+xorshift keystream (1 PRF/frame)       571.73     531.51     604.71     0.71     0.64     0.81
+session pad slice                      239.11     226.79     268.22     0.31     0.27     0.34
+per byte at 256 B: PRF CTR keystream 15.38 ns/B; session pad slice 0.93 ns/B; tag rate (tag13u4 over n B) 3.13 ns/B; xorshift keystream (1 PRF/frame) 2.23 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2557.45    2396.83    2851.24     1.00     1.00     1.00
+PRF CTR keystream                    17498.66   14595.70   26349.48     6.84     5.76     9.51
+xorshift keystream (1 PRF/frame)      2208.29    2063.66    2487.18     0.84     0.80     0.92
+session pad slice                      950.58     896.83    1715.44     0.36     0.35     0.63
+per byte at 1024 B: PRF CTR keystream 17.09 ns/B; session pad slice 0.93 ns/B; tag rate (tag13u4 over n B) 2.50 ns/B; xorshift keystream (1 PRF/frame) 2.16 ns/B
+sink	341253604827
+== mask_cpu, luau -O2 --codegen, run 2
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            377.32     349.54     404.98     1.00     1.00     1.00
+PRF CTR keystream                     1078.15    1023.11    1250.04     2.85     2.65     3.36
+xorshift keystream (1 PRF/frame)       202.38     182.29     226.32     0.54     0.50     0.59
+session pad slice                       82.20      67.30     154.75     0.22     0.19     0.41
+per byte at 64 B: PRF CTR keystream 16.85 ns/B; session pad slice 1.28 ns/B; tag rate (tag13u4 over n B) 5.90 ns/B; xorshift keystream (1 PRF/frame) 3.16 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            840.05     776.90    1182.52     1.00     1.00     1.00
+PRF CTR keystream                     4049.63    3937.52    6554.68     4.96     4.15     7.32
+xorshift keystream (1 PRF/frame)       590.38     563.12     668.83     0.72     0.56     0.78
+session pad slice                      268.51     238.47     404.10     0.32     0.24     0.44
+per byte at 256 B: PRF CTR keystream 15.82 ns/B; session pad slice 1.05 ns/B; tag rate (tag13u4 over n B) 3.28 ns/B; xorshift keystream (1 PRF/frame) 2.31 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2570.03    2453.02    2825.86     1.00     1.00     1.00
+PRF CTR keystream                    15965.00   15430.90   26223.18     6.35     5.82     9.62
+xorshift keystream (1 PRF/frame)      2156.80    2061.47    2349.66     0.83     0.76     0.89
+session pad slice                      952.13     887.77    1542.42     0.37     0.33     0.57
+per byte at 1024 B: PRF CTR keystream 15.59 ns/B; session pad slice 0.93 ns/B; tag rate (tag13u4 over n B) 2.51 ns/B; xorshift keystream (1 PRF/frame) 2.11 ns/B
+sink	341253604827
+== mask_cpu, luau -O2 --codegen, run 3
+## mask a 64 B bit section (time per frame) (15625 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            376.77     353.08     424.39     1.00     1.00     1.00
+PRF CTR keystream                     1100.66     973.55    1158.80     2.91     2.59     3.16
+xorshift keystream (1 PRF/frame)       204.26     191.59     222.27     0.54     0.51     0.60
+session pad slice                       76.53      72.70      84.45     0.20     0.19     0.23
+per byte at 64 B: PRF CTR keystream 17.20 ns/B; session pad slice 1.20 ns/B; tag rate (tag13u4 over n B) 5.89 ns/B; xorshift keystream (1 PRF/frame) 3.19 ns/B
+## mask a 256 B bit section (time per frame) (6250 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)            810.73     773.89     837.95     1.00     1.00     1.00
+PRF CTR keystream                     4083.62    3963.21    4494.01     5.03     4.92     5.36
+xorshift keystream (1 PRF/frame)       588.38     579.32     870.44     0.73     0.69     1.07
+session pad slice                      255.93     236.52     289.92     0.31     0.29     0.35
+per byte at 256 B: PRF CTR keystream 15.95 ns/B; session pad slice 1.00 ns/B; tag rate (tag13u4 over n B) 3.17 ns/B; xorshift keystream (1 PRF/frame) 2.30 ns/B
+## mask a 1024 B bit section (time per frame) (1838 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+tag rate (tag13u4 over n B)           2596.53    2473.00    3154.43     1.00     1.00     1.00
+PRF CTR keystream                    16884.75   15686.03   20552.76     6.42     5.35     7.77
+xorshift keystream (1 PRF/frame)      2153.27    2071.63    2291.46     0.82     0.72     0.91
+session pad slice                      942.11     891.90    1127.27     0.36     0.31     0.43
+per byte at 1024 B: PRF CTR keystream 16.49 ns/B; session pad slice 0.92 ns/B; tag rate (tag13u4 over n B) 2.54 ns/B; xorshift keystream (1 PRF/frame) 2.10 ns/B
+sink	341253604827

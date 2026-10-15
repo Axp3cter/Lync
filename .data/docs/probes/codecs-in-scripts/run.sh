@@ -22,3 +22,4 @@ for v in orig woven; do for O in 1 2; do LUAU_O=$O "$W/host" run RT="$W/gen/rt.l
 python3 -I buildtime.py "$W/fixture.json" 300 "$W/big.json"
 python3 -I weave.py "$AST" "$W/big.json" "$W/bigw.json" "$W/bigr.json" ReplicatedStorage.Shared.Net.client > /dev/null
 for o in 1 2; do luau -O$o error_lines.luau; done > error_lines.out
+for f in "$W/weapon_orig.luau" "$W/weapon_woven.luau"; do taskset -c 3 "$W/host" load "$f" 20000; done > load.out

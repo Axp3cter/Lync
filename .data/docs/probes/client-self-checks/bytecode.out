@@ -1,0 +1,14 @@
+opcode count 1-3 ref: 435, alt: 435
+opcode sequences identical
+first rotation in each:
+FASTCALL2K 35 R5 K10 L5 [5]
+FASTCALL2K 35 R4 K13 L7 [16]
+FASTCALL2K 35 R5 K10 L5 [6]
+FASTCALL2K 35 R4 K13 L7 [16]
+tag_13_ref bytecode bytes: 2234
+tag_23_ref bytecode bytes: 2842
+tag_24_ref bytecode bytes: 3146
+tag_34_ref bytecode bytes: 3754
+tag_44_ref bytecode bytes: 4362
+fast calls in 1-3 ref: 63
+GETIMPORT in 1-3 ref: 63

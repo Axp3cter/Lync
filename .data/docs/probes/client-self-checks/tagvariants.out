@@ -1,0 +1,54 @@
+== -O2 run 1
+2-4 vector: 5b9f35a9 (expected 5b9f35a9 as u32le of a9 35 9f 5b)
+1-3 reference, 75 B input                       2334.0 ns
+1-3 altered rotations, 75 B input               2357.8 ns
+2-3 reference, 75 B input                       3622.7 ns
+1-4 reference, 75 B input                       2334.2 ns
+2-4 reference, 75 B input                       3834.7 ns
+2-4 altered rotations, 75 B input               3902.5 ns
+3-4 reference, 75 B input                       5026.2 ns
+4-4 reference, 75 B input                       7426.9 ns
+1-3 reference, 1035 B input                    27102.2 ns
+1-3 altered rotations, 1035 B input            26283.7 ns
+2-3 reference, 1035 B input                    47702.3 ns
+1-4 reference, 1035 B input                    26715.8 ns
+2-4 reference, 1035 B input                    48450.3 ns
+2-4 altered rotations, 1035 B input            50358.2 ns
+3-4 reference, 1035 B input                    66525.3 ns
+4-4 reference, 1035 B input                    90703.9 ns
+== -O2 run 2
+2-4 vector: 5b9f35a9 (expected 5b9f35a9 as u32le of a9 35 9f 5b)
+1-3 reference, 75 B input                       2374.5 ns
+1-3 altered rotations, 75 B input               2325.1 ns
+2-3 reference, 75 B input                       4214.9 ns
+1-4 reference, 75 B input                       2490.4 ns
+2-4 reference, 75 B input                       3929.0 ns
+2-4 altered rotations, 75 B input               3909.1 ns
+3-4 reference, 75 B input                       5236.9 ns
+4-4 reference, 75 B input                       6860.5 ns
+1-3 reference, 1035 B input                    27788.5 ns
+1-3 altered rotations, 1035 B input            28045.9 ns
+2-3 reference, 1035 B input                    45310.8 ns
+1-4 reference, 1035 B input                    26796.5 ns
+2-4 reference, 1035 B input                    48238.9 ns
+2-4 altered rotations, 1035 B input            47761.8 ns
+3-4 reference, 1035 B input                    67577.0 ns
+4-4 reference, 1035 B input                    83922.1 ns
+== -O2 --codegen (server side)
+2-4 vector: 5b9f35a9 (expected 5b9f35a9 as u32le of a9 35 9f 5b)
+1-3 reference, 75 B input                        290.4 ns
+1-3 altered rotations, 75 B input                283.6 ns
+2-3 reference, 75 B input                        521.2 ns
+1-4 reference, 75 B input                        298.2 ns
+2-4 reference, 75 B input                        481.6 ns
+2-4 altered rotations, 75 B input                499.1 ns
+3-4 reference, 75 B input                        700.3 ns
+4-4 reference, 75 B input                        858.3 ns
+1-3 reference, 1035 B input                     3644.6 ns
+1-3 altered rotations, 1035 B input             3730.1 ns
+2-3 reference, 1035 B input                     6253.7 ns
+1-4 reference, 1035 B input                     3671.6 ns
+2-4 reference, 1035 B input                     6585.6 ns
+2-4 altered rotations, 1035 B input             6803.6 ns
+3-4 reference, 1035 B input                     9640.4 ns
+4-4 reference, 1035 B input                    12095.5 ns

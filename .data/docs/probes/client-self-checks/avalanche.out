@@ -1,0 +1,20 @@
+reference vector 2-4 empty: a9359f5b (expected a9359f5b)
+samples 300; noise floor about 0.115
+1-3 reference                    worst bias 0.100
+1-3 altered (6,16,9,11,13,16)    worst bias 0.103
+1-3 all zero                     worst bias 0.500
+1-3 multiples of 8               worst bias 0.097
+1-3 all 16                       worst bias 0.327
+2-4 reference                    worst bias 0.110
+2-4 altered (6,16,9,11,13,16)    worst bias 0.107
+2-4 all zero                     worst bias 0.500
+2-4 multiples of 8               worst bias 0.120
+2-4 all 16                       worst bias 0.097
+1-3 random sets: 30; worst bias min 0.087 median 0.103 max 0.130; above 0.15: 0
+    (8, 29, 13, 7, 29, 3) 0.123
+    (23, 19, 13, 1, 13, 24) 0.123
+    (12, 14, 20, 14, 11, 2) 0.130
+2-4 random sets: 30; worst bias min 0.097 median 0.110 max 0.127; above 0.15: 0
+    (8, 7, 13, 1, 24, 31) 0.123
+    (20, 30, 11, 5, 22, 20) 0.127
+    (22, 5, 19, 7, 28, 27) 0.127

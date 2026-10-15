@@ -89,3 +89,20 @@ affine parameters                      486.94     448.87     511.81     0.09    
 xor mask draw                            3.49       3.29      25.33     0.00     0.00     0.00
 sink	12985169249
 == id_shuffle, luau -O2 --codegen, run 3
+memory, 100 players x 200 ids: per-player tables 319.0 KB (16.3 B/slot); per-player buffers 22.0 KB (1.13 B/slot); pool of 16 tables 51.0 KB; xor mask or affine: 2-3 numbers per player in the session record
+check: affine and xor maps invert on all 200 ids
+## decode one message id (8 messages per frame, frame's player looked up once per frame) (2000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+shared per-server table                  8.00       7.28      13.05     1.00     1.00     1.00
+per-player table                         9.92       9.00      14.02     1.23     1.07     1.34
+per-player buffer (u8)                   8.29       7.57      13.75     1.04     0.64     1.54
+pool of 16 generated tables             10.43       9.37      16.62     1.30     1.10     1.86
+xor mask + range check                  10.70      10.08      15.73     1.33     0.96     1.76
+affine mod count                         8.96       8.37      15.12     1.11     0.74     1.79
+## per-player setup at join (200 ids) (2000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+Fisher-Yates table + inverse          4442.81    3937.23    4893.33     1.00     1.00     1.00
+Fisher-Yates into a buffer            5184.91    4808.99    5443.46     1.17     1.09     1.31
+affine parameters                      457.68     416.02     494.90     0.10     0.10     0.12
+xor mask draw                            3.28       3.01       3.40     0.00     0.00     0.00
+sink	12985169249

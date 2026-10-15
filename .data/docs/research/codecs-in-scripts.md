@@ -26,17 +26,46 @@ Sibling briefs read and cited: `research/security-tooling.md` §10 (cited `[ST �
 
 ## Plan (ticked as written)
 
-- [ ] 0. Bottom line
+- [x] 0. Bottom line
 - [x] 1. The refusal, re-tested
 - [x] 2. Where the transform runs
 - [x] 3. The typed API on both solvers and roblox-ts
 - [x] 4. Finding call sites and proving a definition closed
 - [x] 5. Line preservation and error positions (source maps)
-- [ ] 6. Cost: bytecode, load, encode and decode time, build time
-- [ ] 7. Dual-purpose form: site-bound wire ids
-- [ ] 8. Interaction with seed, rotation, per-player variants, tag, schema hash
-- [ ] 9. Options
-- [ ] Implications
+- [x] 6. Cost: bytecode, load, encode and decode time, build time
+- [x] 7. Dual-purpose form: site-bound wire ids
+- [x] 8. Interaction with seed, rotation, per-player variants, tag, schema hash
+- [x] 9. Options
+- [x] Implications
+
+## 0. Bottom line
+
+1. **Weaving works when it runs on built output only.** A pass over the place file that `rojo build` produced
+   rewrites each call site's built copy and never opens a developer file or Studio script, so the merge and
+   `UpdateSourceAsync` reasons for the refusal do not arise. Verified end to end on a fixture: `rojo build` → Lune
+   dump → weave → Lune write → re-read identical (§2). A Studio plugin cannot do it without rewriting the open
+   place; Studio-only projects stay on shards.
+2. **The typed API is untouched.** Game code still requires and types against the shard on both solvers and in
+   roblox-ts; only built copies change, and the shard stays in the place as fallback (§3).
+3. **The 5.0x is reproduced exactly and is one shape's bound** (50 sites of one definition, full encoder inlined
+   at each). Realistic shapes cost 1.03–1.20x (scalar call into the shard) to 1.3–3.0x (inline) of the unwoven
+   client's Lync bytecode, or 0.43x when the built shard drops closed encoders; 10–75 µs more load per join (§6.1–6.2).
+4. **It is faster, which the record denied.** Per client call, interpreted: 1.3–1.7x on variable sites and 2.9–3.5x
+   on literal sites against the specified shard entry; 1.3–3.0x against a shard without the rollback `pcall`. The
+   gain is the payload table and method dispatch removed, and checks folded at literal sites; the `pcall` part is
+   available to shards without weaving (§6.3). Server handler unpacking adds 1.23–1.40x per delivered message (§6.4).
+5. **On the server, call into the native shard; never inline into interpreted scripts** (W3 beats inline there),
+   and never use a `local function` helper: at `-O2` it is inlined and refusals report the wrong line (§5, §6.3).
+6. **Line-preserving splices make the source map the identity**: every line keeps its number, so Rojo's
+   sourcemap and the Error Report point at the developer's file and line with no map artefact (§5).
+7. **Correctness never depends on finding every site**: an unresolved call stays on the shard. Completeness only
+   gates the security fact (§4).
+8. **A dual-purpose form holds: site-bound wire ids.** Woven sites send ids the shard API never sends; a message
+   on the generic id of a definition whose every client reference was woven is then a server-observed fact with an
+   exact trigger, pricing the cheapest documented route (requiring the client module and calling its API) at
+   +1–2 bits per upstream run for typical counts, while literal fields leave the wire (§7). It needs a complete
+   namespace, which frameworks that pass the namespace around do not give.
+9. **Found on the way:** `v5-integrity.md` §3's reachability rule misses iteration over the namespace (§4.2).
 
 ## 1. The refusal, re-tested
 
@@ -46,8 +75,8 @@ The record gives these reasons (`v5-changes.md`: the draft-2 refusals table and 
 |---|---|---|
 | Rewrites the developer's scripts each build: merge conflicts, `UpdateSourceAsync` races | **No, if the transform runs on built output only.** A post-build pass over the `.rbxl` never opens a source file or a Studio script | §2; verified end to end: `rojo build` → Lune dump → `weave.py` → Lune apply → re-read gives the woven sources byte for byte (`fixture/`, `place_io.luau`) |
 | Removes the typed shard API | **No.** Game code still requires the shard and types against it; only the built copy of each script changes | §3 |
-| 5.0x bytecode | **Reproduced, but it is the worst case of one shape**, not a property of weaving | §6.1: the probe re-run gives 22,927 against 4,587 B again (`size_orig.out`, 0.742); realistic shapes give 0.43x to 2.3x of the unwoven client total, and 4.8x only when 50 sites fire one definition |
-| No speed gain ("a shared call to a straight-line encoder is already a fast path", [CSB §3.2]; repeated in [ST §10]) | **No.** Weaving removes the payload table, the method dispatch and, at literal sites, every check and the variant dispatch; measured 1.2–3.0x faster per call than a shard without the rollback `pcall`, 1.3–3.5x faster than the specified shard entry | §6.3 |
+| 5.0x bytecode | **Reproduced, but it is the worst case of one shape**, not a property of weaving | §6.1: the probe re-run gives 22,927 against 4,587 B again (`size_orig.out`, 0.742); realistic shapes give 0.43x to 3.0x of the unwoven client total, and 4.8x when 50 sites fire one definition |
+| No speed gain ("a shared call to a straight-line encoder is already a fast path", [CSB §3.2]; repeated in [ST §10]) | **No.** Weaving removes the payload table, the method dispatch and, at literal sites, every check and the variant dispatch; measured 1.3–3.0x faster per call than a shard without the rollback `pcall`, 1.3–3.5x faster than the specified shard entry | §6.3 |
 | The central queue stays findable by `getgc` [CSB §3.2] | **Yes, and it does not matter**: weaving's security value is elsewhere (§7) | the queue is the runtime's writer; woven code calls it like the shard does |
 
 Two further reasons appear in the record and still hold in part:
@@ -87,7 +116,7 @@ puts woven scripts into their editor, which is the refused case by another route
 scripts are file-managed (Rojo, roblox-ts) and whose release place is written only by CI: a separate release place,
 or the start place with development in a copy. What Roblox does to an open Team Create session when Open Cloud
 publishes a new version: **unverified**. Studio-only projects stay on the shard path; the least work for them is
-nothing (§9 `weave.mode = "off"` is their default by necessity).
+nothing: they never run the weave step, and no option applies.
 
 **Least work for the developer.** One CI line between build and publish: `lync weave game.rbxl -o release.rbxl`
 (or `lync build --weave` doing both). No source annotation, no API change, no per-script opt-in; the report lists
@@ -217,3 +246,255 @@ refusal text for an out-of-range field, at both `-O1` and `-O2` (`diff.out`).
 - **Columns** are not in Luau debug info (`debug.info` gives source, line, name, arity, function), so packing a
   site onto one line loses nothing a stack trace or the Error Report shows.
 - **Stack traces** through inline sites contain only the game's own frames; through W1t, one `__lync.def` frame.
+
+## 6. Cost
+
+Forms measured (`gen.py`; one emitter writes every form, and S0 against W2 is checked byte for byte by the §4.3 differential):
+
+| Form | Call site | What runs |
+|---|---|---|
+| S0 | `Net.def:fire({ … })` | the shard entry as specified: one `pcall` around the encoder for rollback (`v5.md` §4.2) |
+| S1 | same | shard entry, check-then-write, no `pcall` (a shard-side change, available without weaving) |
+| W3 | `Internal.def(a, b, …)` | woven call into the shard's scalar entry: no payload table, no method dispatch, no duplication |
+| W1t | `__lync.def(a, b, …)` | woven helper, one per definition per script, in a table (not inlined) |
+| W2 | inline | woven encoder inline at the site, on the site's lines |
+
+Every form keeps the runtime's `begin` (run header) and `reserve` (bit cursor) as calls into the runtime.
+
+### 6.1 Bytecode (verified, `size.py`, `size.out`; luau-compile 0.742 `-O2`)
+
+**The 5.0x, re-derived.** The original probe (`client-security-build/placement/size.py`) re-run on 0.740 and 0.742
+gives the same bytes: 22,927 B inline against 4,587 B shared at `-g0`, 27,090 against 5,484 at `-g1`
+(`size_orig.out`). It measures one 3-field encoder inlined at 50 sites of **one** definition against one copy plus
+50 one-line stubs. The ratio tends to (inlined body) / (call stub) as sites per definition grow, and to about 1
+when each definition has one site. It is a bound for one shape, not a cost of weaving.
+
+**Realistic shapes**: 20 definitions cycling the five shapes of `gen.py` (`strike` 40-bit int + direction, `move6`
+six fields, `chat` string, `buy` literal enum, `announce` literal union), s sites per definition, each site in its
+own script ("spread") or all of a definition's sites in one script ("clustered"). Total = client shard + Lync-
+attributable bytes of every script (script minus the same script with no site). `-g1` (line info, as shipped):
+
+| defs × sites | placement | U (unwoven) | W3 | W1t | W2 | W2r (W2, closed encoders dropped from the built shard) |
+|---|---|---|---|---|---|---|
+| 20 × 1 | spread | 30,877 B (1.00) | 1.03 | 1.41 | 1.34 | 0.43 |
+| 20 × 2 | spread | 33,359 (1.00) | 1.06 | 1.75 | 1.64 | 0.79 |
+| 20 × 3 | spread | 35,841 (1.00) | 1.09 | 2.05 | 1.89 | 1.10 |
+| 20 × 3 | clustered | 34,801 (1.00) | 1.02 | 1.31 | 1.71 | 0.90 |
+| 20 × 5 | spread | 40,805 (1.00) | 1.13 | 2.54 | 2.30 | 1.61 |
+| 20 × 10 | spread | 53,215 (1.00) | 1.20 | 3.36 | 2.99 | 2.46 |
+| 1 × 50 | spread | 8,557 (1.00) | 0.78 | 5.35 | 4.78 | 4.59 |
+| 5 × 50 | clustered | 32,042 (1.00) | 0.94 | 0.77 | 3.77 | 3.54 |
+
+- Per site: an unwoven call site costs about 124 B (`-g1`, mostly the payload table constructor); an inline site
+  about 650 B; a W3 call about 175 B, and less than U where a site's table had many fields (1 × 50: 0.78x).
+- W1t pays one helper per script, so it is cheapest when sites cluster (5 × 50 clustered: 0.77x) and most
+  expensive when each script has one site.
+- **Bytecode is bounded by choosing the form per site**: inline where a definition has few sites, W3 where it has
+  many (§9 `weave.inlineMaxSites`). W3 never exceeds 1.20x in these shapes.
+
+### 6.2 Load time
+
+`luau_load` costs 0.5–2.4 ns per bytecode byte on this Xeon [GS §5.1]; measured here (`load.out`, 0.742,
+median of 7 × 20,000 loads): the fixture `Weapon` loads in 1.90 µs unwoven (852 B) and 2.87 µs woven (2,542 B).
+At the realistic shapes above, weaving adds 10–32 KB to a client, about 10–75 µs per join; per-player variants
+are not involved (§8). Roblox's own per-KB figures and any cross-server bytecode cache: not found [GS §5.2].
+Native compilation (server only) is costlier: 183 µs for the unwoven `Weapon` against 424 µs woven, if a server
+script with woven sites is `--!native`; it also draws on the per-game native code limit (documented: "a limit on
+the total allowed amount of natively compiled code in a game", [native-code-gen](https://create.roblox.com/docs/luau/native-code-gen)).
+
+### 6.3 Encode time per call (verified, `bench.md`; median ns over 3 passes of 11 × 200,000 calls, lowest minimum in brackets)
+
+**Client** (everything interpreted: Roblox clients run no native code, documented and [GS §4.1]):
+
+| Shape | S0 | S1 | W3 | W1t | W2 | best woven / S1 | best woven / S0 |
+|---|---|---|---|---|---|---|---|
+| `move6` (6 fields) | 605 [544] | 537 [477] | 562 [399] | 416 [366] | 437 [363] | 1.37 (W1 391) | 1.55 |
+| `strike` (int + direction) | 819 [696] | 798 [641] | 676 [596] | 664 [596] | 663 [564] | 1.27 (W1 629) | 1.30 |
+| `chat` (string) | 244 [224] | 196 [176] | 164 [144] | 172 [146] | 144 [129] | 1.36 | 1.69 |
+| `buy`, literal `{ item = "sword" }` | 247 [221] | 172 [154] | — | 108 [94] | 85 [79] | 2.02 | 2.91 |
+| `announce`-shaped literal union | 296 [264] | 251 [220] | — | 110 [98] | 84 [79] | 2.99 | 3.52 |
+
+Where the time goes:
+- **S0 → S1, 45–110 ns:** the rollback `pcall`. Not a weaving gain: a shard can check every field before writing
+  any bit, and needs the `pcall` only for `t.convert`/`t.custom`, whose game code can raise mid-encode.
+- **S1 → best woven, 50–170 ns on variable sites:** the payload table (allocation plus GC) and the method dispatch.
+  Weave-only, because only the build sees the call site's table constructor.
+- **Literal sites, 85–165 ns:** checks and variant dispatch done at build time; the encode becomes one run header,
+  one reserve and one constant write. Weave-only.
+- The floor is the two runtime calls: an inline literal site costs 84 ns, of which the write is a few.
+
+**Server** (runtime and shard native as a `--!native` shard; game script as Roblox compiles it, interpreted except
+`@native` functions):
+
+| Shape | S0 | S1 | W3 | W1n (`@native` local helper) | W1t | W2 |
+|---|---|---|---|---|---|---|
+| `move6` | 453 | 378 | 291 | 269 | 407 | 395 |
+| `strike` | 471 | 433 | 333 | 363 | 411 | 384 |
+| `chat` | 176 | 124 | 115 | 113 | 148 | 126 |
+
+On the server, inlining into an interpreted script throws away the shard's native code: W2 is slower than W3 there.
+W1n is fast but is a `local function` (the `-O2` line hazard of §5) and makes its whole script optimisation level 2
+with type info [luau skill, performance.md]. So server-side sites use W3.
+
+### 6.4 Decode time: handler unpacking (verified, `bench.md`, `move6`)
+
+The server decodes a message, builds the payload table and calls each handler with `(player, value)` (D0). A
+woven handler whose parameter is only read as `value.field` can receive the fields as arguments instead (D1); the
+generated delivery passes the decoded locals and builds no table. Per message: client 419 → 342 ns (1.23x), server
+355 → 262 ns (1.36x), all-native 323 → 230 ns (1.40x). Precondition the weaver must prove: the parameter is never
+written, passed, returned, captured by a closure that escapes, or indexed by a non-constant; otherwise the handler
+gets the table. Rewriting handler bodies is more transform than call-site weaving (every `v.f` in the body is
+renamed); not in the prototype.
+
+### 6.5 Build time (verified, `buildtime.out`)
+
+The prototype (Python, one `luau-ast` process per script) over 303 scripts, 1.68 MB of source, 901 sites: 3.06 s,
+of which 2.84 s parse and analysis. One `luau-ast` call on a 5.6 KB script takes 3.7 ms including process start.
+An in-process parser in the Rust host would remove the per-script process; its figure is **unmeasured**.
+
+### 6.6 Developer effort
+
+None in source. One CI step (§2). The cost is in reading: a woven release script is denser than its source
+(`woven_Weapon.luau.txt`), so a developer debugging a release build reads woven lines in Studio; line numbers and
+paths still match the source (§5).
+
+## 7. Dual-purpose form: site-bound wire ids
+
+Weaving alone is a speed measure: woven and shard calls write identical bytes, so the server cannot tell them
+apart. One addition makes the same build output a security measure as well, and it holds up.
+
+### 7.1 Mechanism
+
+- **Generic ids stay** exactly as `v5.md` §4.6 defines them; the runtime path and every unwoven call use them.
+- **A woven build adds ids in the up space** (client sites only): one per woven site (`weave.ids = "site"`) or one
+  per woven definition (`"definition"`). Canonical order: by (script instance path, line), after the generic ids.
+  They go through the per-server permutation like every other id (`v5.md` §4.5), at no extra cost.
+- **A site id's layout** is its definition's layout minus the fields the site writes as build-time constants
+  ("site" mode only). The server's site table maps each site id to (definition, constant fields, remaining layout);
+  its decoder reads the remaining fields under the same canonical rules and fills the constants. A fully literal
+  site sends no payload bits at all.
+- **Delivery is unchanged:** a site-id message is delivered as a message of its definition: the same `limit`
+  bucket, `validate`, handlers, element charge (W = 1 + E(remaining fields)). Game code sees no difference.
+- **The fact.** A message on the *generic* id of a **closed** definition (§4.2) is delivered and reported. Its
+  exact trigger is that id; its known causes on an unmodified client are code not in the woven place file (an asset
+  inserted at run time) firing the definition, and, in Studio only, the command bar or a plugin calling the shard.
+  Within the build's coverage there is no other cause: every unmodified call of a closed definition uses a site id
+  by construction. Two shapes for the code, for the lead (principle 4 favours the first): extend `unreachable`
+  (`v5-integrity.md` §3) with evidence `generic` (1 for this trigger, 0 otherwise), since both mean "a path the
+  build found no client code using"; or a new reason. Evidence is numbers only, as every fact.
+
+### 7.2 What it does, and how strong it is
+
+- **It prices the cheapest documented route.** The API driver that requires the client module and calls a
+  definition's method (`require(…Network).…send(…)`, the 2026 ByteNet thread [CS §1.4]) needs no knowledge of the
+  wire. In a woven build that call still works, and for every closed definition it now produces a server-side
+  fact with an exact trigger on the first message. That is stronger evidence than the caller probe
+  (`v5-integrity.md` §4), whose counts are client-stated; here the server observes the id itself.
+- **What defeats it, by class of capability:** reading the woven bytecode of the game's own scripts (decompiler or
+  constant reads, which executors have [ST §9]) and re-deriving, per build, the site ids and site layouts, then
+  reading the per-server permutation per session as any byte-level tool must; or calling the game's own functions
+  that contain the sites, which then send exactly what game code sends. Both are per-build or per-game work; the
+  first changes whenever the game's scripts or the build seed change.
+- **It narrows what a site id can carry.** A constant field is not on the wire, so a site id cannot vary it: a
+  client that wants a value no site writes as a literal must use the generic id (the fact) or another site's id.
+  How much this narrows depends on how many fields game code writes as literals; most variable fields stay
+  variable. It is reported as structure, not judged.
+- **It makes the caller probe's source check exact per message** (`v5-integrity.md` §4): a site id names one
+  script, where a definition names a list.
+- **Limits.** Closure needs a complete namespace (§4.2): a game that stores the namespace in a framework table gets
+  no closed definitions and so no fact, though it still gets woven speed. Unwoven builds (Studio, `rojo serve`)
+  close nothing, so the fact cannot fire there.
+
+### 7.3 Cost
+
+- **Id width.** Up-space ids grow from u(⌈log2 D⌉) to u(⌈log2(D + S)⌉) bits, paid once per run (upstream runs
+  are mostly single messages). For D = 20 up definitions: S = 20 sites gives 6 bits (+1), S = 60 or 100 gives 7
+  (+2), S = 300 gives 9 (+4). At the busy model's 70 upstream frames a second (`v5.md` §4.1) with one or two runs
+  each, +1 bit costs 9–18 B/s per player, +2 bits 18–35 B/s. `"definition"` mode costs at most +1 bit
+  (u(⌈log2 2D⌉)).
+- **Constant elision saves** the constant fields' bits per message: 1 bit for `buy`, 8 for the `announce`-shaped
+  literal, the whole payload at a fully literal site.
+- **Runs split by site:** consecutive messages of one definition from two sites become two runs (an id and a
+  count each). Upstream runs are short, so this is small; downstream is unaffected because site ids are only in the
+  up space (server-sent sites gain nothing from provenance: the server is trusted).
+- **Server memory:** one site-table entry per site; one decoder per site (generated into the server shard,
+  which grows by about one decoder per site).
+- **Handshake:** client and server must agree on the site table. Seeds alone do not guarantee it (two weaves of
+  different scripts at one fixed seed), so `HELLO` needs the weave's identity: a u32 hash of the site table, 0
+  when unwoven (protocol version 2), with `schemaMismatch` evidence `weaveDiffers`. 4 B per namespace per
+  connection.
+- **Planner and tests:** the site table is an IR extension; the differential test (`v5.md` §2) gains a site case:
+  every site's bytes decode on the server to the same value as the generic encoding of the same call.
+
+### 7.4 Forms considered and set aside
+
+- **Removing the generic API from the built shard** (instead of reporting its use): the cheapest driver then gets
+  "attempt to call a nil value" instead of a fact, and the server learns nothing. Reporting gives the developer the
+  fact; dropping the encoders (`weave.dropClosed`) is still available for size, and then the generic id stays
+  decodable on the server, so the fact still fires for a driver that brings its own encoder.
+- **Per-site field order** (a rotation per site): adds no recurring work beyond site layouts, which a tool reading
+  woven bytecode reads in the same pass; it costs nothing either, so it is an option, not a measure.
+- **Stripping the shared schema module from the client build** is independent of weaving (per `v5.md` §3.2, a shard
+  evaluates the schema only for Studio's `staleShard` check). It removes the definition names an API driver browses, which is
+  also the bait `:trap()` relies on; a trade the lead should make explicitly, not as a side effect of weaving.
+
+## 8. Interaction with seed, rotation, per-player variants, tag, schema hash
+
+| Item | Interaction | Rule |
+|---|---|---|
+| Build seed | woven fragments, site table and shards must come from one planner run | `lync build --weave` (or `lync weave` regenerating the shards it embeds) plans once at one seed and writes all three; a fragment never comes from a different run than the shard beside it. With `"release"`, client and server from different runs already fail as `schemaMismatch`, `seedDiffers` 1 (`v5-integrity.md` §2) |
+| Field rotation | woven encoders write the rotated order: the fragment is emitted from the same IR as the shard encoder | no change; zero run-time cost as for shards [CSB §2.3]; the differential test runs at fixed nonzero seeds too |
+| Tag | untouched: the tag is computed at flush over the frame (`v5.md` §4.5); woven code only writes rows through `begin`/`reserve` | site ids are frame bits like any id, covered by `tag.cover` |
+| Per-server permutation | site ids are ids in the up space and permute with it | zero cost (`v5.md` §4.5) |
+| Per-player variants | excluded for woven code: woven LocalScripts in `StarterPlayerScripts` are copied by the engine to every player, and `PlayerScripts` is not accessible to the server [GS §2.1]; the only per-player container is `PlayerGui` [GS §2] | weaving and per-player shard variants do not combine; per-session variation (key, permutation) is unaffected |
+| Schema hash | unchanged: sites are not schema, the hash stays the seed-0 serialization (`v5.md` §4.7) | the weave's identity travels separately (§7.3: `weaveHash` u32 in `HELLO`) |
+| `staleShard` | applies to the unwoven development path; a woven build regenerates its shards | no change |
+| Reachability (`v5-integrity.md` §3) | weaving's scan is a superset of the reachability scan: an unreferenced definition is closed with no sites | one scan feeds both; fix the iteration gap of §4.2 in that scan |
+| `limit`, traps, `validate` | per definition; site ids map to their definition first | no change; a trapped definition with client sites is the developer's declaration mistake as today |
+| Golden frames | defined at seed 0, unwoven: unchanged | add vectors for a woven fixture: a site id, a fully literal site with no payload bits |
+| Collections `patch` (milestone 4) | a woven `patch(key, { health = 90 })` knows its key set at build time: no key iteration, and `unknownPatchKey` becomes a build diagnostic at that site | inferred; not measured |
+
+## 9. Options
+
+Build-time, in `lync.toml` under `[weave]`, read only by `lync weave` / `lync build --weave` (§2). A project that
+never runs that step is unaffected by all of them.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `weave.inlineMaxSites` | integer | client sites per definition | 0–65,535 (0: never inline) | 2 | per inlined site about +530 B of bytecode over an unwoven site (`-g1`, §6.1); a definition with more sites uses the scalar call (W3, about +50 B per site); speed of W3 and W2 within the noise except literal sites (§6.3) |
+| `weave.literals` | boolean | — | — | true | none at run time (fewer instructions); a literal site's checks move to the build, and a literal the codec refuses becomes a build diagnostic at that line |
+| `weave.server` | `"off"` \| `"call"` | — | — | `"call"` | server sites call the native shard's scalar entry (W3): about +50 B per site, 1.4–1.6x faster than S0 on the server (§6.3); inlining is not offered server-side because it loses native code |
+| `weave.handlers` | boolean | — | — | false | handler bodies whose parameter is only read as `value.field` are rewritten to take fields as arguments: 1.23x (client) to 1.36x (server) per delivered message (§6.4); build time to prove the precondition; not prototyped |
+| `weave.ids` | `"generic"` \| `"definition"` \| `"site"` | — | — | `"site"` | `"definition"`: ≤ +1 bit per upstream run and the closed-generic fact; `"site"`: +⌈log2(D + S)⌉ − ⌈log2 D⌉ bits per upstream run (+1 to +4 for D = 20, S = 20–300), constant elision, the fact, `weaveHash` (4 B per namespace per connection) in `HELLO` (§7.3); `"generic"`: no change to the wire |
+| `weave.dropClosed` | boolean | — | — | false | removes the generic encoders of closed definitions from the built client shard: the client shard shrinks to its skeleton for those definitions (W2r, §6.1); calls from code outside the build then raise at the caller; the server still decodes and reports the generic id |
+| `check.weaveCoverage` | `"off"` \| `"warn"` \| `"error"` | — | — | `"warn"` | severity of the build diagnostics below; build time only |
+
+Build diagnostics (LSP shape, `v5-tooling.md` §3), each with script instance path and line:
+- `weaveUnresolved`: a call left on the shard; evidence `reason` (1 expression context, 2 argument not a table
+  constructor, 3 keys differ from the record, 4 a builtin name shadowed at the site, 5 the woven script failed to
+  compile); the definition stays open.
+- `weaveEscape`: a binding used other than as `binding.def` (passed, returned, stored, iterated, reassigned,
+  indexed by a non-constant); the namespace is incomplete and nothing in it is closed.
+- `weaveUnparsed`: a script the parser refused; left unwoven.
+
+The manifest (`v5-tooling.md` §1) records, per definition: closed or open (with the first reason), woven sites
+(script, line, form, literal), and the weave hash.
+
+## Implications
+
+1. Lift the refusal: adopt weaving as a build output over the built place, CLI only, never over source (§1, §2).
+2. Keep the shard as the type module and fallback in every woven build; weave only what resolves (§3, §4.1).
+3. Use the Rust host with Luau's own parser via a C++ shim and rbx-dom for place I/O; Lune was enough to prove it (§2).
+4. Splice line for line and pass each site's line to `fail`; ship no line map (§5).
+5. Client sites: inline up to `inlineMaxSites`, scalar call beyond; server sites: scalar call into the native shard only (§6.1, §6.3).
+6. Never emit `local function` helpers; use inline or a table helper (§5, `error_lines.out`).
+7. Fold literal sites at build time; turn a refused literal into a build diagnostic (§4.1, §6.3).
+8. Separately, drop the rollback `pcall` from shard entries for codecs without `t.convert`/`t.custom` (check-then-write): 45–110 ns per call, no weaving needed (§6.3).
+9. Adopt site-bound ids (`weave.ids = "site"`) and report generic-id messages on closed definitions as a fact, preferably `unreachable` with evidence `generic` (§7).
+10. Add `weaveHash` to `HELLO` (protocol version 2) before any site id ships (§7.3).
+11. Define closure as in §4.2, compute it in the same scan as reachability, and fix that scan's iteration gap (§4.2, §8).
+12. Gate every woven script on compile, line count and a per-site byte differential in CI (§4.3).
+13. Keep Studio-only projects on shards, and say in the docs that woven places must be written only by CI, not edited in Team Create (§2).
+14. Treat handler unpacking (`weave.handlers`) as a later step after call-site weaving: real gain, larger transform, unprototyped (§6.4).
+15. Decide schema stripping for clients separately from weaving; it trades away trap bait (§7.4).
+16. Measure before release: share of resolvable sites in real Rojo and roblox-ts games, phone load per KB, and Team Create behaviour under Open Cloud publishing (§4.2, §6.2, §2).

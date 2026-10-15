@@ -1,0 +1,11 @@
+G4   00 48 2b 00 67 67 35 5e a9 22 | golden 00 48 2b 00 67 67 35 5e a9 22
+G4c  01 48 2b 00 67 67 20 26 cc 0f | golden 01 48 2b 00 67 67 20 26 cc 0f
+G3   4a 03 03 f4 01 00 | golden 4a 03 03 f4 01 00
+aim zAxis at 11 bits: (1024, 1024)
+strike' identity, generic id: 15 B: 00 48 0d 40 00 12 00 00 00 00 00 86 28 ff 78
+strike' woven site id 3 (3-bit ids): 15 B: 00 48 17 80 00 24 00 00 00 00 00 44 cd e6 70
+strike' ROT draws, single row: 00 48 7d eb cc f4 a2 cf d1 01 00 | tag mask 0: 31 ab 8a fc | tag mask 0x5a5a1234: 05 b9 d0 a6
+bits in strike' single-row frame body: 82
+G5   00 60 01 0c 00 08 56 2d c5 9a | golden 00 60 01 0c 00 08 56 2d c5 9a
+down patch health 90, slot 5: a4 03 54 11 5a
+down patch health 90, slot 5, health:team() in its team chunk: a4 03 54 11 b5

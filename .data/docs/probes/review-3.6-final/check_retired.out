@@ -1,0 +1,434 @@
+v5.md:245	`kind` -> `argumentOutOfRange`	| `t.union({ name = record, ... })` | union on `kind` | u(⌈log2 n⌉) variant index (name order), then the record | a variant with its own `kind` field 
+v5.md:245	`kind` -> `argumentOutOfRange`	| `t.union({ name = record, ... })` | union on `kind` | u(⌈log2 n⌉) variant index (name order), then the record | a variant with its own `kind` field 
+v5.md:347	`reactsTo` -> `argumentOutOfRange`	- **Codec equality.** Wherever the design compares two codecs (`refers`, `about` and `reactsTo` keys, the
+v5.md:365	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	checks `within`, `monotonic`, `maxTotal`, `derive` or `maxRate` (`v5-checks.md`) is declared on the leaf's own
+v5.md:366	`reactsTo` -> `argumentOutOfRange`	field handle (§3.4). No other declaration verifies (`refers`, `reactsTo`, `challengeAnswer`, telemetry). Leaves
+v5.md:458	`key` -> frameKey (telemetry only)	| `key` | collection | `t.int`, `t.enum` or `t.string` codec | — | — | none: a singleton | the key's bits once per add; one server map entry per recor
+v5.md:476	`key` -> frameKey (telemetry only)	repeated enum item is `enumItemDuplicate`; a collection `key` of another codec is `collectionKeyCodecUnsupported`.
+v5.md:544	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	32 and 128 paths, correct calls clean and a wrong handle type, a wrong `fn` return, an unknown path and a
+v5.md:583	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| field handle: `within`, `monotonic`, `maxTotal`, `derive`, `maxRate`; definition: `resetChecks(player, options?)` | client-sent event, client reques
+v5.md:591	`rewound` -> `tickOutOfRange`	The calls these declarations enable are specified with them: `Lync.perception(player)`, `rewound`, `rewoundSpan`,
+v5.md:593	`reportInteraction` -> `argumentOutOfRange`	(`v5-collections.md` §15); `decoyFrom`, `reportInteraction` and `Lync.challenge` (`v5-integrity.md` §7–§8);
+v5.md:593	`Lync.challenge` -> `argumentOutOfRange`	(`v5-collections.md` §15); `decoyFrom`, `reportInteraction` and `Lync.challenge` (`v5-integrity.md` §7–§8);
+v5.md:731	`valueRefused` -> `argumentOutOfRange`	value the encoder refuses throws `valueRefused`, as `fire` would. Typed `(self, data: T) -> T` on both paths. Cost:
+v5.md:1108	`tagMismatch` -> `expectedCount`	as `tagVariantMismatch` when some candidate gave another variant's mask (`v5-integrity.md` §2), else `tagMismatch`.
+v5.md:1156	`tagMismatch` -> `expectedCount`	as `tagMismatch`: the frames of one round trip (12 reliable frames at 200 ms and 60 frames a second), which can
+v5.md:1175	`tagMismatch` -> `expectedCount`	after about 18,000 `tagMismatch` occurrences); **32 bits** (4 B; one acceptance per 75.3 days at the defaults
+v5.md:1176	`tagMismatch` -> `expectedCount`	and 6.2 days at the range maxima, after 1.17 × 10^9 `tagMismatch` occurrences at the defaults); a 64-bit output
+v5.md:1186	`tagMismatch` -> `expectedCount`	4.6 × 10^6 `tagMismatch` occurrences from the same player, which identify it. Cost: 2 B more per upstream frame than
+v5.md:1266	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	| 1 `WELCOME` | down | namespace index EG0; `layout` u1 (§4.5); in the connection's first `WELCOME` only: epoch f64, `stateRate` u6, `delay` u8 (4 ms 
+v5.md:1270	`probes` -> `clientCount`, `clientProbes`	| 5 `REPORT` | up | `probes`, `identityMismatches`, `outerFramesMissing`, `framesMalformed`, `listenerCallerMismatches`, `selfCheckMismatches`, `selfC
+v5.md:1272	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	| 7 `RATE` | down | epoch f64, `stateRate` u6, `delay` u8 |
+v5.md:1274	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	- **`delay`** is the interpolation delay D the server chose for that client, in 4 ms units, 0–1.02 s. The first
+v5.md:1278	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	client only ever takes D from the wire. The client applies a `RATE`'s `delay` when it decodes the frame; the server
+v5.md:1295	`probes` -> `clientCount`, `clientProbes`	`probes` makes nothing pending, so it grows between reports
+v5.md:1345	`key` -> frameKey (telemetry only)	`reply`, `key`, `limit.perSecond`, `limit.burst`, `timeoutSeconds`, `maxRecords`, `priority`,
+v5.md:1350	`key` -> frameKey (telemetry only)	`limit`, `key`, `reliablePerSecond`, `sealed`), is absent. `ackEveryFrame` is taken by client-sent events and
+v5.md:1365	`reactsTo` -> `argumentOutOfRange`	`reactsTo`, `playout`) change neither and are not hashed. Serialization version 1 covers all of the above: like the
+v5.md:1408	`n` -> count (atom)	plaintext that breaks a rule at its reveal refuses the frame holding the reveal. The toc's counts (`n`,
+v5.md:1489	`tagMismatch` -> `expectedCount`	| tag lookahead | 4 counts | `FireServer` raising up to 4 times in a row gives `reliableFramesMissing`, not `tagMismatch`; chosen, unmeasured. With th
+v5.md:1496	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	| `delay` unit | 4 ms in a u8: 0–1.02 s | covers `rewind`'s delay range of 0–1 s, and jitter up to 0.41 s at 10 Hz `[interest-rewind §11.3]` (`v5-coll
+v5.md:1521	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	| `delay` step (milestone 4) | at most one 4 ms unit per second | 0.4% of playback rate, below `GetServerTimeNow()`'s own 0.6% rate bound (`v5-collect
+v5.md:1529	`Lync.challenge` -> `argumentOutOfRange`	| open challenges (milestone 5) | 1 per player | an answer is then an attempt at exactly one challenge; a second `Lync.challenge` throws `challengeDup
+v5.md:1556	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	| G10 | down reliable, a client's first reliable frame (`'11'`, T = 0), holding the connection's first `WELCOME` for `arena` (index 1): `layout` 0, ep
+v5.md:1572	`item` -> `clientItem`, `clientCase`	after the generic ones, so up ids are 3 bits; the server's site table fills `item`.
+v5.md:1583	`delay` -> `maxRewindSeconds`, `interpolationDelaySeconds`, `roundTripS	slots) and so G7's hash, G7 (`rcv`, `idTableHash`, `path`), G10 (`layout`, `delay`, the two `report` bits) and PERM
+v5.md:1590	`tagMismatch` -> `expectedCount`	`internal` if one differs, so a wrongly emitted side never reaches `tagMismatch` on every frame
+v5.md:1767	`valueRefused` -> `argumentOutOfRange`	the `reply` codec refuses (nil included, for a reply that isn't optional; reported natively as `valueRefused`
+v5.md:1915	`inboundBytesExceeded` -> `bucketBytes`	(`inboundFramesExceeded`, `inboundBytesExceeded`). A refused frame goes no further: it is never hashed or decoded. A refused
+v5.md:1920	`tagMismatch` -> `expectedCount`	most 5 per reliable frame and 3 per unreliable frame; `tagMismatch`, `tagVariantMismatch`,
+v5.md:1972	`validatorYielded` -> `checkFunctionRaised`, `checkFunctionYielded`	(`validatorYielded`, `checkFunctionYielded`, …); Lync calls `task.cancel` on the runner, which closes it so neither game code nor the
+v5.md:2015	`reactsTo` -> `argumentOutOfRange`	| timing facts: answers below the ping bound, `reactsTo`, challenges | answers and reactions before their stimulus could arrive, or faster than the ga
+v5.md:2016	`reportInteraction` -> `argumentOutOfRange`	| decoys (with `reportInteraction`), canaries | readers of replicated state that act on it or send it | 5 | `v5-integrity.md` §8, §9 |
+v5.md:2020	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| checks (`within`, `monotonic`, `maxTotal`, `derive`, `maxRate`) | claims a client states beyond the game's declared bounds | 7 | `v5-checks.md` |
+v5.md:2047	`overBudget` -> retired	`overBudget` and added `limited`; draft 3.6 added the placement, claim, string-table and run-time option codes,
+v5.md:2061	`valueRefused` -> `argumentOutOfRange`	`valueRefused`;
+v5.md:2065	`validatorYielded` -> `checkFunctionRaised`, `checkFunctionYielded`	- fault: `validatorRaised`, `validatorYielded`;
+v5.md:2077	`rewound` -> `tickOutOfRange`	`ackMissing`, `recordMissing`, `keyUnknown` (`rewound`, `v5-collections.md` §12.5);
+v5.md:2096	`Lync.challenge` -> `argumentOutOfRange`	declarations of §3.4, `Lync.challenge`, `interest`, `rewind`, `Lync.rewindParts`) throws at its caller:
+v5.md:2104	`valueRefused` -> `argumentOutOfRange`	`keyCodecMismatch` (§3.4). `valueRefused` is a value a codec's encode rule refuses; a number outside a plain
+v5.md:2105	`extend(seconds)` -> `argumentOutOfRange`	argument's range is `argumentOutOfRange` (`extend(seconds)`, `reportInteraction`'s `gameKind`).
+v5.md:2105	`reportInteraction` -> `argumentOutOfRange`	argument's range is `argumentOutOfRange` (`extend(seconds)`, `reportInteraction`'s `gameKind`).
+v5.md:2107	`valueRefused` -> `argumentOutOfRange`	`numberStepIndivisible`, `newestCodecUnsupported`, …), `caller` (`valueRefused`, `patchKeyUnknown`,
+v5.md:2109	`rewound` -> `tickOutOfRange`	`fact` (§7.3), `outcome` (the six request results, the three challenge outcomes and the four `rewound`
+v5.md:2110	`validatorYielded` -> `checkFunctionRaised`, `checkFunctionYielded`	outcomes), `fault` (`validatorRaised`, `validatorYielded` and the callback faults above), `build`
+v5.md:2153	`validatorYielded` -> `checkFunctionRaised`, `checkFunctionYielded`	| validator throw or yield | native report `validatorRaised` or `validatorYielded` (spacing below); counter `validatorsRaised` or `validatorsYielded`;
+v5.md:2154	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	| check `reference` or `fn` throw or yield | native report `checkFunctionRaised` or `checkFunctionYielded` (spacing below); counter `checkFunctionsRai
+v5.md:2154	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	| check `reference` or `fn` throw or yield | native report `checkFunctionRaised` or `checkFunctionYielded` (spacing below); counter `checkFunctionsRai
+v5.md:2185	`Lync.challenge` -> `argumentOutOfRange`	`GetServerTimeNow()` from the `Lync.challenge` call `[decoy-challenge-facts §6]`. Two clocks give one reply two
+v5.md:2194	`Lync.challenge` -> `argumentOutOfRange`	identify, t_s is the server's first flush step after the `Lync.challenge` call, whether or not it passes a frame
+v5.md:2207	`inboundBytesExceeded` -> `bucketBytes`	| `inboundBytesExceeded` | the lane's `inbound.<lane>.bytes` bucket holds fewer tokens than the frame's charge, `buffer.len` + 8 B per instance-list e
+v5.md:2211	`tagMismatch` -> `expectedCount`	| `tagMismatch` | the tag fails at e … e + 4 (reliable), or at the candidates x − 4,096, x, x + 4,096 of the extended seq x (unreliable), and no candi
+v5.md:2213	`tagMismatch` -> `expectedCount`	| `tagMismatchesExceeded` | 8 consecutive reliable tag failures with no accepted reliable frame between them | `REKEY` unless one to this player is pe
+v5.md:2289	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	| `checkFunctionsRaised`, `checkFunctionsYielded` | server | definition | count | §6.1 step 6: a check's `reference` or `fn` throw, or yield (`v5-chec
+v5.md:2289	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	| `checkFunctionsRaised`, `checkFunctionsYielded` | server | definition | count | §6.1 step 6: a check's `reference` or `fn` throw, or yield (`v5-chec
+v5.md:2308	`reactsTo` -> `argumentOutOfRange`	| `reactionsUnmatched` | server | definition | count | a `reactsTo` key with no candidate (`v5-integrity.md`) |
+v5.md:2472	`tagMismatch` -> `expectedCount`	outside Lync's bound (§7.5); wrappers that differ between client and server fail every frame, as `tagMismatch`
+v5.md:2473	`tagMismatch` -> `expectedCount`	(reliable) and `frameMalformed` or `tagMismatch` (unreliable), which those facts list as a cause; with a
+v5.md:2588	`v5.md` -> `messagesUnhandled`	`v5.md` and for the items `v5-3.6-inputs.md` §6 collected; each other file lists the items its own part rests on,
+v5.md:2600	`tagMismatch` -> `expectedCount`	| whether `FireServer` raises on Lync's arguments; whether the engine reconnects a client within one `Player` | the count rule (§4.5), the `reliableFr
+v5.md:2606	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| replication delay of client-owned physics | `within`'s first cause | the game's tolerance (`v5-checks.md`) |
+v5-integrity.md:3	`v5.md` -> `messagesUnhandled`	Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in
+v5-integrity.md:5	`v5.md` -> `messagesUnhandled`	the frame format and are specified in `v5.md` §4.5 (milestone 2). This file specifies the rest and gives the case
+v5-integrity.md:7	`v5.md` -> `messagesUnhandled`	measures, re-judged, are in `v5-changes.md`. "Unmodified client" is defined in `v5.md` §1.
+v5-integrity.md:14	`v5.md` -> `messagesUnhandled`	and its runtime, wire, size and developer cost is stated; by `v5.md` principle 2 cost is weighed, never a veto by
+v5-integrity.md:19	`v5.md` -> `messagesUnhandled`	values of §2 and `v5.md` §4.5 (key, permutation) vary per build, server, session or player, so only for them does
+v5-integrity.md:25	`v5.md` -> `messagesUnhandled`	| none (no key): raw sender, replayer, static forger | fires Lync's remotes with built or captured frames | tag, replay window, permutation, the serve
+v5-integrity.md:27	`tagMismatch` -> `expectedCount`	| **mem**: reading and writing Lync's upvalues, stack and GC objects | reads key, count and permutation; calls Lync's internal encoder and tag functio
+v5-integrity.md:31	`v5.md` -> `messagesUnhandled`	| **packet**: send and receive hooks below Luau | reads, drops or edits frames | tag and replay window; the key derived from a `WELCOME` nonce (`v5.md
+v5-integrity.md:40	`v5.md` -> `messagesUnhandled`	per-build secret (`v5.md` §4.5), so a packet-level hook must also read that secret from the shard each build; a
+v5-integrity.md:49	`v5.md` -> `messagesUnhandled`	(§7). Every game callback Lync runs here (decoy behaviours, canary formats) follows `v5.md` §6.1's callback rule:
+v5-integrity.md:53	`v5.md` -> `messagesUnhandled`	code (`v5.md` §0).
+v5-integrity.md:69	`v5.md` -> `messagesUnhandled`	`v5.md` §4.6). 64 bits remove the offline search that one observed record order would allow against a 32-bit
+v5-integrity.md:82	`v5.md` -> `messagesUnhandled`	`MISMATCH` (`v5.md` §4.6).
+v5-integrity.md:86	`v5.md` -> `messagesUnhandled`	- **Streams.** A per-build value is drawn from the stream of a label L (UTF-8 text): xorshift32 (`v5.md` §4.5) seeded
+v5-integrity.md:93	`v5.md` -> `messagesUnhandled`	S = 0, no masks) and `buildId` is 0, so the seed-0 golden set (`v5.md` §4.10) is unchanged
+v5-integrity.md:101	`v5.md` -> `messagesUnhandled`	| field order of each record | `order:<record path>` (`order:arena.fighters.data`) | Fisher–Yates over the fields in name order, from the last index d
+v5-integrity.md:104	`v5.md` -> `messagesUnhandled`	| key-derivation secret S | v64(`session`), 0 replaced by 1 | `v5.md` §4.5 derives the session key and permutation seed from the first `WELCOME`'s two
+v5-integrity.md:115	`v5.md` -> `messagesUnhandled`	- **Column blocks** code the first row against 0 (`v5.md` §4.3), so an offset shows in every value of a block, at
+v5-integrity.md:119	`v5.md` -> `messagesUnhandled`	constants per server from what `WELCOME` carries (`v5.md` §4.5, §7.5), which prices only tools that hard-code a
+v5-integrity.md:145	`v5.md` -> `messagesUnhandled`	is unchanged by either `[refusals-rejudged-3 R28]`. The round count stays a protocol constant (`v5.md` §4.9).
+v5-integrity.md:153	`v5.md` -> `messagesUnhandled`	runs of several namespaces under one tag (`v5.md` §4.5), so a connection has one mask. The build writes one set
+v5-integrity.md:169	`v5.md` -> `messagesUnhandled`	- **Tag** (`v5.md` §4.5). The client's tag is the keyed hash XOR m_v; the server verifies under the assigned
+v5-integrity.md:171	`tagMismatch` -> `expectedCount`	another variant's mask, is `tagVariantMismatch` (§10) in place of `tagMismatch`: dropped, e unchanged, counted toward
+v5-integrity.md:174	`v5.md` -> `messagesUnhandled`	join hold (`v5.md` §5.3) releases once its `WELCOME` has arrived and the variant is installed; until then
+v5-integrity.md:176	`v5.md` -> `messagesUnhandled`	`joinHoldDecodeUnitsExceeded`, `v5.md` §5.3), and an unreliable send after `WELCOME` but before the variant is
+v5-integrity.md:177	`v5.md` -> `messagesUnhandled`	dropped as `unreliableHoldUnsupported` with `waitingFor` 2 (`v5.md` §7.3). Held sends stay encoded bytes: the tag is computed at send and
+v5-integrity.md:239	`v5.md` -> `messagesUnhandled`	- **`build.varyOffsets` default, derived.** At the busy model's 70 upstream messages a second (`v5.md` §4.1) with 3
+v5-integrity.md:254	`v5.md` -> `messagesUnhandled`	`case`, because their action (dropped against delivered) and their fix differ (the splitting rule of `v5.md`
+v5-integrity.md:277	`v5.md` -> `messagesUnhandled`	definition that has one, throws `trapHandlerMisplaced` at the caller. Its messages are dropped after `limit` (`v5.md` §6.1),
+v5-integrity.md:315	`v5.md` -> `messagesUnhandled`	`[generation-methods M15a]`. The hard constraint: the shared schema module replicates to every client (`v5.md`
+v5-integrity.md:327	`v5.md` -> `messagesUnhandled`	- A Studio-only line naming a fired trap (R40) is not added: the console line for `trapMessageReceived` (`v5.md` §7.4)
+v5-integrity.md:333	`v5.md` -> `messagesUnhandled`	at most `callerProbe.maxProbesPerSecond` probes a second (a bucket of that rate and capacity, `v5.md` §5.4's rule).
+v5-integrity.md:360	`v5.md` -> `messagesUnhandled`	not on its definition's list sets the upstream header bit `caller` to 1 (`v5.md` §4.1; 0 in untagged frames). The
+v5-integrity.md:361	`v5.md` -> `messagesUnhandled`	bit is also the high bit of the tag input's lane byte (`v5.md` §4.5), so it is covered at every `tag.coverBytes`,
+v5-integrity.md:364	`v5.md` -> `messagesUnhandled`	extra hash (`v5.md` §4.5, which decides where the bit travels). An accepted frame with `caller` 1 is delivered
+v5-integrity.md:367	`v5.md` -> `messagesUnhandled`	- **`REPORT`** (control type 5, up; field layout `v5.md` §4.6): `probes`, `identityMismatches`, `outerFramesMissing`,
+v5-integrity.md:367	`probes` -> `clientCount`, `clientProbes`	- **`REPORT`** (control type 5, up; field layout `v5.md` §4.6): `probes`, `identityMismatches`, `outerFramesMissing`,
+v5-integrity.md:372	`v5.md` -> `messagesUnhandled`	`listenerCallerMismatches` or `selfCheckMismatches` is pending reliable data for `v5.md` §5.1's flush rule;
+v5-integrity.md:373	`probes` -> `clientCount`, `clientProbes`	`probes` alone makes nothing pending `[refusals-rejudged-2 R26]`. The server reports
+v5-integrity.md:385	`v5.md` -> `messagesUnhandled`	(§5) (`v5.md` §4.5). A tag keyed by each caller's source and checked against a server-only list is refused: its
+v5-integrity.md:392	`v5.md` -> `messagesUnhandled`	fixed point by the same rule (§3). Wire: the caller bit, 0 or 1 B per upstream frame (`v5.md` §4.1). `REPORT`: a
+v5-integrity.md:394	`v5.md` -> `messagesUnhandled`	for all six counts at 60 with a self-check failure at item 202, case 3 (`v5.md` §4.6's formula, 2⌊log2(c + 1)⌋ + 1
+v5-integrity.md:395	`probes` -> `clientCount`, `clientProbes`	bits per field value c; `probes/design-3.6/golden_wire.luau`, SIZES); `probes` grows between reports, so the
+v5-integrity.md:396	`probes` -> `clientCount`, `clientProbes`	size has no fixed upper bound (43 bits for `probes` alone after 10 h at 60 probes a second); at most 60 forced
+v5-integrity.md:402	`v5.md` -> `messagesUnhandled`	| `callerProbe.callsPerProbe` | integer | calls per probe | 0 (off) or 1–255 | 1 (below) | one draw per call; u8 in the connection's first `WELCOME` (
+v5-integrity.md:408	`v5.md` -> `messagesUnhandled`	probe per automatic flush at the client's 60 flushes a second (`v5.md` §4.9).
+v5-integrity.md:409	`callerProbe.splitFrames` -> retired	- `callerProbe.splitFrames` (the unlisted calls' messages in a frame of their own) is not adopted: it breaks
+v5-integrity.md:410	`v5.md` -> `messagesUnhandled`	`v5.md` §4.1's one reliable frame per player per flush, on which the reliable frame budget and the bound on forced
+v5-integrity.md:412	`v5.md` -> `messagesUnhandled`	twice the default `inbound.reliable.frames` of 60, and lose the excess as `inboundFramesExceeded` (`v5.md` §7.5).
+v5-integrity.md:424	`v5.md` -> `messagesUnhandled`	- **Refused frames.** The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it
+v5-integrity.md:425	`v5.md` -> `messagesUnhandled`	refuses is counted (`framesMalformed`, `v5.md` §7.4). It prices **signal** injectors of non-canonical frames into
+v5-integrity.md:431	`v5.md` -> `messagesUnhandled`	never in a helper, which `-O2` could inline. That function is the default `transport`'s (`v5.md` §8): with a
+v5-integrity.md:481	`v5.md` -> `messagesUnhandled`	`selfCheckItem` 202, `selfCheckCase` 3; 2⌊log2(c + 1)⌋ + 1 bits each, `v5.md` §4.6). Shard: four values per
+v5-integrity.md:486	`v5.md` -> `messagesUnhandled`	| `report.checkListenerCaller` | boolean | — | — | `true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line r
+v5-integrity.md:487	`v5.md` -> `messagesUnhandled`	| `report.runSelfCheck` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; u1 in the connection's first `WELCOME` 
+v5-integrity.md:499	`v5.md` -> `messagesUnhandled`	`v5.md` §5.1's flush rule; with a pending `REPORT` it shares the frame `[clock-facts, BEACON gap]`. Without forcing, a client
+v5-integrity.md:502	`v5.md` -> `messagesUnhandled`	- **Server estimator, per player** `[clock-facts §U3.2]` (constants: `v5.md` §4.9):
+v5-integrity.md:527	`v5.md` -> `messagesUnhandled`	`v5.md` §7.4.
+v5-integrity.md:550	`v5.md` -> `messagesUnhandled`	with the tag, 11 B with a `REPORT` (`v5.md` §4.6); riding another frame, 20 bits of chunk plus 2–4 bits of toc;
+v5-integrity.md:569	`v5.md` -> `messagesUnhandled`	fields of the server's request result (`v5.md` §5.2) for the same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
+v5-integrity.md:573	`v5.md` -> `messagesUnhandled`	- **Clock and origin:** `v5.md` §7.3's rule for every duration below: server `os.clock()`; t_s the flush that
+v5-integrity.md:575	`Lync.challenge` -> `argumentOutOfRange`	for a challenge the server's first flush step after the `Lync.challenge` call, whether or not it passes a frame
+v5-integrity.md:583	`reactsTo` -> `argumentOutOfRange`	- **`pingFraction` default, chosen.** The options `answerTiming.pingFraction` (§7.2, §7.4) and `reactsTo`'s
+v5-integrity.md:586	`v5.md` -> `messagesUnhandled`	`[clock-facts §U4.3]`: an unmodified automatic answer's `roundTripSeconds` / ping is 0.97 at p1 on `v5.md` §9's default
+v5-integrity.md:598	`v5.md` -> `messagesUnhandled`	(§10); its `roundTripSeconds` and `minPingSeconds` are the result's fields for that answer (`v5.md` §5.2).
+v5-integrity.md:609	`reactsTo` -> `argumentOutOfRange`	### 7.3 Reactions (`reactsTo`)
+v5-integrity.md:613	`v5.md` -> `messagesUnhandled`	handles, `v5.md` §3.4). The
+v5-integrity.md:622	`v5.md` -> `messagesUnhandled`	a key field whose codec differs from the stimulus's by `v5.md` §3.3's codec equality, `keyCodecMismatch`; and
+v5-integrity.md:623	`v5.md` -> `messagesUnhandled`	the run-time option codes of `v5.md` §7.1: an unknown option key, `callOptionUnknown`; a value of another type,
+v5-integrity.md:628	`v5.md` -> `messagesUnhandled`	candidate (an event outside the ring, a record no longer live) counts `reactionsUnmatched` (`v5.md` §7.4) and
+v5-integrity.md:631	`v5.md` -> `messagesUnhandled`	frames received mod 256, extended by the server against its own count (`v5.md` §4.1). It is client-stated: a
+v5-integrity.md:644	`v5.md` -> `messagesUnhandled`	- **Pipeline:** `v5.md` §6.1 step 5's report-only checks, after `limit`. Stimuli are recorded in the flush that
+v5-integrity.md:651	`v5.md` -> `messagesUnhandled`	- **Simulated** on `v5.md` §9's default network `[server-facts §U10.6]`: with b at or below the true path the
+v5-integrity.md:661	`v5.md` -> `messagesUnhandled`	`inbound.reliable.frames` of 60 (`v5.md` §7.5).
+v5-integrity.md:663	`reactsTo` -> `argumentOutOfRange`	| Option (`reactsTo`) | Type | Unit | Range | Default | Cost |
+v5-integrity.md:685	`v5.md` -> `messagesUnhandled`	a type error). Several definitions may declare one. A message's answer is read in `v5.md` §6.1 step 5's
+v5-integrity.md:691	`v5.md` -> `messagesUnhandled`	options throw the run-time option codes of `v5.md` §7.1 at the caller: an unknown key `callOptionUnknown` (which
+v5-integrity.md:697	`extend(seconds)` -> `argumentOutOfRange`	`extend(seconds)`, which moves the deadline later while open (seconds 1–3600, `deadlineSeconds` plus extensions
+v5-integrity.md:700	`Lync.challenge` -> `argumentOutOfRange`	- **Timing.** t_s is the server's first flush step after the `Lync.challenge` call, whether or not it passes a
+v5-integrity.md:703	`Lync.challenge` -> `argumentOutOfRange`	(plus extensions) in `os.clock()`, swept once per flush. The docs recipe calls `Lync.challenge` in the code that
+v5-integrity.md:713	`attempts` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| `attempts` | integer | values received while open, the closing one included |
+v5-integrity.md:747	`Lync.challenge` -> `argumentOutOfRange`	| Option (`Lync.challenge`) | Type | Unit | Range | Default | Cost |
+v5-integrity.md:759	`v5.md` -> `messagesUnhandled`	logic never look `[generation-methods M15b]`. The behaviour runs by `v5.md` §6.1's callback rule: a throw is `decoyBehaviorRaised`, a yield `decoyBeha
+v5-integrity.md:763	`valueRefused` -> `argumentOutOfRange`	- a record a codec refuses, `valueRefused`;
+v5-integrity.md:784	`v5.md` -> `messagesUnhandled`	`rewind` (a runtime constant, `v5.md` §4.9). `decoyKeyReceived`, `decoyInteractionReported` and rewind
+v5-integrity.md:787	`v5.md` -> `messagesUnhandled`	that a field holds keys of collection `c`: a top-level field whose codec equals `c`'s key codec by `v5.md` §3.3's
+v5-integrity.md:791	`reportInteraction` -> `argumentOutOfRange`	occurrence per matching element. Keys deeper in a payload are reported through `reportInteraction`.
+v5-integrity.md:792	`rewound` -> `tickOutOfRange`	- **Rewind.** Per-viewer decoy rings, the decoy behaviour of `rewound`, `rewoundSpan` and `at`, and
+v5-integrity.md:795	`key` -> frameKey (telemetry only)	the game resolved an interaction of `player` with `key`; `gameKind` is the game's integer 0–255 (otherwise
+v5-integrity.md:818	`reportInteraction` -> `argumentOutOfRange`	doesn't raycast the world first; (6) server-selected interactions passed to `reportInteraction`; (7) game code
+v5-integrity.md:822	`v5.md` -> `messagesUnhandled`	resume (`v5.md` §6.1); re-encode, rings and `heldKeys` as `v5-collections.md` §8.6 and §12.6 state;
+v5-integrity.md:823	`reportInteraction` -> `argumentOutOfRange`	`reportInteraction` 24–36 ns for a real key, 44–54 ns for a decoy; history one map update per decoy add and
+v5-integrity.md:832	`reportInteraction` -> `argumentOutOfRange`	| `gameKind` (argument of `reportInteraction`) | integer | — | 0–255 | required | none; evidence only |
+v5-integrity.md:838	`v5.md` -> `messagesUnhandled`	`fieldCodecUnsupported`). A field marked `:intern` (`v5.md` §3.3, §4.11) throws `canaryInternMisplaced` at the
+v5-integrity.md:845	`v5.md` -> `messagesUnhandled`	`v5.md` §6.1's callback rule; a throw (`canaryFormatRaised`), a yield (`canaryFormatYielded`) or a value without
+v5-integrity.md:855	`v5.md` -> `messagesUnhandled`	The bit section of a state chunk is the same for every viewer (strings and buffers live in the tail, `v5.md`
+v5-integrity.md:876	`v5.md` -> `messagesUnhandled`	8,192 + 16,384 B/s (`v5.md` §7.5); the bitset 8 KB per server; the map and bitsets 47 KB for 100 players × 1024
+v5-integrity.md:895	`v5.md` -> `messagesUnhandled`	console lines are `v5.md` §7.3's; a fact's `definition` is named where a row says so.
+v5-integrity.md:904	`reactsTo` -> `argumentOutOfRange`	| `reactionBeforeStimulus` | for a message of a definition with `reactsTo`, §7.3's trigger 2; `definition` is the response's | delivered | `byReceipt`
+v5-integrity.md:904	`v5.md` -> `messagesUnhandled`	| `reactionBeforeStimulus` | for a message of a definition with `reactsTo`, §7.3's trigger 2; `definition` is the response's | delivered | `byReceipt`
+v5-integrity.md:905	`reactsTo` -> `argumentOutOfRange`	| `reactionBelowFloor` | for a message of a definition with `reactsTo`, §7.3's trigger 3; `definition` is the response's | delivered | `elapsedSeconds
+v5-integrity.md:906	`reactsTo` -> `argumentOutOfRange`	| `reactionStimulusMissing` | for a message of a definition with `reactsTo` on a collection, §7.3's trigger 1; `definition` is the response's | delive
+v5-integrity.md:908	`probes` -> `clientCount`, `clientProbes`	| `clientIdentityMismatch` | a `REPORT` with `identityMismatches` > 0 | none | `clientCount` (that count), `clientProbes` (`probes`) | Lync called fro
+v5-integrity.md:909	`probes` -> `clientCount`, `clientProbes`	| `clientOuterFrameMissing` | a `REPORT` with `outerFramesMissing` > 0 | none | `clientCount` (that count), `clientProbes` (`probes`) | a call started
+v5-integrity.md:915	`tagMismatch` -> `expectedCount`	| `tagVariantMismatch` | a tagged upstream frame that fails under the player's assigned mask at every candidate, and whose tag XOR the keyed hash at o
+v5-integrity.md:915	`tagMismatch` -> `expectedCount`	| `tagVariantMismatch` | a tagged upstream frame that fails under the player's assigned mask at every candidate, and whose tag XOR the keyed hash at o
+v5-integrity.md:915	`v5.md` -> `messagesUnhandled`	| `tagVariantMismatch` | a tagged upstream frame that fails under the player's assigned mask at every candidate, and whose tag XOR the keyed hash at o
+v5-integrity.md:915	`tagMismatch` -> `expectedCount`	| `tagVariantMismatch` | a tagged upstream frame that fails under the player's assigned mask at every candidate, and whose tag XOR the keyed hash at o
+v5-integrity.md:918	`key` -> frameKey (telemetry only)	| `decoyInteractionReported` | game code calls `Net.c:reportInteraction(player, key, gameKind)` with `key` in `player`'s decoy history for `c`; `defin
+v5-integrity.md:918	`rewound` -> `tickOutOfRange`	| `decoyInteractionReported` | game code calls `Net.c:reportInteraction(player, key, gameKind)` with `key` in `player`'s decoy history for `c`; `defin
+v5-integrity.md:939	`v5.md` -> `messagesUnhandled`	Each has the default or assumption the design uses until it is measured (`v5.md` principle 8); `v5.md` §10 lists
+v5-integrity.md:939	`v5.md` -> `messagesUnhandled`	Each has the default or assumption the design uses until it is measured (`v5.md` principle 8); `v5.md` §10 lists
+v5-collections.md:3	`v5.md` -> `messagesUnhandled`	Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); this file specifies milestone 4: collections, and with them
+v5-collections.md:7	`v5.md` -> `messagesUnhandled`	column blocks, extended sequences, the ack) are defined in `v5.md` §4. Build-time keys (`[[pvs]]`, `[[staged]]`,
+v5-collections.md:12	`key` -> frameKey (telemetry only)	A collection replicates keyed records (or one singleton record, with no `key`) from the server to clients. Each
+v5-collections.md:73	`v5.md` -> `messagesUnhandled`	across a rate change (`v5.md` §4.1, §4.6).
+v5-collections.md:94	`v5.md` -> `messagesUnhandled`	`gate(fn)` (`Net.c.fields[path]`, `v5.md` §3.4) are in §8, §9 and §12.
+v5-collections.md:114	`v5.md` -> `messagesUnhandled`	like the others (`v5.md` §4.5). `gen` is §2's generation; `seg` is §11.3's cut bit. The wire unit owns the bit
+v5-collections.md:115	`v5.md` -> `messagesUnhandled`	positions in `v5.md` §4; this grammar states what each chunk carries.
+v5-collections.md:123	`v5.md` -> `messagesUnhandled`	- **Column coding** applies to kind 0 adds and updates of `columnMinRows` or more rows (`v5.md` §4.3). Add columns
+v5-collections.md:132	`v5.md` -> `messagesUnhandled`	copies of the selected pieces). Removes go in remove chunks after runs (`v5.md` §4.1); a viewer may get a shared
+v5-collections.md:187	`v5.md` -> `messagesUnhandled`	`sealed` and present with `false` when omitted, since the client predicts with the same rule, `v5.md` §4.7). It
+v5-collections.md:205	`v5.md` -> `messagesUnhandled`	- **Prediction, per leaf** on its code interval of n codes (`v5.md` §4.3):
+v5-collections.md:230	`v5.md` -> `messagesUnhandled`	Columns use `v5.md` §4.3's four modes with the reference encoder's full search; a column over zero rows writes
+v5-collections.md:247	`v5.md` -> `messagesUnhandled`	H − 1, nb = 2, or nb = 3 without a linear leaf refuses the frame (a canonical decode rule, `v5.md` §4.8; counted in
+v5-collections.md:279	`v5.md` -> `messagesUnhandled`	(one viewer, default budget, `v5.md` §9's network):
+v5-collections.md:304	`v5.md` -> `messagesUnhandled`	- Rows travel only in state frames, whose seq counts that viewer's state frames (`v5.md` §4.4). Per viewer, a ring
+v5-collections.md:308	`v5.md` -> `messagesUnhandled`	- The client applies a record's row under §2's acceptance rule; both seqs are extended sequences (`v5.md` §4.4), so
+v5-collections.md:336	`v5.md` -> `messagesUnhandled`	1. A record pending for longer than `state.maxPendingSeconds` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen:
+v5-collections.md:351	`v5.md` -> `messagesUnhandled`	pending record) per tick (one runner resume each, `v5.md` §6.1's callback rule, §8.7). Each step compares the FIFO
+v5-collections.md:378	`v5.md` -> `messagesUnhandled`	`v5.md` §7.1's run-time set: an unknown option throws `callOptionUnknown`, a missing required one
+v5-collections.md:380	`v5.md` -> `messagesUnhandled`	`position` is a path string typed as the union of the record's eligible fields (`v5.md` §3.4's rule for options
+v5-collections.md:530	`v5.md` -> `messagesUnhandled`	(`v5.md` §4.3); reusing the shared chunk's k leaves non-minimal encodings (+4 B at 16 decoys, +152 B at 256), a
+v5-collections.md:540	`v5.md` -> `messagesUnhandled`	`v5.md` §6.1's callback rule, the one rule for every game callback Lync runs: a reused runner thread per call site,
+v5-collections.md:544	`v5.md` -> `messagesUnhandled`	is reported natively (spacing of `v5.md` §7.2) and gives the call its fallback at once, in the same tick:
+v5-collections.md:553	`v5.md` -> `messagesUnhandled`	- **Cost.** One runner resume per call, `v5.md` §6.1's figure (about 73 ns over `xpcall`, CLI interpreted; native
+v5-collections.md:579	`v5.md` -> `messagesUnhandled`	`visibilityModifierMisplaced` (`v5.md` §3.3). Rows are one fixed-width piece per record per tick (§5), so a
+v5-collections.md:582	`v5.md` -> `messagesUnhandled`	1 owner, 2 team, 3 gated; `v5.md` §4.7).
+v5-collections.md:585	`key` -> frameKey (telemetry only)	It must read only `key` and `record`; anything else it reads (a player's `Team`, a seat's occupant, a round state)
+v5-collections.md:631	`v5.md` -> `messagesUnhandled`	solvers and in TypeScript (`v5.md` §3.4); untyped, a field whose codec is neither the collection's `key` codec nor
+v5-collections.md:631	`key` -> frameKey (telemetry only)	solvers and in TypeScript (`v5.md` §3.4); untyped, a field whose codec is neither the collection's `key` codec nor
+v5-collections.md:632	`v5.md` -> `messagesUnhandled`	`t.optional` of it, by `v5.md` §3.3's codec equality, throws `keyCodecMismatch` (as `refers` does), and an unknown path
+v5-collections.md:636	`v5.md` -> `messagesUnhandled`	`v5.md` §4.1. With `about` on several fields of one definition, a viewer must hold every named record. A nil field
+v5-collections.md:640	`v5.md` -> `messagesUnhandled`	- **Order.** For a reliable event: state chunks precede runs in every reliable frame (`v5.md` §4.1), so a viewer
+v5-collections.md:648	`v5.md` -> `messagesUnhandled`	(`v5.md` §4.2); the bytes are unchanged.
+v5-collections.md:675	`v5.md` -> `messagesUnhandled`	data acks at its next flush, and an idle one when a second unacked frame arrives (`v5.md` §4.1), naming that
+v5-collections.md:681	`v5.md` -> `messagesUnhandled`	mean. 5 s is chosen, unmeasured: it is the beacon estimator's window (`v5.md` §4.9); a longer one reacts more
+v5-collections.md:686	`v5.md` -> `messagesUnhandled`	`Lync.configure` options (`v5.md` §7.5):
+v5-collections.md:694	`v5.md` -> `messagesUnhandled`	`interpolation.minDelaySeconds`) / 4 ms⌉ units, computed exactly in integers as `v5.md` §4.6 states and sent in
+v5-collections.md:698	`v5.md` -> `messagesUnhandled`	message from its frame's receipt, when exact (`v5.md` §4.1, §4.6; §12.3). Cost: at most one `RATE` row (78 bits of
+v5-collections.md:778	`v5.md` -> `messagesUnhandled`	variable width in `v5.md` §3.3, the set `:newest()` and §15.2 exclude; an instance's code is also an index into one
+v5-collections.md:779	`v5.md` -> `messagesUnhandled`	frame's list, `v5.md` §4.2, so a slot would hold a position in a frame long gone, not an instance) or that has a
+v5-collections.md:784	`v5.md` -> `messagesUnhandled`	| `fields` | array of top-level field path strings, typed as the union of the record's fields it accepts (`v5.md` §3.4) | — | — | every `:newest()` fi
+v5-collections.md:786	`mode` -> `rewind`	| `mode` | `"received" \| "everyTick"` | — | — | `"received"` (derived: equal to `"everyTick"` when the viewer got every row, and `"everyTick"` is off
+v5-collections.md:812	`v5.md` -> `messagesUnhandled`	only the first frame of a flush carries a full ack (`v5.md` §4.1): with `'0'` the server would use the newest ack
+v5-collections.md:817	`v5.md` -> `messagesUnhandled`	receipt `rcv` (`v5.md` §4.1) for reliable ones**.
+v5-collections.md:828	`rewound` -> `tickOutOfRange`	received from Lync, s is none: `ackSeq` is −1 and every `rewound` gives `"ackMissing"`;
+v5-collections.md:832	`v5.md` -> `messagesUnhandled`	`Lync.configure` option (`v5.md` §7.5), since it bounds a per-player estimate, not a collection's property:
+v5-collections.md:840	`v5.md` -> `messagesUnhandled`	`v5.md` §4.1's extension marks that receipt exact (fewer than 256 reliable frames sent since the lane's previous
+v5-collections.md:850	`rewound` -> `tickOutOfRange`	- **Per collection** (in each `rewound` result), with D = the collection's `interpolationDelaySeconds` option, else
+v5-collections.md:905	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	(`within` references, `derive`'s `fn`) and validators run at step 6 of `v5.md` §6.1, before the handler, and a
+v5-collections.md:905	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	(`within` references, `derive`'s `fn`) and validators run at step 6 of `v5.md` §6.1, before the handler, and a
+v5-collections.md:905	`v5.md` -> `messagesUnhandled`	(`within` references, `derive`'s `fn`) and validators run at step 6 of `v5.md` §6.1, before the handler, and a
+v5-collections.md:917	`v5.md` -> `messagesUnhandled`	extrapolated from one). Or `{ ok: false, error }`, the one error model of `v5.md` §3.5:
+v5-collections.md:944	`rewound` -> `tickOutOfRange`	- no decoy flag on results and no fact from `rewound`: the game's hit test runs as for any record, and a hit it
+v5-collections.md:945	`reportInteraction` -> `argumentOutOfRange`	finds is stated through `reportInteraction` (`v5-integrity.md` §8).
+v5-collections.md:1057	`v5.md` -> `messagesUnhandled`	so the server assigns its index (`v5.md` §4.6);
+v5-collections.md:1063	`v5.md` -> `messagesUnhandled`	`methodSideMismatch` (`v5.md` §3.5). A server view already in use is accepted: the call then only replicates the
+v5-collections.md:1067	`v5.md` -> `messagesUnhandled`	meanwhile in the join hold (32,768 B, `v5.md` §5.3); one more schema module per staged feature.
+v5-collections.md:1076	`v5.md` -> `messagesUnhandled`	**Codes raised here** (registered in `v5.md` §7.1; names follow `reviews/v5-3.6-naming.md`):
+v5-collections.md:1085	`v5.md` -> `messagesUnhandled`	| `keyCodecMismatch` | caller | on the untyped path, a handle given to `about` whose codec is neither the collection's key codec nor `t.optional` of i
+v5-collections.md:1097	`v5.md` -> `messagesUnhandled`	Option errors are `v5.md` §7.1's run-time set, `callOptionUnknown`, `callOptionMissing`, `callOptionOutOfRange`,
+v5-collections.md:1103	`v5.md` -> `messagesUnhandled`	**Counters** (`Lync.counters`, `v5.md` §7.4; `<field>.<namespace>.<collection>`, and per viewer with `player`). The
+v5-collections.md:1120	`v5.md` -> `messagesUnhandled`	**Constants** (`v5.md` §4.9's rule: none is a knob):
+v5-collections.md:1143	`v5.md` -> `messagesUnhandled`	`rewind.roundTripSlackSeconds` (§12.3), all in `Lync.configure` (`v5.md` §7.5).
+v5-collections.md:1154	`v5.md` -> `messagesUnhandled`	unreliable `seq` (`v5.md` §4.4), named as the index in draft 3.5's scope, counts frames: a flush may send several
+v5-collections.md:1155	`v5.md` -> `messagesUnhandled`	(split at 1000 B) or none, and the flush accumulator runs 29.1 steps a second at 30 FPS (`v5.md` §5.1).
+v5-collections.md:1159	`v5.md` -> `messagesUnhandled`	already uses to extend `tick:u8` (`v5.md` §4.1): one index per tick of `state.ticksPerSecond`.
+v5-collections.md:1164	`v5.md` -> `messagesUnhandled`	lane unreliable, `v5.md` §4.7; kind 4 is the string table), in the namespace's up id space. `data` must have a fixed
+v5-collections.md:1166	`v5.md` -> `messagesUnhandled`	codecs: each has a variable width in `v5.md` §3.3), else the declaration error `streamCodecUnsupported`: copies are
+v5-collections.md:1168	`v5.md` -> `messagesUnhandled`	instance list (`v5.md` §4.2), so `same`, `ref` and the redundant-copy comparison (§15.6) would compare positions in
+v5-collections.md:1172	`v5.md` -> `messagesUnhandled`	- **Roles.** `:claim()` and `:input()` may mark leaves of a stream's `data`, as of any client-sent payload (`v5.md`
+v5-collections.md:1221	`v5.md` -> `messagesUnhandled`	server's state tick at decode (`v5.md` §4.4's rule). Before allocating, the decoder counts the new indices of
+v5-collections.md:1223	`v5.md` -> `messagesUnhandled`	each at the stream's decode-unit weight (`v5.md` §4.8; §15.7). It parses every copy, stores the new ones with
+v5-collections.md:1234	`v5.md` -> `messagesUnhandled`	- **Steps 5–7 per index at playout** (`v5.md` §6.1): checks, the validator and delivery run per index, in index
+v5-collections.md:1235	`v5.md` -> `messagesUnhandled`	order, each check function and the validator by `v5.md` §6.1's callback rule. `Lync.perception(player)` there
+v5-collections.md:1241	`v5.md` -> `messagesUnhandled`	- **Claims.** The claim requirement (`v5.md` §3.3) is not a step and runs once, at `connect`: `connect` on a stream
+v5-collections.md:1263	`state.budget` -> state.bytesPerSecond	and 60 B/s at 60 Hz with one state frame a tick, 0.13–0.38% of the default `state.budget`, and only on state
+v5-collections.md:1274	`v5.md` -> `messagesUnhandled`	(`v5.md` §4.5) drops duplicated frames before decode; a rekey is loss for one round trip.
+v5-collections.md:1287	`v5.md` -> `messagesUnhandled`	- **Malformed** (`v5.md` §4.8): a stream chunk with count > 33, `back` > 63, or two chunks of one stream in one
+v5-collections.md:1308	`v5.md` -> `messagesUnhandled`	| each redundant copy | no bucket; a bounded parse term | parsed and compared, never allocated, at most 33 per stream per frame (rule 2): per player ≤
+v5-collections.md:1310	`v5.md` -> `messagesUnhandled`	- Charging a redundant copy at its index's weight would price it at p(6) = 2,798 ns, 28 units (`v5.md` §7.5), for
+v5-collections.md:1333	`v5.md` -> `messagesUnhandled`	| `in`, `first` | u12 each | the sequences' extension rule (`v5.md` §4.4) |
+v5-collections.md:1343	`v5.md` -> `messagesUnhandled`	- The cost of `v5.md` §6.1's runner (one resume per call) native and on a Roblox server, per collection callback
+v5-checks.md:3	`v5.md` -> `messagesUnhandled`	Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-3.6-changes-checks.md`.
+v5-checks.md:5	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **checks** (§1–§6): `within`, `monotonic`, `maxTotal`, `derive` and `maxRate`, declared on the server view;
+v5-checks.md:14	`v5.md` -> `messagesUnhandled`	lint in milestone 3, and the rest in milestone 7 (`v5.md` §10). Codes, counters and options this file adds are
+v5-checks.md:17	`v5.md` -> `messagesUnhandled`	Every part follows `v5.md` §0: Lync reports facts with exact triggers and numeric evidence, and never rewrites a
+v5-checks.md:19	`v5.md` -> `messagesUnhandled`	a check with `policy = "drop"`, as `limit` and traps already do (`v5.md` §6.1). Every bound is the developer's
+v5-checks.md:32	`v5.md` -> `messagesUnhandled`	server shard is never replicated (`v5.md` §3.5), so a modified client can't read a tolerance and use exactly all of
+v5-checks.md:33	`v5.md` -> `messagesUnhandled`	it. Checks change no bytes, so they stay out of the schema hash (`v5.md` §4.7) and a retune needs no client
+v5-checks.md:38	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	`Net.<definition>.fields[path]:<check>(options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`,
+v5-checks.md:40	`v5.md` -> `messagesUnhandled`	- **`fields`** is `v5.md` §3.4's table of field handles: a key is a path of `data` through records and optionals,
+v5-checks.md:46	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	each one non-overloaded method, so options such as `derive`'s `fn` are typed by the field and a check the codec
+v5-checks.md:47	`v5.md` -> `messagesUnhandled`	doesn't take is a type error (`v5.md` §3.4). Exact on both solvers on the generated path; on the runtime path
+v5-checks.md:48	`v5.md` -> `messagesUnhandled`	exact under the new solver only, as every runtime-path type is (`v5.md` §3.2); under tsc the `fields` type is exact
+v5-checks.md:49	`v5.md` -> `messagesUnhandled`	and the per-codec interfaces are unverified (`v5.md` §3.6).
+v5-checks.md:59	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	option and as a `within` reference (§6.3); `exempt` is `resetChecks`' `exemptSeconds` (§1.6); `cooldown` stays
+v5-checks.md:76	`v5.md` -> `messagesUnhandled`	refusal gives (`v5.md` §5.2). The drop is the developer's declared rule, as `limit` is.
+v5-checks.md:89	`v5.md` -> `messagesUnhandled`	`v5.md` §6.1's steps 5–7 run as follows:
+v5-checks.md:97	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	(§1.5). A game function a check calls (`within`'s `reference`, `derive`'s `fn`) runs by `v5.md` §6.1's
+v5-checks.md:97	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	(§1.5). A game function a check calls (`within`'s `reference`, `derive`'s `fn`) runs by `v5.md` §6.1's
+v5-checks.md:97	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	(§1.5). A game function a check calls (`within`'s `reference`, `derive`'s `fn`) runs by `v5.md` §6.1's
+v5-checks.md:97	`v5.md` -> `messagesUnhandled`	(§1.5). A game function a check calls (`within`'s `reference`, `derive`'s `fn`) runs by `v5.md` §6.1's
+v5-checks.md:104	`v5.md` -> `messagesUnhandled`	4. **Commit**, for every message that passes step 6 (*accepted*, `v5.md` §3.5), whether or not a handler then
+v5-checks.md:120	`v5.md` -> `messagesUnhandled`	One code per check, by the splitting rule of `v5.md` §7.3 (`reviews/v5-3.6-naming.md` §11.2: a trigger gets its own
+v5-checks.md:127	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| `withinExceeded` | a `within` check fails (§2.2) | none | §2.4 |
+v5-checks.md:151	`v5.md` -> `messagesUnhandled`	- **Decision: one window per check** (review M2). Problem: `v5.md` §7.3 keys a window by (player, code, namespace,
+v5-checks.md:152	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	definition), so two checks of one code on one definition (two `within`s on two fields) coalesce and the closing
+v5-checks.md:170	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	that keeps state (`monotonic`, `maxTotal`, `maxRate`), since only state needs reseeding: `within` and `derive`
+v5-checks.md:178	`v5.md` -> `messagesUnhandled`	formula for `exemptSeconds` after a server-applied move on `v5.md` §9's model: the client keeps sending old
+v5-checks.md:180	`limit.slack` -> limit.slackSeconds	a client frame and a server step of 1/60 s each, 0.19 s; on the reliable lane add the definition's `limit.slack`
+v5-checks.md:181	`v5.md` -> `messagesUnhandled`	(2 s by default, `v5.md` §3.4). The game knows its own ping (`GetNetworkPing`).
+v5-checks.md:190	`v5.md` -> `messagesUnhandled`	- **The rule is `v5.md` §6.1's callback rule,** the one rule for every game function whose result Lync needs before
+v5-checks.md:197	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	- **For a check's `reference` or `fn`:**
+v5-checks.md:197	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	- **For a check's `reference` or `fn`:**
+v5-checks.md:205	`v5.md` -> `messagesUnhandled`	`checkFunctionsYielded` counter rises by one (`v5.md` §7.4). Native reports are spaced per (code, definition) per
+v5-checks.md:213	`v5.md` -> `messagesUnhandled`	throw or yield; native and Roblox's build are unmeasured (§11). `v5.md` §6.1 cites these figures.
+v5-checks.md:215	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	message from `player`: a `reference` or `fn`, the validator, and the handler before its first yield. It returns a
+v5-checks.md:215	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	message from `player`: a `reference` or `fn`, the validator, and the handler before its first yield. It returns a
+v5-checks.md:218	`rewound` -> `tickOutOfRange`	rewinds reads P from the collection's `rewound` result, whose `tick` is P:
+v5-checks.md:221	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	## 2. `within`
+v5-checks.md:241	`v5.md` -> `messagesUnhandled`	fails; a negative m fails every value. Decoded values are never NaN (`v5.md` §3.3).
+v5-checks.md:256	`v5.md` -> `messagesUnhandled`	to 0.02 s + one client flush 1/60 s + one server step 1/60 s) ≈ 0.10 s on the default network (derived, `v5.md`
+v5-checks.md:258	`v5.md` -> `messagesUnhandled`	reliable-lane stall (the simulated p99, `v5.md` §5.4). For physics the client owns, the engine's replication
+v5-checks.md:264	`v5.md` -> `messagesUnhandled`	`t.angle`, the octahedral error for `t.direction` (0.2369° at 10 bits; `v5.md` §3.3).
+v5-checks.md:275	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	| `reference` | `(Player, Data) -> (R?, number?)`; R is `number` for scalars and `t.angle`, `Vector3` for vectors and `t.direction` | — | — | required
+v5-checks.md:290	`v5.md` -> `messagesUnhandled`	this connection before this one, counting from 0 (the wire unit defines the count, `v5.md` §4.5); on the
+v5-checks.md:291	`v5.md` -> `messagesUnhandled`	unreliable lane, the frame's extended upstream seq (`v5.md` §4.4); on a stream, the index, which is delivered in
+v5-checks.md:293	`v5.md` -> `messagesUnhandled`	frame are in call order (`v5.md` §4.1), so they share a key and are compared in order.
+v5-checks.md:294	`v5.md` -> `messagesUnhandled`	- **Why not the tag count** (review B1, checked by the reviewer's probe): `REKEY` restarts the tag count at 0 (`v5.md`
+v5-checks.md:313	`v5.md` -> `messagesUnhandled`	**Why the key** (`checks-telemetry/monotonic_reorder.out`): on `v5.md` §9's default network, 1.31–1.33% of
+v5-checks.md:315	`v5.md` -> `messagesUnhandled`	fails on each of them, 23.6% of frames at 0.05 s jitter; the keyed rule fails on none, as `v5.md` §9 requires.
+v5-checks.md:322	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **Defeated by** any rising value, a jump far ahead included. A client-stated time also needs `within` against
+v5-checks.md:378	`v5.md` -> `messagesUnhandled`	must be a multiple of `step` (within `v5.md` §3.3's 1e-9 rule; otherwise `fieldCodecUnsupported`). `total` is
+v5-checks.md:449	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	(refused by M8: functions can't live in the shared schema), a docs recipe over `within` (it compares an unsnapped
+v5-checks.md:455	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	`t.direction`, is raised inside `fn`'s thread, so it is a throw (§1.7, review M4): the snap only sees finite
+v5-checks.md:457	`v5.md` -> `messagesUnhandled`	2. **Snap:** r goes through the field codec's own quantizer, the one the encoder applies (`v5.md` §3.3):
+v5-checks.md:465	`v5.md` -> `messagesUnhandled`	at declaration, to an integer K by `v5.md` §3.3's 1e-9 rule: ⌊tolerance/step⌋ for `t.number` (1 for `t.int`),
+v5-checks.md:487	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **Doesn't protect** the inputs, which are client-chosen and need their own checks (`within`, `limit`, `rewind`).
+v5-checks.md:498	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	2. **A different algorithm:** per-frame integration on the client against a closed form in `fn`, after 1 s of flight
+v5-checks.md:503	`v5.md` -> `messagesUnhandled`	`Net.<def>:asDecoded(data)` (`v5.md` §3.5).
+v5-checks.md:504	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	4. **Server state that differs from the client's,** when `fn` reads it: latency (§2.4 cause 1), parts not streamed
+v5-checks.md:507	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	(a seed, `Lync.tick()`) and check them with `within`.
+v5-checks.md:509	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	**Tolerance.** In the field's unit, as `within`'s `maxDistance`. On a grid codec, k steps pass exactly at
+v5-checks.md:514	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	between the client's algorithm and `fn` + lever arm × input quantization error + speed × latency when `fn` reads
+v5-checks.md:514	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	between the client's algorithm and `fn` + lever arm × input quantization error + speed × latency when `fn` reads
+v5-checks.md:521	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	| `fn` | `(Player, Data) -> T?`, T the field's decoded type | — | — | required | the game's own, per evaluated message, in its own runner thread (§1.7
+v5-checks.md:524	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	| `messagesPerCheck` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that
+v5-checks.md:524	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	| `messagesPerCheck` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that
+v5-checks.md:529	`v5.md` -> `messagesUnhandled`	`v5.md` §3.6).
+v5-checks.md:540	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **Why a check, not a recipe.** A `within` whose reference returns the game's last delivered value plus `perSecond` ×
+v5-checks.md:572	`v5.md` -> `messagesUnhandled`	- **Options:** (a) R35's defaults, `burst` derived from `v5.md` §9's simulated network and `windowSeconds` 10 s, chosen
+v5-checks.md:577	`v5.md` -> `messagesUnhandled`	- **The docs' derivation:** `burst` = `perSecond` × c + 2e. On `v5.md` §9's model, c = jitter range + client flush +
+v5-checks.md:578	`limit.slack` -> limit.slackSeconds	server step = 0.02 + 1/60 + 1/60 = 0.0533 s on the unreliable lane, plus the definition's `limit.slack` (2 s by
+v5-checks.md:579	`v5.md` -> `messagesUnhandled`	default, `v5.md` §3.4) on the reliable lane: 2.0533 s. e = √3 · step/2 for `t.vector3` (√2 · step/2 with `"xz"`),
+v5-checks.md:605	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	with `within`.
+v5-checks.md:606	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **`planar` on `within`** needs no option: a reference returning `Vector3.new(r.X, v.Y, r.Z)`, v being the claim,
+v5-checks.md:607	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	makes `within`'s distance the XZ distance, exactly equal in f32 arithmetic in 10^6 of 10^6 random pairs
+v5-checks.md:631	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `callOptionOutOfRange`) | `"xyz"` (the codec's own metric, as i
+v5-checks.md:637	`v5.md` -> `messagesUnhandled`	**`cooldown`** stays out: a cooldown of s seconds is `limit = { perSecond = 1/s, burst = 1 }` (`v5.md` §5.4). The
+v5-checks.md:640	`limit.slack` -> limit.slackSeconds	after the first). A stricter arrival-gap test would need the same `limit.slack`, so a second limiter would add
+v5-checks.md:647	`v5.md` -> `messagesUnhandled`	Two codec methods in the shared schema, non-generic and returning the same codec type (`v5.md` §3.3's rule):
+v5-checks.md:654	`v5.md` -> `messagesUnhandled`	and of streams (`Lync.stream`), and `reply` of `from = "server"` requests (`v5.md` §3.3). Anywhere else (server-sent
+v5-checks.md:659	`v5.md` -> `messagesUnhandled`	(`v5.md` §3.4); (b) **hashed as a wrapper codec**, type 26 `role`: role u8 (1 input, 2 claim), then the codec
+v5-checks.md:660	`v5.md` -> `messagesUnhandled`	(`v5.md` §4.7). Choice: (b): no exception, 2 B of hash input per marker, nothing at run time. A changed role gives
+v5-checks.md:677	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- **Options:** (a) only `validate` verifies (draft 3.5); (b) `validate`, or a `within`, `monotonic` or `maxTotal` on
+v5-checks.md:687	`reactsTo` -> `argumentOutOfRange`	verified only by a validator. No other declaration verifies (`refers`, `reactsTo`, `challengeAnswer`, telemetry;
+v5-checks.md:688	`v5.md` -> `messagesUnhandled`	`v5.md` §3.3). No declaration can be removed, so a leaf once verified stays verified.
+v5-checks.md:693	`v5.md` -> `messagesUnhandled`	The decision is `v5.md` §3.3's ("Decision: claims"), which the core-api unit owns; this file states what it means
+v5-checks.md:699	`v5.md` -> `messagesUnhandled`	- **Why at the handler** (`v5.md` §3.3): a drop of canonical messages for what the game forgot to declare would be
+v5-checks.md:702	`v5.md` -> `messagesUnhandled`	before a handler exists reach no handler and are counted in `messagesUnhandled` (`v5.md` §3.5).
+v5-checks.md:730	`v5.md` -> `messagesUnhandled`	- **Measured on stand-in codecs** (`checks-telemetry/lint_freeform.out`): `v5.md` §3.4's `arena` gives 2 warnings,
+v5-checks.md:740	`v5.md` -> `messagesUnhandled`	`v5.md` §3.4 and the demo inputs, 255-code sticks, enums and slot indices; above it ids, currency up to 10^6 and
+v5-checks.md:761	`v5.md` -> `messagesUnhandled`	`fields` are path strings, typed as unions of the paths it accepts (`v5.md` §3.4). Declared at any time; applies
+v5-checks.md:798	`v5.md` -> `messagesUnhandled`	message of the definition in each frame (messages are in call order, `v5.md` §4.1): more entries would add values
+v5-checks.md:800	`v5.md` -> `messagesUnhandled`	uses one lane: at the defaults 60 frames/s reliable or 120 unreliable, plus a burst of 240, `v5.md` §7.5). At 60
+v5-checks.md:805	`v5.md` -> `messagesUnhandled`	**Step 6b, sample** (§1.4), after the checks' commit and before delivery, on *delivered* messages (`v5.md` §3.5): those
+v5-checks.md:821	`v5.md` -> `messagesUnhandled`	2. **Complete**, once per flush, where fact windows are swept (`v5.md` §7.3). For each due atom, Lync binary-searches
+v5-checks.md:852	`v5.md` -> `messagesUnhandled`	(checked once per flush); when the player leaves (pending atoms complete as partial first; `v5.md` §5.1 flushes the
+v5-checks.md:855	`v5.md` -> `messagesUnhandled`	- **Delivery rules**, as observers (`v5.md` §7.3): each connection is called in a pooled thread, so a throwing
+v5-checks.md:863	`v5.md` -> `messagesUnhandled`	- **Counters** (`v5.md` §7.4): `atomsDelivered` and `atomsSkipped`, per definition. Atoms raise no fact: an atom has
+v5-checks.md:879	`v5.md` -> `messagesUnhandled`	Types are plain records with no `read` modifiers, since the old solver rejects them in generated shards (`v5.md`
+v5-checks.md:881	`v5.md` -> `messagesUnhandled`	handles whose codec they take (`v5.md` §3.4: a handle's type comes from its field's codec); `atom`'s `fields` is
+v5-checks.md:913	`v5.md` -> `messagesUnhandled`	// the server views of client-sent events and client requests (review m10; type names provisional, `v5.md` §3.6)
+v5-checks.md:915	`v5.md` -> `messagesUnhandled`	// the handle interface of a t.direction field (`v5.md` §3.6); every aim codec's handle has `aim`, every value
+v5-checks.md:948	`v5.md` -> `messagesUnhandled`	§8.6 example, `strike.target` is a `fighters` key, which `v5.md` §3.4's example sets to a `UserId`, so every atom
+v5-checks.md:965	`v5.md` -> `messagesUnhandled`	`checks-telemetry/telemetry_samples_accum.out` (draft 3.6, review m7): the research's model rerun with `v5.md` §5.1's
+v5-checks.md:966	`v5.md` -> `messagesUnhandled`	pinned accumulator as the flush rule (`telemetry_samples_accum.luau`; luau 0.740, seed 742); `v5.md` §9's network,
+v5-checks.md:981	`n` -> count (atom)	every entry carries its time and atoms their count `n`.
+v5-checks.md:988	`key` -> frameKey (telemetry only)	backwards at 0.02 s jitter (21.7% at 0.05 s), in key order none. Analysis sorts by `key`.
+v5-checks.md:1086	`v5.md` -> `messagesUnhandled`	`v5.md` §6.2, its secret is not on the client before the reveal.
+v5-checks.md:1106	`v5.md` -> `messagesUnhandled`	`definitionOptionMisplaced` (`v5.md` §3.4); a `data` reaching a `t.instance` is `sealedInstanceUnsupported`, since
+v5-checks.md:1107	`v5.md` -> `messagesUnhandled`	instances travel in the frame's instance array in the clear (`v5.md` §4.2) and can't be sealed.
+v5-checks.md:1111	`v5.md` -> `messagesUnhandled`	excludes nil and `Seal?` when it includes nil, checked under the new solver (`v5.md` §3.5). roblox-ts: `fire(this:
+v5-checks.md:1118	`v5.md` -> `messagesUnhandled`	and control runs are (`v5.md` §4.3; review M6: a sealed row is not a codec, so a column block has nothing to
+v5-checks.md:1136	`v5.md` -> `messagesUnhandled`	so they are shared chunks and stay eligible for `FireAllClients` (`v5.md` §4.2). Per-player values are separate
+v5-checks.md:1138	`v5.md` -> `messagesUnhandled`	- **Schema hash:** `sealed` is the last option of `v5.md` §4.7's list, after `ackEveryFrame`: its presence u8 is written
+v5-checks.md:1140	`v5.md` -> `messagesUnhandled`	3.6 (`v5.md` §4.10; review m9).
+v5-checks.md:1162	`v5.md` -> `messagesUnhandled`	encodes it (`v5.md` §3.5), less those skipped for `maxOutstanding` (below) and those whose join hold refused the row
+v5-checks.md:1163	`v5.md` -> `messagesUnhandled`	(`joinHoldBytesExceeded`, `v5.md` §5.3). A refused player is not a recipient and gets no reveal or discard.
+v5-checks.md:1181	`v5.md` -> `messagesUnhandled`	- **Refused with a `v5.md` §4.8 rule:** `kind` 3 (rule 2); a seal while `maxOutstanding` are held, or `blocks` above
+v5-checks.md:1181	`kind` -> `argumentOutOfRange`	- **Refused with a `v5.md` §4.8 rule:** `kind` 3 (rule 2); a seal while `maxOutstanding` are held, or `blocks` above
+v5-checks.md:1184	`v5.md` -> `messagesUnhandled`	- **At the reveal** it decrypts and decodes the plaintext under `v5.md` §4.8 (padding bytes past the encoding must
+v5-checks.md:1198	`v5.md` -> `messagesUnhandled`	and `sealed.hideLength` (boolean, default true) are rows of `v5.md` §3.4's option table, the one home for definition
+v5-checks.md:1226	`v5.md` -> `messagesUnhandled`	Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units list them in `v5.md` §7.
+v5-checks.md:1226	`v5.md` -> `messagesUnhandled`	Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units list them in `v5.md` §7.
+v5-checks.md:1229	`v5.md` -> `messagesUnhandled`	- **Declaration:** `roleMarkerMisplaced` (§7.1, `v5.md` §3.3), `sealedInstanceUnsupported` (§9.2); `sealed` where the
+v5-checks.md:1230	`v5.md` -> `messagesUnhandled`	definition doesn't take it is `v5.md` §3.4's `definitionOptionMisplaced`.
+v5-checks.md:1233	`v5.md` -> `messagesUnhandled`	(`v5.md` §3.4 uses it for every declaration made through a handle);
+v5-checks.md:1241	`v5.md` -> `messagesUnhandled`	- `claimUnverified`: `connect` or `handle` on a definition with an unverified claim leaf (§7.3, `v5.md` §3.3);
+v5-checks.md:1242	`v5.md` -> `messagesUnhandled`	- `callOptionUnknown`, `callOptionMissing`, `callOptionOutOfRange`, `callOptionWrongType`: `v5.md` §7.1's set for
+v5-checks.md:1244	`v5.md` -> `messagesUnhandled`	- `fieldPathUnknown` (`v5.md` §3.4) for a `fields` key naming no field;
+v5-checks.md:1246	`v5.md` -> `messagesUnhandled`	- **Faults:** `checkFunctionRaised`, `checkFunctionYielded` (§1.7, `v5.md` §6.1).
+v5-checks.md:1248	`v5.md` -> `messagesUnhandled`	- **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
+v5-checks.md:1248	`reference` -> `checkFunctionRaised`, `checkFunctionYielded`	- **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
+v5-checks.md:1248	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	- **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
+v5-checks.md:1253	`v5.md` -> `messagesUnhandled`	- **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.atomsPerBatch`, `telemetry.maxBatchSeconds`
+v5-checks.md:1256	`v5.md` -> `messagesUnhandled`	- **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§7.1); the `sealed` option (§9.3).
+v5-checks.md:1267	`within` -> `deadlineSeconds`, `tokenValues`, `maxAttempts`	- The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks (the c of
+v5-checks.md:1269	`limit.slack` -> limit.slackSeconds	headroom, `limit.slack` behind the reliable c; review m11).
+v5-checks.md:1273	`fn` -> `checkFunctionRaised`, `checkFunctionYielded`	- `Workspace:Raycast` cost inside a `fn` (`messagesPerCheck`'s use).
+v5-checks.md:1277	`v5.md` -> `messagesUnhandled`	- Typing proofs (`v5.md` §10): the runtime path's per-codec handle methods (each handle's methods picked by codec
+v5-checks.md:1278	`v5.md` -> `messagesUnhandled`	kind, `v5.md` §3.4), and the per-codec handle interfaces in TypeScript (`v5.md` §3.6), on which §1.2's and §8.6's
+v5-checks.md:1278	`v5.md` -> `messagesUnhandled`	kind, `v5.md` §3.4), and the per-codec handle interfaces in TypeScript (`v5.md` §3.6), on which §1.2's and §8.6's
+v5-tooling.md:3	`v5.md` -> `messagesUnhandled`	Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-changes.md` ("Draft 3.5
+v5-tooling.md:7	`v5.md` -> `messagesUnhandled`	profiler adapter (§6). A build code is raised from the milestone in its row of §3.4, under `v5.md` §7.1's deferral
+v5-tooling.md:65	`v5.md` -> `messagesUnhandled`	- **Types.** Generated Luau types use no `read` modifiers, which the old solver rejects (`v5.md` §3.2).
+v5-tooling.md:88	`v5.md` -> `messagesUnhandled`	| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` an
+v5-tooling.md:123	`v5.md` -> `messagesUnhandled`	set it holds for; the `dynamicAccessFound` sites; the inbound bound's schema terms (`v5.md` §7.5): U_max, N_u, the
+v5-tooling.md:183	`v5.md` -> `messagesUnhandled`	| `check.minFreeFormCodes` | integer | codes per component | 2–2^53 | 65,536 (chosen: below it every input of `v5.md` §3.4 and the measured demo input
+v5-tooling.md:231	`v5.md` -> `messagesUnhandled`	`v5.md` §7.1), `codeDescription.href` (`https://lync.dev/codes/<code>`), `message`, `source = "lync"`,
+v5-tooling.md:252	`v5.md` -> `messagesUnhandled`	per value (`dynamicAccessFound` `case`, `shardDigestMismatch` `byRegeneration`); `v5.md` §7.3 states the same rule
+v5-tooling.md:334	`variant` -> `matchedVariant`, `assignedVariant`, `candidateOffset`	| `shardDigestMismatch` | a part's or variant module's recomputed digest differs from the digest on its line 1 (`byRegeneration` 0); or (`byRegenerati
+v5-tooling.md:339	`variant` -> `matchedVariant`, `assignedVariant`, `candidateOffset`	| `manifestShardMismatch` | the manifest records a `buildId` or part or variant digests other than the outputs' (`wovenDigest` for a place `lync weave
+v5-tooling.md:349	`tagMismatch` -> `expectedCount`	| `remoteCallFound` | a method call `:FireServer(`, `:InvokeServer(`, `:FireClient(`, `:FireAllClients(` or `:InvokeClient(` in any script of the all-
+v5-tooling.md:353	`version` -> `clientProtocolVersion`, `buildIdMismatch`, `clientSchemaHas	| `lyncPackageDigestMismatch` | a `ModuleScript` whose first line is `-- Lync <version> runtime` in a subtree whose modules don't all match the genera
+v5-tooling.md:355	`v5.md` -> `messagesUnhandled`	| `runtimePathCallFound` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code und
+v5-tooling.md:357	`v5.md` -> `messagesUnhandled`	| `refersMissing` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload other than a stream's (`refers` ta
+v5-tooling.md:357	`key` -> frameKey (telemetry only)	| `refersMissing` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload other than a stream's (`refers` ta
+v5-tooling.md:357	`v5.md` -> `messagesUnhandled`	| `refersMissing` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload other than a stream's (`refers` ta
+v5-tooling.md:357	`reportInteraction` -> `argumentOutOfRange`	| `refersMissing` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload other than a stream's (`refers` ta
+v5-tooling.md:358	`key` -> frameKey (telemetry only)	| `aboutMissing` | a server-sent event whose `data` holds a field whose codec equals some collection C's `key` codec (`v5.md` §3.3's codec equality), 
+v5-tooling.md:358	`v5.md` -> `messagesUnhandled`	| `aboutMissing` | a server-sent event whose `data` holds a field whose codec equals some collection C's `key` codec (`v5.md` §3.3's codec equality), 
+v5-tooling.md:373	`valueRefused` -> `argumentOutOfRange`	| `weaveLiteralRefused` | with `weave.foldLiterals`, a literal site whose constant the codec refuses; the site stays unwoven and throws `valueRefused`
+v5-tooling.md:460	`runtime` -> foundAtRunTime	the play test ends, and reports each foreign remote with `runtime` 1: the only view of remotes that helpers create
+v5-tooling.md:577	`v5.md` -> `messagesUnhandled`	reports the call's first line at `-O1` and `-O2` and skips the `debug.info` walk (`v5.md` §7.1); cost one `LOADN`
+v5-tooling.md:610	`v5.md` -> `messagesUnhandled`	- **Ids** (`weave.ids`): generic ids stay as `v5.md` §4.6 defines them. `"site"` adds one up-space id per woven
+v5-tooling.md:634	`v5.md` -> `messagesUnhandled`	carries it at protocol version 1, since no protocol has been released (`v5.md` §4.6); G7 is a version-1 vector
+v5-tooling.md:635	`v5.md` -> `messagesUnhandled`	with `idTableHash` 0 (`v5.md` §4.10); a mismatch is refused as `buildMismatch` (`idTableHashMismatch` 1).
+v5-tooling.md:645	`v5.md` -> `messagesUnhandled`	set (`v5.md` §4.10).
+v5-tooling.md:668	`v5.md` -> `messagesUnhandled`	unpacked-handler entry (not a view's `fields` table of handles, `v5.md` §3.4); the delivery passes the decoded
+v5-tooling.md:692	`v5.md` -> `messagesUnhandled`	- **MicroProfiler labels** with `labelProfiler = true` (`v5.md` §7.5).
+v5-tooling.md:701	`v5.md` -> `messagesUnhandled`	Unverified facts a default, a code's known cause or a mechanism above rests on (`v5.md` principle 8):

@@ -1,0 +1,5 @@
+order: ['aim', 'target'] | ROT: aim, target
+aim offsets: 695 1433 | ROT: 695, 1433
+target offset: 1953753273 | ROT: 1953753273
+tag constants: 6c116fc3 7cccc9d7 | ROT: 6c116fc3 7cccc9d7
+S = 40833055a4ec87bc

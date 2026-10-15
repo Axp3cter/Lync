@@ -1,0 +1,14 @@
+151 option rows
+C5 duration without Seconds: latency v5.md§9
+C5 duration without Seconds: jitter v5.md§9
+C5 rate in Hz: fps v5.md§9
+C5 size without Bytes: unreliableLimit v5.md§9
+C5 rate in Hz: predicatesPerSecond v5-collections.md§8.2
+defined twice with different range/default: maxEntries [('v5.md§3.4', '1–65,536 (chosen: ids fit the u16 free list and holder counts; the per-player bitset is 8 KB at the top)', "required: the game's live vocabulary, which no input Lync has fixes"), ('v5-checks.md§8.10', '16–1024', '64 (chosen: a capacity, 1.07 s of entries at 60 frames/s; a window of `beforeSeconds` + `afterSeconds` truncates above `maxEntries`/(`beforeSeconds` + `afterSeconds`) frames/s, 85.3 for 0.75 s)')]
+defined twice with different range/default: burst [('v5.md§9', '', '`{ 0, 1 }` (off)'), ('v5-checks.md§6.5', '≥ 0, finite', "required (§6.2; the docs' derivation)")]
+defined twice with different range/default: format [('v5-integrity.md§9', 'a value holding the token once, within `maxBytes`', 'none: the bare token'), ('v5-tooling.md§2', '1', 'required')]
+defined twice with different range/default: fields [('v5-collections.md§12.2', '—', 'every `:newest()` field'), ('v5-checks.md§8.10', "paths of §8.2's value codecs on the atom's definition, at most 16 values (a vector counts 3)", '`{}`')]
+defined twice with different range/default: maxRewindSeconds [('v5-collections.md§12.2', '0.1–2', '1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it)'), ('v5-collections.md§12.7', '0.1–2', '1 (as §12.2)')]
+defined twice with different range/default: windowSeconds [('v5-checks.md§4.5', '1–3600', 'required'), ('v5-checks.md§6.5', '0.1–3600', 'required (§6.2)')]
+defined twice with different range/default: field [('v5-checks.md§8.10', 'a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field', '—'), ('v5-checks.md§8.10', "a codec of §8.2's values", 'none: timing only')]
+defined twice with different range/default: [[staged]] [('v5-tooling.md§2', '—', '`[]`'), ('v5-tooling.md§2', '—', 'none')]

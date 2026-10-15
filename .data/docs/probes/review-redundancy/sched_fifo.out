@@ -1,0 +1,20 @@
+== native (luau 0.740 -O2 --codegen)
+viewers	records	dirty	sends/viewer/tick	mode	ms/tick(median of 5)	sent/viewer/tick
+100	300	0.3	50	bucket	0.831	50.0
+100	300	0.3	50	fifo	0.525	50.0
+200	300	0.3	50	bucket	1.814	50.0
+200	300	0.3	50	fifo	0.874	50.0
+100	1000	0.3	50	bucket	4.245	50.0
+100	1000	0.3	50	fifo	0.735	50.0
+200	1000	0.1	83	bucket	2.712	83.0
+200	1000	0.1	83	fifo	2.183	83.0
+== interpreted (luau 0.740 -O2)
+viewers	records	dirty	sends/viewer/tick	mode	ms/tick(median of 5)	sent/viewer/tick
+100	300	0.3	50	bucket	2.113	50.0
+100	300	0.3	50	fifo	1.139	50.0
+200	300	0.3	50	bucket	4.394	50.0
+200	300	0.3	50	fifo	3.834	50.0
+100	1000	0.3	50	bucket	8.156	50.0
+100	1000	0.3	50	fifo	1.614	50.0
+200	1000	0.1	83	bucket	7.363	83.0
+200	1000	0.1	83	fifo	4.483	83.0

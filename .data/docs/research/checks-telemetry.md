@@ -30,7 +30,7 @@ server build is not measured. Type checks of the probes: luau-analyze 0.740 (the
 - [x] C0. Common frame: where checks are declared, where they run, policies, the `constraint` fact
 - [x] C1. `within`
 - [x] C2. `monotonic`
-- [ ] C3. `maxTotal`
+- [x] C3. `maxTotal`
 - [ ] C4. `:claim()` (and `:input()`)
 - [ ] C5. U12: the free-form field lint
 - [ ] C6. Cost probe: the fix and the results
@@ -247,3 +247,72 @@ therefore also needs `within` against `GetServerTimeNow()`. `monotonic` bounds t
 
 **Cost** (measured, C6, net): 57–63 ns native and 172–183 ns interpreted per message. The raw compare is 3.1–5.9 ns
 native; the rest is the table-driven runner. State: 16 B per player per check. Wire: 0 B.
+
+### C3. `maxTotal`
+
+**Semantics.** `Net.collect:maxTotal("coins", { cap = 5000, seconds = 600, policy = "drop" })`. It bounds the
+running sum of a field's values per player over a window, timed by server arrival on `os.clock()`, never by client
+time (R20, R21).
+
+**Decision: the window mechanism** (verified, `maxtotal_bounds.out`; cap 1000, 60 s, a message every 0.05 s for
+600 s).
+
+| Mechanism | Largest accepted sum, greedy sender | State per player | Cost, native (net) |
+|---|---|---|---|
+| (a) **sliding window of 16 buckets** | any 56.25 s (15/16 of the window): 1000 (1.00 cap); any 60 s: 2000 (2.00 cap); long run: cap/seconds | 144 B (16 sums, head, total) | 74–84 ns |
+| (b) token bucket, capacity cap, refill cap/seconds per second (the core `limit` shape) | any 56.25 s: 1937 (1.94 cap); any 60 s: 1999 (2.00 cap); any 1 s: 1015 | 16 B | 65–66 ns |
+| (c) exact sliding window, a ring of every committed (time, amount) | any 60 s: cap, exactly (derived) | 16 B per message in the window. A definition needs a `limit` to bound it: at 5 messages/s and 600 s, 48 KB per player per check (derived) | not measured |
+
+- **Choose (a).** It bounds any span of up to 15/16 × `seconds` to `cap` exactly, with constant memory and no
+  `limit` required. Under (b), a sender can take nearly 2 × `cap` within 15/16 of the window.
+- (b) suits the core `limit`, which smooths server work. A rule written "per window" ("5000 coins per 10 minutes")
+  means a sum over the window, and that is what (a) bounds.
+- (c) is the tightest. It is the option if the lead wants exactly one window; its memory is the price.
+- The bucket count, 16, is a runtime constant (chosen: it sets the 1/16 gap between the two guarantees). It is
+  not an option.
+
+**Exact trigger.**
+- Let w = `seconds`/16 and k = ⌊`os.clock()`/w⌋ at evaluation, and let S be the sum of amounts committed for
+  (player, check or pool) in buckets k − 15 … k. The check fails when S + v > `cap`.
+- **Guarantee** (derived, and measured above): any span of 15/16 × `seconds` or less holds at most `cap` of
+  committed amounts; any span of `seconds`, at most 2 × `cap`; the long-run rate is at most `cap`/`seconds`.
+- **Clamp:** v is replaced by max(0, `cap` − S), rounded down for a `t.int` field, and committed.
+- **Accepted codecs:** `t.int(min, max)` and `t.number` with min ≥ 0. `t.int()`, `t.f32` and `t.f64` admit
+  negative values, and a negative amount would refund the window, so they are `checkKind`.
+- **`pool`:** checks with the same pool name, on any definitions, share one window per player. An example is coins
+  from `collect`, `sell` and `quest`. They must declare equal `cap` and `seconds` (else `checkPool`).
+
+**What it protects.** The rate of gain of client-claimed amounts: currency, experience, items or damage carried in
+a claim field. This is Roblox's documented "Rate of Gain" heuristic (AC §4.2). A forged stream is bounded to `cap`
+per 15/16 window and `cap`/`seconds` in the long run.
+
+**How it fails, or is defeated.**
+- A modified client can claim exactly the allowance every time.
+- Amounts spread over definitions that aren't in one pool get one cap each.
+- It is no substitute for computing the gain on the server, which needs no check at all.
+
+**Known causes on an unmodified client** (`maxtotal_bounds.out`):
+1. **A cap below what play produces** within 15/16 × `seconds`: a bonus event, a purchase that doubles rates.
+2. **The stream sitting at the cap.** At exactly `cap`/`seconds`, the window reaches `cap` and refuses at bucket
+   edges: 10 of 12,000 amounts with no stall, and 84 with one 5 s reliable stall.
+3. **Not causes:**
+   - stalls with headroom: at 90% of `cap`/`seconds`, no refusal with a single stall of 0, 0.85, 2 or 5 s, for (a)
+     or (b);
+   - lost messages, which are never charged;
+   - messages `validate` refuses, which are never committed (C0).
+
+**Least work.** One line per claimed amount, with the game's own economy rule as `cap` and `seconds`, and 10%
+headroom per the measurement.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `path` | string | — | a `t.int(min, max)` or `t.number` field with min ≥ 0, reached through records and optionals | required | none |
+| `cap` | number (real) | the field's unit, per window | > 0, ≤ 2^53 | required | none |
+| `seconds` | number (real) | s | 1–3600 | required | bucket width `seconds`/16 |
+| `pool` | string or nil | — | 1–64 B | nil: the check's own window | one window per player per pool instead of per check |
+| `policy` | `"drop" \| "clamp" \| "deliver"` | — | — | required | none |
+
+**Cost** (measured, C6, net):
+- 74–84 ns native and 236–251 ns interpreted per message. A message that crosses into a new bucket also clears up
+  to 16 sums; the probe includes that at the rate it occurs.
+- State: 144 B per player per check or pool. Wire: 0 B.

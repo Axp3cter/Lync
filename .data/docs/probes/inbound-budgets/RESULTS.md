@@ -10,10 +10,10 @@ budgets, from `Run.decode` alone).
 - [x] 1. Server decode CPU per inbound byte, by payload shape (worst admitted shape and the busy model), native and
       interpreted, milestone decoder (`f1fbfd7`) and a generated decoder (`decode_shapes.luau`)
 - [x] 2. The tag's per-frame and per-byte CPU on the same frames; total inbound CPU = decode + tag (`tag_frames.luau`)
-- [ ] 3. Per budget (reliable and unreliable `bytes` perSecond and burst; `frames`; `inbound.elements`): formula from
+- [x] 3. Per budget (reliable and unreliable `bytes` perSecond and burst; `frames`; `inbound.elements`): formula from
       budget value to worst-case server CPU per player and at 100 players; the busy model's use as a fraction of
       each budget (`derive.py`)
-- [ ] 4. Budget values at which worst-case inbound CPU at 100 players is 1%, 5%, 10% of one core native; where the
+- [x] 4. Budget values at which worst-case inbound CPU at 100 players is 1%, 5%, 10% of one core native; where the
       defaults fall (`derive.py`)
 
 **Host and tools.** CLI VM only: Luau 0.742 built from `.data/projects/luau` (Release), `luau -O2` (interpreted:
@@ -167,9 +167,166 @@ What decides it:
   Their rate is limited only by the engine: "approximately 500 requests per second, per client", shared per remote
   type (documented, quoted in `research/client-security.md` §2.1). That is 328 ms/s per player native at 16 KB,
   22.5 ms/s at 1 KB, and 1.4 ms/s at 3 B. Whether the engine delivers 8 MB/s from one client is unmeasured.
-- So per frame: total = fixed pipeline (≈ 1.7–2.0 µs native including one tag) + decode + 220–420 ns × messages
+- So per frame: total = the header-only frame's cost (1.9–2.2 µs native, 3.7–4.3 interpreted: buckets, one tag, header,
+  toc) + the payload's decode + 220–420 ns × messages
   (step 5) + (k − 1) extra tags, where k ≤ 10 reliable or 6 unreliable for frames whose tag fails, plus the
   same k tags for every engine-delivered reliable frame over budget.
 
 Tool: Luau 0.742 (`luau -O2`, `luau -O2 --codegen`), `f1fbfd7:src`, `probes/security-costs/hsip.luau`, 3 runs per
 mode.
+
+### 3. Formula from each budget to worst-case CPU, and the busy model's share — **true (derived); the element term needs the schema's widest client-sent record as an input**
+
+Proposition tested: each inbound budget maps to worst-case server CPU per player by a stated formula, with the
+busy model's use as a fraction of each budget.
+
+Probe: `derive.py` over `decode_shapes.out` and `tag_frames.out`, output `derive.out` ("Claim 3"). Model (the
+docstring of `derive.py` has it in full): an attacker sends x_j frames per second of each timed frame kind j (claim
+1's frames, and claim 2's wrong-tag frames with a pending key, which are paid for and refused at the tag). The
+five buckets bound them: per lane Σ x_j ≤ `frames.perSecond` and Σ x_j·bytes_j ≤ `bytes.perSecond`, and over both
+lanes Σ x_j·elements_j ≤ `elements.perSecond`. Worst-case CPU is the linear program max Σ x_j·cpu_j. It scales
+linearly with the limits, and at the optimum (LP duality)
+
+  **CPU per player per second = λ_Fr·Fr + λ_Br·Br + λ_Fu·Fu + λ_Bu·Bu + λ_E·E**
+
+where Fr, Br, Fu, Bu, E are the reliable and unreliable `frames` and `bytes` perSecond and `inbound.elements`
+perSecond, and λ is each limit's shadow price, in ns per frame, byte or element. This holds exactly while the same
+limits bind. At 100 players multiply by 100; one core = 10^9 ns per second.
+- **Bursts.** Over a window of T seconds after an idle period every limit is perSecond·T + burst, so the bursts add
+  λ_Fr·burst_Fr + λ_Br·burst_Br + λ_Fu·burst_Fu + λ_Bu·burst_Bu + λ_E·burst_E once per refill: "first second"
+  below is T = 1.
+- **One frame.** A frame's element allowance is the element bucket's whole tokens (`v5.md` §4.8), so one frame can
+  cost burst_E × (ns per element of the widest record) up to 16,384 B: 42 ms native at 1 field, 51.5 ms at 6 fields
+  (`move6`), 142 ms at 32 and 499 ms at 128, at the default burst of 65,536 (milestone; generated 22.8, 30.2, 47.2,
+  288 ms; interpreted milestone 48, 80, 273, 982 ms).
+- **Engine-bound term.** Reliable frames refused at the buckets are outside the LP (claim 2): + (frames the engine
+  delivers per second beyond Fr) × 10 tags of min(16,384, frame bytes). That is 2.9–656 µs native per frame, up to
+  328 ms/s per player at the documented ~500 calls/s.
+- Schemas, since the attacker can only send the game's own definitions: **S1** busy-like (`move6`, `sm`, 200-byte
+  strings, no-payload events; adding R31's 1-field record and arrays, S2, changes nothing); **S3** S1 plus a
+  32-field `t.bool()` record; **S4** S3 plus a 128-field one. These are lower bounds on the true worst case: the LP
+  only uses frames that were timed.
+
+Shadow prices and worst case at the defaults (Fr 120, Br 32,768, Fu 240, Bu 32,768, E 20,000 per second;
+bursts 240, 65,536, 480, 65,536, 65,536), per player:
+
+| Path, schema | λ_Fr ns/frame | λ_Br ns/B | λ_Fu ns/frame | λ_Bu ns/B | λ_E ns/element | sustained ms/s | 100 players, % of one core | first second ms |
+|---|---|---|---|---|---|---|---|---|
+| milestone native, S1 | 3,300 | 57.6 | 2,460 | 155 | 812 | **24.2** | **242 %** | 93.3 |
+| milestone native, S3 | 1,910 | 521 | 994 | 521 | 2,170 | 78.0 | 780 % | 289 |
+| milestone native, S4 | 3,350 | 41.9 | 3,010 | 16.6 | 7,610 | 155 | 1,552 % | 660 |
+| generated native, S1 | 2,520 | 71.9 | 2,500 | 78.7 | 460 | 15.0 | 150 % | 56.9 |
+| generated native, S3 | 1,280 | 485 | 877 | 484 | 718 | 46.5 | 465 % | 158 |
+| generated native, S4 | 2,660 | 24.1 | 2,800 | 4.93 | 4,390 | 89.7 | 897 % | 381 |
+| milestone interpreted, S1 | 11,500 | 301 | 6,310 | 152 | 1,210 | 41.9 | 419 % | 157 |
+| milestone interpreted, S3 | 9,240 | 1,040 | 2,740 | 1,040 | 4,160 | 153 | 1,533 % | 566 |
+| milestone interpreted, S4 | 11,500 | 301 | 6,460 | 113 | 15,000 | 316 | 3,156 % | 1,329 |
+| generated interpreted, S1 | 10,200 | 279 | 5,910 | 111 | 652 | 28.5 | 285 % | 102 |
+
+Check of the formula, milestone native S1: 3,300 × 120 + 57.6 × 32,768 + 2,460 × 240 + 155 × 32,768 + 812 × 20,000 =
+0.40 + 1.89 + 0.59 + 5.08 + 16.24 = 24.2 ms/s. The attack mix the LP picks there: 31.9/s unreliable 1,000 B
+`move6` frames, 1.6/s reliable 16 KB `move6` frames, 2.1/s frames of 4,096 one-message runs, and wrong-tag frames
+of 3–4 B on the remaining frame budget (116/s reliable, 208/s unreliable). Every limit binds.
+
+Per-budget reading of the prices (milestone native):
+- **`bytes.perSecond`**: 16.6–521 ns/B at the optimum. The byte-bound shapes alone cost 212–313 ns/B for dense
+  6-field records and 1,062 ns/B for 1-bit fields; the price is lower where elements bind first.
+- **`bytes.burst`**: same price, once per refill: 65,536 × 155 ns = 10.2 ms (S1, unreliable).
+- **`inbound.elements`**: 812–7,610 ns per element, which is the widest record's per-element cost (claim 1:
+  ≈ 585 + 55 × F ns native, F = fields per message). This is the largest term at the defaults in every schema
+  (16.2 of 24.2 ms/s in S1, 152 of 155 in S4).
+- **`elements.burst`**: 65,536 × λ_E = 53 ms (S1) to 499 ms (S4) once per refill, and up to that much in one frame.
+- **`frames.perSecond`**: 2.5–3.4 µs per frame (the header-only frame, or a wrong tag with a pending key):
+  120 × 3.3 + 240 × 2.5 µs ≈ 1.0 ms/s per player whatever the bytes.
+
+Busy model (`derive.out` "busy model"): input frame 11 B, action frame 15 B as built (16-bit tag, no ack); "design"
+adds the 32-bit tag (+2 B per frame) and an ack on 20 of the 60 unreliable frames (+28 bits each). Its own cost is
+323 µs/s per player native milestone (3.2 % of one core at 100 players), 187 generated (1.9 %), 566 interpreted
+milestone (5.7 %).
+
+| Budget | default perSecond | busy use (design) | fraction of perSecond | burst | largest busy frame / burst |
+|---|---|---|---|---|---|
+| `inbound.reliable.frames` | 120 | 10 | 0.083 | 240 | 0.0042 |
+| `inbound.reliable.bytes` | 32,768 | 170 B/s | 0.0052 | 65,536 | 0.00026 (17 B) |
+| `inbound.unreliable.frames` | 240 | 60 | 0.25 | 480 | 0.0021 |
+| `inbound.unreliable.bytes` | 32,768 | 850 B/s | 0.026 | 65,536 | 0.00026 (17 B) |
+| `inbound.elements` | 20,000 | 70 | 0.0035 | 65,536 | 0.000015 |
+
+The reliable byte burst's other honest use is the join hold: 32,768 B (§4.9) is 0.5 of 65,536.
+
+Tool: Python 3.13.16 (`derive.py`, stdlib only), over the Luau 0.742 runs of claims 1 and 2.
+
+### 4. Budget values for 1 %, 5 % and 10 % of one core at 100 players, native — **derived; 1 % is unreachable for any budget set that admits the busy model, and no single budget reaches even 10 % with the others at their defaults**
+
+Probe: `derive.py`, output `derive.out` ("Claim 4"), native rows. Target per player = target × 10^9 ns / 100:
+1 % = 100 µs/s, 5 % = 500 µs/s, 10 % = 1,000 µs/s per player. All figures assume over-budget reliable frames are
+not tag-checked (claim 2's engine-bound term). With them, the table has no bound: 1.4–328 ms/s per player at
+~500 calls/s.
+
+**Where the defaults fall.** Worst case at the defaults, 100 players, native: milestone S1 242 % of one core
+(24× the 10 % line, 48× the 5 % line, 242× the 1 % line), S3 780 %, S4 1,552 %; generated S1 150 %, S3 465 %,
+S4 897 %. Interpreted milestone S1 419 %.
+
+**(a) Every perSecond scaled from its default by one factor a** (the LP is linear in the limits, so
+a = target ÷ worst case at the defaults; bursts are not part of the sustained figure):
+
+| Path, schema | target | a | `reliable.frames` | `reliable.bytes` B/s | `unreliable.frames` | `unreliable.bytes` B/s | `elements` /s |
+|---|---|---|---|---|---|---|---|
+| defaults | – | 1 | 120 | 32,768 | 240 | 32,768 | 20,000 |
+| milestone, S1 | 1 % | 0.0041 | 0.50 | 135 | 0.99 | 135 | 83 |
+| milestone, S1 | 5 % | 0.0207 | 2.48 | 677 | 4.96 | 677 | 413 |
+| milestone, S1 | 10 % | 0.0413 | 4.96 | 1,354 | 9.92 | 1,354 | 827 |
+| milestone, S3 | 10 % | 0.0128 | 1.54 | 420 | 3.08 | 420 | 257 |
+| milestone, S4 | 10 % | 0.0064 | 0.77 | 211 | 1.55 | 211 | 129 |
+| generated, S1 | 1 % | 0.0066 | 0.80 | 218 | 1.60 | 218 | 133 |
+| generated, S1 | 5 % | 0.0332 | 3.99 | 1,089 | 7.98 | 1,089 | 665 |
+| generated, S1 | 10 % | 0.0665 | 7.98 | 2,178 | 15.95 | 2,178 | 1,329 |
+| generated, S3 | 10 % | 0.0215 | 2.58 | 705 | 5.16 | 705 | 430 |
+| generated, S4 | 10 % | 0.0112 | 1.34 | 365 | 2.68 | 365 | 223 |
+
+(S3 and S4 at 1 % and 5 % are in `derive.out`: a = 0.0013 and 0.0064 for milestone S3, 0.0006 and 0.0032 for S4.)
+Every row in (a) refuses the busy model: it needs 10 reliable and 60 unreliable frames a second.
+
+**(b) One budget varied, the other four at their defaults:** unreachable at every target, in every schema and
+both paths. The floor (that budget set to 0) is still, milestone native S1: 106.5 % with either reliable budget at
+0, 185 % with either unreliable budget at 0, and 30.4 % with `elements` at 0. The 30.4 % is undecoded work alone:
+fixed costs on the frame budgets, plus wrong-tag frames with a pending key on the byte budgets. Generated:
+60.0 %, 119 %, 19.4 %.
+
+**(c) Budgets = m × the busy model's use** (design bytes: 10 and 60 frames, 170 and 850 B/s, 70 elements). This
+is the smallest budget set that admits the busy model. m = target ÷ the worst case at m = 1:
+
+| Path, schema | worst case at m = 1 | 1 % | 5 % | 10 % |
+|---|---|---|---|---|
+| milestone, S1 | 343 µs/s per player = 3.43 % | unreachable (m 0.29) | m = 1.46: 14.6 / 248 / 87.6 / 1,240 / 102 | m = 2.92: 29.2 / 496 / 175 / 2,481 / 204 |
+| milestone, S3 | 5.28 % | unreachable | unreachable (m 0.95) | m = 1.89: 18.9 / 322 / 114 / 1,608 / 133 |
+| milestone, S4 | 7.68 % | unreachable | unreachable (m 0.65) | m = 1.30: 13.0 / 221 / 78.1 / 1,107 / 91 |
+| generated, S1 | 2.62 % | unreachable (m 0.38) | m = 1.91: 19.1 / 325 / 115 / 1,624 / 134 | m = 3.82: 38.2 / 650 / 229 / 3,249 / 268 |
+| generated, S3 | 3.87 % | unreachable | m = 1.29: 12.9 / 220 / 77.5 / 1,098 / 90 | m = 2.58: 25.8 / 439 / 155 / 2,196 / 181 |
+| generated, S4 | 5.10 % | unreachable | unreachable (m 0.98) | m = 1.96: 19.6 / 334 / 118 / 1,668 / 137 |
+
+(values: `reliable.frames` / `reliable.bytes` B/s / `unreliable.frames` / `unreliable.bytes` B/s / `elements`/s.)
+Interpreted milestone S1's floor is 7.49 % (10 % at m = 1.34).
+
+What decides it:
+- The busy model alone costs 3.2 % of one core at 100 players native (milestone; 1.9 % generated), so 1 % cannot be
+  met by budgets at all with these per-frame costs. Its inputs are the fixed cost per frame (1.9–2.2 µs native),
+  step 5 per message (220–420 ns) and the tag. Budgets only bound the attacker's extra above that.
+- The defaults sit 24–155× above the 10 % line (milestone native, S1–S4). The two largest terms are
+  `inbound.elements` (λ_E = 812–7,610 ns, fixed by the widest client-sent record) and the byte buckets (λ_B up to
+  521 ns/B with 1-bit records). The frame budgets contribute about 1.0 ms/s per player (10 % at 100 players) on
+  their own.
+- Inputs the architect sets besides the budget values, each with a measured price: the per-element cost of the
+  widest client-sent record (claim 1: ≈ 585 + 55 × F ns), the per-frame fixed cost, the tag's hash count on a
+  failing frame (5 + 5 with a pending key; 3 + 3 unreliable), and whether over-budget reliable frames are hashed.
+
+Tool: Python 3.13.16 (`derive.py`), over the Luau 0.742 native runs.
+
+## Summary
+
+| Claim | Verdict | Decisive figure |
+|---|---|---|
+| 1. Decode CPU per byte | false that R31's 87–111 ns/B (native) is the cost or that the byte buckets bound it | whole path 212–313 ns/B for dense records, 1,062 for 1-bit fields; constant columns 440–7,611 ns per element at ≈ 0 B |
+| 2. Tag | true for claim 8's per-byte figures (4.0 ns/B milestone, 2.2 unrolled, native); false that total = decode + tag | failing tags cost up to 10 hashes (652 µs per 16 KB frame native) and over-budget reliable frames are hashed outside every budget |
+| 3. Formula | true (derived): CPU = Σ λ_k × limit_k, plus λ·burst once per refill | defaults, milestone native S1: 24.2 ms/s per player (242 % of one core at 100 players); busy model uses 8.3 % / 25 % of the frame budgets, 0.5 % / 2.6 % of the byte budgets, 0.35 % of elements |
+| 4. 1 / 5 / 10 % table | derived; 1 % unreachable while admitting the busy model | 10 % needs every budget at 0.041× default (milestone S1), or 2.9× the busy model's use |

@@ -560,9 +560,9 @@ outside the place still receive the table.
   10 sites spread: W3 1.03, 1.06, 1.09, 1.13, 1.20; W2 1.34, 1.64, 1.89, 2.30, 2.99; one definition × 50 sites: W3
   0.78, W2 4.78. The draft-3.5 figure of 5.0× is that last shape's bound, reproduced (22,927 against 4,587 B,
   `codecs-in-scripts/size_orig.out`), not a property of weaving `[codecs-in-scripts §1]`.
-- **Load:** 10–32 KB more client bytecode at the measured mixes, 10–75 µs per join at 0.5–2.4 ns per byte on the CLI
-  `[codecs-in-scripts §6.2]`; phone factor unmeasured (§8). A `--!native` server script with woven sites compiles in
-  424 µs against 183 µs unwoven for the fixture's `Weapon`, and draws on the per-game native code limit.
+- **Load:** 10–32 KB more client bytecode at the measured mixes, 10–75 µs per join at 0.5–2.4 ns per byte on the
+  CLI `[codecs-in-scripts §6.2]`; phone factor unmeasured (§8). A `--!native` server script with woven sites
+  compiles in 424 µs against 183 µs unwoven for the fixture's `Weapon`, and draws on the per-game native code limit.
 - **Server shard:** one decoder per site; a definition's decoder is 223–351 B `[generation-methods M15a]`, a site's
   is unmeasured.
 - **Build:** the Python prototype took 3.06 s for 303 scripts (1.68 MB, 901 sites), 2.84 s of it parsing in one

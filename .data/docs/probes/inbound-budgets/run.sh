@@ -30,3 +30,4 @@ for p in $PROBES; do
 		(cd "$W" && "$B/luau" -O2 --codegen "$p.luau") >> "$P/$p.out" 2>&1
 	done
 done
+python3 -I "$P/derive.py" > "$P/derive.out"

@@ -228,8 +228,7 @@ counter on the wire. The facts every measure below leans on:
   compression (§3.7).
 - A client holds its sends until its namespace is accepted (A-8), so no data frame precedes the handshake.
 - `Random.new()` with no seed "uses a seed from an internal entropy source" (creator-docs `Random.yaml`,
-  2026-10-15). **documented**. The algorithm is not documented, so nothing below relies on `Random` agreeing
-  between client and server.
+  2026-10-15). **documented**. Its algorithm is not, so nothing relies on client and server `Random` agreeing.
 
 The secret in every measure is held by the client it protects against. None of them authenticates a client; they
 detect traffic that did not come out of Lync's own encoder and flush, and they make byte-level tooling per-session.
@@ -295,11 +294,10 @@ on a phone 3–5× slower, ≈ 0.5–1 ms per second of play.
 | Packet loss, reordering | none: `r` is reliable and ordered | — |
 | `FireServer` raises | gap of 1 | `FrameGap`, weight weak |
 | Rejoin | new Player, new connection, new `K` | none needed |
-| Teleport, soft-shutdown migration, reserved servers | new server, new handshake | none needed |
+| Teleport, soft-shutdown migration | new server, new handshake | none needed |
 | Engine reconnect that keeps the Player | **unverified** whether it exists or replays calls | desync → REKEY, one weak `Desync` |
 | Studio Play Solo / Team Test | same path; one process | tests pin `K` and seed through the seams (A-10) |
 | A Lync bug (tag or counter) | burst of mismatches | desync path; weights; never-kick defaults (§6) |
-| Two copies of Lync (W-88) | separate remotes and state | none needed |
 
 **Handshake change.** SESSION (server → client, 17 B), REKEY (10 B), REKEY-ACK (2 B) on `h`; protocol version
 bump; the layout rule of W-198 extends to the new message type byte.
@@ -445,8 +443,6 @@ network, rejoin, migration or Studio.
   frames. **verified** (zstd 0.25 Python binding, synthetic frames). Remote buffers are compressed by the engine
   (documented), though its codec is not documented, so the exact loss is **unverified**; the direction is not. Masking
   adds nothing against A3/A4, since the mask lives in the same client.
-- **Per-message key rotation or runtime-generated codecs.** Clients have no `loadstring` (§2.1); anything Lync
-  rotates is data in its own state, read by the same `getgc` query.
 
 ---
 
@@ -488,7 +484,6 @@ minima spaced 5 s is σ / (5 s × √(12 × 143 / 12)) ≈ σ / 60 s, i.e. 0.03�
 | Join warm-up (time sync settling) | large offset, short | ignore the first 30 s |
 | Device sleep or app in background (mobile) | client clock falls behind, then catches up at ≤ 0.6 % | arrival gap > 2 s resets the estimator; only *fast* clocks (positive slope) weigh; slow ones are reported weight 0 |
 | Server hitch | all players shift at once | if more than half the players' windows move the same way, discard that window for everyone |
-| Studio | one process, one clock | slope ≈ 0 |
 | Network route change | step in envelope, not a slope | Theil–Sen ignores a single step |
 
 **Robustness.** Client data: an attacker who keeps Lync's stamps on an unaccelerated clock, or patches the stamp,

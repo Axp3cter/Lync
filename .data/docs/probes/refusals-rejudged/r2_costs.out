@@ -1,0 +1,180 @@
+== r2_costs, luau 0.742 -O2, run 1
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)        1208.52     971.91    1689.60     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame       1145.07    1076.79    1505.91     0.98     0.68     1.43
+tag13 over a 64 B frame               3515.51    3390.12    4247.18     2.91     2.02     4.04
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)        13.12       8.30      13.94     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      57.58      39.26      59.16     4.36     3.74     7.11
+per frame: framesReceived[lane] += 1      56.19      36.80      59.36     4.26     2.82     6.22
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               862.72     804.97    1278.21     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived    1078.66    1021.87    1753.00     1.29     0.94     1.78
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill)  894870.30  828039.40 1211333.70     1.00     1.00     1.00
+empty records (a table each)       2814863.35 2265504.95 3973620.80     3.09     2.41     3.87
+charge per count: 65,536 counts     870000.50  829999.05 1229400.25     1.00     0.75     1.37
+sink	9673533392122244
+== r2_costs, luau 0.742 -O2, run 2
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)        1017.60     946.23    1123.35     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame       1158.56    1053.72    1288.45     1.15     0.99     1.32
+tag13 over a 64 B frame               3501.41    3269.42    3778.71     3.47     2.98     3.99
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)         8.12       7.07      14.74     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      42.15      37.72      60.89     4.87     3.08     7.39
+per frame: framesReceived[lane] += 1      37.31      33.50      53.90     4.59     2.85     6.64
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               815.08     789.36     949.70     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived    1036.36     971.35    1483.98     1.29     1.19     1.78
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill)  956228.15  744079.80 1136153.25     1.00     1.00     1.00
+empty records (a table each)       2961497.35 2409596.95 3564788.10     3.17     2.67     3.68
+charge per count: 65,536 counts     837541.20  794864.35 1133219.00     0.96     0.77     1.24
+sink	9673533392122244
+== r2_costs, luau 0.742 -O2, run 3
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)        1164.27     942.26    1758.60     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame       1153.70    1058.39    1383.66     1.02     0.70     1.19
+tag13 over a 64 B frame               3380.00    3229.21    3886.06     2.90     2.14     3.68
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)         7.92       7.01      13.42     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      39.64      35.70      54.04     5.05     4.01     7.48
+per frame: framesReceived[lane] += 1      34.44      32.63      53.91     4.39     3.05     7.55
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               840.82     784.75    1559.02     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived    1000.48     955.24    1952.45     1.20     0.85     1.51
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill) 1022554.15  830096.50 1279429.75     1.00     1.00     1.00
+empty records (a table each)       2732739.10 2360583.30 4276296.05     2.83     2.43     3.61
+charge per count: 65,536 counts    2003782.30 1845418.65 2219697.10     1.96     1.64     2.53
+sink	9673533392122244
+== r2_costs, luau 0.742 -O2 --codegen, run 1
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)         779.03     659.79     956.21     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame         72.95      66.65     109.57     0.10     0.07     0.14
+tag13 over a 64 B frame                309.23     285.49     367.00     0.39     0.34     0.56
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)         2.75       2.50       2.99     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      10.27       9.41      11.68     3.66     3.54     4.45
+per frame: framesReceived[lane] += 1      11.18      10.11      11.43     4.03     3.64     4.43
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               794.41     670.63    1270.79     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived     916.71     835.43    1501.02     1.25     0.98     1.59
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill)  382152.25  319311.30  626848.75     1.00     1.00     1.00
+empty records (a table each)       1963923.15 1658830.15 2636722.70     4.81     3.59     7.14
+charge per count: 65,536 counts     204857.10  186049.35  273907.40     0.52     0.33     0.74
+sink	9673533392122244
+== r2_costs, luau 0.742 -O2 --codegen, run 2
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)         713.17     663.69     876.24     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame         67.74      62.16     112.47     0.10     0.09     0.14
+tag13 over a 64 B frame                289.36     281.09     359.03     0.41     0.37     0.45
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)         2.78       2.51       3.09     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      10.24       9.48      10.88     3.65     3.34     4.12
+per frame: framesReceived[lane] += 1      10.94      10.61      12.47     3.90     3.48     4.96
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               834.87     659.44    1238.55     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived    1254.29     847.76    1671.84     1.30     0.82     2.27
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill)  518548.85  372009.45  750403.05     1.00     1.00     1.00
+empty records (a table each)       2286478.45 2052725.45 3285358.80     4.43     3.41     5.85
+charge per count: 65,536 counts     223858.75  203123.25  289123.20     0.45     0.31     0.58
+sink	9673533392122244
+== r2_costs, luau 0.742 -O2 --codegen, run 3
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+check: G11 reproduced: ea 0a
+## A. frame sizes (bytes, tag included upstream; downstream frames carry no tag)
+REPORT 3 fields (U7 bit adopted): probes 1, identity 1, refused 0  7 B  74 4b 01 2f 1d 79 85
+REPORT 3 fields: probes 60, identity 60, refused 0              9 B  74 83 1d ec 01 7d a6 6f 7c
+REPORT 3 fields: probes 0, identity 0, refused 1                6 B  74 2f a0 44 70 8b
+REPORT 3 fields: probes 0, identity 0, refused 80               8 B  74 0f 8c 00 3b ab c1 d4
+REPORT 4 fields (today): probes 60, 60, 60, refused 0          10 B  74 83 1d ec 60 0f fb e9 47 c7
+REKEY-only downstream reliable frame, tick unchanged           10 B  ea 0b 10 20 30 40 50 60 70 00
+## B. forced REPORT frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode REPORT frame (3 fields)         720.32     675.58    1192.64     1.00     1.00     1.00
+tag13 over the 3 B REPORT frame         68.63      65.87     113.97     0.09     0.06     0.15
+tag13 over a 64 B frame                299.52     279.64     363.34     0.41     0.24     0.51
+## C. server counters (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+per fit: nothing (baseline loop)         2.86       2.52       2.98     1.00     1.00     1.00
+per fit: clockFits += 1, clockSlope = s      10.86      10.55      11.19     3.79     3.69     4.24
+per frame: framesReceived[lane] += 1      11.48      11.02      11.90     4.02     3.80     4.56
+## C. per-player counters snapshot (100000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+snapshot, today's fields               708.81     683.33     727.85     1.00     1.00     1.00
+snapshot + clockFits, clockSlope, framesReceived     889.02     870.07     909.56     1.26     1.21     1.33
+## D. client decode per 65,536 elements (20 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+bool column of false (table.create + fill)  389675.10  369363.30  604420.25     1.00     1.00     1.00
+empty records (a table each)       2219861.85 1959701.05 2570525.75     5.28     3.76     6.63
+charge per count: 65,536 counts     212290.95  199501.65  246705.80     0.54     0.35     0.59
+sink	9673533392122244

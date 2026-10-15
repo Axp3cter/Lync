@@ -1,0 +1,84 @@
+== interpreted (luau 0.742 -O2), run 1
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        220744.11  210163.81  252015.43     1.00     1.00     1.00
+  per byte: 215.6 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       3783422.31 3371373.94 4086198.44     1.00     1.00     1.00
+  per byte: 230.9 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       14165311.75 13488165.50 17102681.00     1.00     1.00     1.00
+  per byte: 216.1 ns
+== native (--codegen), run 1
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream         22807.74   22383.84   47814.66     1.00     1.00     1.00
+  per byte: 22.3 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        367278.56  352406.69  445155.56     1.00     1.00     1.00
+  per byte: 22.4 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       1505113.00 1410258.25 1617660.50     1.00     1.00     1.00
+  per byte: 23.0 ns
+== interpreted (luau 0.742 -O2), run 2
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        217265.10  209694.91  254037.23     1.00     1.00     1.00
+  per byte: 212.2 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       3444527.12 3349325.44 3537840.19     1.00     1.00     1.00
+  per byte: 210.2 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       13814027.75 13284917.75 16006443.00     1.00     1.00     1.00
+  per byte: 210.8 ns
+== native (--codegen), run 2
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream         28541.01   22171.19   29813.03     1.00     1.00     1.00
+  per byte: 27.9 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        408206.63  352747.25  501553.19     1.00     1.00     1.00
+  per byte: 24.9 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       1633314.00 1566987.00 1777201.00     1.00     1.00     1.00
+  per byte: 24.9 ns
+== interpreted (luau 0.742 -O2), run 3
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        229890.74  219768.86  244206.09     1.00     1.00     1.00
+  per byte: 224.5 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       3588163.75 3458059.50 4249047.81     1.00     1.00     1.00
+  per byte: 219.0 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       14463597.50 13780007.25 17415840.50     1.00     1.00     1.00
+  per byte: 220.7 ns
+== native (--codegen), run 3
+check: block = reference HalfSipHash-2-4/64 on 3 messages; seal is an involution
+## seal 1024 B (256 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream         23314.96   22272.81   25067.40     1.00     1.00     1.00
+  per byte: 22.8 ns
+## seal 16384 B (16 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream        374429.81  352971.06  400667.06     1.00     1.00     1.00
+  per byte: 22.9 ns
+## seal 65536 B (4 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+HSH-2-4/64 counter keystream       1543873.50 1414864.25 1877796.50     1.00     1.00     1.00
+  per byte: 23.6 ns

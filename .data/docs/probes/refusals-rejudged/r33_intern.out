@@ -1,0 +1,54 @@
+== interpreted (luau 0.742 -O2), run 1
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         86.27      61.51      94.07     1.00     1.00     1.00
+reference: list[id]                     26.50      18.73      30.01     0.31     0.22     0.35
+== native (--codegen), run 1
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         49.82      46.47      75.98     1.00     1.00     1.00
+reference: list[id]                      7.45       6.10      12.34     0.15     0.12     0.23
+== interpreted (luau 0.742 -O2), run 2
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         57.05      53.48      58.81     1.00     1.00     1.00
+reference: list[id]                     17.34      15.82      18.17     0.30     0.27     0.32
+== native (--codegen), run 2
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         46.76      43.07      50.60     1.00     1.00     1.00
+reference: list[id]                      6.60       5.95       7.06     0.14     0.13     0.15
+== interpreted (luau 0.742 -O2), run 3
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         58.11      53.37      60.06     1.00     1.00     1.00
+reference: list[id]                     17.39      15.83      18.98     0.30     0.27     0.33
+== native (--codegen), run 3
+heap per entry,  12-byte strings, 4096 entries:   68.0 B (string owned by the table),  16.0 B (string alive elsewhere)
+heap per entry,  20-byte strings, 4096 entries:   75.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry,  64-byte strings, 4096 entries:  119.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+heap per entry, 200-byte strings, 4096 entries:  255.0 B (string owned by the table),  32.0 B (string alive elsewhere)
+## decode one 20-byte string value (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+literal: buffer.readstring 20 B         47.30      43.16      49.16     1.00     1.00     1.00
+reference: list[id]                      6.79       6.09       7.36     0.14     0.13     0.16

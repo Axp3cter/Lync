@@ -1,0 +1,18 @@
+-g0 locals: identical (539 B vs 539 B)
+-g0 functions: identical (539 B vs 539 B)
+-g0 fields: differs (539 B vs 538 B)
+-g0 base strings in bytecode: buffer writeu8 writeu16 hit shot print debug info 
+-g0 functions strings in bytecode: buffer writeu8 writeu16 hit shot print debug info 
+-g1 locals: identical (653 B vs 653 B)
+-g1 functions: differs (653 B vs 645 B)
+-g1 fields: differs (653 B vs 652 B)
+-g1 base strings in bytecode: 	encodeHit hit buffer writeu8 writeu16 shot print debug info 
+-g1 functions strings in bytecode: hit buffer writeu8 writeu16 shot print debug info 
+-g2 locals: differs (814 B vs 782 B)
+-g2 functions: differs (814 B vs 767 B)
+-g2 fields: differs (814 B vs 813 B)
+-g2 base strings in bytecode: 	encodeHit writeu16 writeu8 target damage out offset origin spread cursor hit buffer shot print debug info Codec packShot 
+-g2 functions strings in bytecode: writeu16 writeu8 hit buffer shot print debug info Codec 
+debug.info n at -O2 -g1, base: encodeHit		hit
+debug.info n at -O2 -g1, locals: encodeHit		hit
+debug.info n at -O2 -g1, functions: h		hit

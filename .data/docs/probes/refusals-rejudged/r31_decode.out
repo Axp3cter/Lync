@@ -1,0 +1,42 @@
+== interpreted (luau 0.742 -O2), run 1
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     68.1 ns/elem    16.0 B/elem heap    4.46 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    212.2 ns/elem   112.0 B/elem heap   13.90 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B    184.5 ns/elem    96.0 B/elem heap   12.09 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     69.5 ns/elem     0.0 B/elem heap    4.55 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     66.3 ns/elem    32.2 B/elem heap    4.35 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B   1424.1 ns/elem   352.0 B/elem heap   93.33 ms per 65,536
+== native (--codegen), run 1
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     27.2 ns/elem    16.0 B/elem heap    1.78 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    131.9 ns/elem   112.0 B/elem heap    8.64 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B    111.7 ns/elem    96.0 B/elem heap    7.32 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     24.7 ns/elem     0.0 B/elem heap    1.62 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     28.8 ns/elem    32.2 B/elem heap    1.89 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B    616.9 ns/elem   352.0 B/elem heap   40.43 ms per 65,536
+== interpreted (luau 0.742 -O2), run 2
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     64.9 ns/elem    16.0 B/elem heap    4.26 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    202.3 ns/elem   112.0 B/elem heap   13.26 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B    161.6 ns/elem    96.0 B/elem heap   10.59 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     72.1 ns/elem     0.0 B/elem heap    4.72 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     77.3 ns/elem    32.2 B/elem heap    5.07 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B   1681.4 ns/elem   352.0 B/elem heap  110.19 ms per 65,536
+== native (--codegen), run 2
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     25.0 ns/elem    16.0 B/elem heap    1.64 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    125.7 ns/elem   112.0 B/elem heap    8.24 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B     97.2 ns/elem    96.0 B/elem heap    6.37 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     24.6 ns/elem     0.0 B/elem heap    1.61 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     30.4 ns/elem    32.2 B/elem heap    1.99 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B    687.0 ns/elem   352.0 B/elem heap   45.02 ms per 65,536
+== interpreted (luau 0.742 -O2), run 3
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     71.7 ns/elem    16.0 B/elem heap    4.70 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    178.3 ns/elem   112.0 B/elem heap   11.68 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B    178.0 ns/elem    96.0 B/elem heap   11.67 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     60.4 ns/elem     0.0 B/elem heap    3.96 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     65.9 ns/elem    32.2 B/elem heap    4.32 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B   1238.0 ns/elem   352.0 B/elem heap   81.13 ms per 65,536
+== native (--codegen), run 3
+array(bool, 65535), all false                   3.1 B    65536 elem   20971.5 elem/B     21.6 ns/elem    16.0 B/elem heap    1.42 ms per 65,536
+array({a = bool}, 65535), all false             3.1 B    65536 elem   20971.5 elem/B    132.3 ns/elem   112.0 B/elem heap    8.67 ms per 65,536
+run of 65535 x {a = bool}, all false            4.9 B    65535 elem   13443.1 elem/B    110.9 ns/elem    96.0 B/elem heap    7.27 ms per 65,536
+run of 65535 x bool, all false                  4.9 B    65535 elem   13443.1 elem/B     23.7 ns/elem     0.0 B/elem heap    1.55 ms per 65,536
+array(array(bool, 255), 255), all false         3.1 B    65281 elem   20889.9 elem/B     28.4 ns/elem    32.2 B/elem heap    1.86 ms per 65,536
+run of 64 x 6-field record, random            397.6 B       64 elem       0.2 elem/B    538.0 ns/elem   352.0 B/elem heap   35.26 ms per 65,536

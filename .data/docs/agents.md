@@ -67,6 +67,10 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `ae05a016ace1f55ff` | critic (Opus) | reviews `v5.md` §0–§3 and §5.2 at draft 3.6 (types on both solvers and roblox-ts, API behaviour, §3.4 example) | `reviews/v5-3.6-core-api.md`, `probes/review-3.6-core-api/` | done on Opus 5.5: 1 blocking (visibility modifiers allowed on different fields in v5.md vs collections), 8 major (incl. ≥ 9 `field(path)` overloads too complex for the new solver; runtime-path type function fails at 10 paths with no fix found; `:claim()` breaks codec equality), 12 minor, 1 taste; retired |
 | `ac91605e4b5e81ca3` | prover (Opus) | runtime-path typing of `field(path)` at 10/32/128 paths on both solvers and roblox-ts (core-api review D1) | `probes/field-typing/RESULTS.md` | done on Opus 5.5: the limit is `LuauNormalizerInitialFuel = 3000` (2^N in overload unions); plain `:field(path)` has no exact runtime form past 53 paths; a `fields` table of handles (b) is exact at 10/32/128 on the new solver and in tsc; old solver gives error types for every type-function form; retired |
 | `a90228281c03fe04a` | prover (Opus) | re-measures the inbound bound's inputs on every shape (arrays, maps, all unreliable candidates, e..e+4, shape walk, untagged `HELLO`); bound at 0/10/25% margin; §9 CI gate shapes | `probes/inbound-bound-2/RESULTS.md` | running |
+| `a7c10e3a2c92ae769` | architect (Opus) | consistency: `v5.md` §5–§10 plus every open item in runtime text; §7.5 from `inbound-bound-2` if complete | `design/v5-3.6-consistency-runtime.md` | running |
+| `af1f4117f854b6350` | architect (Opus) | open items: stream/acked decoding conflicts (`in` timing, instances in streams, hash kind, 411 figure, stream-bytes name, role markers) | `design/v5-3.6-open-streams.md` | running |
+| `a89a494b2c94478ee` | architect (Opus) | open items: naming across files; "For runtime" list | `design/v5-3.6-open-naming.md` | running |
+| `a01235cc829a6ff2f` | architect (Opus) | open items: remaining semantic conflicts outside runtime text | `design/v5-3.6-open-semantics.md` | running |
 | `aa3ac179b751edc26` | architect (Opus) | consistency: `v5.md` §0–§3, §5.2 and header (Needs elsewhere, lead decisions, renames) | `design/v5-3.6-consistency-core-api.md`, `probes/consistency-3.6-core-api/` | done on Opus 5.5 (stopped once by mistake, resumed): 33 items applied, 57 renames plus 12 named under the convention, 4 open (stream hash kind 4 vs 5; `streamBytesExceeded` vs `streamChunkBytesExceeded`; two names for the naming critic; header's extensions line) |
 | `a16a77f14df4e38ea` | architect (Opus) | consistency: `v5.md` §4 (incl. golden regeneration) | `design/v5-3.6-consistency-wire.md`, `probes/design-3.6/golden_wire.*` | done on Opus 5.5 (stopped once by mistake, resumed): 21 applied, 1 changed (stream hash kind 5), 3 rejected, 35 confirmed; about 45 renames plus 9 named; G6, G7, G10, S0 regenerated and every vector re-checked; 8 open |
 | `a60b226001890347a` | architect (Opus) | consistency: `v5-integrity.md` | `design/v5-3.6-consistency-integrity.md` | done on Opus 5.5 (stopped once by mistake, resumed): 56 items (50 applied, 5 changed, 1 rejected), about 110 renames plus 8 named, 2 open (`WELCOME` bits for the two report switches; §7.3 splitting rule) |
@@ -137,9 +141,10 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   weigh or decide is the developer's (trap names, consequences, scores, policies). One naming convention for every
   code, fact, counter and option; current names like `foreignRemote` and `dynamicAccess` are not acceptable.
   Audits: `reviews/v5-3.6-scope.md`, `reviews/v5-3.6-naming.md`.
-- **No more agents after the running ones finish** (author, 2026-10-15). Not started: the runtime consistency unit
-  (`v5.md` §5–§10, incl. §7.5's numbers from `probes/inbound-bound-2/RESULTS.md`), the merge of the change records into
-  `v5-changes.md`, the naming re-check, the end-to-end critic.
+- Agents allowed again (author); finish faster without lowering quality by giving each unit slightly more. Remaining
+  after the four units above: (1) one critic: naming re-check plus an end-to-end trace from schema to wire to facts
+  across every file; (2) one architect: merge the change records into `v5-changes.md` ("Draft 3.5 to 3.6") and apply
+  that critic's findings; repeat (2) with a re-check only if blocking or major findings remain.
 - **No code** (author, 2026-10-15): docs only until the design is perfected. Path: finish 3.6 → apply the scope
   and naming audits → consistency unit → critics per area plus one end-to-end trace → apply until no blocking or
   major finding remains → repeat. The build plan and builder units wait for the author's go-ahead;

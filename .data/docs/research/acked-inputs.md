@@ -189,7 +189,8 @@ So Unity's guard as written wins wherever a linear leaf exists, and three baseli
 §1.3's rule.
 
 **History length H** (G, B/s): at 60 Hz the round trip is 7–8 ticks, so H = 8 leaves no usable baseline (100%
-nb = 0: shooter 12,120, racing 13,213, worse than the core's 15,476 only by the frame cap); H = 16 already equals
+nb = 0: the 60 Hz shooter's rows fall to 33.32 per second at 12,120 B/s, below the core's 40.91; racing to
+46.62 at 13,213); H = 16 already equals
 H = 32 on both 60 Hz cases. Idle-heavy collections keep gaining slowly: mmo 2,899 (H 8), 2,614 (16), 2,510 (32),
 2,490 (64), 2,466 (255); tycoon 2,660, 2,619, 2,600, 2,596, 2,585.
 
@@ -209,7 +210,7 @@ tycoon. A bound at the core's piece width (2.23–4.02× actual) admits only as 
 | Path | Native (server) | Interpreted (client) |
 |---|---|---|
 | core: copy 99 × 12 B pieces into a viewer's frame | 33.6–35.7 ns per row | 40.8–42.0 ns per row |
-| `acked` encode per viewer: 3 history lookups, guarded prediction on 5 linear leaves, residuals, full mode and k search per column, writes | **1,182–1,220 ns per row** (prediction 506, search 480, writes about 230) | 4,939–5,205 ns per row |
+| `acked` encode per viewer: 3 history lookups, guarded prediction on 5 linear leaves, residuals, full mode and k search per column, writes | **1,182–1,220 ns per row** | 4,939–5,205 ns per row |
 | `acked` client decode and rebuild (generic reader: modes, EG-k, prediction, store) | 1,610–1,795 ns per row | **3,746–4,049 ns per row** |
 
 - Round trip verified bit for bit on every leaf; the block is 537 B against 1,193 B of pieces for the same 99 rows.

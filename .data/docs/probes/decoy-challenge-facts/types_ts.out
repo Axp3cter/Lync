@@ -1,0 +1,10 @@
+== types.ts, tsc Version 6.0.2 --strict
+types.ts(23,13): error TS2345: Argument of type '"cdoe"' is not assignable to parameter of type '"code"'.
+types.ts(25,7): error TS2451: Cannot redeclare block-scoped variable 'closed'.
+types.ts(26,12): error TS2339: Property 'outcome' does not exist on type 'boolean'.
+types.ts(27,31): error TS2339: Property 'after' does not exist on type 'boolean'.
+types.ts(29,19): error TS2339: Property 'outcome' does not exist on type 'boolean'.
+types.ts(30,31): error TS2339: Property 'after' does not exist on type 'boolean'.
+types.ts(33,39): error TS2561: Object literal may only specify known properties, but 'attemps' does not exist in type 'ChallengeOptions'. Did you mean to write 'attempts'?
+types.ts(54,36): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+../../../../../../../opt/node-tools/node_modules/typescript/lib/lib.dom.d.ts(43369,13): error TS2451: Cannot redeclare block-scoped variable 'closed'.

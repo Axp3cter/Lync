@@ -297,7 +297,7 @@ Caller errors (CT C0's family): `unknownField`, `checkKind`, `checkOption`.
 -- server view
 Net.collect:reactsTo("coins", { key = "coin", floor = 0.12 })   -- a collection: the record's add to this viewer
 Net.answer:reactsTo("prompt", { key = "id", floor = 0.15 })      -- an event: data.id equals the prompt's data.id
-Net.dodge:reactsTo("telegraph", { key = { response = "attack", stimulus = "attackId" } })
+Net.dodge:reactsTo("telegraph", { key = { response = "swing", stimulus = "swingId" } })
 ```
 
 - **Response:** a client-sent event or request ask. **Stimulus:** a server-sent event (either lane) or a collection

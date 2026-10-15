@@ -579,3 +579,150 @@ an option controls it; it never refuses a security measure by itself.
 8. **`callerProbe.maxPerSecond` 1–63,** the full u6.
 9. **Evidence names:** `reported` for client-stated counts; `sinceRekey` −1 when no `REKEY` was sent.
 10. **Codes of milestones 1–2:** 53 (`v5.md` §7.1).
+
+# Draft 3.5 to 3.6
+
+2026-10-15. Folds the security re-judgment into the design (`design/v5-3.6-inputs.md`, its briefs under `research/`
+and `probes/`), in four phases: seven architect units by ownership, each then applying its critic review and the
+scope audit (`reviews/v5-3.6-scope.md`); a naming review (`reviews/v5-3.6-naming.md`) and seven consistency units
+with three open-item units; a final review (`reviews/v5-3.6-final.md`); and one final pass. New files:
+`v5-checks.md` (checks, `derive`, claims, telemetry, sealed delivery); `v5-extensions.md` deleted (everything in it
+is now core). The per-unit records are the detail; this section is the index.
+
+| Record | What it holds |
+|---|---|
+| `v5-3.6-changes-{core-api,wire,runtime,integrity,collections,checks,tooling}.md` | each unit's inputs, conflicts, simplifications, questions, review and scope findings, decisions, "Needs elsewhere" |
+| `v5-3.6-consistency-{core-api,wire,runtime,integrity,collections,checks,tooling}.md` | every "Needs elsewhere" item and rename applied to one text, with outcome |
+| `v5-3.6-open-{naming,semantics,streams}.md` | the open items the consistency units left, decided |
+| `v5-3.6-final-pass.md` | the measured inbound bound, the final review, the trap order, this merge |
+
+**Counts.**
+- Architect inputs (`v5-3.6-inputs.md` §1): core-api, wire and runtime by section in their records; integrity 68
+  entries (51 accepted, 12 changed, 5 rejected); collections 99 items with `acked` and streams (72 accepted,
+  26 changed, 1 rejected).
+- Critic reviews: core-api 22 (20 accepted, 2 changed); wire 24 (21, 3); runtime 24 (18, 6); integrity 37 (34, 3);
+  collections 32 (27, 5); checks 25 (24, 1); tooling 36 (29 accepted, 6 changed, 1 rejected).
+- Consistency: core-api 33 applied; wire 21 applied, 1 changed, 3 rejected, 35 present; runtime 76 (52 applied,
+  17 present, 3 changed, 4 superseded); integrity 56 (50 applied, 5 changed, 1 rejected); collections 18 applied,
+  3 rejected; checks and tooling in their records (tooling 32: 24 applied, 5 present, 2 superseded, 1 rejected).
+  Open naming: 53 names kept, 30 renamed, 4 split.
+- Final review: 35 findings (1 blocking, 7 major, 27 minor): 34 accepted, 1 changed. Final pass: the measured bound
+  (8 applied, 1 changed), the trap order (1 applied).
+
+## Root causes, fixed once
+
+| Root cause | Fix, and where |
+|---|---|
+| A. Lync acting on input beyond dropping it | No clamping, rewriting or policy: checks' `policy = clamp` removed (`v5-checks.md` §1.3); every drop is a declared rule or a budget; facts never act (`v5.md` §1, §6.1) |
+| B. Lync guessing what only the developer knows | The scope audit's rule: Lync provides exact primitives, the developer the judgements. Generated traps removed (a trap is a schema definition marked `:trap()`, `v5-integrity.md` §3); reachability opt-in (`check.inferReachability`); decoy placement, canary text, `limit.slackSeconds`, `weight` and thresholds are the game's |
+| C. Budgets without a basis | One CPU bound per player with measured prices and a chosen target; `inbound.decodeUnits` in decode units weighted per node; defaults derived (`v5.md` §7.5, `probes/inbound-budgets/`, `probes/inbound-bound-2/`), checked by a CI gate (§9) |
+| D. A yielding game callback suspends the pipeline | One callback rule: a reused runner thread, three outcomes, `task.cancel` on a yield, the declared fallback (`v5.md` §6.1), cited by every file |
+| E. Names in four grammars | One convention, subject then one condition word from a closed list, units in names (`reviews/v5-3.6-naming.md`); a registry regex (`v5.md` §7.1, C8); every name in the five files renamed |
+| F. One trigger, several fixes, one code | One splitting rule, "own code when the subject or the fix differs" (`v5.md` §7.3, `v5-tooling.md` §3.2): `sendDropped`, `schemaMismatch`, `unresolved`, `unreachable`, `earlyReaction`, `constraint` and others split |
+| G. One rule stated in several places | One home each: dispatch (§3.5), option rows (the file of their part), the callback rule (§6.1), facts (one row in one file) |
+
+## Findings by review
+
+Each review's findings, outcome and reason are in its unit's change record (section "Review"); the final review's
+are in `v5-3.6-final-pass.md` §2. The blocking findings and how they ended:
+
+| Review | Blocking finding | Outcome |
+|---|---|---|
+| runtime | `claimUnverified` dropped messages against §3.3 | accepted: a caller error at `connect`/`handle`, no drop |
+| runtime | p(L) didn't count arrays and maps | changed: decode units weighted per node (`v5.md` §7.5) |
+| core-api | C1 visibility placement differed from `v5-collections.md` §9 | accepted: one rule (`v5.md` §3.3) |
+| wire | B1 a `REKEY` that doesn't take ended the reliable lane | accepted: resent when the eighth failing frame's receipt shows its frame received (`v5.md` §4.5) |
+| integrity | 2.1 variant modules specified two ways; 8.1 decoy interest rule against collections | accepted: one set of N modules per build run; one decoy rule (`v5-collections.md` §8.6) |
+| collections | B1 `:seen()` withheld nothing; B2 a yielding callback suspended the flush | changed: `:seen()` dropped; accepted: the callback rule |
+| checks | B1 frame keys reset by `REKEY`; B2 the join hold split a seal from its reveal | accepted: the accepted-frame count (`v5.md` §4.5); reveal rows never refused (`v5-checks.md` §9.5) |
+| tooling | B1–B3 regeneration inputs, woven drift check, the weave gate; B4 generated traps | accepted; B4 changed: traps are developer-declared |
+| final | C1 `DEPTH` had no namespace field | accepted: namespace index EG0 first (`v5.md` §4.6) |
+
+## Refusals re-judged
+
+Every item of `research/security-refusals.md`, with its final 3.6 outcome. "Kept" means still refused or still out,
+with the reason the record gives.
+
+| Item | Final outcome |
+|---|---|
+| R1 downstream tags, client replay window | narrowed: the listener-caller check (`clientListenerCallerMismatch`, `v5-integrity.md` §5); downstream tags kept refused (no third party writes a client's downstream) |
+| R2 masking or whitening | kept: a byte reader that uses plaintext gets the mask key with the tag key; concealment from the recipient is sealed delivery |
+| R3 per-session upstream id shuffle | adopted as the keyed id permutation from the `WELCOME` nonce (`v5.md` §4.5) |
+| R4 runtime field shuffling | kept; its cost record corrected (2–3× is generated against table-driven) |
+| R5 a nonzero seed on the runtime path | adopted as `layout.vary` (`v5.md` §3.2) |
+| R6 codecs in the game's scripts | adopted as weaving, a CLI pass over built output (`v5-tooling.md` §5) |
+| R7 per-player shard variants | adopted narrowed: per-player tag masks (`v5-integrity.md` §2.4) |
+| R8 per-client generated code | kept: no platform member delivers code to a client |
+| R9 obfuscation, VMs, `getfenv`, `loadstring` | kept; reasons restated (fast calls, reviewability, platform) |
+| R10 darklua renaming | kept; reason restated |
+| R11 manifest self-attestation | narrowed: CI attestation of the published place (`v5-integrity.md` §11); run-time self-attestation kept refused |
+| R12 build-time id rotation | subsumed by the keyed permutation |
+| R13 generated trap ids | kept refused for generated traps; a developer-declared `:trap()` definition instead |
+| R14 union variant and enum order rotation | per-build code offsets adopted (`v5-integrity.md` §2.2); variant order not varied |
+| R15 per-viewer slot permutation | kept |
+| R16 per-viewer decoy slot ranges | narrowed: decoys from the one allocator, re-encoded only where they have rows; separate ranges kept refused |
+| R17 low-order watermarks | kept |
+| R18 hook and environment checks | narrowed: the self-check of Lync's own frozen tables and closures (`v5-integrity.md` §5); engine-function checks kept refused |
+| R19 client-side decoy filtering | kept |
+| R20 client-chosen rewind time | kept; rewind derives the perceived tick (`v5-collections.md` §12.3) |
+| R21 `limit` by client send time | kept (`v5.md` §5.4) |
+| R22 quiet mitigation hooks | kept by principle (facts, not verdicts) |
+| R23 suspicion scores | kept by principle |
+| R24 automatic consequences | kept by principle |
+| R25 library drops for report-only facts | applied: checks' `"deliver"`; reaction, decoy and canary facts deliver |
+| R26 `REPORT` forcing a frame | adopted (`v5.md` §5.1) |
+| R27 `REKEY` spacing | adopted narrowed: one pending `REKEY` per player, resent on receipt (`v5.md` §4.5) |
+| R28 a 64-bit tag | kept: 32 bits, one keyless acceptance per 75.3 days at the defaults |
+| R29 integrity policy in `lync.toml` | kept: server policy is game code calling `Lync.configure` |
+| R30 integrity tuning as options | kept: protocol constants |
+| R31 a per-frame decode budget by bytes | kept: the sender chooses frame bytes; decode units instead |
+| R32 clients enforcing the element bucket | kept, reason restated; `elementsSent` counted |
+| R33 upstream interning | narrowed to form A (`v5.md` §4.11) |
+| R34 commit–reveal, state sharing | narrowed: sealed delivery adopted (`v5-checks.md` §9); commit–reveal a docs recipe; peer state sharing refused |
+| R35 `maxRate`, `planar`, `exempt`, `cooldown` | `maxRate` adopted with `plane` (`v5-checks.md` §6); `exempt` as `resetChecks`; `cooldown` is `limit` |
+| R36 a built-in hit verifier | kept: the hit test is the game's (rewind returns state) |
+| R37 a per-fit clock counter | adopted as counters (`clockSlope`, `clockSlopeMedian`) |
+| R38 calls per second above any frame rate | adopted narrowed as counters (`framesReceived`) |
+| R39 a per-frame transform hook | kept; whole-frame transforms go through the `transport` seam (`v5.md` §8) |
+| R40 a Studio line naming a fired trap | kept: the console line already names the definition |
+| D1 `interest` | specified in the core (`v5-collections.md` §8) |
+| D2 `rewind` | specified in the core (`v5-collections.md` §12) |
+| D3 `checks` | specified (`v5-checks.md` §1–§7) |
+| D4 `telemetry` | specified (`v5-checks.md` §8) |
+| U1 capture `FireServer` once | adopted (`v5.md` §4.1), listed as pricing nothing (§6.2) |
+| U2 `tagRounds`, per-build tag function | not adopted; constants per build only (`v5-integrity.md` §2.3) |
+| U3 beacon false-positive rules | decided: estimator rules, split halves, signed slope; server-wide corrections refused (`v5-integrity.md` §6) |
+| U4 timing on server request results | adopted: four fields (`v5.md` §5.2) |
+| U5 foreign remotes, dynamic access | adopted as `remoteInstanceFound`, `dynamicAccessFound` (`v5-tooling.md` §3.4) |
+| U6 core hash in `HELLO`, drift check | `buildId` and `idTableHash` in `HELLO`; shard digests (`v5-tooling.md` §1.1); no code hash |
+| U7 caller attestation in the tag | adopted as the caller probe and bit (`v5-integrity.md` §4) |
+| U8 visibility classes, scoped events | adopted (`v5-collections.md` §9, §10) |
+| U9 `derive` | adopted (`v5-checks.md` §5) |
+| U10 reactions | adopted (`reactsTo`, `v5-integrity.md` §7.3) |
+| U11 decoy detections | adopted: `decoyKeyReceived`, `reportInteraction` (`v5-integrity.md` §8) |
+| U12 free-form field warning | adopted as `freeFormRoleMissing` (`v5-tooling.md` §3.4) |
+| U13 relevancy telemetry | adopted as counters (`interestPairTicks` and others, `v5.md` §7.4) |
+| U14 server-issued challenges | adopted (`Lync.challenge`, `v5-integrity.md` §7.4) |
+| U15 streaming and staged-release guidance | adopted: staged namespaces (`v5-collections.md` §13) |
+
+## Lead decisions
+
+1. One callback rule for every game function whose result Lync needs (`v5.md` §6.1).
+2. `callerProbe.splitFrames` rejected (it breaks one reliable frame per flush).
+3. Field handles from a `fields` table, `Net.<def>.fields.<name>` and `.fields["a.b"]`, replacing `:field(path)`.
+4. `inbound.elements` → `inbound.decodeUnits`, with the matching codes, counters and evidence (open naming D15).
+5. The inbound bound's constants priced at their highest run medians; μ the smallest margin at which the §9 gate
+   passes every run and the busy model fits.
+6. R22, R23, R24 kept refused by principle.
+
+## Decisions made in 3.6 (beyond the per-unit lists)
+
+1. **The inbound bound** (`v5.md` §7.5): p(L) = 2,500 + 133 × L ns with per-node weights; c_f,r 4.28 µs, c_f,u
+   4.95 µs, c_b,r 29.99 ns/B, c_b,u 19.36 ns/B; μ = 0.10; target 2 ms/s per player; `inbound.decodeUnits` 4,000
+   units/s, unit burst max(2 × U_max, 102,400); streams add C_s outside the target.
+2. **The instance-list walk is paid in bytes**, accepted or refused (`v5.md` §6.1 step 2).
+3. **The client flush accumulator** keeping its remainder: 60.0 Hz at 60–240 FPS (`v5.md` §5.1).
+4. **The join hold charged at `fire` and written at release**, per connection, in bytes and decode units (§5.3).
+5. **One clock and one origin** for server durations (`v5.md` §7.3).
+6. **`mismatchReceived`**, the client's code for a `MISMATCH` (§7.2).
+7. **String tables in milestone 2**; milestone 1–2 codes: 78.

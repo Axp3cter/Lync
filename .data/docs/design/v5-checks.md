@@ -1,6 +1,6 @@
 # Lync v5: checks, claims, telemetry and sealed delivery
 
-Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-3.6-changes-checks.md`.
+Draft 3.6, final pass, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-changes.md` ("Draft 3.5 to 3.6").
 This file specifies, completely:
 - **checks** (§1–§6): `within`, `monotonic`, `maxTotal`, `derive` and `maxRate`, declared on the server view;
 - **claims** (§7): the `:claim()` and `:input()` codec markers, the claim requirement and the `freeFormRoleMissing`
@@ -36,7 +36,9 @@ Names follow `reviews/v5-3.6-naming.md`.
 ### 1.2 Shape and scope
 
 `Net.<definition>.fields[path]:<check>(options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`,
-`maxRate` (`Net.strike.fields.origin:within({ … })`, `Net.shot.fields["hit.at"]:within({ … })`).
+`maxRate` (`Net.strike.fields.origin:within({ … })`, `Net.shot.fields["hit.at"]:within({ … })`). The examples use
+`v5.md` §3.4's `strike` with one claim field added, `origin = t.vector3(-2048, 2048, 1 / 32):claim()`, as §7.3's
+schema declares it; the core's example and its golden vectors (G8, ROT) keep the two-field `strike`.
 - **`fields`** is `v5.md` §3.4's table of field handles: a key is a path of `data` through records and optionals,
   dots between names (`""` is `data` itself when it isn't a record); arrays, maps and union variants are not
   reachable; a key naming no field is a type error where types are checked and throws `fieldPathUnknown` at the
@@ -87,9 +89,11 @@ Names follow `reviews/v5-3.6-naming.md`.
 ### 1.4 Where checks run
 
 `v5.md` §6.1's steps 5–7 run as follows:
-- **Step 5** is unchanged: control; traps and reachability; answers; unresolved values (`enumValueUnresolved`,
-  `instanceUnresolved`, `instanceClassMismatch`); `limit`; the report-only checks of milestone 5. Messages over
-  `limit` therefore never touch check state.
+- **Step 5**, as `v5.md` §6.1 lists it: control messages; answers (`requestSlotMismatch`, `requestAnswerBelowPing`);
+  enum and instance resolution (`enumValueUnresolved`, `instanceUnresolved`, `instanceClassMismatch`); reachability
+  (`unreferencedMessageReceived`, `genericIdMessageReceived`); `limit` (`limitExceeded`); traps
+  (`trapMessageReceived`, dropped after `limit`, `v5-integrity.md` §3); then the report-only checks of milestone 5.
+  Messages over `limit`, and traps' messages, therefore never touch check state.
 - **Step 6, checks and validator**, per message of a definition, in this order (the claim requirement is enforced
   earlier, when the handler is declared, §7.3):
   1. **Evaluate** every check of the definition in declaration order. Each check reads its field once, at its own
@@ -142,7 +146,7 @@ has no use for.
 | `monotonicOutOfOrder` | the value | the stored value |
 | `maxTotalExceeded` | the window sum S plus the amount | `total` |
 | `deriveMismatch` | the distance d after snapping (1 for an unequal `t.enum` or `t.bool`) | `tolerance` |
-| `maxRateExceeded` | d against the failing reference | that reference's allowance, `perSecond` × `spanSeconds` + `burst` |
+| `maxRateExceeded` | d against the failing reference | that reference's allowance, `perSecond` × `spanSeconds` + `tolerance` |
 
   `olderFrame` is 1 when the message's frame key is older than the stored key (§3.2, §6.2), possible only on the
   unreliable lane (§3.1), else 0. `spanSeconds` (s) is t − t_p or t − t_a, for the failing reference;
@@ -177,7 +181,7 @@ has no use for.
   distance. No frame key separates them, since those frames are newer than any the server has seen. The docs'
   formula for `exemptSeconds` after a server-applied move on `v5.md` §9's model: the client keeps sending old
   values until the move reaches it, and they arrive a one-way trip later: 2 × (0.05 + 0.02) s, plus a server flush,
-  a client frame and a server step of 1/60 s each, 0.19 s; on the reliable lane add the definition's `limit.slack`
+  a client frame and a server step of 1/60 s each, 0.19 s; on the reliable lane add the definition's `limit.slackSeconds`
   (2 s by default, `v5.md` §3.4). The game knows its own ping (`GetNetworkPing`).
 
 | Option | Type | Unit | Range | Default | Cost |
@@ -196,8 +200,8 @@ has no use for.
   coroutine calling a yielding function under `xpcall` returned `suspended` and never reached its end).
 - **For a check's `reference` or `fn`:**
   - **returned:** the results are the function's. A result outside the check's domain is raised inside the runner
-    before its completion marker, so it is a throw: the wrong type, a non-finite number or component, or, for
-    `derive` on `t.direction`, a zero vector (§5.1);
+    before its completion marker, so it is a throw: the wrong type, a non-finite number or component, a fraction
+    for a `t.int` field, or, for `derive` on `t.direction`, a zero vector (§5.1);
   - **threw:** reported natively as `checkFunctionRaised`, with `debug.traceback(thread, message)`;
   - **yielded:** reported natively as `checkFunctionYielded`; whatever the function did before its yield stays done.
   The declared fallback is the drop: on a throw or a yield the message is dropped (an ask is answered `rejected`),
@@ -462,7 +466,7 @@ Net.craft.fields.result:derive({
      decimal steps lie up to 1.4e-13 beyond `step`, so a float metric fails a one-step tolerance about a quarter of
      the time). With q_v the received code and q_r the snapped one: `t.number` and `t.int(min, max)`, k = |q_v −
      q_r|; `t.vector3`, k = Σ Δq² over the components; `t.angle`, k = min(Δq, n − Δq). `tolerance` is converted once,
-     at declaration, to an integer K by `v5.md` §3.3's 1e-9 rule: ⌊tolerance/step⌋ for `t.number` (1 for `t.int`),
+     at declaration, to an integer K by `v5.md` §3.3's 1e-9 rule: ⌊tolerance/step⌋ for `t.number`, ⌊tolerance⌋ for `t.int(min, max)` (step 1),
      ⌊(tolerance/step)²⌋ for `t.vector3`, ⌊tolerance · n/2π⌋ for `t.angle`. The comparison is integer: k against K.
      `observed` reports √k · step, k · step or k · 2π/n in the field's unit. `t.direction`, `t.f32`, `t.f64` keep
      §2.1's float metric; `t.enum` (both forms) and `t.bool` give 0 or 1.
@@ -535,7 +539,7 @@ moving server state.
 
 ### 6.1 Semantics
 
-`Net.move.fields.position:maxRate({ perSecond = 16, burst = 0.907, windowSeconds = 10, plane = "xz", policy = "deliver"
+`Net.move.fields.position:maxRate({ perSecond = 16, tolerance = 0.907, windowSeconds = 10, plane = "xz", policy = "deliver"
 })` `[refusals-rejudged-4 R35]`: a claimed value that changes by at most `perSecond` (in the field's unit) per second.
 - **Why a check, not a recipe.** A `within` whose reference returns the game's last delivered value plus `perSecond` ×
   elapsed fails twice: game code never sees frame keys, so late unreliable frames (1.3%, §3.2) move its last value
@@ -552,10 +556,11 @@ moving server state.
 ### 6.2 Exact trigger
 
 For a value v in a frame with key s, evaluated at t (`os.clock()` at evaluation): with no stored value, never. Otherwise
-it fails when not (d(v, p) ≤ `perSecond` × (t − t_p) + `burst`), or not (d(v, a) ≤ `perSecond` × (t − t_a) + `burst`);
+it fails when not (d(v, p) ≤ `perSecond` × (t − t_p) + `tolerance`), or not (d(v, a) ≤ `perSecond` × (t − t_a) + `tolerance`);
 equality passes. A late frame (s older than the stored key, unreliable only: §3.1's key) is compared with both
-references, `olderFrame` = 1. On a stream the key is the index and t its playout time (§1.4), so no frame is older and t
-advances by exactly 1 / `state.ticksPerSecond` per index while the arrival offset holds (`v5-collections.md` §15.4).
+references, `olderFrame` = 1. On a stream the key is the index and t the index's due time, θ_i + o + J / `stateRate` (its arrival when it
+arrived late; `v5-collections.md` §15.4), so no frame is older and t advances by exactly 1 / `state.ticksPerSecond`
+per index while the arrival offset holds (`v5-collections.md` §15.4).
 
 **Commit** (§1.4): if s is newer than the stored key, (p, t_p, key) ← (v, t, s), and when t − t_a ≥ `windowSeconds` also
 (a, t_a) ← (v, t). The first message sets both. A late frame stores nothing.
@@ -565,17 +570,17 @@ accrued before that sample; the anchor bounds net displacement over up to `windo
 excess speed that per-step comparisons let through. Each is one comparison of two samples, so honest error doesn't
 accumulate.
 
-**Decision: `burst` and `windowSeconds` are required.**
-- **Problem.** `burst` must cover an honest pair's excess, which has two parts: each sample's decode error e, which
+**Decision: `tolerance` and `windowSeconds` are required.**
+- **Problem.** `tolerance` must cover an honest pair's excess, which has two parts: each sample's decode error e, which
   the codec fixes exactly, and the compression of arrival spans against send spans, which depends on the player's
   real network, unknown to Lync. `windowSeconds` sets how long sustained excess speed may run before the anchor sees it.
-- **Options:** (a) R35's defaults, `burst` derived from `v5.md` §9's simulated network and `windowSeconds` 10 s, chosen
+- **Options:** (a) R35's defaults, `tolerance` derived from `v5.md` §9's simulated network and `windowSeconds` 10 s, chosen
   `[refusals-rejudged-4 R35]`; (b) **both required**, with the derivation in the docs.
 - **Choice: (b).** A default from a network model is a threshold Lync would be guessing for every game, which the
   rule "Lync does only what it can do exactly" gives to the developer; `maxDistance`, `tolerance` and `total` are
   required for the same reason.
-- **The docs' derivation:** `burst` = `perSecond` × c + 2e. On `v5.md` §9's model, c = jitter range + client flush +
-  server step = 0.02 + 1/60 + 1/60 = 0.0533 s on the unreliable lane, plus the definition's `limit.slack` (2 s by
+- **The docs' derivation:** `tolerance` = `perSecond` × c + 2e. On `v5.md` §9's model, c = jitter range + client flush +
+  server step = 0.02 + 1/60 + 1/60 = 0.0533 s on the unreliable lane, plus the definition's `limit.slackSeconds` (2 s by
   default, `v5.md` §3.4) on the reliable lane: 2.0533 s. e = √3 · step/2 for `t.vector3` (√2 · step/2 with `"xz"`),
   step/2 for `t.number`, π/n for `t.angle`, the octahedral error for `t.direction` (0.2369° at 10 bits), 0 for `t.int`
   and `t.f64`; `t.f32` and `t.vector3f32` err by 2^−24 of the value, so their e is 2^−24 × the largest magnitude the
@@ -586,7 +591,7 @@ Checked against the simulation (`perSecond` 16 studs/s, step 1/32, 3 × 10^6 mes
 `refusals-rejudged/r4_maxrate.out`); the model sends each sample in the frame it is taken, so its needs sit at least
 `perSecond`/60 = 0.27 studs below the derivation, which covers a flush up to 1/60 s after the sample:
 
-| Lane and network | Smallest `burst` with no failure | The docs' derivation |
+| Lane and network | Smallest `tolerance` with no failure | The docs' derivation |
 |---|---|---|
 | unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.907 |
 | unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.907 (derived at 0.02 s) |
@@ -595,10 +600,10 @@ Checked against the simulation (`perSecond` 16 studs/s, step 1/32, 3 × 10^6 mes
 
 ### 6.3 What it bounds, and how it is defeated
 
-- A forged sequence of values stays within `perSecond` × elapsed + `burst` of the previous sample and of the anchor; the
-  excess speed it can sustain unseen is `burst`/`windowSeconds`: 0.091 studs/s (0.57% of 16 studs/s) at `burst` 0.907
+- A forged sequence of values stays within `perSecond` × elapsed + `tolerance` of the previous sample and of the anchor; the
+  excess speed it can sustain unseen is `tolerance`/`windowSeconds`: 0.091 studs/s (0.57% of 16 studs/s) at `tolerance` 0.907
   and `windowSeconds` 10 s.
-- A client that withholds messages for T seconds may then move `perSecond` × T + `burst`: the server can't know where it
+- A client that withholds messages for T seconds may then move `perSecond` × T + `tolerance`: the server can't know where it
   was in between, so that is the bound.
 - Defeated by moving at `perSecond` exactly, and by any client physics change `perSecond` allows. It bounds only what
   the client claims in Lync payloads, never engine-replicated characters; a game with server truth compares against it
@@ -618,7 +623,7 @@ Checked against the simulation (`perSecond` 16 studs/s, step 1/32, 3 × 10^6 mes
    `scripting/security/network-ownership.md`).
 3. **A server step longer than 1/60 s** (a hitch), or a reliable stall longer than 2 s, compresses arrival spans by
    its length; evidence `spanSeconds` shows it.
-4. **Network jitter above the c the developer's `burst` covers** (mobile jitter unmeasured, §11), and a speed boost
+4. **Network jitter above the c the developer's `tolerance` covers** (mobile jitter unmeasured, §11), and a speed boost
    above `perSecond`.
 
 ### 6.5 Options and cost
@@ -626,8 +631,8 @@ Checked against the simulation (`perSecond` 16 studs/s, step 1/32, 3 × 10^6 mes
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `perSecond` | number (real) | the field's unit per second | > 0, finite | required | none |
-| `burst` | number (real) | the field's unit | ≥ 0, finite | required (§6.2; the docs' derivation) | none |
-| `windowSeconds` | number (real) | s | 0.1–3600 | required (§6.2) | none; unseen excess speed is `burst`/`windowSeconds`, so a larger window lets less through |
+| `tolerance` | number (real) | the field's unit | ≥ 0, finite | required (§6.2; the docs' derivation) | none |
+| `windowSeconds` | number (real) | s | 0.1–3600 | required (§6.2) | none; unseen excess speed is `tolerance`/`windowSeconds`, so a larger window lets less through |
 | `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `callOptionOutOfRange`) | `"xyz"` (the codec's own metric, as in `within`) | none; `"xz"` is 3–11 ns cheaper native (`r4_maxrate.out`) |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
@@ -637,7 +642,7 @@ message in 3-D; 74–82 ns native and 299–305 ns interpreted with `"xz"`. Stat
 **`cooldown`** stays out: a cooldown of s seconds is `limit = { perSecond = 1/s, burst = 1 }` (`v5.md` §5.4). The
 client never sends two messages less than s apart; the server admits at most 1 + (T + 2)/s over any T seconds
 (`refusals-rejudged/r4_cooldown.out`: after idle, 5 at once at s = 0.5 s, 3 at 1 s; for s > 2 s a second only s − 2 s
-after the first). A stricter arrival-gap test would need the same `limit.slack`, so a second limiter would add
+after the first). A stricter arrival-gap test would need the same `limit.slackSeconds`, so a second limiter would add
 nothing, and principle 4 refuses it.
 
 ## 7. Claims
@@ -825,7 +830,7 @@ the definition is delivered, with a window of another definition's stream around
 3. **Hand off** (§8.5).
 
 **Atom format, version 1:** `serverTime` f64 (`GetServerTimeNow()` at the trigger frame), `clockMilliseconds` u32 and
-`frameKey` u32 of the trigger frame, `count` u16 (entries copied, n; at most `maxEntries`, 1024), `flags` u8, the field
+`frameKey` u32 of the trigger frame, `entryCount` u16 (entries copied, n; at most `maxEntries`, 1024), `flags` u8, the field
 values as f64 in declaration order, then n entries. Size = 19 + 8 · F + n · E, with F the field values and E the entry
 size: 591 B for 4 values (`origin` x, y, z and `target`) and 45 aim entries. **Flags** record what happened to the
 copy and the message, each with an exact condition:
@@ -886,9 +891,9 @@ export type AtomBatch = {
 	player: Player,
 	namespace: string,
 	definition: string,
-	count: number,       -- atoms in data
+	atomCount: number,   -- atoms in data
 	format: AtomFormat,  -- one per atom declaration
-	data: buffer,        -- count atoms, format version 1
+	data: buffer,        -- atomCount atoms, format version 1
 }
 export type AtomFormat = {
 	version: number,     -- 1
@@ -896,12 +901,13 @@ export type AtomFormat = {
 	entry: "timing" | "aim" | "scalar" | "vector" | "none",
 	entryBytes: number,  -- 8, 12, 12, 20 or 0
 }
-export type RingCopy = { format: AtomFormat, count: number, data: buffer, serverTime: number, clockMilliseconds: number }
+export type RingCopy = { format: AtomFormat, entryCount: number, data: buffer, serverTime: number, clockMilliseconds: number }
+export type AtomSample = { sinceTriggerSeconds: number, frameKey: number, yaw: number?, pitch: number?, value: number?, vector: vector? }
+export type Atom = { serverTime: number, frameKey: number, flags: number, fields: { [string]: number }, samples: { AtomSample } }
 ```
 
-`Lync.telemetry.decode(batch): { Atom }` turns a batch into tables (`{ serverTime, frameKey, flags, fields: { [string]:
-number }, samples: { { sinceTriggerSeconds, frameKey, yaw?, pitch?, value?, vector? } } }`, `sinceTriggerSeconds`
-negative for entries before the trigger) for game code that analyses in process; a cold path that allocates per atom. roblox-ts, from the same IR (dot calls, `this: void`, `readonly`
+`Lync.telemetry.decode(batch): { Atom }` turns a batch into tables (`sinceTriggerSeconds` negative for entries
+before the trigger) for game code that analyses in process; a cold path that allocates per atom. roblox-ts, from the same IR (dot calls, `this: void`, `readonly`
 fields):
 
 ```ts
@@ -978,14 +984,14 @@ frame times drawn per case, not measured on devices.
 
 The docs state each cause, so analysis doesn't read them as anything else:
 1. **Frame rate sets the sample rate** (29–60 Hz across devices), so analysis by index is wrong on every device;
-   every entry carries its time and atoms their count `n`.
+   every entry carries its time and atoms their `entryCount`.
 2. **The network dominates timing:** server-side sd 9.0–12.5 ms against client flush sd 0.2–5.6 ms; a timing series
    resolves a hand only at intervals well above 20 ms.
 3. **Game code produces machine-regular timing:** a script firing "if now − last ≥ 0.1" sends at intervals fixed by
    its frame grid (at a steady 60 FPS only 100, 101, 116 and 117 ms; seen at the server as 108.1 ± 11.5 ms).
    Automatic weapons, auto-collect and cooldown loops give the same low variance.
 4. **Loss and late frames:** 5% loss leaves gaps of 69–143 ms in a window; in arrival order 1.41% of aim deltas run
-   backwards at 0.02 s jitter (21.7% at 0.05 s), in key order none. Analysis sorts by `key`.
+   backwards at 0.02 s jitter (21.7% at 0.05 s), in key order none. Analysis sorts by `frameKey`.
 5. **Yaw near the poles:** one `t.direction(10)` step moves yaw by up to 0.24° level, 1.4° at 80° pitch, 13.6° at
    89°, 180° at 89.9°. Analysis uses the angle between reconstructed directions, never yaw differences; the docs
    give the formula.
@@ -1190,7 +1196,7 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 
 | Code | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `sealsOutstandingExceeded` | local: a sealed send to a recipient already holding `sealed.maxOutstanding` unrevealed seals of that definition | the send to that recipient is dropped | `bytes` | game code sealing faster than it reveals or discards, or dropping a `Seal` without calling either |
+| `sealsOutstandingExceeded` | local: a sealed send to a recipient already holding `sealed.maxOutstanding` unrevealed seals of that definition | the send to that recipient is dropped | `bytes` (the seal's ciphertext, 8 × `blocks`) | game code sealing faster than it reveals or discards, or dropping a `Seal` without calling either |
 
 Nothing sealed flows upstream, so there is no other server fact.
 
@@ -1265,8 +1271,8 @@ Each has a default or a rule the design uses; none blocks the milestone.
 - The runner thread's cost native and in Roblox's build (§1.7).
 - The engine's downstream rate per player (sealing against withholding, §9.1); HalfSipHash over 12 B (§9.7).
 - The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks (the c of
-  the docs' `burst` derivation, §6.2); reliable-lane stall lengths on mobile (`maxTotal` cause 2 and its 10%
-  headroom, `limit.slack` behind the reliable c; review m11).
+  the docs' `tolerance` derivation, §6.2); reliable-lane stall lengths on mobile (`maxTotal` cause 2 and its 10%
+  headroom, `limit.slackSeconds` behind the reliable c; review m11).
 - Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
   (`monotonic` cause 4).
 - Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).

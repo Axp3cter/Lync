@@ -1,6 +1,6 @@
 # Lync v5: compiler outputs and tools (milestones 3 and 6)
 
-Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-changes.md` ("Draft 3.5
+Draft 3.6, final pass, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-changes.md` ("Draft 3.5
 to 3.6").
 Milestone 3 builds §1–§4 on the Lune host, except what a row marks for a later milestone; milestone 6 builds the
 Rust/mlua host, weaving (§5), `lync check --published`, `diff`, `replay`, the Studio plugin, the inspector and the
@@ -121,7 +121,7 @@ Rendered from the manifest; it never contains `rotationSeed`. Per namespace: sha
 worst-case size, whether the scan found a reference to it, whether it is opted in to run-time reporting, closed or
 open with the first open reason, and woven site count; the `unreferenced` list with the size and source of the scan
 set it holds for; the `dynamicAccessFound` sites; the inbound bound's schema terms (`v5.md` §7.5): U_max, N_u, the
-unit burst max(2 × U_max, 81,920) and its one-frame cost, 100 ns × the burst, and, for a namespace that declares
+unit burst max(2 × U_max, 102,400) and its one-frame cost, 100 ns × the burst, and, for a namespace that declares
 streams, the stream parse term `inbound.unreliable.frames` × Σ_streams 33 × c_copy at the default frames and the
 measured c_copy of 64.7 ns native (`v5-collections.md` §15.7). Per build: one line naming `rotation.entropy`; the
 `remoteInstances` and `remoteCreations` tables, with
@@ -457,7 +457,7 @@ the only regenerate-on-edit path.
   `[generation-methods M16]`.
 - **Play-test walk.** When the plugin runs in the play-test server DataModel, it walks `game:GetDescendants()` once
   `ReplicatedStorage.Lync.Reliable` exists, then follows `game.DescendantAdded` for the three remote classes until
-  the play test ends, and reports each foreign remote with `runtime` 1: the only view of remotes that helpers create
+  the play test ends, and reports each remote instance with `foundAtRunTime` 1: the only view of remotes that helpers create
   at run time (Cmdr, legacy chat) `[build-checks §1.3]`. That plugin code runs in that DataModel
   is unverified (§8); where it doesn't, the walk doesn't run.
 - **"Bake"** runs each `[[pvs]]` bake, with the approximation §2 states, on the edit DataModel's parts, on demand,
@@ -573,6 +573,9 @@ which exists only after `rojo build`.
   binding statement's last line, never before the first token, so hot comments stay on lines 1–2. Every line keeps
   its number and instance paths don't change, so Rojo's sourcemap and the Error Report point at the developer's
   file and line. A line map per build `[security-tooling §10]` is therefore not built.
+- **Send path.** A woven site's fragment encodes only: it hands its run to the shard's send path, which applies the
+  caller probe (`v5-integrity.md` §4), `limit` (`v5.md` §5.4), the join hold (§5.3 there) and the variant mask as for
+  `fire`.
 - **Positions.** Each woven check passes its site's source line as a constant to the cold `fail`, so a refusal
   reports the call's first line at `-O1` and `-O2` and skips the `debug.info` walk (`v5.md` §7.1); cost one `LOADN`
   per check, in the cold branch.
@@ -583,7 +586,8 @@ which exists only after `rojo build`.
   aliases, fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in
   the client scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site that passed the gate below
   or of an alias declaration whose uses are all such sites `[codecs-in-scripts §4.2]`; a site the gate leaves unwoven
-  keeps its definition open. Closure is exact relative to the scan set and nothing more, as `unreferenced` is (§1.2):
+  keeps its definition open. An occurrence that calls a member that sends nothing (`asDecoded`, `v5.md` §3.5) doesn't
+  open it; `weave.dropClosed` then keeps the encode and decode `asDecoded` runs. Closure is exact relative to the scan set and nothing more, as `unreferenced` is (§1.2):
   the manifest and report list every closed definition; a generic-id message on one is reported at run time only for
   definitions the developer opts in (`check.inferReachability`, `v5-integrity.md` §3), and site ids, constant elision
   and woven speed don't depend on that opt-in. The scope is the client scan set, as for the unreferenced list: server
@@ -598,7 +602,7 @@ which exists only after `rojo build`.
   | no shadowed builtin at a site | site unwoven, `weaveBuiltinShadowed` |
   | the woven script compiles | script unwoven, `weaveCompileFailed` |
   | line count unchanged | `internal` (exit 3) |
-  | differential, for 200 value sets per site drawn by xorshift32 seeded with the site's canonical index plus 1 (never 0, xorshift32's fixed point), at the build's own `[build]` settings and `rotationSeed`, under the identity permutation and under permutation seed 1: with `weave.ids = "generic"`, the woven bytes equal the shard encoder's; otherwise the woven id is the site table's id for that site, and the server shard's site decoder gives from the woven bytes the value the generic decoder gives from the shard encoder's bytes `[codecs-in-scripts §7.3]`; in every mode a refused value raises the same message | `internal` (exit 3) |
+  | differential, for 200 value sets per site drawn by xorshift32 seeded with the site's canonical index plus 1 (never 0, xorshift32's fixed point), at the build's own `[build]` settings and `rotationSeed`, under the identity permutation (permutation nonce 0) and under permutation nonce 1 with the build's S: with `weave.ids = "generic"`, the woven bytes equal the shard encoder's; otherwise the woven id is the site table's id for that site, and the server shard's site decoder gives from the woven bytes the value the generic decoder gives from the shard encoder's bytes `[codecs-in-scripts §7.3]`; in every mode a refused value raises the same message | `internal` (exit 3) |
 
   The 200 value sets are chosen, as in the prototype, which found woven and shard bytes identical over 3,466 B at
   `-O1` and `-O2` (`codecs-in-scripts/diff.out`); a gate miss found later in a released build would raise it.
@@ -628,7 +632,7 @@ which exists only after `rojo build`.
     site's constant fields and values. Not covered: values `buildId` pins (field order, tag constants, offsets, and
     every `[build]` option, `v5-integrity.md` §2), per-player variant data, the secrets (`rotationSeed`, the
     key-derivation secret, the canary key: a public hash over a secret is an offline check for guesses) and the
-    per-server permutation seed. It is 0 exactly when the id mode is `"generic"`; otherwise it is the hash, with 0
+    per-server permutation nonce. It is 0 exactly when the id mode is `"generic"`; otherwise it is the hash, with 0
     replaced by 1. Named **`idTableHash`**, for the table it pins: `weaveHash` would misname a field the protocol
     always carries, and `layoutHash` collides with the `layout` field and option of the runtime path. `HELLO`
     carries it at protocol version 1, since no protocol has been released (`v5.md` §4.6); G7 is a version-1 vector

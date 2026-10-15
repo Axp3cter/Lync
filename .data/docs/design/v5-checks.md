@@ -762,13 +762,14 @@ ring (a second `aim` or `series`, on the definition or any of its fields, throws
 
 Entry sizes: timing 8 B, aim 12 B, scalar 12 B, vector 20 B. The research's layout had u16 `ms` and `key`
 `[checks-telemetry T1]`; with them, a ring of a definition sent less often than once per second spans more than the
-65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact for every ring
-(`ms` wraps after 49.7 days, `key` after 138 days at 360 frames/s), for 4 B more per entry.
+65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact while a ring spans less than
+24.8 days (2^31 ms, the reach of the signed 32-bit differences of §8.4; `key` wraps after 414 days at 120
+frames/s), for 4 B more per entry.
 
 **Decision: one entry per frame.** A frame's messages share one arrival time, so Lync samples the last delivered
 message of the definition in each frame (messages are in call order, `v5.md` §4.1): more entries would add values
-with no time between them, and one per frame bounds a ring's turnover by the inbound frame budget (at most 120 + 240
-frames/s at the defaults, `v5.md` §7.5). At 60 frames/s a 64-entry ring holds 1.07 s.
+with no time between them, and one per frame bounds a ring's turnover by its definition's lane budget (a definition uses one
+lane: at the defaults 60 frames/s reliable or 120 unreliable, plus a burst of 240, `v5.md` §7.5). At 60 frames/s a 64-entry ring holds 1.07 s.
 
 ### 8.3 Where it runs
 

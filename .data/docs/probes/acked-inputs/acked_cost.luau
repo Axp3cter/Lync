@@ -93,46 +93,44 @@ end
 -- bit writer
 local out = buffer.create(4096)
 local acc, nacc, pos = 0, 0, 0
-local SH = table.create(64, 0)
-for i = 0, 63 do
-	SH[i + 1] = 2 ^ i
-end
-local function wbits(v, n) -- n <= 21
-	acc += v * SH[nacc + 1]
-	nacc += n
-	if nacc >= 32 then
-		local low = acc % 4294967296
-		buffer.writeu32(out, pos, low)
+-- 32-bit accumulator writer, LSB first (the bit order of v5.md section 4.1)
+local function wbits(v, n) -- n <= 32, v < 2^n
+	acc = bit32.bor(acc, bit32.lshift(v, nacc))
+	local t = nacc + n
+	if t >= 32 then
+		buffer.writeu32(out, pos, acc)
 		pos += 4
-		acc = (acc - low) / 4294967296
-		nacc -= 32
+		acc = bit32.rshift(v, 32 - nacc)
+		nacc = t - 32
+	else
+		nacc = t
 	end
 end
 local function wlong(v, n)
-	while n > 20 do
-		local low = v % 1048576
-		wbits(low, 20)
-		v = (v - low) / 1048576
-		n -= 20
+	if n <= 32 then
+		wbits(v, n)
+		return
 	end
-	wbits(v, n)
+	local low = v % 4294967296
+	wbits(low, 32)
+	wbits((v - low) / 4294967296, n - 32)
 end
 local function blen(q)
 	return 32 - bit32.countlz(q)
 end
-local P2 = table.create(64, 0)
-for i = 0, 63 do
-	P2[i + 1] = 2 ^ i
-end
-local function wEG(v, k)
-	local pk = P2[k + 1]
-	local lowk = v % pk
-	local q = (v - lowk) / pk + 1
-	local z = blen(q) - 1
-	local pz = P2[z + 1]
-	wlong(pz + (q - pz) * (pz + pz), 2 * z + 1)
-	if k > 0 then
-		wbits(lowk, k)
+local function wEG(v, k) -- v < 2^31
+	local q = bit32.rshift(v, k) + 1
+	local z = 31 - bit32.countlz(q)
+	local pz = bit32.lshift(1, z)
+	local word = bit32.bor(bit32.lshift(q - pz, z + 1), pz)
+	local len = 2 * z + 1
+	if k == 0 then
+		wbits(word, len)
+	elseif len + k <= 32 then
+		wbits(bit32.bor(word, bit32.lshift(bit32.band(v, bit32.lshift(1, k) - 1), len)), len + k)
+	else
+		wbits(word, len)
+		wbits(bit32.band(v, bit32.lshift(1, k) - 1), k)
 	end
 end
 local function flush()

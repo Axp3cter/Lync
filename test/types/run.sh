@@ -27,10 +27,12 @@ if [ "${1:-}" = "--update" ]; then
 fi
 
 # luau-analyze has no Roblox definitions, so it runs only where the proof needs it: the typo
-# schema must give a diagnostic and no crash on both analyzers.
+# schema must give a diagnostic and no crash on both analyzers. The brand proof reveals a type
+# function's result, which only the new solver computes.
 tools_of() {
 	case "$1" in
 		typo | typo_schema) echo "analyze lsp-new lsp-old" ;;
+		brand) echo "lsp-new" ;;
 		*) echo "lsp-new lsp-old" ;;
 	esac
 }

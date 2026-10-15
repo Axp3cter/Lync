@@ -1,16 +1,8 @@
 == types.luau, --solver=new --mode=strict (expect exactly the errors marked EXPECT)
-./types.luau:42:13-18: (W0) TypeError: Expected this to be '"code"', but got '"cdoe"'
-./types.luau:52:24-35: (W0) TypeError: Expected this to be 'number', but got 'nil'
-./types.luau:86:36-38: (W0) TypeError: Expected this to be 'number', but got 'string'
+./types.luau:45:13-18: (W0) TypeError: Expected this to be '"code"', but got '"cdoe"'
+./types.luau:55:24-35: (W0) TypeError: Expected this to be 'number', but got 'nil'
+./types.luau:89:36-38: (W0) TypeError: Expected this to be 'number', but got 'string'
 == types.luau, --solver=old --mode=strict (expect exactly the errors marked EXPECT)
-./types.luau:16:2-5: (W0) TypeError: read keyword is illegal here
-./types.luau:17:2-5: (W0) TypeError: read keyword is illegal here
-./types.luau:42:13-18: (W0) TypeError: Expected this to be '"code"', but got '"cdoe"'
-./types.luau:52:2-35: (W0) TypeError: Expected this to be 'number', but got 'nil'
-./types.luau:59:20-23: (W0) TypeError: read keyword is illegal here
-./types.luau:59:39-42: (W0) TypeError: read keyword is illegal here
-./types.luau:62:57-60: (W0) TypeError: read keyword is illegal here
-./types.luau:67:66-69: (W0) TypeError: read keyword is illegal here
-./types.luau:76:35-37: (W0) TypeError: Expected this to be 'number', but got 'unknown'
-./types.luau:80:38-40: (W0) TypeError: Expected this to be 'number', but got 'unknown'
-./types.luau:86:36-38: (W0) TypeError: Expected this to be 'number', but got 'string'
+./types.luau:45:13-18: (W0) TypeError: Expected this to be '"code"', but got '"cdoe"'
+./types.luau:55:2-35: (W0) TypeError: Expected this to be 'number', but got 'nil'
+./types.luau:89:36-38: (W0) TypeError: Expected this to be 'number', but got 'string'

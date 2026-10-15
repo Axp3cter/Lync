@@ -32,3 +32,32 @@ atom window entries copied (mean): 46
 batch hand-off (16 atoms: exact buffer + frozen table)       664.9 ns/op  (sink 0)
 memory per player: cadence ring 256 B per definition; aim ring 512 B; pending 448 B (8 slots); one atom 417 B (45 entries)
 ## run 1 native -O2
+baseline: loop + slot lookup                                  12.2 ns/op  (sink 0)
+cadence write (u16 ms, u16 key)                               23.6 ns/op  (sink 0)
+aim write, code given (u16 ms, u16 key, 2 x u16)              23.6 ns/op  (sink 0)
+aim write, direction -> yaw/pitch u16 (atan2, asin)           73.3 ns/op  (sink 0)
+atom trigger (5 fields as f64, time, key, def)                34.9 ns/op  (sink 0)
+atom complete (binary search + two-part copy, ~45 entries)   252.4 ns/op  (sink 0)
+atom window entries copied (mean): 46
+batch hand-off (16 atoms: exact buffer + frozen table)       661.2 ns/op  (sink 0)
+memory per player: cadence ring 256 B per definition; aim ring 512 B; pending 448 B (8 slots); one atom 417 B (45 entries)
+## run 2 native -O2
+baseline: loop + slot lookup                                  15.9 ns/op  (sink 0)
+cadence write (u16 ms, u16 key)                               22.7 ns/op  (sink 0)
+aim write, code given (u16 ms, u16 key, 2 x u16)              26.7 ns/op  (sink 0)
+aim write, direction -> yaw/pitch u16 (atan2, asin)           64.8 ns/op  (sink 0)
+atom trigger (5 fields as f64, time, key, def)                37.9 ns/op  (sink 0)
+atom complete (binary search + two-part copy, ~45 entries)   256.5 ns/op  (sink 0)
+atom window entries copied (mean): 46
+batch hand-off (16 atoms: exact buffer + frozen table)       702.6 ns/op  (sink 0)
+memory per player: cadence ring 256 B per definition; aim ring 512 B; pending 448 B (8 slots); one atom 417 B (45 entries)
+## run 3 native -O2
+baseline: loop + slot lookup                                  12.9 ns/op  (sink 0)
+cadence write (u16 ms, u16 key)                               22.0 ns/op  (sink 0)
+aim write, code given (u16 ms, u16 key, 2 x u16)              24.6 ns/op  (sink 0)
+aim write, direction -> yaw/pitch u16 (atan2, asin)           71.7 ns/op  (sink 0)
+atom trigger (5 fields as f64, time, key, def)                35.6 ns/op  (sink 0)
+atom complete (binary search + two-part copy, ~45 entries)   260.0 ns/op  (sink 0)
+atom window entries copied (mean): 46
+batch hand-off (16 atoms: exact buffer + frozen table)       683.5 ns/op  (sink 0)
+memory per player: cadence ring 256 B per definition; aim ring 512 B; pending 448 B (8 slots); one atom 417 B (45 entries)

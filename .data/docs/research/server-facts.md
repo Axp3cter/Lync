@@ -31,7 +31,7 @@ Roblox's server build is not measured. Probes type-check clean (luau-analyze 0.7
 
 - [x] U9. `derive`: re-derivation of a claimed outcome
 - [x] U10. `reactsTo`: response before stimulus, and the reaction floor
-- [ ] Implications (U9, U10)
+- [x] Implications (U9, U10)
 - [ ] U11 (later unit)
 - [ ] U14 (later unit)
 - [ ] U3 (later unit)
@@ -362,7 +362,8 @@ The code follows `earlyAnswer`'s name and `slotConflict`'s `case` pattern. Evide
   - game code answering without a human (a response fired from the stimulus handler);
   - stimuli a player can predict;
   - humans faster than the floor. The floor is the game's: athletics treats a reaction under 0.100 s to the
-    starting gun as a false start (World Athletics TR16.6, quoted by FinishLynx, reported), and visual reactions
+    starting gun as a false start (World Athletics TR16.6, 2020 edition, as quoted by
+    [FinishLynx](https://www.finishlynx.com/product/reactime-championship-software/), reported), and visual reactions
     are slower;
   - a bound above the true path: at 0.02 s above it, the estimate fell up to 0.018 s below the true reaction, and
     1.35% of 0.10 s reactions read under a 0.10 s floor.
@@ -378,7 +379,7 @@ The code follows `earlyAnswer`'s name and `slotConflict`'s `case` pattern. Evide
 |---|---|---|
 | unmodified, reaction 0 (automatic), bound 0.10 s (= the true minimum path) | 0.004 / 0.019 / 0.045 / 0.240 s | 97.6% |
 | unmodified, reaction 0.15 s, bound 0.10 s | 0.005 / 0.019 / 0.046 / 0.246 s | 0% |
-| unmodified, reaction 0.10 s, bound 0.12 s (0.02 above the true path) | −0.018 / −0.001 / 0.025 / 0.223 s | 1.35% |
+| unmodified, reaction 0.10 s, bound 0.12 s (0.02 above the true path) | −0.018 / −0.001 / 0.026 / 0.223 s | 1.35% |
 
 | Fires at L after the stimulus left, without waiting for it | Case 1 by time (factor 0.5) | Case 1 by receipt | Floor 0.10 s |
 |---|---|---|---|
@@ -443,3 +444,32 @@ that stimulus's key, e.g. `((self, stimulus: "prompt", options: ReactsToOptions<
 stimulus: string }, floor: number?, factor: number?, track: number? }`. roblox-ts: the same as overloads with
 `this: void`. Runtime path: strings checked at the call. Old-solver overload selection by literal is milestone 3's
 typing proof, as for `derive`.
+
+---
+
+## Implications (U9, U10)
+
+1. Adopt `derive` as `checks` kind 4, `Net.<definition>:derive(path, { fn, tolerance, policy, oneIn })`, reported
+   as `constraint`, rather than the research's `Lync.derive` value or a `within` recipe (§U9.2).
+2. Snap `fn`'s result through the field's quantizer before comparing; that is what makes a one-step tolerance
+   absorb float noise (§U9.4, §U9.6 cause 1).
+3. Tolerance in the field's unit, as `within`; document one grid step as the smallest useful value, never 0, on
+   quantized codecs (§U9.5; 0.051% of f32/f64 components straddle, none by two steps).
+4. Document that `--!native` servers and interpreted clients disagree on `math.lerp` and `vector.lerp` (FMA), and
+   run the cross-device float probe on arm64 clients before any doc claims more (§U9.6 cause 1).
+5. Decide whether codecs get a client-side `:round(value)`, so claims can be computed from values as they decode;
+   without it, input quantization is the largest cause a developer can't fix alone (§U9.6 cause 3).
+6. CT C4 should let a `derive` or `within` on a `:claim()` field satisfy the "must have `validate`" rule (§U9.9).
+7. Adopt `reactsTo(stimulus, { key, floor, factor, track })` on the server view with `key` required; pairing
+   without a key raises facts for unmodified clients (§U10.3).
+8. Add the reliable receipt (`rcv:u8` in every upstream reliable header) to milestone 2's frame format: 1 B per
+   reliable frame buys an exact "before stimulus" and fixes IR §11.8's reliable-field gap (§U10.2, §U10.6).
+9. One fact, `earlyReaction`, with `case` 1–3 and `exact`, always delivered, never dropped (§U10.5).
+10. Use one path bound, min(10 s of `GetNetworkPing`, Lync's ack round trips), for both `earlyReaction` and
+    `earlyAnswer`; the floor is only conservative while that bound stays at or below the true path (§U10.4,
+    §U10.6).
+11. Ship `floor` off by default and document the margin rule (floor − 0.02 s); never ship a default human floor
+    (§U10.5, §U10.8).
+12. Still unmeasured on Roblox: `GetNetworkPing`'s smoothing and per-call cost, `Workspace:Raycast` inside `fn`,
+    and whether the engine sends at the flush (`v5.md` §10). Each one changes the strength of a known cause, not
+    the design.

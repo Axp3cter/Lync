@@ -1,1 +1,30 @@
 == interpreted (luau 0.742 -O2)
+(a) reportInteraction, real key (miss)                         43.4 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)      100.7 ns/op
+(b) decoy ring push (24 B slot)                                63.0 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                353.1 ns/op
+(c) held iteration, two arrays, 64 + 1, per key               789.8 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               841.9 ns/op
+(c) held iteration, two arrays, 300 + 1, per key             3706.4 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            28.4 ns/op
+(d) answers check, field nil                                    7.4 ns/op
+(d) answers check, value, no open challenge                    37.3 ns/op
+(d) answers check, value, open challenge (match)               56.5 ns/op
+(d) answers check, value, open challenge (mismatch)            56.7 ns/op
+(d) deadline sweep per flush, 50 open challenges              526.1 ns/op
+sink	true	unsolicited	true
+== native (luau 0.742 -O2 --codegen)
+(a) reportInteraction, real key (miss)                         24.2 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)       44.7 ns/op
+(b) decoy ring push (24 B slot)                                 4.5 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                331.0 ns/op
+(c) held iteration, two arrays, 64 + 1, per key               710.9 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               854.1 ns/op
+(c) held iteration, two arrays, 300 + 1, per key             3400.7 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            27.2 ns/op
+(d) answers check, field nil                                    2.6 ns/op
+(d) answers check, value, no open challenge                    14.4 ns/op
+(d) answers check, value, open challenge (match)               23.5 ns/op
+(d) answers check, value, open challenge (mismatch)            23.8 ns/op
+(d) deadline sweep per flush, 50 open challenges              292.0 ns/op
+sink	true	unsolicited	true

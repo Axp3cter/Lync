@@ -46,10 +46,10 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
     change; with interest, constantly) receives a second add while the server-wide count is unchanged: its own
     count runs ahead, and it drops every later row of that record as older `[interest-rewind §3]`.
   - *Options:* per-viewer counts in rows (rows stop being encode-once); **the server-wide generation in every add,
-    stored by the client** (2 bits per add, nothing per row); a full occupant id per row (ws + 16 bits or more on
+    stored by the client** (2 bits per add, nothing more per row); a full occupant id per row (ws + 16 bits or more on
     every row).
-  - *Choice: the generation travels in the add.* The server counts adds per slot modulo 4 (`gen`, server-wide);
-    every add and every row carries it, and the client stores the add's `gen` instead of counting. The fault is a
+  - *Choice: the generation travels in the add.* The server counts the records that have occupied each slot, modulo 4
+    (`gen`, server-wide); every add, catch-up adds included, and every row carries it, and the client stores the add's `gen` instead of counting. The fault is a
     property of the stated rules, not a measurement: milestone 4's two-sided world tests it with a record that
     leaves and re-enters one viewer's audience while other viewers keep it.
 - **Row acceptance on the client.** Per slot the client keeps: whether it is occupied, the stored `gen` g and add
@@ -59,8 +59,8 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   - otherwise replaces the held row if q is newer than the held row's seq.
   - On an add (gen g, tick A) the held row applies if its gen is g and its T ≥ A, then is discarded either way.
     Rows of an occupant are only encoded after its add, so its early rows have T ≥ A, and rows of an earlier
-    occupant have T < A even when its `gen` aliases (four adds of one slot are at least 8 s apart, through the 2 s
-    reuse delay).
+    occupant have T < A even when its `gen` aliases (a slot's occupants with one `gen` are at least four 2 s reuse
+    delays, 8 s, apart).
 - **Reads are copy-on-write.** Each change builds the next frozen record once; `get` returns it without copying
   (7 ns against 166 ns and 320 B for clone-on-read, interpreted), and `changed` passes the previous frozen record as
   `previous` for nothing. The cost moves to applying changes: 182 ns and 320 B per changed record, interpreted
@@ -170,8 +170,8 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   - distanceFactor (interest only), with d the distance in studs from the viewer's focus to the record's filed
     position (§8.3) and R the cell side: 1 for d ≤ R/4; 1 − 0.8 × ((d − R/4) / 0.75R)² for R/4 < d ≤ R (0.2 at R);
     0.1 for d > R (members held by hysteresis). The Iris sphere's bands `[state-sync §2.1]`.
-  - ownerBoost: 4 when the collection has an `owner` binding (§9) and the viewer is the record's owner, else 1.
-  - firstSendBoost: 4 for the first row after a catch-up add to that viewer, else 1. Both ×4 come from Iris
+  - ownerBoost (interest only): 4 when the collection has an `owner` binding (§9) and the viewer is the record's owner, else 1.
+  - firstSendBoost (interest only): 4 for the first row after a catch-up add to that viewer, else 1. Both ×4 come from Iris
     `SphereWithOwnerBoost` and Netcode for Entities' `FirstSendImportanceMultiplier` `[state-sync §3.3]`.
   - **Age floor.** A record pending for more than 2 s (`maxPendingAge`) is taken before every other, oldest first.
     Strict weights can otherwise starve a record for as long as the weight ratio allows (1000 / 0.001 between
@@ -220,7 +220,7 @@ naming no top-level field `unknownField`, or a field of another codec `fieldCode
 | `radius` | number (real) | studs | 8–4096 | required | R, the cell side. Larger means more members: about 2.6x an exact circle of R are included `[state-sync §7.2]`, so more catch-up bytes and more records in the bucket pass (20–60 ns native each, §7) |
 | `lookAhead` | number (real) | s | 0–1 | 0.2 (chosen: one state tick at 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; a measured round-trip distribution would change it) | one multiply-add per moving record per state tick; a record moving toward a viewer arrives up to `lookAhead` × its speed early |
 | `focus` | `(player: Player) -> Vector3?` or nil | — | — | nil: §8.3's engine focus | one call per viewer per state tick |
-| `pvs` | the string returned by the module `[[pvs]] output` names (`v5-tooling.md` §2), or nil | — | the bake's cell must divide R (§8.5) | nil | decoded once at the call; N_v × N_c bits of server memory (§8.5); one bit test per (viewer, cell) |
+| `pvs` | the string returned by the module `[[pvs]] output` names (`v5-tooling.md` §2), or nil | — | the bake's cell must divide R (§8.5) | nil | decoded once at the call; N × N_c bits of server memory, N the bake's cells and N_c the interest cells it covers (§8.5); one bit test per (viewer, cell) |
 | `predicate` | `(viewer: Player, key, record) -> boolean` or nil | — | — | nil | one call per pair that passed cells and `pvs`, per `predicateRate` period; the collection's updates travel as pieces (§8.4) |
 | `predicateRate` | number (real) | Hz | 1–20 | 10 (the research's ceiling for exact narrowing, "≤ 10 Hz" `[state-sync §7.2]`) | as `predicate` |
 
@@ -284,7 +284,7 @@ naming no top-level field `unknownField`, or a field of another codec `fieldCode
     lost for the collection); chunks per bake cell (a 3 × 3 block of R = 256 at cell 32 is 576 chunks to copy per
     viewer); **per (viewer bake cell, interest cell)**, a cell visible when any bake cell inside it is.
   - *Choice: per (viewer bake cell, interest cell).* At the `interest` call Lync derives, from the bake's N × N
-    table, a table of N_v × N_c bits: bit (u, c) = OR of PVS(u, s) over the bake cells s inside interest cell c. It
+    table, a table of N × N_c bits: bit (u, c) = OR of PVS(u, s) over the bake cells s inside interest cell c. It
     stays optimistic (a cell hides only if every part of it is hidden from the viewer's bake cell) and keeps cell
     chunks. This requires R to be an integer multiple of the bake's cell and the bake's grid to start at a multiple
     of its cell (`v5-tooling.md` §2), else the call throws `paramRange`. Cells outside the bake's extent are
@@ -427,8 +427,10 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
 - **Timing estimates, per player** (server, `os.clock()` throughout, the one clock of every server timing,
   `v5-3.6-inputs.md` §4 #28):
   - a sample per state frame n: (arrival of the first upstream frame whose ack names n as its newest seq) − (n's
-    send time). Taking only the newest seq of each ack keeps the client's ack delay at one client flush, since the
-    ack-only rule (`v5.md` §4.1) sends an ack when a frame arrives, not about older ones;
+    send time). Taking only the newest seq of each ack keeps the client's ack delay at one client flush: a client with
+    data acks at its next flush, and an idle one when a second unacked frame arrives (`v5.md` §4.1), naming that
+    frame. At `stateRate` 10 the ack-only 100 ms timeout can fire first and add up to 100 ms to a sample, which
+    raises jitter and D: the error is toward a longer delay;
   - over the samples of the last 5 s: ackRtt = their minimum, jitter = their mean absolute deviation from their
     mean. 5 s is chosen, unmeasured: it is the beacon estimator's window (`v5.md` §4.9); a longer one reacts more
     slowly to a route change, a shorter one is noisier. With no sample in the window both keep their last values.
@@ -547,7 +549,8 @@ buffers, arrays, maps, optionals, unions) is `fieldCodec`.
 - **Choice: the frame's own ack and receipt.** A client definition declared `perceived = true` (shared schema,
   hashed, since the client acts on it) makes every upstream frame holding one of its messages carry `'1' seq
   received` whenever any state frame has arrived. Cost: 28 bits on each such frame that would have carried `'0'`, at
-  most 35 B/s up at 10 claim frames a second. Undeclared definitions can still be rewound, with `ackExact` false.
+  most 35 B/s up at 10 claim frames a second. Undeclared definitions can still be rewound; when
+  their frame carried `'0'`, `ackExact` is false.
 - **Inputs, for a message in upstream frame f from player p** (server `os.clock()` seconds):
   - t_r, when f was decoded;
   - s, f's ack (else the newest ack held from p), T_s its state tick, t_s its send time;
@@ -568,7 +571,7 @@ buffers, arrays, maps, optionals, unions) is `fieldCodec`.
     `stateRate`: the arrival jitter of τ* plus §11.2's one-flush dead band.
 - **The clamp is on Lync's own estimate**, not on anything the client sent: s pins the frame, and held places the
   send between frame s and the next one the server sent. `heldRaw` and `hMax` are returned, so a game sees when it
-  bit (§12.7).
+  bit (§12.9).
 
 ### 12.4 Decision: truth at P, or what the viewer had
 
@@ -768,7 +771,7 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 | Code | Family | Trigger |
 |---|---|---|
 | `classPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
-| `fieldCodec` | declaration | a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
+| `fieldCodec` | caller (as `unknownField`, which server-view declarations already throw) | a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
 | `perceivedOutsideDispatch` | caller | `Lync.perceived(player)` outside a synchronous call for a message from `player` (§12.5) |
 | `releaseTarget` | caller | `Lync.release` with a `folder` that is not a `Folder` under `ServerStorage` (§13.2) |
 | `decoyOutsideInterest` | caller (behaviour channel, as `decoyKeyLive`) | a decoy failing §8.6's test |

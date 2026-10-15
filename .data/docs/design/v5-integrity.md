@@ -460,16 +460,173 @@ flush. They price **signal** tools that inject frames into the client's own view
 | `clock.reportSlope` | number (real) | s/s (seconds of drift per second) | 0.001–1 | 0.01 (derived above) | none; server-only |
 | `clock.reportFits` | integer | consecutive counting fits | 1–12 | 3 (derived above) | none; server-only |
 
-## 7. Early answers
+## 7. Timing facts
 
-- **Mechanism.** For each server `invoke`, Lync records the send time and samples `Player:GetNetworkPing()`. An
-  answer arriving sooner than `earlyAnswer.factor` × the smallest ping sampled for that player in the last 10 s is
-  delivered and reported as `earlyAnswer` (§10).
-- **Prices** answers sent before the ask could arrive (a bot predicting a timed prompt gains up to one round trip).
+Three server measures time a client's answer against when it could have seen what it answers: early answers to
+server asks (§7.2), reactions to declared stimuli (§7.3) and challenges (§7.4). They share one clock, one origin and
+one bound, so a fact's evidence equals the timing fields of the server's request result (`v5.md` §3.5) for the
+same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
+
+### 7.1 Clock, origin and bound
+
+- **Clock:** server `os.clock()` for every time below; it is not moved by system clock adjustments.
+- **t_s** is the flush that passed the frame holding the outgoing message to the engine (for a held send, the flush
+  that released it). **t_r** is the decode of the frame holding the incoming message.
+- **Bound b** per player, at t_r: the minimum over the last 10 s of the player's `Player:GetNetworkPing()` samples,
+  one taken at each t_s of an ask, a stimulus or a challenge and at each t_r of an answer, and of Lync's own ack
+  round trips where state frames flow (`v5-collections.md`). Engine ping excludes deserialization and processing,
+  so it sits below the full path; the ack round trip is not smoothed and follows a latency drop within one state
+  frame. Kept as 10 one-second minima, 40 B per player.
+- **Factor default, derived.** An option `factor` compares elapsed time with factor × b. On `v5.md` §9's default
+  network an unmodified automatic answer's `roundTrip` / ping is 0.97 at p1; after a one-way latency drop from
+  0.10 s to 0.03 s, `roundTrip` over a ping-only minimum falls to 0.52–0.59 within 0.5 s (smoothing time constant
+  assumed), and with ack round trips in the bound it stays at 1.64 `[clock-facts §U4.3]`. So 0.5 sits under every
+  simulated unmodified case; the smoothing measurement (§12) would change it.
+
+### 7.2 Early answers
+
+- **Mechanism.** For each server `invoke`, Lync keeps t_s and the ping sample in the request slot. An answer whose
+  `roundTrip` = t_r − t_s is below `earlyAnswer.factor` × b is delivered and reported as `earlyAnswer` (§10) with
+  `challenge` 0; `roundTrip` and `minPing` are the result's fields for that answer.
+- **Prices** answers sent before the ask could arrive: a bot predicting a timed prompt gains up to one round trip
+  (**clock**, **api**).
+- **Cost.** 6.3–7.2 ns native per ask to record t_s and the sample; the bound's minimum, 44–56 ns native per answer
+  (cacheable per second); one `GetNetworkPing` per ask and per answer (engine cost unmeasured, §12). No bytes.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `earlyAnswer.factor` | number (real) | fraction of the minimum ping | 0 (off) to 1 | 0.5 | one clock read and one `GetNetworkPing` per server ask; no bytes |
+| `earlyAnswer.factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (§7.1) | as above; server-only |
+
+### 7.3 Reactions (`reactsTo`)
+
+- **Declaration** (server view, invisible to the client, not hashed) `[server-facts §U10]`:
+  `Net.<response>:reactsTo(stimulus, { key, floor, factor, track })`. The response is a client-sent event or
+  request; `stimulus` names a server-sent event (either lane) or a collection of the namespace, whose stimulus is
+  a record's add to this viewer. `key` pairs a response with its stimulus: for a collection, the response field
+  holding the record key; for an event, a path present in both (`"id"`) or `{ response = …, stimulus = … }`. A
+  second call on one response replaces the first.
+  - Errors at the caller: an unknown stimulus or path, `unknownField`; a stimulus that is not a server-sent event or
+    a collection (a server request is `earlyAnswer`'s), `stimulusKind`; key paths whose codecs differ,
+    `fieldCodec`; an option out of range, `valueRefused`; an unknown option key, `unknownOption`.
+- **Candidates.** Events: the stimuli with the response's key value among the last `track` sent to the player.
+  Collections: the record's first add to this viewer in its current incarnation. Of several candidates Lync takes
+  the **oldest**, which gives the longest elapsed time, so a pairing error can only miss a fact. A key with no
+  candidate (an event outside the ring, a record no longer live) counts `reactionsUnmatched` (`v5.md` §7.4) and
+  raises no fact.
+- **Receipt.** Each upstream reliable frame's header carries `rcv:u8`, the client's count of downstream reliable
+  frames decoded mod 256, which the server extends into (S − 256, S] of its own count S of reliable frames sent to
+  that player (`v5.md` §4.1). It is client-stated; a modified runtime that overstates it leaves only the time rule.
+  Aliasing (a client 256 or more frames behind) extends upward, which can only miss a fact.
+- **Triggers** (with t_s the candidate's, t_r the response's, b §7.1):
+  1. **case 3, never sent** (collections): the key names a live record whose current incarnation was never added
+     to this viewer;
+  2. **case 1, before stimulus:** exactly, when the response came in a reliable frame, every candidate is a
+     reliable stimulus and every candidate's frame number exceeds the extended receipt; otherwise by time, when
+     t_r − t_s of the oldest candidate < `factor` × b;
+  3. **case 2, below the floor:** `floor` > 0 and (t_r − t_s) − b < `floor`, measured to the oldest candidate the
+     receipt shows received (the oldest candidate, without a receipt).
+  Each is the fact `earlyReaction` (§10). The message is always delivered `[refusals-rejudged-2]` (R25).
+- **Pipeline:** `v5.md` §6.1 step 5's report-only checks, after `limit`. Stimuli are recorded in the flush that
+  builds each player's frame.
+- **Prices** **api** and **clock**: a client acting on data Lync hadn't delivered (a bot pre-firing a timed prompt,
+  data from another path, a blind auto-collector firing on every key), and, with a floor, responses faster than the
+  game accepts from a person. Not priced: a client that waits for the stimulus and answers at a human-looking delay
+  (it prices speed, not automation); a modified runtime overstating the receipt, which the time rule still bounds.
+- **Simulated** on `v5.md` §9's default network `[server-facts §U10.6]`: with b at or below the true path the
+  estimate never falls below the true reaction; at b 0.02 s above it, 1.35% of 0.10 s reactions read under a 0.10 s
+  floor, hence the docs' rule: floor ≤ the fastest reaction the game accepts, minus 0.02 s. Responses fired at the
+  moment the stimulus left: case 1 by receipt 100%, by time 0%; floor 0.10 s 99.2%.
+- **Cost** (native; interpreted in `[server-facts §U10.7]`): a stimulus ring push 8.6–10.2 ns per recipient; a
+  response to an event 34.7–38.1 ns at `track` 8, to a collection add 8.2–8.3 ns; a ping sample 7.9–8.1 ns per
+  stimulus sent; the bound 45.4–46.0 ns per response. Memory: 24 B × `track` per (player, declaration); 4 B per
+  (viewer, slot) per watched collection (400 KB at 100 viewers and 1024 slots); per player a ring of the last 256
+  reliable frames' send times (2 KB). Wire: the receipt, 1 B per upstream reliable frame, ≤ 120 B/s at the default
+  frame budget.
+
+| Option (`reactsTo`) | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `stimulus` | string | — | a server-sent event or a collection of the namespace | required | collections: 4 B per (viewer, slot) |
+| `key` | string, or `{ response: string, stimulus: string }` | — | field paths with equal codecs | required | none |
+| `floor` | number (real) | s | 0 (off) or 0.01–2 | 0 (derived: the floor is the game's; none is a default human floor) | none beyond the response test |
+| `factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (§7.1) | none |
+| `track` | integer | event stimuli remembered per player | 1–64 | 8 (chosen: a response more than 8 stimuli of its definition behind counts `reactionsUnmatched`, never a fact) | 24 B per entry per player; the scan is linear in it |
+
+- `key` is required: paired with "the newest stimulus" instead, a slow answer to frequent stimuli pairs with the
+  wrong one, and the floor fires on an unmodified client. The frame-time ring is 256 because the receipt's range
+  is 256 frames. Generated types: one overload per stimulus name, each taking only the key paths whose codec
+  matches; old-solver overload selection by literal is milestone 3's typing proof `[server-facts §U10.9]`.
+
+### 7.4 Challenges
+
+- **What Lync carries, and what the game designs** `[decoy-challenge-facts §5]`. Lync draws an unpredictable token,
+  matches every value arriving on declared answer fields against the player's open challenge, and keeps the
+  deadline, extension, cancellation and attempts; the game chooses which of its own messages carries the token down
+  and the answer up, what the player sees or hears, and what an outcome means. Nothing marks a challenge in the
+  shared schema, on the wire or in Lync's client: a challenge shape in Lync's client would be the same in every
+  Lync game, and one hook on it would answer them all.
+- **API** (server):
+  - `Net.d:answers(field)` on the server view of a client-sent event or request: `field` is a top-level
+    `t.int(min, max)` or `t.optional` of one (unknown: `unknownField`; another codec: `fieldCodec`). Several
+    definitions may declare one. A message's answer is read in `v5.md` §6.1 step 5's report-only checks, after
+    `unresolved` and `limit`, before validators; a nil field answers nothing.
+  - `Lync.challenge(player, { within, values, attempts })` returns a handle. `token` = `Random:NextInteger(0,
+    values − 1)` from a server `Random` created with no seed (seeded from an internal entropy source, documented).
+    One open challenge per player: a second call throws `challengeOpen`. `values` must fit some declared answers
+    field (0 and values − 1 within its range), else `valueRefused`; an unknown option key throws `unknownOption`,
+    which neither Luau solver catches as a type error.
+  - The handle: `token`; `deadline`, the `GetServerTimeNow()` value at which it closes, for display; `wait()`,
+    which yields until close and returns the frozen outcome (at once, the same value, after close);
+    `extend(seconds)`, which moves the deadline later while open (seconds 1–3600, `within` plus extensions at most
+    3600 s, else `valueRefused`; nothing on a closed challenge); `cancel()`. A leaving player closes it as `left`;
+    `BindToClose` closes every open one as `shutdown`.
+- **Timing.** t_s is the first flush after the `Lync.challenge` call: the token can leave no sooner, so elapsed
+  times can only be long. The deadline is t_s + `within` (plus extensions) in `os.clock()`, swept once per flush.
+- **Outcome** (a result value, not a fact: the issuer waits for it, as for an `invoke`, and a fact would print a
+  console line per answered challenge and have to be matched back to its call):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `outcome` | `"answered" \| "mismatched" \| "timeout" \| "cancelled" \| "left" \| "shutdown"` | `answered`: a value equal to `token` arrived on an answers field from that player while open; `mismatched`: `attempts` values arrived and none was equal; `timeout`: the deadline passed first; the rest as above |
+| `after` | number (s), or nil | answered or mismatched: t_r of the closing value's frame − t_s |
+| `firstAfter` | number (s), or nil | the same for the first value received; nil if none |
+| `attempts` | integer | values received while open, the closing one included |
+| `minPing` | number (s) | b (§7.1) at close |
+| `definition` | string, or nil | the answers definition that carried the closing value |
+
+- A value closing a challenge as `answered` with `after` < `earlyAnswer.factor` × b is also `earlyAnswer` with
+  `challenge` 1. A non-nil answer from a player with no open challenge is `unsolicitedAnswer` (§10). A value from
+  another player is that player's attempt at their own challenge; tokens of 10^4 values coincide between players by
+  chance, so equality across players proves nothing and has no fact.
+- **Prices** automation that doesn't produce the game's response: idle-timer defeaters, **api** farm bots firing
+  gameplay definitions without per-game prompt handling, and blind guessing, which closes a challenge as `answered`
+  with probability at most `attempts`/`values` (3/10^4 at the docs' values). Deadlines and `after` are server time,
+  so **clock** changes nothing. Not priced: a bot that reads the token (from Lync's decoded payload, the UI or a
+  collection: **state**, **mem**) and answers through the game's action, which is byte-identical to a person's
+  answer except for its timing; screen readers of the OCR kind, human farms.
+- **Known causes on an unmodified client** `[decoy-challenge-facts §7]`. `timeout`: the player is away; slower than
+  `within` (people with physical disabilities often need more time, WCAG 2.2 SC 2.2.1); a prompt a gamepad or
+  touch screen can't answer; a visual-only prompt for a player who can't see it (no scriptable screen-reader API
+  exists); reduced-motion and text-size settings; the prompt covered (the Roblox menu, a modal, a loading screen,
+  the app in the background); a reliable-lane stall longer than the time left, or a challenge issued before
+  `WELCOME`, waiting in the join hold. `mismatched`: typos and misclicks, controller drift, a misread code, an
+  answers field that also carries values in ordinary play. `answered` close to `minPing`: game code that fills the
+  answer itself, a confirm key still held from the previous action. The docs page "Challenges" gives the recipe:
+  `within` from a saved per-player setting over at least a 10× range, a warning 20 s before the deadline with
+  `extend` on any simple action, `attempts` at least 3 for typed codes, selectable answer buttons, a visual and a
+  sound form, a still form under `ReducedMotionEnabled`, and the statement that one `timeout` tells none of these
+  apart from a program.
+- **Cost** (server native, `[decoy-challenge-facts §8.2]`): the token draw 27–28 ns (with `math.random` standing in
+  for `Random`); the answers check 2.4–2.5 ns per message when the field is nil, 14.3–14.6 ns with a value and no
+  open challenge, 23.6–30.5 ns with one open; the deadline sweep about 6 ns per open challenge per flush; one
+  `GetNetworkPing` at issue, per attempt and at close. Memory: one record per open challenge and three numbers per
+  player for `unsolicitedAnswer`. Wire: only the game's own fields (`t.optional(t.int(0, 9999))` is 1 bit on every
+  message of the carrying definition, 15 bits when set).
+
+| Option (`Lync.challenge`) | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `within` | number (real) | s | 1–3600 | required | one open record held up to `within` plus extensions |
+| `values` | integer | token values | 2–2^32 | required (it must match how the game shows the token) | none; must fit a declared answers field |
+| `attempts` | integer | values received | 1–255 | required (it depends on the answer's form: the docs give at least 3 for typed codes, 1 for one button) | none; the blind-guess bound rises in proportion |
 
 ## 8. Decoys
 

@@ -92,7 +92,7 @@ record):
   3. If any failing check has `"drop"`, the message is dropped (an ask is answered `rejected`); the validator is not
      called and nothing is committed.
   4. **Validate**, as today: `false`, a throw or a yield drops the message.
-  5. **Commit**, for a message that will be delivered: `monotonic` stores, `maxTotal` charges. A failing check with
+  5. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A failing check with
      `"deliver"` commits too, so check state always describes what game code received.
   Messages of one frame are handled in order, each committing before the next is evaluated.
 - **Step 6b, sample** (§8.3), then **step 7, delivery**.
@@ -1104,6 +1104,7 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
   - `unknownField` (exists) for a path naming no field.
 - **Build:** `freeFormField` (`v5-tooling.md` §3.4).
 - **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
+  `checksExempted` (a message inside a `resetChecks` window, §1.6),
   `claimsUnverified` (§7.3), `atomsDelivered`, `atomsSkipped` (§8.5).
 - **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§8.10).
 - **Runtime constant:** `maxTotal` buckets, 16 (§4.1).
@@ -1116,7 +1117,8 @@ Each has a default or a rule the design uses; none blocks the milestone.
   lookup by `Player` against the probes' slot index.
 - `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §9.4).
 - The engine's downstream rate per player (sealing against withholding, §9.1); HalfSipHash over 12 B (§9.7).
-- The engine's replication delay for client-owned physics (`within` cause 1).
+- The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks, against
+  `maxRate`'s derived compression c (§6.2).
 - Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
   (`monotonic` cause 4).
 - Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).

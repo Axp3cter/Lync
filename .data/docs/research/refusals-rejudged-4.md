@@ -449,13 +449,14 @@ committed value p with its evaluation time t_p and frame key, and an anchor a wi
 - **Commit** (delivered only): if s is newer than the stored key, then (p, t_p, key) = (v, t, s), and when t − t_a
   ≥ `window` also (a, t_a) = (v, t). The first message sets both. A late frame (older key) is compared with both
   references and never stored.
-- **Why two references.** The previous value bounds a jump against the last sample, so allowance can't be saved
-  up. The anchor bounds net displacement over up to `window`, which catches sustained over-speed that per-step
+- **Why two references.** The previous value bounds a jump against the last sample, so a jump can't spend
+  allowance accrued before that sample. The anchor bounds net displacement over up to `window`, which catches sustained over-speed that per-step
   comparisons let through. Each is one comparison of two samples, so honest error doesn't accumulate.
 - **Derived `burst`** (an honest pair can't exceed it): the arrival-time span between two samples can be shorter
   than their send-time span by the lane's compression c, and each sample carries up to e of decode error, so
-  `burst` = `rate` × c + 2e. Here c = jitter range + server step = 0.02 + 1/60 = 0.0367 s on the unreliable lane
-  (§9 model); and 2 s + 0.0367 s on the reliable lane (`limit`'s slack for stalls, `v5.md` §4.9). e is the codec's
+  `burst` = `rate` × c + 2e. Here c = jitter range + client flush + server step = 0.02 + 1/60 + 1/60 = 0.0533 s on
+  the unreliable lane (§9 model; Lync flushes at most every 1/60 s, `v5.md` §5.1), and 2 s + 0.0533 s on the
+  reliable lane (`limit`'s slack for stalls, `v5.md` §4.9). e is the codec's
   maximum error: √3 · step/2 for `t.vector3` (√2 · step/2 with `plane = "xz"`), step/2 for `t.number`, π/n for
   `t.angle`, 0.2369° for `t.direction(10)` (`v5.md` §3.3), and 0 for `t.int`, `t.f64`. For `t.f32` and
   `t.vector3f32`, e is 2^−24 × the largest magnitude the codec admits.
@@ -463,14 +464,17 @@ committed value p with its evaluation time t_p and frame key, and an anchor a wi
 
 | Lane and network | Smallest `burst` with no failure | Derived default |
 |---|---|---|
-| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.641 |
-| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.641 (derived at 0.02 s) |
-| reliable, jitter 0.02 s | 0.309 | 0.641 + 32.0 = 32.6 (2 s slack) |
-| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.6 |
+| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.907 |
+| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.907 (derived at 0.02 s) |
+| reliable, jitter 0.02 s | 0.309 | 32.907 (2 s slack) |
+| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.907 |
+
+The model sends each sample in the frame it is taken, so its needs sit at least `rate`/60 = 0.27 studs below the
+derived value, which also covers a flush up to 1/60 s after the sample.
 
 **What it bounds, and how it is defeated.**
 - A forged stream stays within `rate` × elapsed + `burst` of the previous sample and of the anchor. The excess
-  speed it can sustain unseen is `burst` / `window`: 0.064 studs/s at the defaults, 0.4% of 16 studs/s.
+  speed it can sustain unseen is `burst` / `window`: 0.091 studs/s at the defaults, 0.57% of 16 studs/s.
 - A client that withholds messages for T seconds may then move `rate` × T + `burst`: the server can't know where
   it was in between, so this is the honest bound.
 - A cheat moving at `rate` exactly passes, as does any client-side physics change the game's `rate` allows.
@@ -497,13 +501,13 @@ from decoded values only.
 |---|---|---|---|---|---|
 | `path` | string | — | a field of a codec listed above, through records and optionals (C0) | required | none |
 | `rate` | number (real) | the field's unit per second (studs/s, rad/s, units/s) | > 0, finite | required | none |
-| `burst` | number (real) | the field's unit | ≥ 0, finite | derived: `rate` × c + 2e, with c = 0.0367 s for unreliable definitions and 2.0367 s for reliable ones | none |
-| `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.4% of `rate` at the unreliable default) | none; larger values let less excess speed through |
-| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `checkKind`) | `"xyz"` | none (`r4_maxrate.out`: within noise) |
+| `burst` | number (real) | the field's unit | ≥ 0, finite | derived: `rate` × c + 2e, with c = 0.0533 s for unreliable definitions and 2.0533 s for reliable ones | none |
+| `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.57% of `rate` at the unreliable default) | none; larger values let less excess speed through |
+| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `checkKind`) | `"xyz"` (chosen: the codec's own metric, as in `within`) | none; `"xz"` is 3–11 ns cheaper native (`r4_maxrate.out`) |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
-**Cost** (`r4_maxrate.out`, net of the probe runner's no-check baseline, 3 runs, best of 7): 77–84 ns native and
-316–332 ns interpreted per message for 3-D, and 73–87 ns native and 290–331 ns interpreted for `"xz"` (the server
+**Cost** (`r4_maxrate.out`, net of the probe runner's no-check baseline, 3 runs, best of 7): 84–85 ns native and
+318–330 ns interpreted per message for 3-D, and 74–82 ns native and 299–305 ns interpreted for `"xz"` (the server
 runs native when the game marks Lync native). State: 80 B per player per check. Wire: 0 B.
 
 ### `exempt`: `resetChecks` gains a duration

@@ -1,0 +1,21 @@
+profile | up B/s | up calls/s | down B/s
+busy (inputs 60/s, actions 10/s; down 60 rel + 20 unrel) |  374.4 |  70 |  160.0
+idle, down unreliable 20/s (state ticks only) |  153.8 |  20 |  112.5
+idle, down unreliable 60/s (unreliable server events every frame) |  461.2 |  60 |  332.5
+
+draft 1 idle reference (10 Hz heartbeat on unreliable: tick16 + ack48 + seq12 + tag16 + section 11): 128.8 B/s, 10 calls/s
+ack-only frame: 7.69 B
+
+== Batched ack-only frames: owe an ack only once K new downstream unreliable frames are unacked
+dn_u 20/s K=1:  20.0 ack frames/s,   160 B/s, each frame acked 17.0x, repair delay +   0 ms worst
+dn_u 20/s K=2:  10.0 ack frames/s,    80 B/s, each frame acked  8.5x, repair delay +  50 ms worst
+dn_u 20/s K=4:   5.0 ack frames/s,    40 B/s, each frame acked  4.2x, repair delay + 150 ms worst
+dn_u 20/s K=8:   2.5 ack frames/s,    20 B/s, each frame acked  2.1x, repair delay + 350 ms worst
+dn_u 60/s K=1:  60.0 ack frames/s,   480 B/s, each frame acked 17.0x, repair delay +   0 ms worst
+dn_u 60/s K=2:  30.0 ack frames/s,   240 B/s, each frame acked  8.5x, repair delay +  17 ms worst
+dn_u 60/s K=4:  15.0 ack frames/s,   120 B/s, each frame acked  4.2x, repair delay +  50 ms worst
+dn_u 60/s K=8:   7.5 ack frames/s,    60 B/s, each frame acked  2.1x, repair delay + 117 ms worst
+
+== Definition ids: one space for both directions and both request roles (§4.1) vs per direction
+arena (§3.4): shared 7 ids -> 3 bits on every run and collection section; per direction: up 2 bits, down runs 2 bits, collection index 1 bits
+60 definitions: shared 60 ids -> 6 bits on every run and collection section; per direction: up 5 bits, down runs 6 bits, collection index 2 bits

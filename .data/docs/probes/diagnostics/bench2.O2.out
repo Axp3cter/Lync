@@ -1,0 +1,3 @@
+validator direct call                              median     12.5 ns  (min     12.4, max     12.8)
+validator in pcall                                 median     50.5 ns  (min     46.4, max     54.6)
+pcall(error(string,0)) repeat                      median   3001.3 ns  (min   2888.4, max   3080.2)

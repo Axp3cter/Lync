@@ -1,0 +1,12 @@
+== interpreted (luau 0.740 -O2)
+records 64, viewers 100, selected rows per tick 3200 (32.0 per viewer)
+encode once (per rec)  median  450.4 ns  (min  437.0, max  508.7)  last=64
+copy (per viewer-row)  median   68.5 ns  (min   68.1, max   69.6)  last=384
+pack (per viewer-row)  median  343.6 ns  (min  342.7, max  344.7)  last=2848
+bytes per row: copy 12.0, pack 11.125
+== native (luau 0.740 -O2 --codegen)
+records 64, viewers 100, selected rows per tick 3200 (32.0 per viewer)
+encode once (per rec)  median   75.3 ns  (min   73.5, max  140.7)  last=64
+copy (per viewer-row)  median   27.6 ns  (min   22.4, max   29.1)  last=384
+pack (per viewer-row)  median   41.1 ns  (min   31.7, max   43.3)  last=2848
+bytes per row: copy 12.0, pack 11.125

@@ -1,0 +1,14 @@
+== interpreted (luau 0.740 -O2)
+canary per-player sets: 100 players x 1024 values = 3206 KB (32.1 B per entry)
+server-wide map + per-viewer bitsets: 47 KB
+decoy behaviour call + diff: median 288 ns (min 276, max 385) per viewer per state tick
+record idle for  100 frames: new row applied (60 Hz: 1.7 s, 20 Hz: 5.0 s)
+record idle for 2047 frames: new row applied (60 Hz: 34.1 s, 20 Hz: 102.3 s)
+record idle for 2048 frames: new row DROPPED as older (60 Hz: 34.1 s, 20 Hz: 102.4 s)
+record idle for 3000 frames: new row DROPPED as older (60 Hz: 50.0 s, 20 Hz: 150.0 s)
+record idle for 4095 frames: new row DROPPED as older (60 Hz: 68.2 s, 20 Hz: 204.8 s)
+record idle for 4096 frames: new row DROPPED as older (60 Hz: 68.3 s, 20 Hz: 204.8 s)
+record idle for 5000 frames: new row applied (60 Hz: 83.3 s, 20 Hz: 250.0 s)
+true
+== native (luau 0.740 -O2 --codegen)
+decoy behaviour call + diff: median 236 ns (min 230, max 256) per viewer per state tick

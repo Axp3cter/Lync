@@ -1,0 +1,28 @@
+check, no message work (guard + cold fail call)                 46.6 ns
+check, assert with constant message                             45.3 ns
+check, assert with interpolated message (eager)                163.5 ns
+baseline: same loop, no check                                   14.9 ns
+pcall(ok)  (no error)                                           22.6 ns
+pcall(error(string, 0))                                       2439.4 ns
+pcall(error(string, 1))  (adds position)                      2560.2 ns
+pcall(error(shared frozen table))                             2266.0 ns
+pcall(error(fresh table))                                     1678.9 ns
+xpcall(error(string,1), traceback handler)                    2361.1 ns
+xpcall(ok, traceback handler)  (no error)                       25.2 ns
+debug.info walk to first non-Lync frame, Lync depth 1          133.2 ns
+debug.info walk to first non-Lync frame, Lync depth 2          211.4 ns
+debug.info walk to first non-Lync frame, Lync depth 3          285.6 ns
+debug.info walk to first non-Lync frame, Lync depth 4          404.0 ns
+debug.info walk to first non-Lync frame, Lync depth 5          492.1 ns
+debug.info(2, "sl") single read                                 49.2 ns
+debug.info(fn, "sl") on a function value                        48.8 ns
+debug.traceback() (string build)                               126.2 ns
+string.format("%s %d %s")                                      206.2 ns
+interpolation `{} {} {}`                                       201.3 ns
+concatenation .. .. ..                                         202.5 ns
+counter: array slot += 1                                        22.5 ns
+counter: per-player array slot += 1 (hash lookup)               45.1 ns
+counter: buffer u32 += 1                                        29.8 ns
+event: build frozen table + 1 listener direct call             424.5 ns
+event: frozen table + fresh coroutine per listener             284.0 ns
+coalesced occurrence: key lookup + count (no event)             33.2 ns

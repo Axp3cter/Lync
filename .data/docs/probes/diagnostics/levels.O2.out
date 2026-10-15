@@ -1,0 +1,8 @@
+tableTostring -> [Lync] LYNC1001 tostring
+pcallDirect -> [Lync] direct level 2
+table thrown:	false	table	LYNC1001
+traceback(table):	false	invalid argument #1 to 'traceback' (string expected, got table)
+xpcall(f, debug.traceback) on table:	false	error in error handling
+xpcall handler got:	table	LYNC1002
+coroutine:	false	./levels.luau:90: [Lync] in coroutine
+traceback(co):	./levels.luau:90 | 

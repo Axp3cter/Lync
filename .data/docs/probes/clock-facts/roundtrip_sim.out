@@ -1,0 +1,9 @@
+ping (assumed) = 0.120 s; LAT 0.050, JIT 0.020; 100000 trials per line
+case                                      min       p1      p50      p99      max   roundTrip/ping p1 / p50
+automatic answer, 30 fps               -0.003   -0.003    0.030    0.230    0.497   0.97 / 1.25
+automatic answer, 60 fps               -0.003   -0.003    0.030    0.230    0.613   0.97 / 1.25
+automatic answer, 144 fps              -0.003   -0.003    0.030    0.230    0.563   0.97 / 1.25
+automatic answer, 240 fps              -0.003   -0.003    0.030    0.213    0.513   0.97 / 1.25
+answer after 1 frame (yield), 60 fps    0.013    0.013    0.047    0.247    0.597   1.11 / 1.39
+human, median 0.35 s, 60 fps            0.097    0.180    0.380    0.847    1.897   2.50 / 4.17
+human, median 0.35 s, 30 fps            0.113    0.197    0.397    0.847    1.563   2.64 / 4.31

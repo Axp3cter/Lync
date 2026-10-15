@@ -82,7 +82,7 @@ local function walk(def: Def, c: Codec, path: string, top: string?, depth: numbe
 				reports += 1
 				print(string.format("warning[decoyRef]: arena.%s data.%s has the key codec of %s, which has decoys, and no :refers(\"%s\", \"%s\")%s",
 					def.name, path, coll.name, top or path, coll.name,
-					if declarable then "" else "; not declarable by :refers (not a top-level key, optional key or array of keys): report it with reportInteraction"))
+					if declarable then "" else "; not declarable by :refers: report it with reportInteraction"))
 			end
 		end
 	end

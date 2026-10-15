@@ -35,8 +35,8 @@ Xeon: timings show scale only.
 - [x] 6. U14: outcome, facts and evidence
 - [x] 7. U14: known causes on an unmodified client, accessibility included
 - [x] 8. U14: what it protects, cost, options
-- [ ] 9. Probes and measurements
-- [ ] Implications
+- [x] 9. Probes and measurements
+- [x] Implications
 
 ---
 
@@ -86,9 +86,9 @@ state and the game supplies the test, and the fact comes from the game's call in
   declared `rewind` fields into a ring per (viewer, pool slot): the same 24 B slot and the same K as real records
   (IR §11.2), holding the *decoded quantized* values that viewer was sent.
 - **Per-viewer decoy history**: key → (pool slot, add tick, remove tick, add time, remove time), kept while the decoy
-  lives and for `max(2 s, maxRewind + 0.25 s)` after its remove. 2 s is the slot reuse delay (COL §2), so a pool
-  slot can't carry a newer decoy's samples under an older key: a read checks that the ring slot holds the tick asked
-  for and that the tick lies in [add tick, remove tick).
+  lives and for `max(2 s, maxRewind + 0.25 s)` after its remove (2 s is the slot reuse delay, COL §2). A read checks
+  that the ring slot holds the tick asked for and that the tick lies in [add tick, remove tick), so a pool slot
+  reused by a newer decoy never returns its samples under the older key.
 - **`rewound(seen, key)` and `rewoundSpan(seen, key)`** for a key that is one of `seen`'s player's decoys return its
   values from that viewer's ring, with the same result shape as a real record. `"received"` mode works unchanged:
   decoy rows are rows in that viewer's state frames, so notify's walk of acked frames records them like any other.
@@ -194,12 +194,12 @@ that has decoys" (AC §2.2). v5 has no `ref` codec; keys are ordinary codecs, so
 - no `.D:refers("<top-level field>", "C")` call for that definition D and the leaf's top-level field.
 
 **Evidence:** definition, field path (`data.offers[].item`), collection; the Diagnostic's `range` at the
-definition's schema line. When the path is not declarable by `refers` (below), the message says so and names
-`reportInteraction` as the way to state it.
+definition's schema line. When the path is not declarable by `refers` (not a top-level key, optional key or array
+of keys, below), the message says so and names `reportInteraction`; both lines stay within `v5.md` §7.1's 200 bytes.
 
 ```
 warning[decoyRef]: arena.tip data.to has the key codec of fighters, which has decoys, and no :refers("to", "fighters")
-warning[decoyRef]: arena.trade data.offers[].item has the key codec of pickups, which has decoys, and no :refers("offers", "pickups"); not declarable by :refers (not a top-level key, optional key or array of keys): report it with reportInteraction
+warning[decoyRef]: arena.trade data.offers[].item has the key codec of pickups, which has decoys, and no :refers("offers", "pickups"); not declarable by :refers: report it with reportInteraction
 ```
 
 **Proposed widening of `refers`.** Today it takes "a client-sent field" holding keys. The check is satisfiable only if
@@ -372,7 +372,8 @@ Net.use:fire({ target = key, code = enteredCode })
   [Random](https://create.roblox.com/docs/reference/engine/datatypes/Random)); the bounds are inclusive (documented).
   - At most one open challenge per player: a second call throws `challengeOpen` at the caller. Every value arriving
     on an answers field while one is open is then an attempt at it, with no ambiguity.
-  - `values` must fit some declared answers field (0 and values − 1 within its `min`–`max`), else `valueRefused`
+  - `within` and `values` are required (§8.3). `values` must fit some declared answers field (0 and values − 1
+    within its `min`–`max`), else `valueRefused`
     (subject `options.values`). Misspelled option keys are not type errors in Luau on either solver
     (`types.out`: the `MISSED` line), so the call throws `unknownOption` for an unknown key, as declarations do.
 - **The handle** `Challenge`: `token`, `deadline` (`GetServerTimeNow()`), and three methods.
@@ -546,8 +547,7 @@ distinguishes nothing listed above.
     sends it through the game's action (**api**): one handler per game, redone only when the game changes how the
     token travels. An answer by such a bot is byte-identical to a person's; `firstAfter`, `after` and `minPing` are
     the only difference, and only if it answers faster than people do;
-  - screen readers of a different kind (OCR, ML solvers reading the frame), human farms, and a player who answers
-    and then goes idle;
+  - programs that read the screen (OCR, ML solvers), human farms, and a player who answers and then goes idle;
   - **packet** tools add nothing over **api**: they still need the token.
 - **Signal strength.** `timeout` is weak alone: §7.1 lists seven ordinary causes. A run of fast correct answers is
   evidence about timing, and only the game knows what is fast for its prompt.
@@ -563,7 +563,7 @@ distinguishes nothing listed above.
 | the token's own fields | — | — | the game's codecs: `t.int(0, 9999)` is 14 bits down; `t.optional(t.int(0, 9999))` is 1 bit on every message of the carrying definition and 15 bits when set (`v5.md` §3.3) | the game's fields |
 | the prompt | — | — | — | the large part: the UI and its accessible forms (§7.4) |
 
-Interpreted (client-irrelevant here: everything runs on the server) figures are in `cost_runs.out` for reference.
+Everything here runs on the server; interpreted figures are in `cost_runs.out` for reference.
 
 ### 8.3 Options
 
@@ -577,3 +577,59 @@ Interpreted (client-irrelevant here: everything runs on the server) figures are 
 
 Constants (not knobs): one open challenge per player; the `earlyAnswer` window (its own option `earlyAnswer.factor`,
 `v5-integrity.md` §7) applies to challenges unchanged.
+
+---
+
+## 9. Probes and measurements
+
+All in `.data/docs/probes/decoy-challenge-facts/`, reproduced by `run.sh LUAU_BUILD_DIR ANALYZE_BIN` (Luau 0.742
+Release built from `.data/projects/luau`; `luau-analyze` 0.740 from the `luau` skill; tsc 6.0.2):
+- `cost.luau` → `cost.out` (one run) and `cost_runs.out` (3 runs, interpreted and native; the figures above are
+  ranges over these). Server-side costs of (a) `reportInteraction`, (b) the decoy ring push, (c) `held(seen)` and a
+  game loop over it, (d) the challenge token draw, answers check and deadline sweep. `math.random` stands in for
+  Roblox's `Random`, which the CLI lacks; the fact record is a one-increment stand-in (the real one is 20.5 ns,
+  `v5.md` §7.3). Stand-ins model the data structures described above, not Lync code.
+- `lint.luau` → `lint.out`: the `decoyRef` rule on stand-in codec descriptors and server-script text (§3).
+- `types.luau` → `types.out`: the server API shapes under `luau-analyze --solver=new` and `--solver=old`, strict;
+  three expected errors on each solver, one `MISSED` (misspelled option keys).
+- `types.ts` → `types_ts.out`: the roblox-ts declarations under `tsc --strict`; four expected errors.
+
+**Not measured** (Roblox-only): `Random:NextInteger` and `GetNetworkPing()` cost on servers; whether a backgrounded
+mobile client keeps receiving; how fast players answer real prompts (the game's to measure); the camera-turn window
+of §4.2 (derived only).
+
+---
+
+## Implications
+
+For the integrity architect (`v5-integrity.md` §8, §10, and the `rewind` and tooling texts). Each points at its
+findings.
+
+1. Keep IR §11.6's rule: no fact from `rewind` itself; "a rewound hit on a decoy" is stated through the game's
+   `reportInteraction` call after its own test (§0, §1).
+2. Give decoys per-viewer rewind rings when a collection has both `decoys` and `rewind`, and make `rewound`
+   return a decoy's values to its own viewer and `unknownKey` to everyone else (§1).
+3. Add `Net.c:held(seen)` in slot order, so ray-only shots can reach decoys without the game knowing which keys are
+   decoys; 0.3–0.9 µs per call (§1, §4.3).
+4. Add `Net.c:reportInteraction(player, key, kind)` on the collection view (not `Lync.`), returning nothing, with
+   the fact `decoyInteraction` (`kind`, `sentAgo`, `removedAgo`, `heldAtPerceived`); 24–54 ns per call (§2).
+5. Match `decoyReferenced` and `decoyInteraction` against one per-viewer decoy history kept max(2 s, `maxRewind` +
+   0.25 s) after removal, and add `removedAgo` to `decoyReferenced` (§1, §2).
+6. Widen `refers` to a top-level key, optional key or array of keys; deeper keys go through `reportInteraction`
+   (§3).
+7. Add the build check `decoyRef` (`[check] decoyRef`, default `"warn"`), shaped like `unscopedRef`, plus a
+   `report.md` review list of `refers` × `decoys` with firing scripts (§3).
+8. Document the seven known causes of §4.2 on the decoy page, especially camera turns against "behind" placements,
+   world-blind hit tests, server-selected interactions and streamed-out occluders (§4.2).
+9. Build U14 server-only: `Lync.challenge(player, { within, values, attempts })` and `Net.d:answers(field)`, with no
+   schema kind, no client API and no hash change, so no single hook answers every Lync game (§5.1, §5.2).
+10. Return the challenge outcome as a result value (`answered`, `mismatched`, `timeout`, `cancelled`, `left`,
+    `shutdown`; `after`, `firstAfter`, `attempts`, `minPing`, `definition`), not as a fact (§6.1).
+11. Add the fact `unsolicitedAnswer` (`closedAgo`, `closedAs`, `matchesLast`) and widen `earlyAnswer` to challenges
+    with a `challenge` evidence field (§6.2).
+12. Allow one open challenge per player (`challengeOpen` otherwise), and throw `unknownOption` for unknown option
+    keys at run time, since neither Luau solver catches them (§5.2, `types.out`).
+13. Ship a "Challenges" docs page with the accessibility recipe (WCAG 2.2.1's turn off, 10× adjust or 20 s extend;
+    gamepad selection; a sound and a visual form; reduced motion) and say plainly that a `timeout` cannot tell a person
+    who stepped away or could not answer from a program (§7).
+14. Generated shards for both solvers must avoid `read` modifiers in these types; the old solver rejects them (§5.2).

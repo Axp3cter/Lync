@@ -713,7 +713,117 @@ held for 2 s (derived). Wire: 28 bits per `perceived` frame that would have carr
 - **Clock slew:** τ deviates from τ* by up to one client flush in steady state, and after a jump in τ* converges at
   4% (§11.2); the window's u covers the first, not a large recent jump.
 - **A game's own interpolation** with a delay other than `delay`: P is off by the difference.
-- **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, moves P
-  older, at most to `maxRewind`: the inherent limit of lag compensation, which Bernier accepts. `held`, `heldRaw`,
+- **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, or acks an older state
+  frame than it holds, moves P older, at most to `maxRewind`: the inherent limit of lag compensation, which Bernier accepts. `held`, `heldRaw`,
   `hMax`, `ping`, `rtt` and `ackTick` show it as numbers; Lync attaches no verdict. Aim is an input, and an aimbot
   passes any geometric test.
+
+## 13. Withholding content: engine streaming and staged namespaces
+
+### 13.1 What engine streaming shows
+
+The docs carry a page, "What engine streaming shows, and what Lync can hide" `[interest-rewind §12.1–§12.2]`:
+- **The leak radius of an entity is the larger of the engine's and Lync's.** Interest hides a record beyond its
+  cells only if the same information isn't in Workspace too: a part, a model, an attribute, a character.
+- **The engine's region is wider than `StreamingTargetRadius`:** under the default `StreamOutBehavior` `LowMemory` a
+  client streams out only in a low-memory situation, frustum streaming and predictive foci widen it, and extra foci
+  add to it (documented). Treat it as everything the client has been near since joining. A smaller radius,
+  `StreamOutBehavior = Opportunistic`, `ModelStreamingBehavior = Improved` and no frustum streaming reduce it; none
+  hides anything from a modified client inside it.
+- **Never put a secret in a Workspace attribute or value**, or in `ReplicatedStorage`: they reach every client at
+  join, whatever the radius.
+- **Fog of war for players** needs characters rendered from Lync records; interest and rewind then work on exact
+  data.
+- Lync's interest focus defaults to the engine's (§8.3). The streaming properties are `NotScriptable` (API dump
+  0.741.19), so only the build reads them, into `report.md` (`v5-tooling.md` §1).
+
+### 13.2 Staged namespaces
+
+- **What leaks.** Anything replicated can be read before it is used: models in `ReplicatedStorage`, any replicated
+  script's code (documented: clients can "decompile any replicated LocalScript or any ModuleScript"), and Lync's
+  shared schema and client shard, which name every definition, field and enum item. Kicking doesn't help:
+  replication begins before server kick logic can run (documented) `[interest-rewind §12.3]`.
+- **Mechanism.** A namespace declared `[[namespace]] staged = true` in `lync.toml` has its schema module and client
+  shard built under `ServerStorage` (`v5-tooling.md` §2). At release, server code calls `Lync.release(view, folder)`:
+  - `view` is the staged namespace's server view; the call is its first server-side use if nothing used it before,
+    so the server assigns its index (`v5.md` §4.6);
+  - then `folder`, the `Folder` holding its schema module and client shard, is parented to `ReplicatedStorage`;
+  - client code waits for the folder (by the path `[[staged]] loader` names) and requires the client shard, which
+    sends `HELLO` and gets `WELCOME`. No restart, no new remote; released namespaces and their hashes are unchanged.
+  - A `folder` that is not a `Folder` under `ServerStorage` (a second call included) throws the caller error
+    `releaseTarget`. Requiring the view first keeps every client `HELLO` inside the server's 10 s wait.
+- **Cost.** One namespace index more in the segment toc: EG-0 of index i is 2⌊log2(i + 1)⌋ + 1 bits per segment of
+  that namespace (3 bits for 1–2, 5 for 3–6); one `HELLO`/`WELCOME` round trip per client at release, with sends
+  meanwhile in the join hold (32,768 B, `v5.md` §5.3); one more schema module per staged feature.
+- **Limit.** Content that extends a *released* definition (a new item in a released enum) can't be staged: it needs
+  a new build and a restart.
+- **Build checks** `stagedReplicated`, `stagedReferenced` (both `"error"`), `stagedNameLeak` and `streamingOff` are
+  in `v5-tooling.md` §3. No build can check an asset it isn't told is unreleased, game code parenting content into a
+  replicated container early, or attributes set at run time.
+
+## 14. Codes, counters and constants
+
+**Codes raised here** (registered in `v5.md` §7.1):
+
+| Code | Family | Trigger |
+|---|---|---|
+| `classPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
+| `fieldCodec` | declaration | a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
+| `perceivedOutsideDispatch` | caller | `Lync.perceived(player)` outside a synchronous call for a message from `player` (§12.5) |
+| `releaseTarget` | caller | `Lync.release` with a `folder` that is not a `Folder` under `ServerStorage` (§13.2) |
+| `decoyOutsideInterest` | caller (behaviour channel, as `decoyKeyLive`) | a decoy failing §8.6's test |
+| `predicateError`, `predicateYielded` | fault | an interest predicate throws, or yields (§8.5) |
+| `bindingError`, `bindingYielded` | fault | an `owner`, `team` or `gate` binding throws, or yields (§9) |
+| `ownerUnbound`, `teamUnbound`, `gateUnbound` | fault | a class modifier with no binding at the first state tick with a record (§9) |
+
+Option errors reuse `unknownOption`, `missingOption`, `paramRange` and `unknownField`. No fact is added: interest,
+classes and scoping are the server's own behaviour, and rewind can't know a message is a claim.
+
+**Counters** (`Lync.counters`, `v5.md` §7.4; `<field>.<namespace>.<collection>`, and per viewer with `player`):
+
+| Counter | Increments by | Reads as |
+|---|---|---|
+| `relevantPairTicks` | the viewer's member count, once per viewer per state tick | ÷ (viewers × ticks): the mean relevant-set size |
+| `interestEnters`, `interestLeaves` | each catch-up add, and each remove, caused by interest | churn; a high leave rate at steady load points to R below the sight range |
+| `narrowedPairs` | each pair the cells admitted and `pvs` or `predicate` removed | what narrowing removes; 0 with a `pvs` set means the table admits everything |
+| `predicateErrors` | each predicate throw or yield | broken predicates |
+| `scopedDropped` (`.<namespace>.<definition>`) | each (message, viewer) a scoped event skipped (§10) | which events scoping filters |
+
+Cost: one add per viewer per state tick and one per membership change, 0.1 ns per pair native and 0.2 interpreted
+amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies five more numbers per collection.
+
+**Constants** (`v5.md` §4.9's rule: none is a knob):
+
+| Protocol constant | Value | Derivation |
+|---|---|---|
+| generation | `gen:u2` in every add and row | §2 |
+| segment | `seg:u1` in every add and row | §11.3 |
+| state chunk kind | `kind:u1` | §3 |
+| D unit, step | 4 ms, u8 in `RATE`; one unit per second | §11.1 |
+| D₀, D target | ⌈max(2 / `stateRate`, 0.1) / 0.004⌉ units; D₀ + 2 × jitter | §11.1 |
+
+| Runtime constant | Value | Derivation |
+|---|---|---|
+| hysteresis | a member leaves when two cells away | `[state-sync §7.2]` |
+| distance factor, owner boost, first-send boost | §7's bands; ×4; ×4 | `[state-sync §2.1, §3.3]` |
+| `maxPendingAge` | 2 s | `[state-sync §3.4]` |
+| bucket pass | 40 buckets, b = clamp(⌊log2 s⌋ + 20, 0, 39) | §7 |
+| timing window | 5 s of ack round-trip samples | chosen, unmeasured (§11.1) |
+| rendering clock | ±4% slew; dead band one client flush; snap above 0.25 s | §11.2 |
+| extrapolation cap | 0.25 s | Source's `cl_extrapolate_amount` `[state-sync §6.3]` |
+| rewind history | max(2 s, `maxRewind` + 0.25 s) | the slot reuse delay, or the window plus extrapolation |
+| M | ⌈D × `stateRate`⌉ + 2 | §12.2 |
+
+## 15. Pending measurements
+
+None blocks milestone 4; each has a default the design uses.
+- The column-coding loss of reliable updates sent as pieces (hysteresis, predicates, owner and seen fields) against
+  cell chunks (§8.4).
+- `Player:GetNetworkPing()` per-call cost and smoothing on servers; the cost of reading `ReplicationFocus` or
+  `PrimaryPart` per viewer per state tick, and of the `CFrame` read per tracked part (allocates).
+- The engine's interpolation delay under `ImprovedPhysicsReplication` (`engineDelay`).
+- `WorldRoot:Raycast` cost on a Roblox server (reported 10–17 µs per ray), for games that call it in a predicate.
+- Whether a module returning a 170 KiB or larger base64 string is accepted (a 1,024-cell table), and the time of
+  `EncodingService:Base64Decode` on it.
+- `interpolated` on clients: CPU per call and garbage per second at 64 records × 60 Hz.
+- Round-trip distribution of real players, which `lookAhead` and `maxRewind` would be set from.

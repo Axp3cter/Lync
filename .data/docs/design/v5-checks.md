@@ -49,9 +49,8 @@ Nothing here scores, ranks, delays or throttles a player.
   evaluated for that message and changes no state.
 - **When.** A check may be declared at any time; it applies to messages decoded after the call. There is no call
   that removes one. Its **index** is its 1-based position among the definition's checks in declaration order.
-- **Pending.** `research/refusals-rejudged-4.md` re-judges R35 (`maxRate`, `planar`, `exempt`, `cooldown`). Until it
-  lands, they stand as in draft 3.5: `cooldown` is folded into `limit`, `exempt` is not adopted (`resetChecks`, §1.6,
-  resets state without an exemption window), and `maxRate` and `planar` are not adopted.
+- **R35's modifiers** `[refusals-rejudged-4 R35]`: `maxRate` is kind 5 (§6), with `planar` as its `plane` option
+  and as a `within` reference (§6.3); `exempt` is `resetChecks`' `seconds` (§1.6); `cooldown` stays `limit` (§6.5).
 
 ### 1.3 Decision: what a failing check does
 
@@ -111,14 +110,18 @@ reason keeps evidence narrowing on `reason` alone, the form proven on both solve
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `constraint` | a check declared on the message's definition fails, by its kind's trigger: §2.2 (`kind` 1), §3.2 (2), §4.2 (3), §5.2 (4) | `"drop"`: dropped, ask `rejected`; `"deliver"`: delivered | `check` (the 1-based index, §1.2), `kind` (1 `within`, 2 `monotonic`, 3 `maxTotal`, 4 `derive`), `policy` (1 drop, 2 deliver), `observed`, `bound` (per kind, below), `late` (1 when the message's frame key is older than the stored key; only `monotonic` stores a key, so it is 0 for kinds 1, 3 and 4) | per kind: §2.4, §3.4, §4.4, §5.3 |
+| `constraint` | a check declared on the message's definition fails, by its kind's trigger: §2.2 (`kind` 1), §3.2 (2), §4.2 (3), §5.2 (4), §6.2 (5) | `"drop"`: dropped, ask `rejected`; `"deliver"`: delivered | `check` (the 1-based index, §1.2), `kind` (1 `within`, 2 `monotonic`, 3 `maxTotal`, 4 `derive`, 5 `maxRate`), `policy` (1 drop, 2 deliver), `observed`, `bound`, `span`, `against` (per kind, below), `late` (1 when the message's frame key is older than the stored key; only kinds 2 and 5 store a key, so it is 0 for kinds 1, 3 and 4) | per kind: §2.4, §3.4, §4.4, §5.3, §6.4 |
 
-| `kind` | `observed` | `bound` |
-|---|---|---|
-| 1 `within` | the distance d, in the field's unit | the maximum distance applied to this message |
-| 2 `monotonic` | the value | the stored value |
-| 3 `maxTotal` | the window sum S plus the amount | `cap` |
-| 4 `derive` | the distance d after snapping (1 for an unequal `t.enum` or `t.bool`) | `tolerance` |
+| `kind` | `observed` | `bound` | `span` (s) | `against` |
+|---|---|---|---|---|
+| 1 `within` | the distance d, in the field's unit | the maximum distance applied to this message | 0 | 0 |
+| 2 `monotonic` | the value | the stored value | 0 | 0 |
+| 3 `maxTotal` | the window sum S plus the amount | `cap` | 0 | 0 |
+| 4 `derive` | the distance d after snapping (1 for an unequal `t.enum` or `t.bool`) | `tolerance` | 0 | 0 |
+| 5 `maxRate` | d against the failing reference | that reference's allowance, `rate` × `span` + `burst` | t − t_p or t − t_a | 1 previous value, 2 anchor (1 when both fail) |
+
+The zeros are fixed values of fields a kind has no use for; narrowing on `kind` is not proven on the old solver, so
+the evidence set stays flat (`span` and `against` are R35's).
 
 - Evidence is numbers from the decoded value and the server's own value, never client bytes.
 - The fact's key is (player, reason, namespace, definition) (`v5.md` §7.3), so failures of two checks of one
@@ -129,9 +132,24 @@ reason keeps evidence narrowing on `reason` alone, the form proven on both solve
 
 - **State** is kept per (player, check), or per (player, pool) for a `maxTotal` pool. It is allocated at the
   player's first message that reaches the check and freed when the player leaves.
-- **`Net.<definition>:resetChecks(player)`** clears that player's state for every check declared on the definition,
-  including the windows of the pools its `maxTotal` checks belong to. It is the call for rounds and respawns that
-  legitimately restart a counter; it opens no exemption window. Cost: one table clear per check.
+- **`Net.<definition>:resetChecks(player, options?)`**, `options = { seconds, check }`, clears that player's state
+  for the scoped checks (every check of the definition, or the one at index `check`), including the windows of the
+  pools their `maxTotal` checks belong to. For `seconds` after the call, the scoped checks don't evaluate that
+  player's messages of the definition and commit nothing; each such message is counted in `checksExempted`. After
+  the window, the next message seeds the state. It is the call for rounds, respawns and teleports.
+- **Why a duration** `[refusals-rejudged-4 R35]`: messages the client sent before a server-applied move are still in
+  flight after the call, and with an instant reset the first of them reseeds `maxRate` or `monotonic` with the old
+  value, so the first message after the move fails: one fact per teleport, with `observed` about the teleport's
+  distance. No frame key separates them, since those frames are newer than any the server has seen. The docs'
+  formula for `seconds` after a server-applied move on `v5.md` §9's model: the client keeps sending old values until
+  the move reaches it, and they arrive a one-way trip later: 2 × (0.05 + 0.02) s, plus a server flush, a client
+  frame and a server step of 1/60 s each, 0.19 s; on the reliable lane add the 2 s stall slack. The game knows its
+  own ping (`GetNetworkPing`).
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `seconds` | number (real) | s | 0–10 | 0 (chosen: an instant reset) | one time comparison per message of the definition while a window is open |
+| `check` | integer or nil | 1-based check index | 1 to the definition's check count | nil: every check of the definition | none |
 
 ### 1.7 Game functions inside checks
 

@@ -53,7 +53,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aeb3f14bb82fa9e3c` | architect (Opus) | draft 3.6, integrity: `v5-integrity.md`; awaits rejudged-3 (R1, R2, R28), rejudged-4 (R8, R18) | `design/v5-integrity.md`, `design/v5-3.6-changes-integrity.md` | running |
 | `a75374bcd3227e4ff` | architect (Opus) | draft 3.6, collections: `v5-collections.md` plus interest, rewind, interpolation; awaits rejudged-4 (R16, R19) | `design/v5-collections.md`, `design/v5-3.6-changes-collections.md` | running |
 | `a61dd67964f674f75` | architect (Opus) | draft 3.6, checks: new `v5-checks.md` (checks, derive, telemetry, sealed) and `v5-extensions.md`; awaits rejudged-4 (R35) | `design/v5-checks.md`, `design/v5-extensions.md`, `design/v5-3.6-changes-checks.md` | running |
-| `a8d8d1902366d183b` | critic (Opus) | reviews `v5-tooling.md` at draft 3.6 against the shared brief | `reviews/v5-3.6-tooling.md` | running |
+| `a8d8d1902366d183b` | critic (Opus) | reviews `v5-tooling.md` at draft 3.6 against the shared brief | `reviews/v5-3.6-tooling.md` | done on Opus 5.5: 4 blocking (regenerate-compare ignores inputs; woven releases fail their own check; weave gate byte test vs site ids, xorshift seed 0; traps identifiable by schema-vs-shard key difference), 11 major, 16 minor, 5 taste; retired |
 | `a05178a23ec42b0d6` | scout (Opus) | build inventory from `f1fbfd7`, the m1/m2 plans and reviews: module map, harness, lessons, reuse, unit sizing | `design/build-inventory.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.

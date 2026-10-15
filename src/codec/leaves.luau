@@ -55,6 +55,10 @@ const ROOT_PATH = "data"
 const MAX_NAMES_BYTES = 200
 
 const MAX_F32 = 3.4028234663852886e38
+const F32_MANTISSA_BITS = 23
+
+--- How many times an encoder re-encodes a rotation's decoding to reach a canonical code.
+const MAX_ROTATION_REPEATS = 2
 const MIN_VARINT = -2 ^ 52
 const MAX_VARINT = 2 ^ 52 - 1
 
@@ -155,6 +159,41 @@ local function isFinite(value: number): boolean
 	return value - value == 0
 end
 
+local function rotationCodesOf(rotation: CFrame, bits: number): (number, number, number, number, number)
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = rotation:GetComponents()
+
+	return Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits)
+end
+
+-- Returns the f32 spacing at a bound, 2^(floor(log2 |bound|) - 23); 0 at 0.
+local function f32SpacingAt(bound: number): number
+	if bound == 0 then
+		return 0
+	end
+
+	local _, exponent = math.frexp(bound)
+	return 2 ^ (exponent - 1 - F32_MANTISSA_BITS)
+end
+
+-- Returns the code of a vector component, or nil when it is past a bound by more than the f32
+-- spacing there.
+local function componentCode(value: number, axis: Ir.NumberCodec): number?
+	local min, max = axis.min, axis.max
+	if value >= min and value <= max then
+		return Quant.number(value, min, axis.step, axis.steps)
+	end
+
+	if value < min and value >= min - f32SpacingAt(min) then
+		return 0
+	end
+
+	if value > max and value <= max + f32SpacingAt(max) then
+		return axis.steps
+	end
+
+	return nil
+end
+
 -- Public ------------------------------------------------------------------------------------------
 
 --[=[
@@ -198,6 +237,36 @@ function Leaves.beginInstances(list: { Instance? }): number
 	table.clear(seenInstances)
 
 	return rule
+end
+
+--[=[
+	Returns whether a rotation's codes are canonical: the CFrame they decode to encodes to them
+	(v5.md §3.3).
+
+	@param  flag  1 for an axis-aligned rotation, else 0
+	@param  index the axis index, below 24 (flag 1), or the dropped component (flag 0)
+	@param  a     the first kept component's code; 0 for flag 1
+	@param  b     the second kept component's code; 0 for flag 1
+	@param  c     the third kept component's code; 0 for flag 1
+	@param  bits  the codec's bits per component
+	@return false when the codes do not decode, or decode to a CFrame that encodes differently
+	        (rule 6)
+]=]
+function Leaves.canonicalRotation(
+	flag: number,
+	index: number,
+	a: number,
+	b: number,
+	c: number,
+	bits: number
+): boolean
+	local decoded = Leaves.rotationOf(flag, index, a, b, c, bits, 0, 0, 0)
+	if decoded == nil then
+		return false
+	end
+
+	local nextFlag, nextIndex, nextA, nextB, nextC = rotationCodesOf(decoded, bits)
+	return nextFlag == flag and nextIndex == index and nextA == a and nextB == b and nextC == c
 end
 
 --[=[
@@ -584,7 +653,11 @@ function Leaves.robloxEnumCode(value: any, byValue: { [number]: EnumItem }): num
 end
 
 --[=[
-	Returns the smallest-three or axis codes of a CFrame's rotation, ignoring its position.
+	Returns the canonical smallest-three or axis codes of a CFrame's rotation, ignoring its
+	position (v5.md §3.3).
+
+	The first encoding is re-encoded from its own decoding until it is canonical, at most
+	twice.
 
 	@param  value a CFrame
 	@param  bits  the codec's bits per component
@@ -593,6 +666,7 @@ end
 	@return the first kept component's code
 	@return the second kept component's code
 	@return the third kept component's code
+	@error  internal, when the codes are still not canonical after two repeats
 ]=]
 function Leaves.rotationCodes(
 	value: CFrame,
@@ -603,7 +677,24 @@ function Leaves.rotationCodes(
 		return nil, 0, 0, 0, 0
 	end
 
-	return Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits)
+	local flag, index, a, b, c =
+		Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits)
+	for _ = 0, MAX_ROTATION_REPEATS do
+		-- Cast: an encoding keeps the three smallest components, whose squares sum to at most
+		-- 3/4, so it always decodes.
+		local decoded = Leaves.rotationOf(flag, index, a, b, c, bits, 0, 0, 0) :: CFrame
+		local nextFlag, nextIndex, nextA, nextB, nextC = rotationCodesOf(decoded, bits)
+		if nextFlag == flag and nextIndex == index and nextA == a and nextB == b and nextC == c then
+			return flag, index, a, b, c
+		end
+
+		flag, index, a, b, c = nextFlag, nextIndex, nextA, nextB, nextC
+	end
+
+	return error(
+		`[Lync] internal: t.rotation({bits}) codes must be canonical within {MAX_ROTATION_REPEATS} repeats`,
+		0
+	)
 end
 
 --[=[
@@ -719,11 +810,14 @@ end
 --[=[
 	Returns the codes of a position's components under a `t.vector3` axis.
 
+	Positions are stored in f32, so a component up to the f32 spacing at a bound past it,
+	2^(floor(log2 |bound|) - 23), takes the end code (v5.md §3.3).
+
 	@param  x    the x component
 	@param  y    the y component
 	@param  z    the z component
 	@param  axis the axis codec
-	@return the x code, or nil when a component is outside [min, max]
+	@return the x code, or nil when a component is past [min, max] by more than that spacing
 	@return the y code
 	@return the z code
 ]=]
@@ -733,19 +827,14 @@ function Leaves.vector3Codes(
 	z: number,
 	axis: Ir.NumberCodec
 ): (number?, number, number)
-	local min, max = axis.min, axis.max
-	if
-		not (x >= min and x <= max)
-		or not (y >= min and y <= max)
-		or not (z >= min and z <= max)
-	then
+	local xCode = componentCode(x, axis)
+	local yCode = componentCode(y, axis)
+	local zCode = componentCode(z, axis)
+	if xCode == nil or yCode == nil or zCode == nil then
 		return nil, 0, 0
 	end
 
-	local step, steps = axis.step, axis.steps
-	return Quant.number(x, min, step, steps),
-		Quant.number(y, min, step, steps),
-		Quant.number(z, min, step, steps)
+	return xCode, yCode, zCode
 end
 
 --[=[

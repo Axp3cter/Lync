@@ -160,6 +160,38 @@ return {
 		end, { code = "numberStep", at = at(line + 2), subject = "t.vector3" })
 	end,
 
+	["vectorStep: the boundary, the largest refused and the smallest accepted step"] = function()
+		-- Each case: bounds whose larger magnitude M gives the f32 spacing 2^(floor(log2 M) - 23),
+		-- which divides max - min into N steps; the next larger step that divides it is
+		-- (max - min) / (N - 1).
+		local cases = {
+			{ min = -2048, max = 2048, spacing = 2 ^ -12 },
+			{ min = 0, max = 1024, spacing = 2 ^ -13 },
+			{ min = 0, max = 1, spacing = 2 ^ -23 },
+			{ min = -1000, max = 1000, spacing = 2 ^ -14 },
+			{ min = -3, max = 0.5, spacing = 2 ^ -22 },
+		}
+
+		for _, case in cases do
+			local range = case.max - case.min
+			local acceptedStep = range / (range / case.spacing - 1)
+			local line = debug.info(1, "l")
+			Check.expectThrow(function()
+				t.vector3(case.min, case.max, case.spacing)
+			end, { code = "vectorStep", at = at(line + 2), subject = "t.vector3" })
+
+			local codec = t.vector3(case.min, case.max, acceptedStep) :: any
+			Check.expectEqual(codec.node.steps, range / case.spacing - 1, `steps for {case.max}`)
+		end
+	end,
+
+	["vectorStep: a t.cframe position, at the t.vector3 line"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(function()
+			t.cframe(t.vector3(-2048, 2048, 2 ^ -12), t.rotation(9))
+		end, { code = "vectorStep", at = at(line + 2), subject = "t.vector3" })
+	end,
+
 	["numberStepIsInt: step 1 with an integer min"] = function()
 		local line = debug.info(1, "l")
 		Check.expectThrow(function()

@@ -104,6 +104,7 @@ const MAX_INT = 2 ^ 52 - 1
 const MAX_NUMBER_STEPS = 2 ^ 53 - 1
 const MAX_ANGLE_STEPS = 2 ^ 53
 const MAX_COUNT = 65_535
+const F32_MANTISSA_BITS = 23
 
 const CODEC_METATABLE = table.freeze({ __index = CodecMethods })
 
@@ -237,6 +238,23 @@ local function toFunction(value: unknown, at: Fail.At, subject: string): (...any
 	return value :: any
 end
 
+-- A `t.vector3` is stored in f32, so its step must be larger than the f32 spacing at the larger
+-- bound, 2^(floor(log2 M) - 23), for every decoded component to re-quantize to its own code
+-- (v5.md §3.3). `math.frexp` gives M = m × 2^e with m in [0.5, 1), so floor(log2 M) = e - 1.
+local function checkVectorStep(min: number, max: number, step: number, at: Fail.At)
+	local _, exponent = math.frexp(math.max(math.abs(min), math.abs(max)))
+	local spacing = math.ldexp(1, exponent - 1 - F32_MANTISSA_BITS)
+	if step <= spacing then
+		Fail.declaration(
+			"vectorStep",
+			at,
+			"t.vector3 step",
+			`be above {Fail.show(spacing)}, the f32 spacing at max(|min|, |max|)`,
+			step
+		)
+	end
+end
+
 -- Checks `t.number` and `t.vector3` arguments, which share their rules (v5.md §3.3).
 local function quantizedNode(
 	kind: "number" | "vector3",
@@ -302,6 +320,10 @@ local function quantizedNode(
 			"give at most 2^53 - 1 steps",
 			step
 		)
+	end
+
+	if kind == "vector3" then
+		checkVectorStep(minValue, maxValue, stepValue, at)
 	end
 
 	if kind == "vector3" then

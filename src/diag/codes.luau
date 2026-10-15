@@ -43,6 +43,7 @@ export type Code =
 	| "unionKindField"
 	| "duplicateName"
 	| "nameLength"
+	| "vectorStep"
 	| "messageTooLarge"
 	| "unreliableTooLarge"
 	| "valueRefused"
@@ -65,6 +66,7 @@ const FAMILY: { [Code]: Family } = {
 	unionKindField = "declaration",
 	duplicateName = "declaration",
 	nameLength = "declaration",
+	vectorStep = "declaration",
 	messageTooLarge = "declaration",
 	unreliableTooLarge = "declaration",
 

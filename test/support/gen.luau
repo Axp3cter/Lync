@@ -125,21 +125,13 @@ local function rotationOf(bits: number): CFrame
 		return Leaves.rotationOf(1, math.random(0, 23), 0, 0, 0, bits, 0, 0, 0) :: CFrame
 	end
 
-	-- Smallest-three is not idempotent: a decoded kept component can outgrow the recomputed
-	-- dropped one (1.5% of codes at 7 bits, 0.02% at 15), so the next encoding drops another. Only
-	-- rotations that re-encode to their own codes are drawn.
-	while true do
-		local x, y, z, w =
-			math.random() - 0.5, math.random() - 0.5, math.random() - 0.5, math.random() - 0.5
-		local length = math.sqrt(x * x + y * y + z * z + w * w)
-		local raw = CFrame.new(0, 0, 0, x / length, y / length, z / length, w / length)
-		local flag, index, a, b, c = Leaves.rotationCodes(raw, bits)
-		local rotation = Leaves.rotationOf(flag :: number, index, a, b, c, bits, 0, 0, 0) :: CFrame
-		local _, decodedIndex = Leaves.rotationCodes(rotation, bits)
-		if decodedIndex == index then
-			return rotation
-		end
-	end
+	local x, y, z, w =
+		math.random() - 0.5, math.random() - 0.5, math.random() - 0.5, math.random() - 0.5
+	local length = math.sqrt(x * x + y * y + z * z + w * w)
+	local raw = CFrame.new(0, 0, 0, x / length, y / length, z / length, w / length)
+	local flag, index, a, b, c = Leaves.rotationCodes(raw, bits)
+
+	return Leaves.rotationOf(flag :: number, index, a, b, c, bits, 0, 0, 0) :: CFrame
 end
 
 local function positionOf(codec: Ir.Codec): Vector3

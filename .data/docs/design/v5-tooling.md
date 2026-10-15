@@ -36,9 +36,8 @@ or `\` inside a name written `\.` or `\\`.
   a character takes at least one byte.
 - **Generator invariants**, each checked by compiling every part with the host's Luau compiler before anything is
   written; a failure is `internal` (exit 3): at most 200 locals and 200 upvalues per function, fewer than 32,768
-  closures per function prototype (`kMaxClosureCount`), definitions held in a table with small functions per
-  definition `[generation-security §4.2]`. Server parts should also stay under 1,048,576 native IR instructions per
-  module (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left
+  closures per function prototype (`kMaxClosureCount`), definitions held in a table, each with its own functions
+  `[generation-security §4.2]`. Server parts should also stay under 1,048,576 native IR instructions per module (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left
   interpreted, not refused `[client-security-build §2.1]`. No host is verified to report that count (§8), so until
   one is, the 200,000-byte part cap is the only bound on a server part.
 - **Native code.** Server parts begin with `--!native`; client parts carry no native directive. Roblox documents
@@ -74,10 +73,10 @@ or `\` inside a name written `\.` or `\\`.
 | `rotation` | each value `v5-integrity.md` §2 draws from `rotationSeed` that sets a run-time cost (the tag's compression and finalization rounds, the rotation-set index), so the report states the build's cost without running the planner |
 | `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); `traps` (generated names); per definition `{ line, worstCase, reachable?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
 | `foreignRemotes`, `remoteCreations` | the `foreignRemote` and `remoteCreation` entries of §3.4 with their evidence, sorted by path, written whenever those checks run |
-| `scripts` | the client scan set (§3.3) minus Lync's own outputs: `{ path, digest }`, SHA-256 over LF-normalised `Source`, read from the place with `--place`, else from the files the sourcemap maps `[refusals-rejudged-1 R11]` |
+| `scripts` | the client scan set (§3.3): `{ path, digest }`, SHA-256 over LF-normalised `Source`, read from the place with `--place`, else from the files the sourcemap maps `[refusals-rejudged-1 R11]` |
 | `wovenScripts` | `{ path, digest }` of each built copy `lync weave` rewrote (§5) |
 | `streaming` | the place's `StreamingEnabled`, `StreamingTargetRadius`, `StreamingMinRadius`, `StreamOutBehavior`, `ModelStreamingBehavior` and the place file, when a place was read `[interest-rewind §12.3]` |
-| `decoyReview` | each (definition, field, collection) where `:refers` meets `:decoys`, with the client scripts in the scan set that name the definition `[decoy-challenge-facts §3]` |
+| `decoyReview` | each (definition, field, collection) where `:refers` meets `:decoys`, with the scripts of the client scan set that name the definition `[decoy-challenge-facts §3]` |
 
 `lync build` and `lync watch` write it; `lync weave` rewrites it with the same `buildId`, adding the weave fields.
 It must never ship, since it holds `rotationSeed`: an `[output] manifest` path inside a folder the sourcemap maps
@@ -150,7 +149,7 @@ report = "build/lync-report.md"
 | `pvs.place` (`[[pvs]]`) | path to a built `.rbxl` | — | — | required in each entry | one place read per bake `[interest-rewind §10]` |
 | `pvs.cell` | integer | studs | 8–256 | 32 (chosen: 1,024 cells on a 1,024-stud square map) | N = (map side / `cell`)² cells; a table of N²/8 B: 128 KiB at 1,024 cells |
 | `pvs.samples` | integer | rays per axis per cell | 1–4 | 2 (chosen) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
-| `pvs.output` | path of a server-only module | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place |
+| `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place |
 | `check.knownRemotes` | array of instance paths; `*` matches one path segment | — | — | `[]` | none; a listed `foreignRemote` entry keeps its manifest row and gets no Diagnostic |
 | `check.<code>` | `"off"` \| `"warn"` \| `"error"` | — | one key per code marked `[check]` in §3.4 | per code, §3.4 | `"off"` stops that check: no Diagnostic and no manifest entry of that code; computations another product reads still run (§3.2) |
 | `output.manifest` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-manifest.json"` | — |
@@ -196,8 +195,8 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
 - **Fixed severities**, for codes where no setting makes the finding right or wrong: declaration codes, the
   configuration and environment codes, `staleShard`, `editedShard`, `unpairedShard` and the first three
   `published*` codes are errors; `staleManifest`, `trapsIncomplete`, `trapNamesShort` and `publishedScriptChanged`
-  are warnings. Each is a mismatch between artefacts of one build, or a statement of what the build made against what
-  the configuration asked `[build-checks §3.5]`.
+  are warnings. Each is a mistake in the configuration, a failure of the environment, a mismatch between artefacts
+  of one build, or a statement of what the build made against what the configuration asked `[build-checks §3.5]`.
 - **`[check]` severities**, for every other code: `check.<code>` takes `"off"`, `"warn"` or `"error"`. Its default
   follows one rule: `"error"` when no known cause in an unmodified game is correct code; `"warn"` when some known
   cause is correct code; `"off"` for `foreignBindable` alone, whose trigger names nothing that carries traffic
@@ -248,7 +247,7 @@ unmodified game, and the milestone that raises it (M).
 | `configRange` | a value outside its range in §2 or §5.7, including an unsupported `format` and a range that names another key or the sourcemap | key path, the range | error | a mistake in `lync.toml`; a sourcemap that now maps `output.manifest`'s folder | 3 |
 | `configMissing` | no `lync.toml` and no `ServerStorage.Lync.Config`; a required key or table absent (such as `[[namespace]]`); a required file absent (`project.sourcemap` under §2's condition) | key path or file | error | a fresh project; a sourcemap not generated before the run | 3 |
 | `cloudRequestFailed` | an Open Cloud request of `lync check --published` answered with a status outside 200–299 | `endpoint`, `status` | error | an API key without scope `universe.place.luau-execution-session:write`; an exhausted rate limit (5 task creations per minute per key owner) | 6 |
-| `cloudTaskFailed` | the Luau Execution task ended in a state other than `COMPLETE` | `state` | error | the task's 5-minute limit on a large place | 6 |
+| `cloudTaskFailed` | the Luau Execution task ended in a state other than `COMPLETE` | `state` | error | a place whose listed scripts take the task past its 5-minute limit | 6 |
 | `publishedUnreadable` | the task's read of a listed script's `Source` raised | `path`, `error` (the raised text) | error | a task thread without capability `PluginOrOpenCloud` (unverified, §8) | 6 |
 
 **Shards and manifest:**
@@ -274,17 +273,17 @@ says so. The no-build path has no shards and no manifest, so none of these codes
 | `foreignBindable` | an instance of class `BindableEvent` or `BindableFunction` anywhere in the place | `class`, `instance`, `replicates` | `[check]`, `"off"` | every bindable is game code's own signal; a client fires only its own, never the server's `[build-checks §1.2]` | 3 |
 | `dynamicAccess` | in the client scan set, a dynamic access of a namespace value as `v5-integrity.md` §3 defines it: `kind` 1 an index whose key is not one string literal, 2 iteration (`for … in`, `pairs`, `ipairs`, `next`), 3 a hand-off the scan cannot follow by name | `namespace`, `kind`, `binding` (uri and range of the binding source) | `[check]`, `"warn"`; severity only, never whether the namespace is incomplete, and no per-site suppression (`check.reachability = false` is the opt-out) | kind 1: a generic helper `Net[name]:fire(v)`; kind 2: a client loop connecting every event, even one that fires nothing; kind 3: a framework registering the namespace with package code the scan has no definition for; any kind: following by name, which binds the parameter of every same-named function (`X.new(Net)` binds the first parameter of every `new`) and follows shadowing locals `[build-checks §2.5]` | 5 |
 | `trapsIncomplete` | `build.traps` > 0 for a namespace that is incomplete: no trap is generated for it | `namespace`, `requested` | warning | any `dynamicAccess` cause | 5 |
-| `trapNamesShort` | a complete namespace with fewer trap-name candidates (§1.1) than `build.traps` | `namespace`, `requested`, `generated` | warning | a namespace whose definition names have few pieces (one definition `chat` gives none) | 5 |
+| `trapNamesShort` | a complete namespace with fewer trap-name candidates (§1.1) than `build.traps` | `namespace`, `requested`, `generated` | warning | a namespace whose names yield fewer candidates than requested: one definition `chat` gives none, `buy` and `chat` give 2 | 5 |
 | `solverOff` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code under the old solver, the default in Roblox and luau-lsp, where its types degrade to error types; a project on the new solver, whose setting no tool can read (`NotScriptable`, `v5.md` §3.2), which sets `check.solverOff = "off"` | 3 |
 | `freeFormField` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > 65,536, `t.number` or `t.vector3` with more than 65,536 codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. The 65,536 is a constant, chosen: below it every input of `v5.md` §3.4 and the measured demo inputs (255-code sticks, enums, slot indices), above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]` | 3 |
 | `decoyRef` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormField` walks it, whose codec serialises (`v5.md` §4.7) identically to C's `key` codec; and no `:refers("<top-level field>", "C")` for that definition and field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
 | `unscopedRef` | a server-sent event or request whose `data` holds a field whose codec serialises identically to some collection's `key` codec, with no `:about("<field>", …)` call on that definition in the all-scripts set | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
 | `stagedReplicated` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps to `ReplicatedStorage`, `ReplicatedFirst`, `Workspace`, `StarterGui`, `StarterPack` or `StarterPlayer` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
-| `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains a staged module's instance path or a `require` that resolves to it, other than the `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
+| `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains as a path expression or string literal the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
 | `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least 4 bytes long, occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
 | `streamingOff` | the place read with `--place` has `Workspace.StreamingEnabled = false`, and the project has a staged namespace or an `:interest(` call in the all-scripts set | place path | `[check]`, `"warn"` | a game that streams nothing on purpose; with streaming off, all of `Workspace` reaches every client at join, whatever `interest` withholds `[interest-rewind §12.1]` | 3 |
 
-**Weaving** (§5; per site or per script, each at the site's line):
+**Weaving** (§5; each at its site's line, or line 1 of its script):
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
@@ -296,7 +295,7 @@ says so. The no-build path has no shards and no manifest, so none of these codes
 | `weaveUnparsed` | a script the Luau parser, at the version the host pins, refuses; it stays unwoven | script, parser message | `[check]`, `"warn"` | syntax newer than the pinned parser | 6 |
 | `weaveLiteralRefused` | with `weave.literals`, a literal site whose constant the codec refuses; the site stays unwoven and throws `valueRefused` when it runs, as unwoven | definition, field path, the value | `[check]`, `"warn"` | the call in code that never runs | 6 |
 
-**Published place** (`lync check --published`, §4.1; `[refusals-rejudged-1 R11]`):
+**Published place** (`lync check --published`, §4.3; `[refusals-rejudged-1 R11]`):
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
@@ -314,29 +313,287 @@ issue.
 
 ## 4. Hosts
 
-- **CLI:** `lync build`, `lync watch`, `lync check`, `lync explain <code>` (milestone 3); `lync diff <old> <new>`
-  (breaking wire changes) and `lync replay <capture>` (milestone 6). `watch` is in milestone 3 because, outside
-  Studio-only projects, it is the only regenerate-on-edit path. The shipped host is a Rust binary on mlua, installed
-  with rokit; Lune is the fallback and first host. Lute 1.0 is not used: its latest release has no macOS x86_64 binary, and its
-  module paths differ from its own documented definitions (`@lute/crypto` against `@std/crypto`, a CST node's
-  field `token` against `value`) `[client-security-build §1.2]`.
-- **Studio plugin** (milestone 6): the same diagnostics through
-  `ScriptEditorService:RegisterScriptAnalysisCallback`, with `code` and `href`, plus `staleShard` on shards; the
-  network inspector; a "Prepare release" action that writes a fresh build seed. It regenerates on schema edit only
-  when the configuration lives in its `StringValue`; with a filesystem `lync.toml`, `lync watch` is the one writer.
-  No plugin can hook publish or save `[client-security-build §1.4]`.
-- **CI:** `lync check --format github` fails on stale shards, errors and type tests; a release builds client and
-  server shards in one `lync build` run (one seed, `v5-integrity.md` §2) and publishes through Open Cloud
-  `[client-security-build §1.8]`.
+### 4.1 CLI
 
-## 5. Inspector and profiler (milestone 6)
+| Command | What it does | M |
+|---|---|---|
+| `lync build [--place <file>]` | draws one (`buildId`, `rotationSeed`) and plans every namespace once with it; writes shards, `.d.ts`, the manifest and the report; runs every check of §3.4 except `staleShard`, `unpairedShard`, `staleManifest` (it rewrites all three artefacts), the weaving codes and the `published*` codes, and runs `editedShard` before overwriting; runs each `[[pvs]]` bake | 3; bakes 4 |
+| `lync watch` | `lync build` again on each change to `lync.toml`, a schema module, the sourcemap or a scanned script; under `build.seed = "release"` each rebuild draws a new pair | 3 |
+| `lync check [--place <file>] [--published <universe>/<place>[/<version>]] [--manifest <path>]` | every check of `lync build` plus the drift codes, writing nothing; with `--published`, the published-place codes | 3; `--published` 6 |
+| `lync explain <code>` | prints the code's registry page | 3 |
+| `lync weave <place> -o <file> [--manifest <path>]` | §5 | 6 |
+| `lync diff <old> <new>` | compares two manifests and lists each definition whose wire changed: ids, codecs, layout | 6 |
+| `lync replay <capture> [--manifest <path>]` | decodes a capture (its frames with their `HELLO` and `WELCOME`) using the layouts and keys the planner reproduces from the manifest (§1.2) | 6 |
+
+`--manifest` defaults to `output.manifest`. `watch` is in milestone 3 because, outside Studio-only projects, it is
+the only regenerate-on-edit path.
+
+- **Host.** The shipped host is a Rust binary on mlua, installed with rokit; Lune is the fallback and the first
+  host. Weaving needs the Rust host: it parses with Luau's own parser through a C++ shim, which Lune lacks
+  `[codecs-in-scripts §2]`. Lute 1.0 is not used: its latest release has no macOS x86_64 binary, and its module paths
+  differ from its own documented definitions (`@lute/crypto` against `@std/crypto`, a CST node's field `token`
+  against `value`) `[client-security-build §1.2]`.
+- **Entropy.** The Rust host draws `buildId` and `rotationSeed` from OS entropy (`getrandom`)
+  `[security-tooling §6]`, never from a clock-seeded generator, which is searchable from the build's approximate
+  time `[generation-methods M1]`. No OS entropy source in Lune is verified (§8); until one is, builds
+  from the Lune host have a public-quality `rotationSeed`, as Studio-only builds do (§4.2).
+- **Decision: how a run names the built place.**
+  - *Problem.* Foreign remotes in the tree, staged-path mapping, the streaming settings and the `scripts` inventory
+    need the built place, which exists only after `rojo build`, so on a developer's machine it is often absent.
+  - *Options:* a `[check] place` key `[interest-rewind §12.3]` (a missing file fails every local run, or is skipped
+    silently); **a `--place <file>` flag** `[build-checks Impl4]`; both (two ways).
+  - *Choice: the flag,* on `lync build` and `lync check`. CI passes it after `rojo build`; a local run without it
+    reads the sourcemap. `[[pvs]] place` stays a key: it names a map source per bake, not the place being checked.
+
+### 4.2 Studio plugin (milestone 6)
+
+- **Diagnostics** through `ScriptEditorService:RegisterScriptAnalysisCallback` (PluginSecurity), with `code` and
+  `href`, attached to scripts only; instance findings (`foreignRemote`, `foreignBindable`) appear in the plugin's
+  own widget `[build-checks §1.3]`.
+- **Drift.** `staleShard`, `editedShard` and `unpairedShard` on open, on `TextDocumentDidChange` of a shard and in
+  "Prepare release", hashing `Source` with `EncodingService:ComputeStringHash(source, Enum.HashAlgorithm.Sha256)`
+  (security None, thread-safe) `[build-checks §3.4]`; its speed in Studio is unmeasured (§8).
+- **Generation.** It regenerates on schema edit only when the configuration lives in `ServerStorage.Lync.Config`;
+  with a filesystem `lync.toml`, `lync watch` is the one writer. Shards are written with `UpdateSourceAsync` inside
+  one `ChangeHistoryService` recording `[security-tooling §3]`.
+- **"Prepare release"** draws a new `buildId` and `rotationSeed` from `HttpService:GenerateGUID()` (security None),
+  regenerates, and writes the manifest to `ServerStorage.Lync.Manifest`. The GUID's entropy source is undocumented,
+  so Studio-only builds have a public-quality `rotationSeed` until it is checked (§8), with the consequences
+  `v5-integrity.md` §2 states for a public seed `[generation-methods M16]`.
+- **Play-test walk.** When the plugin runs in the play-test server DataModel, it walks `game:GetDescendants()` once
+  `ReplicatedStorage.Lync.Reliable` exists and reports each foreign remote with `runtime` 1, the only view of remotes
+  that helpers create at run time (Cmdr, legacy chat) `[build-checks §1.3]`. That plugin code runs in that DataModel
+  is unverified (§8); where it doesn't, the walk doesn't run.
+- **"Bake"** runs each `[[pvs]]` bake on the edit DataModel's parts, on demand, never on the edit path: a 1,024-cell
+  bake takes 0.17–2.16 s native on the CLI `[interest-rewind §4.2]`.
+- **Not in the plugin:** weaving, which would rewrite the open place's own scripts `[codecs-in-scripts §2]`; a
+  publish or save hook, which no plugin can register `[client-security-build §1.4]`; execution coverage as a
+  reachability check `[security-tooling Impl5]`, since in a play test the server's `unreachable` fact already
+  reports each message of a definition the scan inferred unreachable, and its fix names `check.clientRoots`.
+
+### 4.3 CI and release
+
+1. `lync build`: one run, so one pair for every namespace and both sides (`v5-integrity.md` §2).
+2. `rojo build -o game.rbxl`.
+3. Woven projects: `lync weave game.rbxl -o release.rbxl` (§5).
+4. `lync check --place release.rbxl --format github`: fails on errors, stale shards and type tests.
+5. Open Cloud Place Publishing, `versionType=Published` (30 requests per minute), which returns the version.
+6. `lync check --published <universe>/<place>/<version>`.
+7. `restartServers` (30 per minute), which retires servers still on the previous build `[security-tooling §4]`.
+
+CI keeps each release's manifest as an artefact. Woven places are written only by CI and never edited in Team
+Create: publishing woven output into a place a team edits puts woven scripts in their editor
+`[codecs-in-scripts §2]`. Studio-only projects stay on shards.
+
+**`--published`** creates one Luau Execution task on the versioned endpoint
+(`…/places/{p}/versions/{v}/luau-execution-session-tasks`; 5 task creations per minute per key owner, at most 5 min
+per task, return values at most 4 MB). The task reads the `Source` of each shard part, `wovenScripts` entry and
+`scripts` entry by path, hashes it with `EncodingService:ComputeStringHash` after CRLF-to-LF replacement, and returns
+`{ path, digest }` as JSON; the CLI compares them with the manifest. The API key, with scope
+`universe.place.luau-execution-session:write`, comes from the environment variable `LYNC_OPEN_CLOUD_KEY`, never from
+`lync.toml`. Cost: zero at run time and on the wire; one task and one SHA-256 per listed script per check
+`[refusals-rejudged-1 R11]`.
+
+- **Decision: what `--published` does when the task can't read `Source`.**
+  - *Problem.* Whether a Luau Execution task's thread holds `PluginOrOpenCloud`, which reading `Source` needs, is
+    unverified `[refusals-rejudged-1 R11]`.
+  - *Options:* fall back to `require`-ing each client shard part in the task and comparing its identity constants;
+    **report `publishedUnreadable` and compare nothing.**
+  - *Choice: report.* The fallback finds only a published pair from another run, which every join already reports
+    as `schemaMismatch` (`seedDiffers` 1) under the default `"release"` seed, and it runs client shards on a server.
+    Hand edits are what only a `Source` read finds.
+
+Not in the release pipeline: a per-build key or seed record written to a DataStore `[security-tooling §4]`, since
+the server shard holds every value a server needs and a read at start would make Lync's start yield
+`[generation-methods M11]`; and a Luau Execution run of the golden set per game release `[security-tooling Impl3]`,
+whose result depends only on the Lync version and the engine version, so it belongs in Lync's own CI.
+
+## 5. Weaving (milestone 6)
+
+Weaving writes each call site's encoder into the built copy of the game script that makes the call, and, with
+site-bound ids, gives each woven site its own up-space id `[codecs-in-scripts]`. Game code, its types and the
+shards' API don't change; only built copies do. It is a speed measure on every woven site and, through site ids, a
+server-observed report on definitions every unmodified client reaches only through woven sites.
+
+### 5.1 Decision: where the transform runs
+
+- **Problem.** Rewriting the developer's own scripts each build causes merge conflicts and `UpdateSourceAsync`
+  races, which is why draft 3.5 refused weaving; a transform has to see every script with its instance path and
+  `RunContext`, including scripts inside `.rbxm` models.
+- **Options:** **a pass over the place file `rojo build` produced**; a pass over a copy of the source tree before
+  `rojo build` (misses scripts inside model files, needs two project files); the Studio plugin (no publish or save
+  hook exists, so its only target is the developer's open scripts, the refused case) `[codecs-in-scripts §2]`.
+- **Choice: the place-file pass,** CLI only. It never opens a developer file or Studio script, so nothing is merged
+  and no editor races it. Verified end to end with Lune: `rojo build`, dump, weave, write, re-read identical
+  `[codecs-in-scripts §2]`; the same round trip in the Rust host is unverified (§8). `rojo serve` keeps syncing
+  unwoven sources, so play tests use the shard path and releases the woven path; the differential of §5.4 makes them
+  write the same bytes. Studio-only projects never weave, and no `weave.*` key applies to them.
+
+### 5.2 The command
+
+`lync weave <place> -o <file>` reads the built place, the manifest and the schema modules. It refuses to run (exit
+2) when its generator's `coreDigest` differs from the manifest's. It plans once at the manifest's `rotationSeed`,
+regenerates the shards and compares them with the place's, so a place whose shards are from another run fails with
+`editedShard` (`regenerated` 1) and nothing is written. Fragments, site table and shards therefore come from one
+planner run `[codecs-in-scripts §8]`. It writes the output place with the woven scripts and rewritten shards (the
+server shard gains the site table and site decoders; with `weave.dropClosed`, the client shard loses closed
+encoders), and rewrites the manifest (§1.2). There is no `lync build --weave`: weaving's input is the built place,
+which exists only after `rojo build`.
+
+### 5.3 Sites and forms
+
+- **Bindings.** A local initialised by a namespace value (§3.3) whose `require` path resolves statically through
+  `game:GetService`, `.Name`, `:WaitForChild`, `:FindFirstChild`, `script`, `.Parent` or a local bound to one of
+  them; `TS.import(script, base, segments…)` resolves as `base.segment…`. A definition alias is a local initialised
+  by `binding.def`. Neither may be reassigned in its scope.
+- **Resolved site:** a call `binding.def:verb(…)` or `alias:verb(…)`, dot or colon (roblox-ts emits both). It is
+  **woven** when it is a statement, its argument is a table constructor whose keys are constant strings equal to the
+  record's field set (any single expression for a non-record codec), and no shadowed builtin is in scope; otherwise
+  it stays on the shard with the `weave*` code of §3.4 that names why. A **literal site** has every field value
+  constant.
+- **Forms** `[codecs-in-scripts §6]`:
+  - client sites: inline (W2) when the definition has at most `weave.inlineMaxSites` woven client sites in the
+    place, else a call into the shard's scalar entry with the fields as arguments (W3); with `weave.literals`, a
+    literal site is folded at build time into one run header, one reserve and one constant write, whatever the
+    count;
+  - server sites: W3 only, with `weave.server = "call"`, since inlining into an interpreted game script loses the
+    native shard's code;
+  - never a `local function` helper: at `-O2` it is inlined and a refusal reports the helper's line, not the call's
+    (`codecs-in-scripts/error_lines.out`).
+- **Lines are preserved, so there is no line map.** Each replacement holds as many newlines as the text it replaces;
+  each argument keeps its text and its first line; the encoder sits on the statement's last line; imports go on the
+  binding statement's last line, never before the first token, so hot comments stay on lines 1–2. Every line keeps
+  its number and instance paths don't change, so Rojo's sourcemap and the Error Report point at the developer's
+  file and line. A line map per build `[security-tooling §10]` is therefore not built.
+- **Positions.** Each woven check passes its site's source line as a constant to the cold `fail`, so a refusal
+  reports the call's first line at `-O1` and `-O2` and skips the `debug.info` walk (`v5.md` §7.1); cost one `LOADN`
+  per check, in the cold branch.
+
+### 5.4 Closure and the gate
+
+- **Closed definition:** its namespace is complete (§3.3's predicate, the one `v5-integrity.md` §3 defines: aliases,
+  fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in the
+  client scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site or of an alias declaration
+  whose uses are all woven `[codecs-in-scripts §4.2]`. The scope is the client scan set, as for reachability: server
+  handlers name every definition they handle, so a scope of all scripts would close none. A generated trap has no
+  site, so it is closed and keeps only its generic id; `weave.dropClosed` keeps trap encoders.
+- **Gate**, per script, before anything is written `[codecs-in-scripts §4.3]`:
+
+  | Check | On failure |
+  |---|---|
+  | parses with the pinned Luau parser | script unwoven, `weaveUnparsed` |
+  | no shadowed builtin at a site | site unwoven, `weaveShadowed` |
+  | the woven script compiles | script unwoven, `weaveCompile` |
+  | line count unchanged | `internal` (exit 3) |
+  | differential: for 200 value sets per site, drawn by xorshift32 seeded from the site's canonical index, the woven bytes equal the shard encoder's at the build's `rotationSeed` with every per-build method on, and a refused value raises the same message | `internal` (exit 3) |
+
+  The 200 value sets are chosen, as in the prototype, which found woven and shard bytes identical over 3,466 B at
+  `-O1` and `-O2` (`codecs-in-scripts/diff.out`).
+- **Correctness never depends on finding every site:** an unwoven call stays on the shard, and completeness gates
+  only closure.
+
+### 5.5 Site-bound ids and `idTableHash`
+
+- **Ids** (`weave.ids`): generic ids stay as `v5.md` §4.6 defines them. `"site"` adds one up-space id per woven
+  client site, `"definition"` one per woven definition, after the generic ids, in canonical order by (script
+  instance path, line), ties between scripts sharing a path broken by the SHA-256 of their woven source; they are
+  permuted per server like every id. A site id's layout is its definition's layout minus the fields the site writes
+  as constants (`"site"` only), so a fully literal site sends no payload bits. A site-id message is delivered as a
+  message of its definition: the same `limit`, `validate`, handlers and element charge `[codecs-in-scripts §7.1]`.
+  A message on the generic id of a closed definition is the fact `v5-integrity.md` §3 specifies.
+- **Decision: what the up-id table's hash covers, and its name.**
+  - *Problem.* Two builds at one fixed `build.seed` can differ in their site tables or generated traps, which set
+    which up ids exist and what each delivers; `buildId` and the schema hash don't pin them, and a disagreement
+    decodes wrong values silently.
+  - *Options:* a hash of the site table alone (`weaveHash`, `[codecs-in-scripts §7.3]`), which misses traps and
+    constants; **a hash of everything the two shards must agree on beyond `buildId` and the schema hash**
+    `[generation-methods M16]`; a per-shard code hash, which adds no wire safety and which a modified client sets
+    freely `[build-checks §4]`.
+  - *Choice:* HalfSipHash-2-4, zero key, low 32 bits, over a canonical serialization of the id mode, the site table
+    in canonical order (each site's script path, line and definition's canonical id), each site's constant fields
+    and values, and the generated trap set (count, canonical positions, source codec of each). Not covered: values
+    `buildId` pins (field order, tag constants, offsets), per-player variant data, the secrets (`rotationSeed`, the
+    key-derivation secret, the canary key: a public hash over a secret is an offline check for guesses) and the
+    per-server permutation seed. It is 0 with no site ids and no generated traps, so `v5.md` §4.10's G7 and every
+    unwoven `HELLO` are unchanged. Named **`idTableHash`**, for the table it pins: `weaveHash` would misname an
+    unwoven build with traps, and `layoutHash` collides with the `layout` field and option of the runtime path.
+    `HELLO` carries it and a mismatch is refused (`v5.md` §4.6); `lync build` writes it without weaving whenever
+    `build.traps` > 0.
+
+### 5.6 Composition
+
+- Per-build values reach woven sites from the same IR as the shard: field order, offsets (folded into the constant
+  word at a literal site), traps; the tag is computed at flush and never woven `[generation-methods M16]`.
+- Per-player variants compose only in tag scope: woven scripts in starter containers are copied to every player, so
+  `build.playerVariantScope = "upstream"` with `lync weave` is `configRange` `[codecs-in-scripts §8]`.
+- The schema hash, `staleShard` and the unwoven golden vectors are unchanged; woven fixture vectors (a site id; a
+  fully literal site with no payload bits) join the golden set (`v5.md` §4.10).
+
+### 5.7 Options
+
+Read only by `lync weave`.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `weave.inlineMaxSites` | integer | woven client sites per definition | 0–65,535 (0: never inline) | 2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3) | per site, mean over the measured mix at `-g1`: an unwoven site 124 B, W3 177 B, W2 654 B; client time per call (interpreted, median): `move6` W2 437 ns, W3 562 ns; `strike` 663 and 676; `chat` 144 and 164 `[codecs-in-scripts §6.1, §6.3]` |
+| `weave.literals` | boolean | — | — | `true` (derived: no run-time cost; 85–165 ns less per literal call) | a literal site's checks move to the build; a refused literal is `weaveLiteralRefused` |
+| `weave.server` | `"off"` \| `"call"` | — | — | `"call"` (derived: W3 is faster than the shard entry on the server with no correctness cost) | +53 B per server site (W3, the client mix's mean); server time per call `move6` 291 against 453 ns, `strike` 333 against 471, `chat` 115 against 176 (native shard, interpreted script) |
+| `weave.ids` | `"generic"` \| `"definition"` \| `"site"` | — | — | `"site"` (chosen: the only mode with constant elision and per-site ids) | `"site"`: ⌈log2(D + S)⌉ − ⌈log2 D⌉ bits per upstream run (D = 20: +1 at S = 20, +2 at 60–100, +4 at 300; +1 bit is 9–18 B/s per player at 70 upstream frames/s), the closed-generic fact, constant elision (1–8 bits per message at the measured shapes, the whole payload at a fully literal site), `idTableHash` (4 B per namespace per connection); `"definition"`: at most +1 bit per run and the fact; `"generic"`: no wire change |
+| `weave.dropClosed` | boolean | — | — | `false` (derived: with `true`, code outside the build calling a closed definition raises at the caller instead of sending, so an unmodified client running such code breaks) | `true`: the client shard drops closed definitions' encoders (0.43× unwoven bytes at 1 site per definition); the server still decodes and reports the generic id |
+| `weave.handlers` | boolean | — | — | `false` (derived: it is the one transform whose result the byte differential can't check) | per delivered message of an unpacked definition: client 419 → 342 ns, server 355 → 262 ns `[codecs-in-scripts §6.4]`; build time to prove the precondition (unmeasured) |
+
+### 5.8 Handler unpacking (`weave.handlers`)
+
+A function literal passed to `connect`, `validate` or `handle` at a resolved binding or alias is rewritten to take
+the record's top-level fields as arguments when every occurrence of its value parameter is a read `param.f`, with
+`f` a constant field name of the record: never written, passed, returned, compared, captured by a closure, given to
+`#`, `next` or `typeof`, or indexed by a non-constant. The parameter is replaced in place by one parameter
+`__lync_<f>` per field and each `param.f` by `__lync_<f>`, so every line keeps its number. The rewritten call
+registers through the shard's fields entry; the delivery passes the decoded locals to fields-form functions and
+builds the payload table only when a table-form function is also registered for the definition, so handlers from
+outside the place still receive the table.
+
+### 5.9 Cost
+
+- **Bytecode** (client total, `-g1`, against unwoven = 1.00) `[codecs-in-scripts §6.1]`: 20 definitions × 1, 2, 3, 5,
+  10 sites spread: W3 1.03, 1.06, 1.09, 1.13, 1.20; W2 1.34, 1.64, 1.89, 2.30, 2.99; one definition × 50 sites: W3
+  0.78, W2 4.78. The draft-3.5 figure of 5.0× is that last shape's bound, reproduced (22,927 against 4,587 B,
+  `codecs-in-scripts/size_orig.out`), not a property of weaving `[codecs-in-scripts §1]`.
+- **Load:** 10–32 KB more client bytecode at the measured mixes, 10–75 µs per join at 0.5–2.4 ns per byte on the CLI
+  `[codecs-in-scripts §6.2]`; phone factor unmeasured (§8). A `--!native` server script with woven sites compiles in
+  424 µs against 183 µs unwoven for the fixture's `Weapon`, and draws on the per-game native code limit.
+- **Server shard:** one decoder per site; a definition's decoder is 223–351 B `[generation-methods M15a]`, a site's
+  is unmeasured.
+- **Build:** the Python prototype took 3.06 s for 303 scripts (1.68 MB, 901 sites), 2.84 s of it parsing in one
+  process per script; the Rust host parses in process, unmeasured (§8).
+
+## 6. Inspector and profiler (milestone 6)
 
 - **Studio inspector:** bytes per definition and per player from `Lync.counters()` polled at 4 Hz, facts from the
-  observer, live decoded frames, capture and replay.
+  observer, live frames decoded with the running shards' own decoders, capture, and replay of a capture with the
+  layouts and keys the planner reproduces from the manifest (§1.2).
 - **PacketProfiler adapter:** registers Lync as a traffic layer `[landscape §5]`.
 - **MicroProfiler labels** with `profile = true` (`v5.md` §7.5).
 
-## 6. Repo tooling
+## 7. Repo tooling
 
 Never shipped: StyLua and selene with a Lync `std` file; Moonwave; Markdown guides and the code registry
 `docs/codes/`; GitHub Actions; Python for simulations and capture analysis.
+
+## 8. Pending measurements
+
+Unverified facts a default, a code's known cause or a mechanism above rests on (`v5.md` principle 8):
+- the `Source` cap of 200,000 characters set the ordinary way (the part cap, §1.1), and how many characters a
+  `StringValue` holds (`ServerStorage.Lync.Config`, `.Manifest`);
+- a host API reporting a module's native IR instruction count (the server-part bound, §1.1);
+- an OS entropy source in Lune, and the entropy source of `HttpService:GenerateGUID()` in Studio (private
+  `rotationSeed`, §4.1, §4.2);
+- whether a Luau Execution task can read `Source` (`--published`, §4.3);
+- whether plugin code runs in the play-test server DataModel and what `GetDescendants` costs in Studio (§4.2);
+- `EncodingService:ComputeStringHash` speed in Studio and in a Luau Execution task (§4.2, §4.3);
+- the end-to-end place round trip with script rewriting in the Rust host, its in-process parse time, and the share
+  of resolvable woven sites in real Rojo and roblox-ts games (§5);
+- the phone factor for load time per KB of bytecode (§5.9);
+- what an open Team Create session does when Open Cloud publishes a new version (§4.3);
+- whether a module returning a base64 string of 128 KiB × 4/3 or more is accepted (the PVS table), whether rbx-dom exposes `MeshPart` geometry, a
+  3D bake's cost, and place read time beyond the measured 500,003 instances (7.36 s in Lune, `build-checks/scale.out`) (§4.1, §4.2).

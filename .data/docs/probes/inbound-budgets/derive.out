@@ -1,0 +1,492 @@
+#### native (luau 0.742 --codegen), medians of 3 runs (range = min-max of the run medians)
+
+## Claim 2: tag per frame (one hash, cover 16,384), ns: median (range)
+lane  bytes |        milestone Tag.compute |               generated loop |        generated unrolled x4
+   0      3 |        196 (    185-    196) |         61 (     58-     64) |        122 (    119-    125)
+   0   1024 |       4475 (   4272-   4533) |       3985 (   3924-   3999) |       2452 (   2361-   2462)
+   0   4096 |      18115 (  16856-  19633) |      16089 (  15259-  16556) |       9333 (   9216-   9572)
+   0  16384 |      67129 (  66279-  67660) |      63567 (  62177-  64378) |      36426 (  36251-  37024)
+   1      4 |        201 (    199-    290) |         64 (     63-    104) |        157 (    150-    184)
+   1     16 |        250 (    235-    255) |        109 (    104-    109) |        204 (    193-    216)
+   1     64 |        435 (    433-    443) |        289 (    287-    293) |        303 (    298-    305)
+   1    256 |       1243 (   1196-   1415) |       1032 (   1021-   1058) |        726 (    721-    777)
+   1   1000 |       4384 (   4267-   4535) |       3980 (   3866-   4068) |       2397 (   2373-   2397)
+tag fit, milestone: reliable 196 ns + 3.99 ns/B; unreliable 201 ns + 4.20 ns/B
+tag fit, generated loop: reliable 61 ns + 3.86 ns/B; unreliable 64 ns + 3.93 ns/B
+tag fit, generated unrolled: reliable 122 ns + 2.20 ns/B; unreliable 157 ns + 2.25 ns/B
+
+## Claim 2: wrong-tag frames through the milestone Inbound.receive (no decode), ns per frame
+lane  bytes |                  wrong tag |     wrong tag, pending key |  over budget, wrong, pending | hashes
+   0      3 |      2530 (   2406-   2604) |      3474 (   3243-   3562) |       2863 (   2753-   2961) | 5 / 10 / 10
+   0   1024 |     23521 (  22852-  24129) |     46273 (  44214-  46500) |      44985 (  43805-  45198) | 5 / 10 / 10
+   0  16384 |    330457 ( 326362- 343117) |    652045 ( 646161- 690046) |     655838 ( 651800- 676451) | 5 / 10 / 10
+   1      4 |      2598 (   2560-   2621) |      3079 (   3045-   3274) |                            - | 3 / 6 / -
+   1   1000 |     10791 (  10602-  11143) |     19645 (  18712-  19724) |                            - | 3 / 6 / -
+
+## Claim 1 + 2: per frame, total inbound CPU (F) split into decode, step 5, tag and the rest; ns
+frame                                                lane      B   elem |   F total  D decode   step 5   tag(M)    rest |   F ns/B  F ns/el |         G  G ns/B gen total gen ns/B gen ns/el
+empty unreliable frame (header only)                    1      4      0 |      2188       959        2      201    1026 |    547.0        - |       287     71.8      1472    368.0         -
+                                                                        | range F 2157-2418, D 850-1132, G 282-297
+empty reliable frame (header only)                      0      3      0 |      1890       872       99      196     723 |    630.0        - |       251     83.7      1195    398.3         -
+                                                                        | range F 1890-2018, D 848-1356, G 248-255
+busy input: 1 move6, unreliable                         1     11      1 |      4698      2796      394      230    1278 |    427.1   4698.0 |       912     82.9      2756    250.6    2756.3
+                                                                        | range F 4459-5511, D 2429-2897, G 896-983
+busy action: 1 sm (8-byte name), reliable               0     15      1 |      4099      2749      212      244     894 |    273.3   4099.0 |       936     62.4      2191    146.0    2190.6
+                                                                        | range F 3887-4310, D 2518-3016, G 880-1069
+move6 x 192 random, unreliable 1000 B                   1   1000    192 |    313474    234077    81077     4384   -6064 |    313.5   1632.7 |     92163     92.2    169573    169.6     883.2
+                                                                        | range F 228116-326309, D 170049-235985, G 85550-136214
+move6 x 3118 random, reliable 16 KB                     0  16380   3118 |   3479020   2899443   689885    65520 -175828 |    212.4   1115.8 |   2065769    126.1   2616056    159.7     839.0
+                                                                        | range F 3452042-3516360, D 2633615-3197327, G 1812407-2076116
+bools32 x 4085 random, reliable 16 KB                   0  16383   4085 |  17394426  16928951  -510281    65532  910224 |   1061.7   4258.1 |  10442713    637.4  10878893    664.0    2663.1
+                                                                        | range F 16625160-17421020, D 15876066-17057698, G 10280018-10683903
+text (200 B strings) x 81, reliable 16 KB               0  16207     81 |    115175     35971    10378    64830    3996 |      7.1   1421.9 |         -        -         -        -         -
+                                                                        | range F 111269-119735, D 35653-37607
+rec1 x 4096 all false (constant column, 1 field)        0      7   4096 |   2622551   1431636  1052483      212  138220 | 374650.1    640.3 |    236376  33768.0   1427210 203887.1     348.4
+                                                                        | range F 2213138-2630247, D 1284794-1557374, G 228666-254697
+move6 x 4096 constant (6 fields)                        0     12   4096 |   3217996   2047808  1019423      232  150533 | 268166.3    785.6 |    718956  59913.0   1889054 157421.2     461.2
+                                                                        | range F 2929443-3581168, D 1983273-2459753, G 683131-1175697
+bools32 x 4096 all false (constant columns)             0     15   4096 |   8884887   8696857   358042      244 -170256 | 592325.8   2169.2 |   2760400 184026.7   2948335 196555.6     719.8
+                                                                        | range F 8597396-9731395, D 8410063-9487546, G 2651580-3056865
+bools128 x 1024 all false (constant columns)            0     39   1024 |   7793243   7835146    61392      340 -103635 | 199826.7   7610.6 |   4537380 116343.1   4495339 115265.1    4390.0
+                                                                        | range F 7358769-8358361, D 7233121-8120397, G 4023374-4743950
+ping1 x 4096 in one run (no payload)                    0      7   4096 |   1802547    865844   948371      212  -11880 | 257506.7    440.1 |     62627   8946.7    999249 142749.8     244.0
+                                                                        | range F 1736520-1917172, D 829089-907260, G 61822-63783
+4096 one-message runs, ping1/ping2 alternating          0   2566   4096 |   3477794   2984231   141744    10419  341400 |   1355.3    849.1 |    661706    257.9   1150623    448.4     280.9
+                                                                        | range F 3148860-3952649, D 2520238-3097882, G 649637-674401
+array(bool, 65535) all false (R31 row 1)                0      6  65536 |   1819827   1780595   -14714      208   53738 | 303304.5     27.8 |         -        -         -        -         -
+                                                                        | range F 1755195-1910202, D 1724954-1842900
+array({a = bool}, 65535) all false (R31 row 2)          0      6  65536 |   8043655   7070512   513853      208  459082 | 1340609.2    122.7 |         -        -         -        -         -
+                                                                        | range F 6833777-8139464, D 6790422-7827079
+
+## Claim 3: the busy model (v5.md §4.1: 60 input frames unreliable + 10 action frames reliable per second;
+   input = move6, action = sm with an 8-byte name; each frame one message)
+busy input frame 11 B, action frame 15 B (milestone: 16-bit tag, no ack)
+busy CPU per player, milestone: 322.9 us/s; at 100 players 32.29 ms/s = 3.229% of one core
+busy CPU per player, generated: 187.3 us/s; at 100 players 18.73 ms/s = 1.873% of one core
+budget               default perSecond   busy use  fraction | design use  fraction |    burst  largest busy frame / burst
+reliable.frames                    120         10    0.0833 |         10    0.0833 |      240                    0.004167
+reliable.bytes                   32768        150    0.0046 |        170    0.0052 |    65536                    0.000259
+unreliable.frames                  240         60    0.2500 |         60    0.2500 |      480                    0.002083
+unreliable.bytes                 32768        660    0.0201 |        850    0.0259 |    65536                    0.000259
+elements                         20000         70    0.0035 |         70    0.0035 |    65536                    0.000015
+
+## Claim 3: worst-case CPU per player at the defaults (LP over the timed frames), and its formula
+   formula: CPU = sum over limits of (shadow price x limit), exact at these limits; zero-price limits don't bind
+[milestone] S1 busy-like (move6, sm, text, no-payload events), sustained (perSecond): 24.20 ms/s per player; 100 players 2.420 s/s = 242.0% of one core
+    = 3.3e+03 ns x reliable.frames + 57.6 ns x reliable.bytes + 2.46e+03 ns x unreliable.frames + 155 ns x unreliable.bytes + 812 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 1.6/s move6 x 3118 random, reliable 16 KB, 2.1/s 4096 one-message runs, ping1/ping2 alternating, 116.2/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B
+[milestone] S1 busy-like (move6, sm, text, no-payload events), first second (perSecond + burst): 93.34 ms/s per player; 100 players 9.334 s/s = 933.4% of one core
+    = 3.3e+03 ns x reliable.frames + 57.6 ns x reliable.bytes + 2.46e+03 ns x unreliable.frames + 155 ns x unreliable.bytes + 812 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 3.8/s move6 x 3118 random, reliable 16 KB, 13.5/s 4096 one-message runs, ping1/ping2 alternating, 342.7/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B
+[milestone] S2 S1 + rec1 + arrays (R31's shapes), sustained (perSecond): 24.20 ms/s per player; 100 players 2.420 s/s = 242.0% of one core
+    = 3.3e+03 ns x reliable.frames + 57.6 ns x reliable.bytes + 2.46e+03 ns x unreliable.frames + 155 ns x unreliable.bytes + 812 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 1.6/s move6 x 3118 random, reliable 16 KB, 2.1/s 4096 one-message runs, ping1/ping2 alternating, 116.2/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B
+[milestone] S2 S1 + rec1 + arrays (R31's shapes), first second (perSecond + burst): 93.34 ms/s per player; 100 players 9.334 s/s = 933.4% of one core
+    = 3.3e+03 ns x reliable.frames + 57.6 ns x reliable.bytes + 2.46e+03 ns x unreliable.frames + 155 ns x unreliable.bytes + 812 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 3.8/s move6 x 3118 random, reliable 16 KB, 13.5/s 4096 one-message runs, ping1/ping2 alternating, 342.7/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B
+[milestone] S3 S2 + a 32-bool record (bools32), sustained (perSecond): 77.97 ms/s per player; 100 players 7.797 s/s = 779.7% of one core
+    = 1.91e+03 ns x reliable.frames + 521 ns x reliable.bytes + 994 ns x unreliable.frames + 521 ns x unreliable.bytes + 2.17e+03 ns x elements
+    attack mix: 2.0/s bools32 x 4085 random, reliable 16 KB, 1.0/s bools32 x 4096 all false (constant columns), 117.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s bools32 random, unreliable 1000 B (scaled)
+[milestone] S3 S2 + a 32-bool record (bools32), first second (perSecond + burst): 289.23 ms/s per player; 100 players 28.923 s/s = 2892.3% of one core
+    = 1.91e+03 ns x reliable.frames + 521 ns x reliable.bytes + 994 ns x unreliable.frames + 521 ns x unreliable.bytes + 2.17e+03 ns x elements
+    attack mix: 5.9/s bools32 x 4085 random, reliable 16 KB, 9.1/s bools32 x 4096 all false (constant columns), 344.9/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s bools32 random, unreliable 1000 B (scaled)
+[milestone] S4 S3 + a 128-bool record (bools128), sustained (perSecond): 155.16 ms/s per player; 100 players 15.516 s/s = 1551.6% of one core
+    = 3.35e+03 ns x reliable.frames + 41.9 ns x reliable.bytes + 3.01e+03 ns x unreliable.frames + 16.6 ns x unreliable.bytes + 7.61e+03 ns x elements
+    attack mix: 19.5/s bools128 x 1024 all false (constant columns), 69.4/s wrong tag, pending key, 3 B, 31.1/s wrong tag, pending key, 1024 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[milestone] S4 S3 + a 128-bool record (bools128), first second (perSecond + burst): 659.69 ms/s per player; 100 players 65.969 s/s = 6596.9% of one core
+    = 3.35e+03 ns x reliable.frames + 41.9 ns x reliable.bytes + 3.01e+03 ns x unreliable.frames + 16.6 ns x unreliable.bytes + 7.61e+03 ns x elements
+    attack mix: 83.5/s bools128 x 1024 all false (constant columns), 184.2/s wrong tag, pending key, 3 B, 92.3/s wrong tag, pending key, 1024 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+[generated] S1 busy-like (move6, sm, text, no-payload events), sustained (perSecond): 15.04 ms/s per player; 100 players 1.504 s/s = 150.4% of one core
+    = 2.52e+03 ns x reliable.frames + 71.9 ns x reliable.bytes + 2.5e+03 ns x unreliable.frames + 78.7 ns x unreliable.bytes + 460 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 2.0/s move6 x 3118 random, reliable 16 KB, 1.9/s move6 x 4096 constant (6 fields), 116.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B
+[generated] S1 busy-like (move6, sm, text, no-payload events), first second (perSecond + burst): 56.89 ms/s per player; 100 players 5.689 s/s = 568.9% of one core
+    = 2.52e+03 ns x reliable.frames + 71.9 ns x reliable.bytes + 2.5e+03 ns x unreliable.frames + 78.7 ns x unreliable.bytes + 460 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 5.9/s move6 x 3118 random, reliable 16 KB, 11.9/s move6 x 4096 constant (6 fields), 342.2/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B
+[generated] S2 S1 + rec1 + arrays (R31's shapes), sustained (perSecond): 15.04 ms/s per player; 100 players 1.504 s/s = 150.4% of one core
+    = 2.52e+03 ns x reliable.frames + 71.9 ns x reliable.bytes + 2.5e+03 ns x unreliable.frames + 78.7 ns x unreliable.bytes + 460 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 2.0/s move6 x 3118 random, reliable 16 KB, 1.9/s move6 x 4096 constant (6 fields), 116.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B
+[generated] S2 S1 + rec1 + arrays (R31's shapes), first second (perSecond + burst): 56.89 ms/s per player; 100 players 5.689 s/s = 568.9% of one core
+    = 2.52e+03 ns x reliable.frames + 71.9 ns x reliable.bytes + 2.5e+03 ns x unreliable.frames + 78.7 ns x unreliable.bytes + 460 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 5.9/s move6 x 3118 random, reliable 16 KB, 11.9/s move6 x 4096 constant (6 fields), 342.2/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B
+[generated] S3 S2 + a 32-bool record (bools32), sustained (perSecond): 46.49 ms/s per player; 100 players 4.649 s/s = 464.9% of one core
+    = 1.28e+03 ns x reliable.frames + 485 ns x reliable.bytes + 877 ns x unreliable.frames + 484 ns x unreliable.bytes + 718 ns x elements
+    attack mix: 2.0/s bools32 x 4085 random, reliable 16 KB, 1.0/s bools32 x 4096 all false (constant columns), 117.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s bools32 random, unreliable 1000 B (scaled)
+[generated] S3 S2 + a 32-bool record (bools32), first second (perSecond + burst): 157.78 ms/s per player; 100 players 15.778 s/s = 1577.8% of one core
+    = 1.28e+03 ns x reliable.frames + 485 ns x reliable.bytes + 877 ns x unreliable.frames + 484 ns x unreliable.bytes + 718 ns x elements
+    attack mix: 5.9/s bools32 x 4085 random, reliable 16 KB, 9.1/s bools32 x 4096 all false (constant columns), 344.9/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s bools32 random, unreliable 1000 B (scaled)
+[generated] S4 S3 + a 128-bool record (bools128), sustained (perSecond): 89.67 ms/s per player; 100 players 8.967 s/s = 896.7% of one core
+    = 2.66e+03 ns x reliable.frames + 24.1 ns x reliable.bytes + 2.8e+03 ns x unreliable.frames + 4.93 ns x unreliable.bytes + 4.39e+03 ns x elements
+    attack mix: 19.5/s bools128 x 1024 all false (constant columns), 69.4/s wrong tag, pending key, 3 B, 31.1/s wrong tag, pending key, 1024 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[generated] S4 S3 + a 128-bool record (bools128), first second (perSecond + burst): 381.02 ms/s per player; 100 players 38.102 s/s = 3810.2% of one core
+    = 2.66e+03 ns x reliable.frames + 24.1 ns x reliable.bytes + 2.8e+03 ns x unreliable.frames + 4.93 ns x unreliable.bytes + 4.39e+03 ns x elements
+    attack mix: 83.5/s bools128 x 1024 all false (constant columns), 184.2/s wrong tag, pending key, 3 B, 92.3/s wrong tag, pending key, 1024 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+
+## Claim 4: budget values at which worst-case CPU at 100 players = 1%, 5%, 10% of one core
+   (a) every perSecond scaled by one factor a (LP is homogeneous: a = target / CPU at defaults);
+   (b) one budget varied, the others at their defaults (bisection; 'floor' = the CPU with that budget at 0).
+[milestone] S1 busy-like (move6, sm, text, no-payload events): defaults give 242.0% of one core at 100 players
+  (a) 1%: a = 0.0041: reliable.frames 0.4959, reliable.bytes 135.4, unreliable.frames 0.9918, unreliable.bytes 135.4, elements 82.65
+  (a) 5%: a = 0.0207: reliable.frames 2.479, reliable.bytes 677.1, unreliable.frames 4.959, unreliable.bytes 677.1, elements 413.2
+  (a) 10%: a = 0.0413: reliable.frames 4.959, reliable.bytes 1354, unreliable.frames 9.918, unreliable.bytes 1354, elements 826.5
+  (b) reliable.frames    default    120: 1%: unreachable (floor 106.5%); 5%: unreachable (floor 106.5%); 10%: unreachable (floor 106.5%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 106.5%); 5%: unreachable (floor 106.5%); 10%: unreachable (floor 106.5%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 185.3%); 5%: unreachable (floor 185.3%); 10%: unreachable (floor 185.3%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 185.3%); 5%: unreachable (floor 185.3%); 10%: unreachable (floor 185.3%)
+  (b) elements           default  20000: 1%: unreachable (floor 30.4%); 5%: unreachable (floor 30.4%); 10%: unreachable (floor 30.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 343 us/s per player = 3.43% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.29 < 1: unreachable without refusing the busy model
+      5%: m = 1.46: reliable.frames 14.59, reliable.bytes 248.1, unreliable.frames 87.56, unreliable.bytes 1240, elements 102.2
+      10%: m = 2.92: reliable.frames 29.19, reliable.bytes 496.2, unreliable.frames 175.1, unreliable.bytes 2481, elements 204.3
+[milestone] S2 S1 + rec1 + arrays (R31's shapes): defaults give 242.0% of one core at 100 players
+  (a) 1%: a = 0.0041: reliable.frames 0.4959, reliable.bytes 135.4, unreliable.frames 0.9918, unreliable.bytes 135.4, elements 82.65
+  (a) 5%: a = 0.0207: reliable.frames 2.479, reliable.bytes 677.1, unreliable.frames 4.959, unreliable.bytes 677.1, elements 413.2
+  (a) 10%: a = 0.0413: reliable.frames 4.959, reliable.bytes 1354, unreliable.frames 9.918, unreliable.bytes 1354, elements 826.5
+  (b) reliable.frames    default    120: 1%: unreachable (floor 106.5%); 5%: unreachable (floor 106.5%); 10%: unreachable (floor 106.5%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 106.5%); 5%: unreachable (floor 106.5%); 10%: unreachable (floor 106.5%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 185.3%); 5%: unreachable (floor 185.3%); 10%: unreachable (floor 185.3%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 185.3%); 5%: unreachable (floor 185.3%); 10%: unreachable (floor 185.3%)
+  (b) elements           default  20000: 1%: unreachable (floor 30.4%); 5%: unreachable (floor 30.4%); 10%: unreachable (floor 30.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 343 us/s per player = 3.43% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.29 < 1: unreachable without refusing the busy model
+      5%: m = 1.46: reliable.frames 14.59, reliable.bytes 248.1, unreliable.frames 87.56, unreliable.bytes 1240, elements 102.2
+      10%: m = 2.92: reliable.frames 29.19, reliable.bytes 496.2, unreliable.frames 175.1, unreliable.bytes 2481, elements 204.3
+[milestone] S3 S2 + a 32-bool record (bools32): defaults give 779.7% of one core at 100 players
+  (a) 1%: a = 0.0013: reliable.frames 0.1539, reliable.bytes 42.03, unreliable.frames 0.3078, unreliable.bytes 42.03, elements 25.65
+  (a) 5%: a = 0.0064: reliable.frames 0.7696, reliable.bytes 210.1, unreliable.frames 1.539, unreliable.bytes 210.1, elements 128.3
+  (a) 10%: a = 0.0128: reliable.frames 1.539, reliable.bytes 420.3, unreliable.frames 3.078, unreliable.bytes 420.3, elements 256.5
+  (b) reliable.frames    default    120: 1%: unreachable (floor 347.9%); 5%: unreachable (floor 347.9%); 10%: unreachable (floor 347.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 347.9%); 5%: unreachable (floor 347.9%); 10%: unreachable (floor 347.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 606.5%); 5%: unreachable (floor 606.5%); 10%: unreachable (floor 606.5%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 606.5%); 5%: unreachable (floor 606.5%); 10%: unreachable (floor 606.5%)
+  (b) elements           default  20000: 1%: unreachable (floor 30.4%); 5%: unreachable (floor 30.4%); 10%: unreachable (floor 30.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 528 us/s per player = 5.28% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.19 < 1: unreachable without refusing the busy model
+      5%: m = 0.95 < 1: unreachable without refusing the busy model
+      10%: m = 1.89: reliable.frames 18.92, reliable.bytes 321.7, unreliable.frames 113.5, unreliable.bytes 1608, elements 132.5
+[milestone] S4 S3 + a 128-bool record (bools128): defaults give 1551.6% of one core at 100 players
+  (a) 1%: a = 0.0006: reliable.frames 0.07734, reliable.bytes 21.12, unreliable.frames 0.1547, unreliable.bytes 21.12, elements 12.89
+  (a) 5%: a = 0.0032: reliable.frames 0.3867, reliable.bytes 105.6, unreliable.frames 0.7734, unreliable.bytes 105.6, elements 64.45
+  (a) 10%: a = 0.0064: reliable.frames 0.7734, reliable.bytes 211.2, unreliable.frames 1.547, unreliable.bytes 211.2, elements 128.9
+  (b) reliable.frames    default    120: 1%: unreachable (floor 347.9%); 5%: unreachable (floor 347.9%); 10%: unreachable (floor 347.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 347.9%); 5%: unreachable (floor 347.9%); 10%: unreachable (floor 347.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 1538.9%); 5%: unreachable (floor 1538.9%); 10%: unreachable (floor 1538.9%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 1538.9%); 5%: unreachable (floor 1538.9%); 10%: unreachable (floor 1538.9%)
+  (b) elements           default  20000: 1%: unreachable (floor 30.4%); 5%: unreachable (floor 30.4%); 10%: unreachable (floor 30.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 768 us/s per player = 7.68% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.13 < 1: unreachable without refusing the busy model
+      5%: m = 0.65 < 1: unreachable without refusing the busy model
+      10%: m = 1.30: reliable.frames 13.02, reliable.bytes 221.4, unreliable.frames 78.14, unreliable.bytes 1107, elements 91.16
+[generated] S1 busy-like (move6, sm, text, no-payload events): defaults give 150.4% of one core at 100 players
+  (a) 1%: a = 0.0066: reliable.frames 0.7976, reliable.bytes 217.8, unreliable.frames 1.595, unreliable.bytes 217.8, elements 132.9
+  (a) 5%: a = 0.0332: reliable.frames 3.988, reliable.bytes 1089, unreliable.frames 7.976, unreliable.bytes 1089, elements 664.7
+  (a) 10%: a = 0.0665: reliable.frames 7.976, reliable.bytes 2178, unreliable.frames 15.95, unreliable.bytes 2178, elements 1329
+  (b) reliable.frames    default    120: 1%: unreachable (floor 60.0%); 5%: unreachable (floor 60.0%); 10%: unreachable (floor 60.0%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 60.0%); 5%: unreachable (floor 60.0%); 10%: unreachable (floor 60.0%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 118.7%); 5%: unreachable (floor 118.7%); 10%: unreachable (floor 118.7%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 118.7%); 5%: unreachable (floor 118.7%); 10%: unreachable (floor 118.7%)
+  (b) elements           default  20000: 1%: unreachable (floor 19.4%); 5%: unreachable (floor 19.4%); 10%: unreachable (floor 19.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 262 us/s per player = 2.62% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.38 < 1: unreachable without refusing the busy model
+      5%: m = 1.91: reliable.frames 19.11, reliable.bytes 324.9, unreliable.frames 114.7, unreliable.bytes 1624, elements 133.8
+      10%: m = 3.82: reliable.frames 38.22, reliable.bytes 649.8, unreliable.frames 229.3, unreliable.bytes 3249, elements 267.6
+[generated] S2 S1 + rec1 + arrays (R31's shapes): defaults give 150.4% of one core at 100 players
+  (a) 1%: a = 0.0066: reliable.frames 0.7976, reliable.bytes 217.8, unreliable.frames 1.595, unreliable.bytes 217.8, elements 132.9
+  (a) 5%: a = 0.0332: reliable.frames 3.988, reliable.bytes 1089, unreliable.frames 7.976, unreliable.bytes 1089, elements 664.7
+  (a) 10%: a = 0.0665: reliable.frames 7.976, reliable.bytes 2178, unreliable.frames 15.95, unreliable.bytes 2178, elements 1329
+  (b) reliable.frames    default    120: 1%: unreachable (floor 60.0%); 5%: unreachable (floor 60.0%); 10%: unreachable (floor 60.0%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 60.0%); 5%: unreachable (floor 60.0%); 10%: unreachable (floor 60.0%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 118.7%); 5%: unreachable (floor 118.7%); 10%: unreachable (floor 118.7%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 118.7%); 5%: unreachable (floor 118.7%); 10%: unreachable (floor 118.7%)
+  (b) elements           default  20000: 1%: unreachable (floor 19.4%); 5%: unreachable (floor 19.4%); 10%: unreachable (floor 19.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 262 us/s per player = 2.62% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.38 < 1: unreachable without refusing the busy model
+      5%: m = 1.91: reliable.frames 19.11, reliable.bytes 324.9, unreliable.frames 114.7, unreliable.bytes 1624, elements 133.8
+      10%: m = 3.82: reliable.frames 38.22, reliable.bytes 649.8, unreliable.frames 229.3, unreliable.bytes 3249, elements 267.6
+[generated] S3 S2 + a 32-bool record (bools32): defaults give 464.9% of one core at 100 players
+  (a) 1%: a = 0.0022: reliable.frames 0.2581, reliable.bytes 70.49, unreliable.frames 0.5163, unreliable.bytes 70.49, elements 43.02
+  (a) 5%: a = 0.0108: reliable.frames 1.291, reliable.bytes 352.5, unreliable.frames 2.581, unreliable.bytes 352.5, elements 215.1
+  (a) 10%: a = 0.0215: reliable.frames 2.581, reliable.bytes 704.9, unreliable.frames 5.163, unreliable.bytes 704.9, elements 430.2
+  (b) reliable.frames    default    120: 1%: unreachable (floor 217.9%); 5%: unreachable (floor 217.9%); 10%: unreachable (floor 217.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 217.9%); 5%: unreachable (floor 217.9%); 10%: unreachable (floor 217.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 304.0%); 5%: unreachable (floor 304.0%); 10%: unreachable (floor 304.0%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 304.0%); 5%: unreachable (floor 304.0%); 10%: unreachable (floor 304.0%)
+  (b) elements           default  20000: 1%: unreachable (floor 19.4%); 5%: unreachable (floor 19.4%); 10%: unreachable (floor 19.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 387 us/s per player = 3.87% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.26 < 1: unreachable without refusing the busy model
+      5%: m = 1.29: reliable.frames 12.92, reliable.bytes 219.6, unreliable.frames 77.49, unreliable.bytes 1098, elements 90.41
+      10%: m = 2.58: reliable.frames 25.83, reliable.bytes 439.1, unreliable.frames 155, unreliable.bytes 2196, elements 180.8
+[generated] S4 S3 + a 128-bool record (bools128): defaults give 896.7% of one core at 100 players
+  (a) 1%: a = 0.0011: reliable.frames 0.1338, reliable.bytes 36.54, unreliable.frames 0.2676, unreliable.bytes 36.54, elements 22.3
+  (a) 5%: a = 0.0056: reliable.frames 0.6691, reliable.bytes 182.7, unreliable.frames 1.338, unreliable.bytes 182.7, elements 111.5
+  (a) 10%: a = 0.0112: reliable.frames 1.338, reliable.bytes 365.4, unreliable.frames 2.676, unreliable.bytes 365.4, elements 223
+  (b) reliable.frames    default    120: 1%: unreachable (floor 217.9%); 5%: unreachable (floor 217.9%); 10%: unreachable (floor 217.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 217.9%); 5%: unreachable (floor 217.9%); 10%: unreachable (floor 217.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 888.4%); 5%: unreachable (floor 888.4%); 10%: unreachable (floor 888.4%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 888.4%); 5%: unreachable (floor 888.4%); 10%: unreachable (floor 888.4%)
+  (b) elements           default  20000: 1%: unreachable (floor 19.4%); 5%: unreachable (floor 19.4%); 10%: unreachable (floor 19.4%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 510 us/s per player = 5.10% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.20 < 1: unreachable without refusing the busy model
+      5%: m = 0.98 < 1: unreachable without refusing the busy model
+      10%: m = 1.96: reliable.frames 19.62, reliable.bytes 333.5, unreliable.frames 117.7, unreliable.bytes 1668, elements 137.3
+
+## Single-frame spike: worst CPU of one reliable frame at the element burst (65,536) and 16,384 B
+[milestone] bools128 x 1024 all false (constant columns): x64.00 -> 65536 elements, 2496 B, 498.8 ms in one frame (7611 ns per element)
+[milestone] bools32 x 4096 all false (constant columns): x16.00 -> 65536 elements, 240 B, 142.2 ms in one frame (2169 ns per element)
+[milestone] move6 x 4096 constant (6 fields): x16.00 -> 65536 elements, 192 B, 51.5 ms in one frame (786 ns per element)
+[milestone] rec1 x 4096 all false (constant column, 1 field): x16.00 -> 65536 elements, 112 B, 42.0 ms in one frame (640 ns per element)
+[generated] bools128 x 1024 all false (constant columns): x64.00 -> 65536 elements, 2496 B, 287.7 ms in one frame (4390 ns per element)
+[generated] bools32 x 4096 all false (constant columns): x16.00 -> 65536 elements, 240 B, 47.2 ms in one frame (720 ns per element)
+[generated] move6 x 4096 constant (6 fields): x16.00 -> 65536 elements, 192 B, 30.2 ms in one frame (461 ns per element)
+[generated] rec1 x 4096 all false (constant column, 1 field): x16.00 -> 65536 elements, 112 B, 22.8 ms in one frame (348 ns per element)
+
+## Outside every budget: reliable frames refused at the buckets are still tag-checked (v5.md §6.1 step 2)
+over-budget reliable 3 B frame, wrong tag, pending key: 2.9 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 1.4 ms/s per player, 14% of one core at 100 players
+over-budget reliable 1024 B frame, wrong tag, pending key: 45.0 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 22.5 ms/s per player, 225% of one core at 100 players
+over-budget reliable 16384 B frame, wrong tag, pending key: 655.8 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 327.9 ms/s per player, 3279% of one core at 100 players
+
+#### interpreted (luau 0.742), medians of 3 runs (range = min-max of the run medians)
+
+## Claim 2: tag per frame (one hash, cover 16,384), ns: median (range)
+lane  bytes |        milestone Tag.compute |               generated loop |        generated unrolled x4
+   0      3 |        890 (    879-    903) |        961 (    948-    965) |        757 (    755-    758)
+   0   1024 |      28615 (  27980-  29760) |      37482 (  35613-  37954) |      29239 (  27853-  29537)
+   0   4096 |     112712 ( 111630- 115780) |     147697 ( 142565- 151246) |     110917 ( 106968- 111912)
+   0  16384 |     489741 ( 463290- 652989) |     605264 ( 574856- 613816) |     461587 ( 451763- 470959)
+   1      4 |        932 (    892-   1019) |       1000 (    971-   1077) |        838 (    811-    913)
+   1     16 |       1271 (   1247-   1383) |       1440 (   1370-   1562) |       1170 (   1119-   1307)
+   1     64 |       2587 (   2540-   2729) |       3156 (   3059-   3347) |       2392 (   2373-   2506)
+   1    256 |       7818 (   7710-   8277) |       9891 (   9756-  10214) |       7743 (   7472-   7864)
+   1   1000 |      28263 (  27264-  28428) |      35629 (  34935-  37127) |      27738 (  27159-  28382)
+tag fit, milestone: reliable 890 ns + 30.68 ns/B; unreliable 932 ns + 27.44 ns/B
+tag fit, generated loop: reliable 961 ns + 37.24 ns/B; unreliable 1000 ns + 34.77 ns/B
+tag fit, generated unrolled: reliable 757 ns + 28.54 ns/B; unreliable 838 ns + 27.01 ns/B
+
+## Claim 2: wrong-tag frames through the milestone Inbound.receive (no decode), ns per frame
+lane  bytes |                  wrong tag |     wrong tag, pending key |  over budget, wrong, pending | hashes
+   0      3 |      7084 (   6572-   7789) |     12372 (  11384-  14056) |      11283 (  10423-  13196) | 5 / 10 / 10
+   0   1024 |    154244 ( 151027- 165684) |    317963 ( 313498- 326171) |     306821 ( 303486- 325731) | 5 / 10 / 10
+   0  16384 |   2387274 (2269861-2407703) |   4935173 (4661845-5042884) |    4704955 (4692206-4906585) | 5 / 10 / 10
+   1      4 |      4533 (   4454-   7015) |      6915 (   6871-  10188) |                            - | 3 / 6 / -
+   1   1000 |     60526 (  60230-  62281) |    119710 ( 118550- 123217) |                            - | 3 / 6 / -
+
+## Claim 1 + 2: per frame, total inbound CPU (F) split into decode, step 5, tag and the rest; ns
+frame                                                lane      B   elem |   F total  D decode   step 5   tag(M)    rest |   F ns/B  F ns/el |         G  G ns/B gen total gen ns/B gen ns/el
+empty unreliable frame (header only)                    1      4      0 |      4307      1606      101      932    1668 |   1076.8        - |       398     99.5      3005    751.2         -
+                                                                        | range F 4275-4357, D 1552-1653, G 394-400
+empty reliable frame (header only)                      0      3      0 |      3653      1595       -9      890    1177 |   1217.7        - |       351    117.0      2276    758.7         -
+                                                                        | range F 3643-3718, D 1564-1746, G 343-375
+busy input: 1 move6, unreliable                         1     11      1 |      8244      4362      473     1124    2285 |    749.5   8244.0 |      1263    114.8      5048    458.9    5048.0
+                                                                        | range F 8160-8249, D 4169-4428, G 1260-1305
+busy action: 1 sm (8-byte name), reliable               0     15      1 |      7110      3962      564     1258    1326 |    474.0   7110.0 |      1270     84.7      4259    284.0    4259.3
+                                                                        | range F 7020-7397, D 3868-4138, G 1203-1270
+move6 x 192 random, unreliable 1000 B                   1   1000    192 |    390955    293617    59395    28263    9680 |    391.0   2036.2 |    136787    136.8    233600    233.6    1216.7
+                                                                        | range F 372913-397275, D 288017-311284, G 129889-142016
+move6 x 3118 random, reliable 16 KB                     0  16380   3118 |   6729255   4677021  1197071   503381  351782 |    410.8   2158.2 |   2867357    175.1   4884328    298.2    1566.5
+                                                                        | range F 6153933-6941511, D 4569855-4763107, G 2635851-2973411
+bools32 x 4085 random, reliable 16 KB                   0  16383   4085 |  34091646  31587936 -1225858   503473 3226095 |   2080.9   8345.6 |  17571744   1072.6  20040184   1223.2    4905.8
+                                                                        | range F 33346906-34410456, D 30867382-32219074, G 17180846-17691197
+text (200 B strings) x 81, reliable 16 KB               0  16207     81 |    525062     45875    15999   498072  -34884 |     32.4   6482.2 |         -        -         -        -         -
+                                                                        | range F 518802-563305, D 45396-49678
+rec1 x 4096 all false (constant column, 1 field)        0      7   4096 |   3006337   2006757  1078641     1013  -80074 | 429476.7    734.0 |    255853  36550.4   1255291 179327.3     306.5
+                                                                        | range F 2972240-3074742, D 1804180-2098178, G 243348-345288
+move6 x 4096 constant (6 fields)                        0     12   4096 |   4970180   3509898  1426026     1166   33090 | 414181.7   1213.4 |   1224818 102068.2   2684948 223745.6     655.5
+                                                                        | range F 4952045-5491251, D 3473975-4287410, G 1047379-1304520
+bools32 x 4096 all false (constant columns)             0     15   4096 |  17053644  16065915  1383948     1258 -397477 | 1136909.6   4163.5 |   3630075 242005.0   4617645 307843.0    1127.4
+                                                                        | range F 16335206-18500471, D 15747170-16229466, G 3512563-4570010
+bools128 x 1024 all false (constant columns)            0     39   1024 |  15339840  15367568  -430947     1995  401224 | 393329.2  14980.3 |   5221393 133881.9   5193455 133165.5    5071.7
+                                                                        | range F 14926966-16522279, D 14681608-15837679, G 4966124-5530235
+ping1 x 4096 in one run (no payload)                    0      7   4096 |   2416926   1050943  1263588     1013  101382 | 345275.1    590.1 |     91774  13110.6   1457615 208230.8     355.9
+                                                                        | range F 2257333-2626112, D 869827-1192474, G 90521-95158
+4096 one-message runs, ping1/ping2 alternating          0   2566   4096 |   5400383   3878548  1693410    79530 -251105 |   2104.6   1318.5 |    911814    355.3   2428018    946.2     592.8
+                                                                        | range F 5273258-5417542, D 3682353-3939601, G 911475-943829
+array(bool, 65535) all false (R31 row 1)                0      6  65536 |   4248198   4318262   -78565      982    7519 | 708033.0     64.8 |         -        -         -        -         -
+                                                                        | range F 4091837-4473436, D 4310911-4411022
+array({a = bool}, 65535) all false (R31 row 2)          0      6  65536 |  11478897  11447790  -382564      982  412689 | 1913149.5    175.2 |         -        -         -        -         -
+                                                                        | range F 11189118-11748314, D 11366006-11570338
+
+## Claim 3: the busy model (v5.md §4.1: 60 input frames unreliable + 10 action frames reliable per second;
+   input = move6, action = sm with an 8-byte name; each frame one message)
+busy input frame 11 B, action frame 15 B (milestone: 16-bit tag, no ack)
+busy CPU per player, milestone: 565.7 us/s; at 100 players 56.57 ms/s = 5.657% of one core
+busy CPU per player, generated: 345.5 us/s; at 100 players 34.55 ms/s = 3.455% of one core
+budget               default perSecond   busy use  fraction | design use  fraction |    burst  largest busy frame / burst
+reliable.frames                    120         10    0.0833 |         10    0.0833 |      240                    0.004167
+reliable.bytes                   32768        150    0.0046 |        170    0.0052 |    65536                    0.000259
+unreliable.frames                  240         60    0.2500 |         60    0.2500 |      480                    0.002083
+unreliable.bytes                 32768        660    0.0201 |        850    0.0259 |    65536                    0.000259
+elements                         20000         70    0.0035 |         70    0.0035 |    65536                    0.000015
+
+## Claim 3: worst-case CPU per player at the defaults (LP over the timed frames), and its formula
+   formula: CPU = sum over limits of (shadow price x limit), exact at these limits; zero-price limits don't bind
+[milestone] S1 busy-like (move6, sm, text, no-payload events), sustained (perSecond): 41.93 ms/s per player; 100 players 4.193 s/s = 419.3% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.31e+03 ns x unreliable.frames + 152 ns x unreliable.bytes + 1.21e+03 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 3.4/s move6 x 4096 constant (6 fields), 114.6/s wrong tag, pending key, 3 B, 2.0/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B
+[milestone] S1 busy-like (move6, sm, text, no-payload events), first second (perSecond + burst): 156.67 ms/s per player; 100 players 15.667 s/s = 1566.7% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.31e+03 ns x unreliable.frames + 152 ns x unreliable.bytes + 1.21e+03 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 16.4/s move6 x 4096 constant (6 fields), 337.7/s wrong tag, pending key, 3 B, 5.9/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B
+[milestone] S2 S1 + rec1 + arrays (R31's shapes), sustained (perSecond): 41.93 ms/s per player; 100 players 4.193 s/s = 419.3% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.31e+03 ns x unreliable.frames + 152 ns x unreliable.bytes + 1.21e+03 ns x elements
+    attack mix: 31.9/s move6 x 192 random, unreliable 1000 B, 3.4/s move6 x 4096 constant (6 fields), 114.6/s wrong tag, pending key, 3 B, 2.0/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B
+[milestone] S2 S1 + rec1 + arrays (R31's shapes), first second (perSecond + burst): 156.67 ms/s per player; 100 players 15.667 s/s = 1566.7% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.31e+03 ns x unreliable.frames + 152 ns x unreliable.bytes + 1.21e+03 ns x elements
+    attack mix: 95.8/s move6 x 192 random, unreliable 1000 B, 16.4/s move6 x 4096 constant (6 fields), 337.7/s wrong tag, pending key, 3 B, 5.9/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B
+[milestone] S3 S2 + a 32-bool record (bools32), sustained (perSecond): 153.29 ms/s per player; 100 players 15.329 s/s = 1532.9% of one core
+    = 9.24e+03 ns x reliable.frames + 1.04e+03 ns x reliable.bytes + 2.74e+03 ns x unreliable.frames + 1.04e+03 ns x unreliable.bytes + 4.16e+03 ns x elements
+    attack mix: 2.0/s bools32 x 4085 random, reliable 16 KB, 1.0/s bools32 x 4096 all false (constant columns), 117.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s bools32 random, unreliable 1000 B (scaled)
+[milestone] S3 S2 + a 32-bool record (bools32), first second (perSecond + burst): 566.04 ms/s per player; 100 players 56.604 s/s = 5660.4% of one core
+    = 9.24e+03 ns x reliable.frames + 1.04e+03 ns x reliable.bytes + 2.74e+03 ns x unreliable.frames + 1.04e+03 ns x unreliable.bytes + 4.16e+03 ns x elements
+    attack mix: 5.9/s bools32 x 4085 random, reliable 16 KB, 9.1/s bools32 x 4096 all false (constant columns), 344.9/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s bools32 random, unreliable 1000 B (scaled)
+[milestone] S4 S3 + a 128-bool record (bools128), sustained (perSecond): 315.64 ms/s per player; 100 players 31.564 s/s = 3156.4% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.46e+03 ns x unreliable.frames + 113 ns x unreliable.bytes + 1.5e+04 ns x elements
+    attack mix: 19.5/s bools128 x 1024 all false (constant columns), 98.5/s wrong tag, pending key, 3 B, 1.9/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[milestone] S4 S3 + a 128-bool record (bools128), first second (perSecond + burst): 1328.88 ms/s per player; 100 players 132.888 s/s = 13288.8% of one core
+    = 1.15e+04 ns x reliable.frames + 301 ns x reliable.bytes + 6.46e+03 ns x unreliable.frames + 113 ns x unreliable.bytes + 1.5e+04 ns x elements
+    attack mix: 83.5/s bools128 x 1024 all false (constant columns), 270.7/s wrong tag, pending key, 3 B, 5.8/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+[generated] S1 busy-like (move6, sm, text, no-payload events), sustained (perSecond): 28.46 ms/s per player; 100 players 2.846 s/s = 284.6% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 652 ns x elements
+    attack mix: 4.9/s move6 x 4096 constant (6 fields), 113.1/s wrong tag, pending key, 3 B, 2.0/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[generated] S1 busy-like (move6, sm, text, no-payload events), first second (perSecond + burst): 102.02 ms/s per player; 100 players 10.202 s/s = 1020.2% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 652 ns x elements
+    attack mix: 20.9/s move6 x 4096 constant (6 fields), 333.2/s wrong tag, pending key, 3 B, 5.9/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+[generated] S2 S1 + rec1 + arrays (R31's shapes), sustained (perSecond): 28.46 ms/s per player; 100 players 2.846 s/s = 284.6% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 652 ns x elements
+    attack mix: 4.9/s move6 x 4096 constant (6 fields), 113.1/s wrong tag, pending key, 3 B, 2.0/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[generated] S2 S1 + rec1 + arrays (R31's shapes), first second (perSecond + burst): 102.02 ms/s per player; 100 players 10.202 s/s = 1020.2% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 652 ns x elements
+    attack mix: 20.9/s move6 x 4096 constant (6 fields), 333.2/s wrong tag, pending key, 3 B, 5.9/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+[generated] S3 S2 + a 32-bool record (bools32), sustained (perSecond): 85.79 ms/s per player; 100 players 8.579 s/s = 857.9% of one core
+    = 8.21e+03 ns x reliable.frames + 943 ns x reliable.bytes + 2.59e+03 ns x unreliable.frames + 941 ns x unreliable.bytes + 1.12e+03 ns x elements
+    attack mix: 2.0/s bools32 x 4085 random, reliable 16 KB, 1.0/s bools32 x 4096 all false (constant columns), 117.1/s wrong tag, pending key, 3 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s bools32 random, unreliable 1000 B (scaled)
+[generated] S3 S2 + a 32-bool record (bools32), first second (perSecond + burst): 286.01 ms/s per player; 100 players 28.601 s/s = 2860.1% of one core
+    = 8.21e+03 ns x reliable.frames + 943 ns x reliable.bytes + 2.59e+03 ns x unreliable.frames + 941 ns x unreliable.bytes + 1.12e+03 ns x elements
+    attack mix: 5.9/s bools32 x 4085 random, reliable 16 KB, 9.1/s bools32 x 4096 all false (constant columns), 344.9/s wrong tag, pending key, 3 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s bools32 random, unreliable 1000 B (scaled)
+[generated] S4 S3 + a 128-bool record (bools128), sustained (perSecond): 116.44 ms/s per player; 100 players 11.644 s/s = 1164.4% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 5.05e+03 ns x elements
+    attack mix: 19.5/s bools128 x 1024 all false (constant columns), 98.5/s wrong tag, pending key, 3 B, 1.9/s wrong tag, pending key, 16384 B, 208.1/s wrong tag, pending key, 4 B, 31.9/s wrong tag, pending key, 1000 B
+[generated] S4 S3 + a 128-bool record (bools128), first second (perSecond + burst): 478.29 ms/s per player; 100 players 47.829 s/s = 4782.9% of one core
+    = 1.02e+04 ns x reliable.frames + 279 ns x reliable.bytes + 5.91e+03 ns x unreliable.frames + 111 ns x unreliable.bytes + 5.05e+03 ns x elements
+    attack mix: 83.5/s bools128 x 1024 all false (constant columns), 270.7/s wrong tag, pending key, 3 B, 5.8/s wrong tag, pending key, 16384 B, 624.2/s wrong tag, pending key, 4 B, 95.8/s wrong tag, pending key, 1000 B
+
+## Claim 4: budget values at which worst-case CPU at 100 players = 1%, 5%, 10% of one core
+   (a) every perSecond scaled by one factor a (LP is homogeneous: a = target / CPU at defaults);
+   (b) one budget varied, the others at their defaults (bisection; 'floor' = the CPU with that budget at 0).
+[milestone] S1 busy-like (move6, sm, text, no-payload events): defaults give 419.3% of one core at 100 players
+  (a) 1%: a = 0.0024: reliable.frames 0.2862, reliable.bytes 78.16, unreliable.frames 0.5724, unreliable.bytes 78.16, elements 47.7
+  (a) 5%: a = 0.0119: reliable.frames 1.431, reliable.bytes 390.8, unreliable.frames 2.862, unreliable.bytes 390.8, elements 238.5
+  (a) 10%: a = 0.0239: reliable.frames 2.862, reliable.bytes 781.6, unreliable.frames 5.724, unreliable.bytes 781.6, elements 477
+  (b) reliable.frames    default    120: 1%: unreachable (floor 139.2%); 5%: unreachable (floor 139.2%); 10%: unreachable (floor 139.2%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 139.2%); 5%: unreachable (floor 139.2%); 10%: unreachable (floor 139.2%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 354.2%); 5%: unreachable (floor 354.2%); 10%: unreachable (floor 354.2%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 354.2%); 5%: unreachable (floor 354.2%); 10%: unreachable (floor 354.2%)
+  (b) elements           default  20000: 1%: unreachable (floor 164.9%); 5%: unreachable (floor 164.9%); 10%: unreachable (floor 164.9%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 749 us/s per player = 7.49% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.13 < 1: unreachable without refusing the busy model
+      5%: m = 0.67 < 1: unreachable without refusing the busy model
+      10%: m = 1.34: reliable.frames 13.36, reliable.bytes 227.1, unreliable.frames 80.14, unreliable.bytes 1135, elements 93.5
+[milestone] S2 S1 + rec1 + arrays (R31's shapes): defaults give 419.3% of one core at 100 players
+  (a) 1%: a = 0.0024: reliable.frames 0.2862, reliable.bytes 78.16, unreliable.frames 0.5724, unreliable.bytes 78.16, elements 47.7
+  (a) 5%: a = 0.0119: reliable.frames 1.431, reliable.bytes 390.8, unreliable.frames 2.862, unreliable.bytes 390.8, elements 238.5
+  (a) 10%: a = 0.0239: reliable.frames 2.862, reliable.bytes 781.6, unreliable.frames 5.724, unreliable.bytes 781.6, elements 477
+  (b) reliable.frames    default    120: 1%: unreachable (floor 139.2%); 5%: unreachable (floor 139.2%); 10%: unreachable (floor 139.2%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 139.2%); 5%: unreachable (floor 139.2%); 10%: unreachable (floor 139.2%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 354.2%); 5%: unreachable (floor 354.2%); 10%: unreachable (floor 354.2%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 354.2%); 5%: unreachable (floor 354.2%); 10%: unreachable (floor 354.2%)
+  (b) elements           default  20000: 1%: unreachable (floor 164.9%); 5%: unreachable (floor 164.9%); 10%: unreachable (floor 164.9%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 749 us/s per player = 7.49% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.13 < 1: unreachable without refusing the busy model
+      5%: m = 0.67 < 1: unreachable without refusing the busy model
+      10%: m = 1.34: reliable.frames 13.36, reliable.bytes 227.1, unreliable.frames 80.14, unreliable.bytes 1135, elements 93.5
+[milestone] S3 S2 + a 32-bool record (bools32): defaults give 1532.9% of one core at 100 players
+  (a) 1%: a = 0.0007: reliable.frames 0.07828, reliable.bytes 21.38, unreliable.frames 0.1566, unreliable.bytes 21.38, elements 13.05
+  (a) 5%: a = 0.0033: reliable.frames 0.3914, reliable.bytes 106.9, unreliable.frames 0.7828, unreliable.bytes 106.9, elements 65.23
+  (a) 10%: a = 0.0065: reliable.frames 0.7828, reliable.bytes 213.8, unreliable.frames 1.566, unreliable.bytes 213.8, elements 130.5
+  (b) reliable.frames    default    120: 1%: unreachable (floor 681.9%); 5%: unreachable (floor 681.9%); 10%: unreachable (floor 681.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 681.9%); 5%: unreachable (floor 681.9%); 10%: unreachable (floor 681.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 1184.6%); 5%: unreachable (floor 1184.6%); 10%: unreachable (floor 1184.6%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 1184.6%); 5%: unreachable (floor 1184.6%); 10%: unreachable (floor 1184.6%)
+  (b) elements           default  20000: 1%: unreachable (floor 164.9%); 5%: unreachable (floor 164.9%); 10%: unreachable (floor 164.9%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 1201 us/s per player = 12.01% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.08 < 1: unreachable without refusing the busy model
+      5%: m = 0.42 < 1: unreachable without refusing the busy model
+      10%: m = 0.83 < 1: unreachable without refusing the busy model
+[milestone] S4 S3 + a 128-bool record (bools128): defaults give 3156.4% of one core at 100 players
+  (a) 1%: a = 0.0003: reliable.frames 0.03802, reliable.bytes 10.38, unreliable.frames 0.07604, unreliable.bytes 10.38, elements 6.336
+  (a) 5%: a = 0.0016: reliable.frames 0.1901, reliable.bytes 51.91, unreliable.frames 0.3802, unreliable.bytes 51.91, elements 31.68
+  (a) 10%: a = 0.0032: reliable.frames 0.3802, reliable.bytes 103.8, unreliable.frames 0.7604, unreliable.bytes 103.8, elements 63.36
+  (b) reliable.frames    default    120: 1%: unreachable (floor 681.9%); 5%: unreachable (floor 681.9%); 10%: unreachable (floor 681.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 681.9%); 5%: unreachable (floor 681.9%); 10%: unreachable (floor 681.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 3103.8%); 5%: unreachable (floor 3103.8%); 10%: unreachable (floor 3103.8%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 3103.8%); 5%: unreachable (floor 3103.8%); 10%: unreachable (floor 3103.8%)
+  (b) elements           default  20000: 1%: unreachable (floor 164.9%); 5%: unreachable (floor 164.9%); 10%: unreachable (floor 164.9%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 1697 us/s per player = 16.97% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.06 < 1: unreachable without refusing the busy model
+      5%: m = 0.29 < 1: unreachable without refusing the busy model
+      10%: m = 0.59 < 1: unreachable without refusing the busy model
+[generated] S1 busy-like (move6, sm, text, no-payload events): defaults give 284.6% of one core at 100 players
+  (a) 1%: a = 0.0035: reliable.frames 0.4217, reliable.bytes 115.1, unreliable.frames 0.8434, unreliable.bytes 115.1, elements 70.28
+  (a) 5%: a = 0.0176: reliable.frames 2.108, reliable.bytes 575.7, unreliable.frames 4.217, unreliable.bytes 575.7, elements 351.4
+  (a) 10%: a = 0.0351: reliable.frames 4.217, reliable.bytes 1151, unreliable.frames 8.434, unreliable.bytes 1151, elements 702.8
+  (b) reliable.frames    default    120: 1%: unreachable (floor 87.8%); 5%: unreachable (floor 87.8%); 10%: unreachable (floor 87.8%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 87.8%); 5%: unreachable (floor 87.8%); 10%: unreachable (floor 87.8%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 234.1%); 5%: unreachable (floor 234.1%); 10%: unreachable (floor 234.1%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 234.1%); 5%: unreachable (floor 234.1%); 10%: unreachable (floor 234.1%)
+  (b) elements           default  20000: 1%: unreachable (floor 154.1%); 5%: unreachable (floor 154.1%); 10%: unreachable (floor 154.1%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 644 us/s per player = 6.44% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.16 < 1: unreachable without refusing the busy model
+      5%: m = 0.78 < 1: unreachable without refusing the busy model
+      10%: m = 1.55: reliable.frames 15.54, reliable.bytes 264.1, unreliable.frames 93.21, unreliable.bytes 1320, elements 108.7
+[generated] S2 S1 + rec1 + arrays (R31's shapes): defaults give 284.6% of one core at 100 players
+  (a) 1%: a = 0.0035: reliable.frames 0.4217, reliable.bytes 115.1, unreliable.frames 0.8434, unreliable.bytes 115.1, elements 70.28
+  (a) 5%: a = 0.0176: reliable.frames 2.108, reliable.bytes 575.7, unreliable.frames 4.217, unreliable.bytes 575.7, elements 351.4
+  (a) 10%: a = 0.0351: reliable.frames 4.217, reliable.bytes 1151, unreliable.frames 8.434, unreliable.bytes 1151, elements 702.8
+  (b) reliable.frames    default    120: 1%: unreachable (floor 87.8%); 5%: unreachable (floor 87.8%); 10%: unreachable (floor 87.8%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 87.8%); 5%: unreachable (floor 87.8%); 10%: unreachable (floor 87.8%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 234.1%); 5%: unreachable (floor 234.1%); 10%: unreachable (floor 234.1%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 234.1%); 5%: unreachable (floor 234.1%); 10%: unreachable (floor 234.1%)
+  (b) elements           default  20000: 1%: unreachable (floor 154.1%); 5%: unreachable (floor 154.1%); 10%: unreachable (floor 154.1%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 644 us/s per player = 6.44% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.16 < 1: unreachable without refusing the busy model
+      5%: m = 0.78 < 1: unreachable without refusing the busy model
+      10%: m = 1.55: reliable.frames 15.54, reliable.bytes 264.1, unreliable.frames 93.21, unreliable.bytes 1320, elements 108.7
+[generated] S3 S2 + a 32-bool record (bools32): defaults give 857.9% of one core at 100 players
+  (a) 1%: a = 0.0012: reliable.frames 0.1399, reliable.bytes 38.2, unreliable.frames 0.2798, unreliable.bytes 38.2, elements 23.31
+  (a) 5%: a = 0.0058: reliable.frames 0.6994, reliable.bytes 191, unreliable.frames 1.399, unreliable.bytes 191, elements 116.6
+  (a) 10%: a = 0.0117: reliable.frames 1.399, reliable.bytes 382, unreliable.frames 2.798, unreliable.bytes 382, elements 233.1
+  (b) reliable.frames    default    120: 1%: unreachable (floor 403.9%); 5%: unreachable (floor 403.9%); 10%: unreachable (floor 403.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 403.9%); 5%: unreachable (floor 403.9%); 10%: unreachable (floor 403.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 543.2%); 5%: unreachable (floor 543.2%); 10%: unreachable (floor 543.2%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 543.2%); 5%: unreachable (floor 543.2%); 10%: unreachable (floor 543.2%)
+  (b) elements           default  20000: 1%: unreachable (floor 154.1%); 5%: unreachable (floor 154.1%); 10%: unreachable (floor 154.1%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 909 us/s per player = 9.09% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.11 < 1: unreachable without refusing the busy model
+      5%: m = 0.55 < 1: unreachable without refusing the busy model
+      10%: m = 1.10: reliable.frames 11, reliable.bytes 187, unreliable.frames 66, unreliable.bytes 934.9, elements 76.99
+[generated] S4 S3 + a 128-bool record (bools128): defaults give 1164.4% of one core at 100 players
+  (a) 1%: a = 0.0009: reliable.frames 0.1031, reliable.bytes 28.14, unreliable.frames 0.2061, unreliable.bytes 28.14, elements 17.18
+  (a) 5%: a = 0.0043: reliable.frames 0.5153, reliable.bytes 140.7, unreliable.frames 1.031, unreliable.bytes 140.7, elements 85.88
+  (a) 10%: a = 0.0086: reliable.frames 1.031, reliable.bytes 281.4, unreliable.frames 2.061, unreliable.bytes 281.4, elements 171.8
+  (b) reliable.frames    default    120: 1%: unreachable (floor 403.9%); 5%: unreachable (floor 403.9%); 10%: unreachable (floor 403.9%)
+  (b) reliable.bytes     default  32768: 1%: unreachable (floor 403.9%); 5%: unreachable (floor 403.9%); 10%: unreachable (floor 403.9%)
+  (b) unreliable.frames  default    240: 1%: unreachable (floor 1113.9%); 5%: unreachable (floor 1113.9%); 10%: unreachable (floor 1113.9%)
+  (b) unreliable.bytes   default  32768: 1%: unreachable (floor 1113.9%); 5%: unreachable (floor 1113.9%); 10%: unreachable (floor 1113.9%)
+  (b) elements           default  20000: 1%: unreachable (floor 154.1%); 5%: unreachable (floor 154.1%); 10%: unreachable (floor 154.1%)
+  (c) floor: budgets equal to the busy model's own use (design bytes) still admit 952 us/s per player = 9.52% of one core at 100 players; budgets = m x busy use:
+      1%: m = 0.11 < 1: unreachable without refusing the busy model
+      5%: m = 0.53 < 1: unreachable without refusing the busy model
+      10%: m = 1.05: reliable.frames 10.51, reliable.bytes 178.6, unreliable.frames 63.05, unreliable.bytes 893.2, elements 73.56
+
+## Single-frame spike: worst CPU of one reliable frame at the element burst (65,536) and 16,384 B
+[milestone] bools128 x 1024 all false (constant columns): x64.00 -> 65536 elements, 2496 B, 981.7 ms in one frame (14980 ns per element)
+[milestone] bools32 x 4096 all false (constant columns): x16.00 -> 65536 elements, 240 B, 272.9 ms in one frame (4163 ns per element)
+[milestone] move6 x 4096 constant (6 fields): x16.00 -> 65536 elements, 192 B, 79.5 ms in one frame (1213 ns per element)
+[milestone] rec1 x 4096 all false (constant column, 1 field): x16.00 -> 65536 elements, 112 B, 48.1 ms in one frame (734 ns per element)
+[generated] bools128 x 1024 all false (constant columns): x64.00 -> 65536 elements, 2496 B, 332.4 ms in one frame (5072 ns per element)
+[generated] bools32 x 4096 all false (constant columns): x16.00 -> 65536 elements, 240 B, 73.9 ms in one frame (1127 ns per element)
+[generated] move6 x 4096 constant (6 fields): x16.00 -> 65536 elements, 192 B, 43.0 ms in one frame (656 ns per element)
+[generated] ping1 x 4096 in one run (no payload): x16.00 -> 65536 elements, 112 B, 23.3 ms in one frame (356 ns per element)
+
+## Outside every budget: reliable frames refused at the buckets are still tag-checked (v5.md §6.1 step 2)
+over-budget reliable 3 B frame, wrong tag, pending key: 11.3 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 5.6 ms/s per player, 56% of one core at 100 players
+over-budget reliable 1024 B frame, wrong tag, pending key: 306.8 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 153.4 ms/s per player, 1534% of one core at 100 players
+over-budget reliable 16384 B frame, wrong tag, pending key: 4705.0 us per engine-delivered frame (milestone); at the documented ~500 calls/s per client per remote type 2352.5 ms/s per player, 23525% of one core at 100 players
+

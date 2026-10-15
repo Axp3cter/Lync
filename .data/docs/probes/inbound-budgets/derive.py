@@ -351,8 +351,30 @@ def main():
                     p(f"  (b) {k:<18} default {base[k]:>6}: " + "; ".join(cells))
                 # the floor any budget set admitting the busy model has: budgets equal to the busy model's use
                 vb = solve(opts, {k: busy_design[k] for k in LIMITS})[0]
-                p(f"  floor: budgets equal to the busy model's own use (design bytes) still admit {vb / 1e3:.0f} us/s per "
-                  f"player = {vb * 100 / 1e9 * 100:.2f}% of one core at 100 players")
+                p(f"  (c) floor: budgets equal to the busy model's own use (design bytes) still admit {vb / 1e3:.0f} us/s per "
+                  f"player = {vb * 100 / 1e9 * 100:.2f}% of one core at 100 players; budgets = m x busy use:")
+                for tgt in targets:
+                    m = tgt * 1e9 / 100 / vb
+                    if m < 1:
+                        p(f"      {tgt * 100:.0f}%: m = {m:.2f} < 1: unreachable without refusing the busy model")
+                    else:
+                        vals = ", ".join(f"{k} {busy_design[k] * m:.4g}" for k in LIMITS)
+                        p(f"      {tgt * 100:.0f}%: m = {m:.2f}: {vals}")
+        # single-frame spike: one frame spends the element bucket's whole burst (v5.md §4.8: the frame's allowance
+        # is the bucket's tokens), within 16,384 B and the byte burst
+        p("")
+        p("## Single-frame spike: worst CPU of one reliable frame at the element burst (65,536) and 16,384 B")
+        for path in ("milestone", "generated"):
+            best = []
+            for o in options[path]:
+                if o["lane"] != 0 or o["elements"] == 0:
+                    continue
+                k = min(DEFAULTS["elements"][1] / o["elements"], 16384 / o["bytes"])
+                best.append((k * o["cpu"], k, o))
+            best.sort(key=lambda t: -t[0])
+            for cpu, k, o in best[:4]:
+                p(f"[{path}] {o['name']}: x{k:.2f} -> {o['elements'] * k:.0f} elements, {o['bytes'] * k:.0f} B, "
+                  f"{cpu / 1e6:.1f} ms in one frame ({o['cpu'] / o['elements']:.0f} ns per element)")
         # outside the LP: over-budget reliable frames
         p("")
         p("## Outside every budget: reliable frames refused at the buckets are still tag-checked (v5.md §6.1 step 2)")
@@ -360,7 +382,7 @@ def main():
             if lane == 0 and v[2]:
                 c = v[2][0]
                 p(f"over-budget reliable {size} B frame, wrong tag, pending key: {c / 1e3:.1f} us per engine-delivered frame "
-                  f"(milestone); at 500 frames/s per client {c * 500 / 1e6:.1f} ms/s per player, "
+                  f"(milestone); at the documented ~500 calls/s per client per remote type {c * 500 / 1e6:.1f} ms/s per player, "
                   f"{c * 500 * 100 / 1e9 * 100:.0f}% of one core at 100 players")
         p("")
     print("\n".join(out))

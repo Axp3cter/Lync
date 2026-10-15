@@ -1,0 +1,106 @@
+# Luau 0.742 (.data/projects/luau, scratch build), Xeon 2.1 GHz shared; best of 7 per line
+== interpreted -O2 run 1
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                          8.4 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           48.7 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          31.7 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line        77.1 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               7849.4 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          22455.6 ns/op (sink 0)
+== native -O2 --codegen run 1
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                          2.6 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           22.7 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          12.1 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line        59.0 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               4540.6 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          17433.4 ns/op (sink 0)
+== interpreted -O2 run 2
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                          7.0 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           51.4 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          33.8 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line        84.9 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               9081.2 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          24748.9 ns/op (sink 0)
+== native -O2 --codegen run 2
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                          2.8 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           23.2 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          12.0 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line        61.3 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               4550.2 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          17311.8 ns/op (sink 0)
+== interpreted -O2 run 3
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                         12.8 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           78.6 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          31.8 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line        82.1 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               7913.4 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          21850.9 ns/op (sink 0)
+== native -O2 --codegen run 3
+own source:	./r4_selfcheck.luau	fire line:	12	flush line:	23
+C function:	[C]	-1
+isfrozen(views[1]):	true	write to frozen view raises:	true
+empty loop                                                          3.0 ns/op (sink 7)
+field item: rawequal(rawget(t,k), f) + table.isfrozen(t)           34.2 ns/op (sink 0)
+field item: rawequal(rawget(t,k), f) only                          17.1 ns/op (sink 0)
+info item: debug.info(f, "sl") vs own source and build line       103.3 ns/op (sink 0)
+whole pass: 200 views + runtime (field items only)               7823.0 ns/op (sink 0)
+whole pass: 200 views + runtime (field and info items)          16971.0 ns/op (sink 0)
+== bytecode -O2 (checkField, checkInfo)
+Function 5 (checkField):
+REMARK builtin rawequal/2
+REMARK builtin rawget/2
+   37: 	if not rawequal(rawget(t, k), f) then return 3 end
+FASTCALL2 50 R0 R1 L0
+MOVE R5 R0
+MOVE R6 R1
+GETIMPORT R4 1 [rawget]
+CALL R4 2 1
+L0: FASTCALL2 51 R4 R2 L1
+MOVE R5 R2
+GETIMPORT R3 3 [rawequal]
+CALL R3 2 1
+L1: JUMPIF R3 L2
+LOADN R3 3
+RETURN R3 1
+   38: 	if not table.isfrozen(t) then return 4 end
+L2: GETIMPORT R3 6 [table.isfrozen]
+MOVE R4 R0
+CALLFB R3 1 1 [0]
+JUMPIF R3 L3
+LOADN R3 4
+RETURN R3 1
+   39: 	return 0
+L3: LOADN R3 0
+RETURN R3 1
+Function 6 (checkInfo):
+   43: 	local s, l = debug.info(f, "sl")
+GETIMPORT R2 2 [debug.info]
+MOVE R3 R0
+LOADK R4 K3 ['sl']
+CALLFB R2 2 2 [0]
+   44: 	if s ~= OWN then return 1 end
+GETUPVAL R4 U0
+JUMPIFEQ R2 R4 L0
+LOADN R4 1
+RETURN R4 1
+   45: 	if l ~= line then return 2 end
+L0: JUMPIFEQ R3 R1 L1
+LOADN R4 2
+RETURN R4 1
+   46: 	return 0
+L1: LOADN R4 0
+RETURN R4 1

@@ -47,6 +47,12 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aa79aa80d88fe9844` | researcher (Opus) | re-judges R8 per-client code, R16 per-viewer decoy slots, R18 hook and environment checks, R19 client-side decoy filtering, R35 check modifiers | `research/refusals-rejudged-4.md`, `probes/refusals-rejudged/r4_*` | running |
 | `a798ceabd47f0b432` | architect (Opus) | draft 3.6, area 1: `v5-tooling.md` from inputs §1.4 plus tooling conflicts, simplifications, questions | `design/v5-tooling.md`, `design/v5-3.6-changes-tooling.md` | running |
 | `a20f7e408eee43070` | researcher (Opus) | redo of R1, R2, R21, R28, R39 after the fallback; cites probe outputs only | `research/refusals-rejudged-3.md` | running |
+| `a7fcae0d7495104ff` | architect (Opus) | draft 3.6, core-api: `v5.md` §0–§3 and §5.2 | `design/v5.md`, `design/v5-3.6-changes-core-api.md` | running |
+| `a2d5cd5acf9eac594` | architect (Opus) | draft 3.6, wire: `v5.md` §4; awaits rejudged-3 | `design/v5.md` §4, `design/v5-3.6-changes-wire.md` | running |
+| `ae249a0e239ab2ca1` | architect (Opus) | draft 3.6, runtime: `v5.md` §5 (not §5.2), §6–§10; awaits inbound budgets, rejudged-3 R21 | `design/v5.md`, `design/v5-3.6-changes-runtime.md` | running |
+| `aeb3f14bb82fa9e3c` | architect (Opus) | draft 3.6, integrity: `v5-integrity.md`; awaits rejudged-3 (R1, R2, R28), rejudged-4 (R8, R18) | `design/v5-integrity.md`, `design/v5-3.6-changes-integrity.md` | running |
+| `a75374bcd3227e4ff` | architect (Opus) | draft 3.6, collections: `v5-collections.md` plus interest, rewind, interpolation; awaits rejudged-4 (R16, R19) | `design/v5-collections.md`, `design/v5-3.6-changes-collections.md` | running |
+| `a61dd67964f674f75` | architect (Opus) | draft 3.6, checks: new `v5-checks.md` (checks, derive, telemetry, sealed) and `v5-extensions.md`; awaits rejudged-4 (R35) | `design/v5-checks.md`, `design/v5-extensions.md`, `design/v5-3.6-changes-checks.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -66,7 +72,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   interrupted section is marked "not written" and the agent continues. Briefs are worded around what Lync builds.
 - Generation-methods units (the methods agent and unit 6) must come from Opus 5.5 only: launched with the Opus
   model, transcript checked on return, and any section written on another model redone as its own unit.
-- Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
+- Units, smallest first, each to a fresh agent as a slot frees (at most ten Opus agents running, from the author). Fallbacks count as
   interruptions: a unit written after one is redone as its own unit.
   1. ~~`interest`~~ done.
   2. ~~`rewind`~~ done.
@@ -82,9 +88,9 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   9. ~~`clock and timing`~~ done.
   9a. Re-judge the ten R items no brief covered: R10, R11, R31, R33, R34 → `refusals-rejudged-1.md`; R26, R27, R32, R37, R38 → `refusals-rejudged-2.md`.
   9b. Scout: `design/v5-3.6-inputs.md`, the change list the architect units read (on `aa6e643bca7187c05`).
-  10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
-      tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and
-      the `v5-changes.md` section.
+  10. Architects, seven units by ownership (`design/v5-3.6-architect-brief.md`): tooling, core-api, wire, runtime,
+      integrity, collections, checks; pending research goes to the owning unit by message. Then one consistency
+      unit applies every "Needs elsewhere" list and merges the change records into `v5-changes.md`.
   11. Critic on draft 3.6, then the architect applies it.
   - R40 Studio trap line → the integrity architect unit.
   - R22 quiet mitigation hooks, R23 suspicion scores, R24 automatic consequences: kept refused by principle (facts, not verdicts; `v5.md` §1); the integrity architect records them.

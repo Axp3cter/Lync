@@ -34,7 +34,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | done on Opus 5.5: `foreignRemotes` inventory, `dynamicAccess` = incompleteness (fixes the reachability gap), `editedShard`/`unpairedShard`/`staleManifest`; code hash in `HELLO` not recommended for protocol v1; retired |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | done on Opus 5.5: `derive` as a fourth check kind (grid-rounded tolerance; native FMA differs from interpreted), `reactsTo` with `earlyReaction` and a proposed 1 B `rcv` receipt on reliable upstream frames; its checklist's U11/U14/U3/U4 rows are covered by `decoy-challenge-facts.md` and `clock-facts.md`; retired |
 | `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
-| `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | append to `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
+| `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | `research/checks-telemetry.md` T1–T5, `probes/checks-telemetry/` | done on Opus 5.5: `:aim`/`:series`/`:atom` on the server view, pushed atom batches and pulled streams, no facts or export; Roblox terms quoted (Creator Terms change 2026-11-01); found a §5.1 flush-rule ambiguity (40 vs 60 Hz); retired |
 | `a10703eb41a07ff5b` | researcher (Opus) | unit 6c: consolidates `generation-methods.md` (M7 vs M13, Summary M1–M16, one Implications list, checklist); no new methods or numbers | `research/generation-methods.md` | done on Opus 5.5: 15 edits, no number changed; M1–M16 consistent, one Summary and one Implications list; retired |
 | `a476c0bb5505e0898` | researcher (Opus) | unit 9: U3 beacon window rules, U4 `roundTrip`/`ping` on request results | `research/clock-facts.md`, `probes/clock-facts/` | running |
 | `aa6e643bca7187c05` | scout (Opus) | change list for draft 3.6: every proposal by target file and section, conflicts, cross-unit questions, R items with no proposal, pending measurements; placeholders for the four briefs still running | `design/v5-3.6-inputs.md` | running; reuse it to fill the placeholders |
@@ -58,7 +58,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   1. ~~`interest`~~ done.
   2. ~~`rewind`~~ done.
   3. ~~`checks`~~ done.
-  4. `telemetry` (on `a8535342774a83e31`): D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
+  4. ~~`telemetry`~~ done. D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).
   5. ~~`build checks`~~ done.
   6a. ~~`methods, part 2a`~~ done.
@@ -73,6 +73,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       the `v5-changes.md` section.
   11. Critic on draft 3.6, then the architect applies it.
   - R40 Studio trap line → the integrity architect unit.
+  - `v5.md` §5.1 flush rule: "1/60 s since the last flush" gives 40 Hz from a steady 60 FPS client; an accumulator keeping the remainder gives 60 Hz (telemetry T5 item 10) → the wire architect unit.
   - Checks C0 proposes `policy = clamp`, which rewrites a client value instead of dropping it; weigh against "Lync only drops bad input" (§1) in the architect pass.
   - Self-checks open questions (direct method-call path for Instances, command-bar identity, renamed-script source, `task.spawn`) → add to `v5.md` §10 pending measurements in the architect pass.
   - Codecs-in-scripts found a reachability gap in `v5-integrity.md` §3 (namespace iteration) → the integrity architect unit.

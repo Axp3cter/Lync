@@ -9,7 +9,7 @@
 type Player = { UserId: number } -- stand-in: the probe runs without Roblox definitions
 
 -- U14 ---------------------------------------------------------------------------------------------------
-export type ChallengeOptions = { within: number, values: number?, attempts: number? }
+export type ChallengeOptions = { within: number, values: number, attempts: number? }
 export type ChallengeClosed =
 	{ outcome: "answered", after: number, attempts: number, minPing: number, definition: string }
 	| { outcome: "mismatched", after: number, attempts: number, minPing: number, definition: string }
@@ -55,7 +55,7 @@ elseif closed.outcome == "timeout" then
 	local after: number = closed.after -- EXPECT: after is nil when nothing closed the challenge
 	print(after)
 end
-Lync.challenge(player, { within = 120, attemps = 3 }) -- MISSED: misspelled option; the runtime must throw for unknown keys
+Lync.challenge(player, { within = 120, values = 10_000, attemps = 3 }) -- MISSED: misspelled option; the runtime must throw for unknown keys
 
 -- U11 ---------------------------------------------------------------------------------------------------
 type Fighter = { position: vector, health: number }

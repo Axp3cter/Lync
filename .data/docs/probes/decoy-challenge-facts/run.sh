@@ -16,3 +16,4 @@ B=$1; A=$2; P=$(dirname "$0")
 	done
 } > "$P/types.out"
 { echo "== types.ts, tsc $(tsc --version) --strict"; tsc --ignoreConfig --noEmit --strict --target es2020 --lib es2020 "$P/types.ts" 2>&1 || true; } > "$P/types_ts.out"
+for r in 1 2 3; do echo "== run $r interpreted"; "$B/luau" -O2 "$P/cost.luau"; echo "== run $r native"; "$B/luau" -O2 --codegen "$P/cost.luau"; done > "$P/cost_runs.out"

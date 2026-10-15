@@ -559,8 +559,9 @@ kept in the repo.
 
 - [x] T1. What Lync samples, where, the API, what is copied and when, memory and cost
 - [x] T2. Delivery to game code, and what Lync does not do
-- [ ] T3. Roblox's terms on sending player data off-platform, and what Lync's docs must say
-- [ ] T4. How it fails on an unmodified client, the option table, and implications
+- [x] T3. Roblox's terms on sending player data off-platform, and what Lync's docs must say
+- [x] T4. How it fails on an unmodified client, the option table, and implications
+- [x] T5. Implications (telemetry)
 
 ### T1. What Lync samples, where, the API, copies, memory and cost
 
@@ -800,3 +801,248 @@ practice, `http-service.md`).
   small (unverified).
 - `PostAsync`'s `compress` argument gzips the body (documented, `HttpService.yaml`). `EncodingService`'s Zstd is
   the other route (`security-tooling.md` §1).
+
+### T3. Roblox's terms on sending player data off-platform
+
+The research marked this unverified (AC §5.2: "Raw atoms hold no personal data beyond the user id (**unverified**
+against current terms)"). The sources below are **documented** (Roblox's own text, read 2026-10-15). The readings
+after them are mine, labelled **unverified**, and are not legal advice.
+
+**Which text is in force.** The Terms of Use page (Help Center article 115004647846, last edited 2026-10-07)
+carries the current terms under a banner: "Effective Date: November 1, 2026 … Click here to review the upcoming
+changes". The upcoming terms are article 14663412502676 (edited 2026-10-14). They reorganize the Creator Terms
+and take effect 16 days after this brief, so Lync's docs must cite both until then and the new ones after.
+
+**Current Creator Terms, §14 Privacy** (numbered by position in the article's list; the page renders letters):
+- §14.b, Experience Data: "For each Experience created by a Creator, and subject to the provisions of the Roblox
+  Privacy Policy, Creator and Roblox shall both have the right to use data related to or obtained in connection
+  with that Experience for their respective legitimate business purposes to support the Experience and for
+  business analytics, such as: (i) for the improvement and development of the Experience; (ii) to comply with
+  applicable laws (including law enforcement requests); (iii) to ensure the security of the Experience; and, (iv)
+  to prevent fraud or mitigate risk. Creator agrees that, except as expressly set forth in these Creator Terms,
+  Creator will not use or disclose any User data to any third party."
+- §14.c, User Personal Information: "If and to the extent a Creator receives any User personal information ("User
+  PII"), Creator will not use User PII (i) to provide services to any third party; (ii) to build, help build, track
+  or supplement any segments, profiles, or similar records on any individual User, device, or browser across the
+  Services or any third party websites or platforms; (iii) to associate the behavior of any individual device or
+  browser with any segment, profile, or similar record, or supplement any such record based on data of Users; (iv)
+  to associate any data of Users with any other personal information of the User; or (v) for any unauthorized
+  purpose in violation of any applicable law, including applicable privacy laws, or for any unauthorized purpose.
+  Additionally, Creator shall be prohibited from: (x) building and releasing tools that could expose one User's PII
+  to another User; or (y) selling, disclosing, sharing, renting, leasing, syndicating, modifying, reverse
+  engineering, decompiling, lending, or otherwise altering any User PII …"
+- §14.d: "… both Roblox and Creator have taken and will continue to take all reasonable measures to protect such
+  personal information under their control or in their possession from unauthorized access by third parties."
+
+**Upcoming Creator Terms** (effective 2026-11-01):
+- §3.9 Game data: "You and Roblox each may use that data for your respective legitimate business purposes to
+  support the Game and for business analytics, such as: (a) for the improvement and development of the Game and
+  Services; (b) to comply with applicable laws including lawful requests from authorities; (c) to ensure the
+  security and safety within the Game and Services; and (d) to prevent fraud or mitigate risk." The sentence "will
+  not use or disclose any User data to any third party" is gone.
+- §5.4 Personal information about Users: "If you receive any personal information about a User, you must take all
+  reasonable measures to protect such personal information from unauthorized access by third parties. In addition,
+  you may not: sell, disclose, or otherwise share the personal information with a third party unless expressly
+  permitted in these Creator Terms; and use the personal information: to provide services to any third party; to
+  build, help build, track or supplement any segments, profiles, or similar records on any individual User, device,
+  or browser across the Services or any third party websites or platforms; … to associate any data of Users with
+  any other personal information of the User; …" It also bars "sell or share, as those terms are defined in
+  applicable privacy law (such as the California Consumer Privacy Act)".
+
+**Privacy and Cookie Policy** (article 115004630823, edited 2026-10-07; the same November banner):
+- "'Personal Information' means any information relating to a natural person who can be identified, directly or
+  indirectly, in particular by reference to an identifier such as a name, an identification number, location
+  data, or an online identifier".
+- "The creators of the experiences you use or content you interact with will have access to your username,
+  display name, user ID, game metrics, UGC transaction details, and your regional location".
+
+**Community Standards** (about.roblox.com/community-standards, undated page, read 2026-10-15; the Help Center
+article 203313410 redirects there). Under "Advertising Integrations" ("Starting May 4, 2026"):
+- "Games may not make programmatic calls to third-party advertising and measurement services."
+- "Developers may not share personally identifiable user engagement information with advertisers and must comply
+  with the Creator Analytics Terms of Use and Roblox Terms of Use in their treatment of all user information."
+- "Developers are prohibited from creating personalized activity profiles of users or using activity data from
+  Roblox or third-parties to personalize advertising campaigns."
+
+**Creator docs** (creator-docs efe8741, 2026-10-15):
+- `cloud-services/http-service.md`: "You can use `HttpService` to send generic HTTP requests to third-party web
+  services for use cases like analytics, data storage, or error logging." There are "500 HTTP requests per minute"
+  per server, and HTTPS only.
+- `production/publishing/RTBF-and-creators.md`:
+  - "If a piece of data can be traced back to an individual user, it may be personal data subject to privacy
+    regulations."
+  - "personal data must be permanently erased after there is no longer a valid legal or business basis for
+    processing it."
+  - Webhooks are for "personal data stored outside of data stores".
+  - "You remain responsible for permanently deleting all personal data covered by an RTBF request."
+- `cloud/webhooks/automate-right-to-erasure.md`: the webhook carries "the user ID and a list of Start Place IDs
+  for the games they have joined".
+- `players/users.md`:
+  - "Roblox assigns each user a unique **domain-scoped user ID** per game"; "the same user has a different
+    domain-scoped user ID in each game".
+  - "Players who joined your game before the scoped ID rollout keep their original global user ID in that game".
+
+**Readings** (unverified):
+1. **Atoms are personal information** once game code attaches a user id, by the Privacy Policy's definition ("an
+   identification number … or an online identifier"). Without the id they still describe one player's play, and
+   RTBF's test is whether the data "can be traced back to an individual user". Lync's docs should treat exported
+   telemetry as personal data.
+2. **The purpose is named.** Anti-cheat analysis is "to ensure the security of the Experience" and "to prevent
+   fraud or mitigate risk" (current §14.b (iii)–(iv); upcoming §3.9 (c)–(d)).
+3. **The destination is the open question.**
+   - The game's own backend is the creator's own system, not a disclosure to a third party.
+   - A third-party analytics or measurement vendor is a disclosure. Until 2026-10-31 §14.b bars disclosing "any
+     User data to any third party". From 2026-11-01 §5.4 bars sharing personal information "with a third party
+     unless expressly permitted".
+   - Neither version defines whether a hosting provider that processes on the creator's behalf is a third party.
+   - **The sources disagree in tone.** Roblox's HttpService guide names "third-party web services for use cases
+     like analytics", while the Terms restrict disclosure and the Community Standards bar "third-party advertising
+     and measurement services". I take the Terms as binding and the guide as describing a capability. The
+     measurement ban sits under advertising, so it most likely targets ad measurement, but its words are
+     unqualified. Lync's docs should recommend the developer's own backend and say plainly that sending player
+     data to a third-party vendor is the developer's legal decision.
+4. **Per-player records.** §14.c(ii) and §5.4 bar using personal information to build "profiles, or similar
+   records on any individual User … across the Services or any third party websites or platforms".
+   - A per-game anti-cheat record of one player's atoms is a record on an individual user.
+   - Whether "across the Services or any third party websites" limits the clause to cross-context tracking, which I
+     think is its aim, is not settled by the text.
+   - The developer must decide. Lync's docs must quote the clause, not interpret it as permission.
+5. **No joining.** §14.c(iv) and §5.4 bar associating "any data of Users with any other personal information of
+   the User": telemetry must not be joined to e-mail, Discord or other off-platform identities.
+6. **Deletion is the developer's.** Telemetry stored off-platform is outside data stores, so the Right to Erasure
+   webhook or the daily message drives its deletion. Atoms must therefore be stored under a key the developer can
+   find from the erasure request's user id.
+
+**What Lync's docs must tell developers** (one page, linked from the `telemetry` reference; each line cites the
+text above):
+- Exported telemetry is personal data under Roblox's Privacy Policy. Lync puts no id in the buffer; the key game
+  code adds makes it personal.
+- Use it for the purposes the Creator Terms name: security, fraud prevention, improving the game.
+- Send it to systems you control, over HTTPS (HttpService allows only HTTPS). Keep credentials in Secrets.
+- Do not send it to advertising or measurement services. Sending it to any other third party is restricted by the
+  Creator Terms (current §14.b; §5.4 from 2026-11-01): read the clause and decide; Lync can't decide it for you.
+- Do not sell or share it, join it to other personal information, or use it to build cross-platform profiles.
+- Protect it from unauthorized access (§14.d; §5.4).
+- Set a retention period, and delete a player's telemetry on every RTBF request (webhook or daily message). Key it
+  by `Player.UserId` or `Player.User.Id`, which is domain-scoped in games first joined after the rollout, so the
+  erasure request's id finds it.
+- Lync never exports, stores or scores telemetry, and never acts on it. What the game does with it, and any
+  consequence for a player, is the game's decision and responsibility.
+- This page is not legal advice. Privacy law (the RTBF page names GDPR, CCPA, LGPD and PIPA) applies on its own
+  terms.
+
+**Not verified:** any Roblox rule specific to users under 13 for creator-side data, the Creator Analytics Terms
+the Community Standards cite, and the DevForum scoped-id announcement the users page points to. I didn't fetch
+them, because these three don't change what Lync builds. The docs page must cite them when written.
+
+### T4. How it fails on an unmodified client, the option table, and implications
+
+**What the samples look like for real players** (verified as a model, `telemetry_samples.out`). The network is
+v5.md §9's default; frame times are drawn per case. Roblox's frame-rate setting offers "Default (60 FPS, not your
+refresh rate), 60 FPS, 120 FPS, 144 FPS, and 240 FPS" (documented by staff, [DevForum, 2024-05-30](https://devforum.roblox.com/t/introducing-the-maximum-framerate-setting/2995965)).
+A staff reply on mobile there: "I would not expect it to come soon". Game scripts can't read the setting
+(`UserGameSettings.FramerateCap` is RobloxScriptSecurity in the dump).
+
+| Case | Flushes/s | Server inter-arrival, mean ± sd (ms) | p1–p99 (ms) | Aim entries per 0.75 s window, min / mean / max |
+|---|---|---|---|---|
+| 30 FPS, low-end mobile | 29.2 | 35.9 ± 12.5 | 16.1–78.6 | 15 / 20.8 / 24 |
+| 45 FPS, GPU-bound | 44.0 | 23.9 ± 10.5 | 4.3–56.4 | 25 / 31.4 / 35 |
+| 60 FPS cap, steady (1% frame noise) | 40.1 | 26.3 ± 13.1 | 1.4–64.3 | 21 / 28.5 / 35 |
+| 120 FPS cap | 47.9 | 22.0 ± 10.4 | 1.5–51.1 | 26 / 34.2 / 40 |
+| 144 FPS cap | 47.8 | 22.0 ± 9.5 | 3.7–50.2 | 27 / 34.1 / 37 |
+| 240 FPS cap | 53.2 | 19.8 ± 9.5 | 1.3–46.2 | 32 / 37.9 / 42 |
+
+**Known causes on an unmodified client,** for each stream:
+1. **Frame rate sets the sample rate.**
+   - Samples arrive at 29–53 Hz across the cases, so a fixed-index analysis (sample k = k/60 s) is wrong on every
+     device. Atoms carry each entry's time and its count `n` for that reason.
+   - The 60 FPS row is lower than the 120 FPS row because of how v5.md §5.1's rule is read. "Once at least 1/60 s
+     has accumulated since its last automatic flush", read as time since the last flush, skips every frame that
+     came in slightly under 1/60 s: 40 Hz at a steady 60 FPS in the model.
+   - Read as an accumulator that keeps the remainder ("carry"), it gives 60.0 Hz at 60, 120, 144 and 240 FPS
+     (part A2).
+   - This is a core finding outside this unit; the lead should pin the reading. Roblox's real frame-delta noise
+     at a 60 FPS cap is not measured.
+2. **The network dominates timing.** Server-side inter-arrival sd is 9.5–13.3 ms against client flush sd of
+   0.8–8.4 ms, and p1 is 1.3–16 ms. A timing series measures device plus network. It measures a hand only at
+   intervals well above about 20 ms.
+3. **Game code produces machine-regular timing.** An unmodified client whose script fires every 0.1 s ("if now −
+   last ≥ 0.1") sends at intervals fixed by its frame grid: at 60 FPS only 83, 84, 100, 101, 116, 117 and 133 ms.
+   The server sees 108.4 ± 15.6 ms (144 FPS: 104.2 ± 8.6 ms). Automatic weapons, auto-collect, held buttons and
+   cooldown loops look exactly like automation. Low variance is a property of the game's code.
+4. **Loss and late frames.** 5% loss leaves gaps up to 90–182 ms inside a window.
+   - In arrival order, 0.53% of aim deltas run backwards at 0.02 s jitter and 13.5% at 0.05 s (worst −1.5° and
+     −3.1° for a steady 90°/s turn). In frame-key order, none do (part D).
+   - Analysis must sort by `key`, which is why every entry carries it.
+5. **The yaw/pitch format near the poles.** One `t.direction(10)` step (0.2369°) moves yaw by up to 0.24° level,
+   1.4° at 80° pitch, 13.6° at 89° and 180° at 89.9° (part E).
+   - Players looking straight up or down produce huge yaw deltas with no real movement.
+   - Analysis must use the angle between the reconstructed directions, not yaw differences. The docs give the
+     formula.
+6. **Input devices** (unverified; general behaviour, not measured on Roblox):
+   - gamepad sticks turn at a rate, which gives constant angular speed: smooth, regular paths;
+   - touch moves the camera in swipes: jumps and rests;
+   - mouse flicks: fast moves with sharp stops, which is what a "snap" looks like;
+   - VR: head motion.
+   - None of these can be told apart from automation by one rule.
+7. **The game's own camera code** moves aim with no input: lock-on or aim assist, aim-down-sights snaps, recoil,
+   shift-lock toggles, respawn and teleport camera resets, cutscenes and seat changes. Atoms record the
+   result, not the cause.
+8. **Quantization.** The aim codec's error (0.2369° at `t.direction(10)`, v5.md §3.3) is far above the export's
+   0.0055°. Small deltas below one codec step are zero or one step.
+9. **Truncated and partial atoms.**
+   - A window truncates (flag bit 2) when the ring holds fewer than (`before` + `after`) × rate entries: right
+     after join, or when game code calls `Lync.flush()` often enough to push the frame rate past `ring`/0.75 s
+     (85 frames/s at the default ring).
+   - Partial atoms (bit 3) come from leaving.
+10. **Server load.** Arrival time is when Lync's handler runs, so a server frame hitch stamps several frames with
+    nearly one time. That is a burst in the timing series with no client cause (unverified magnitude).
+
+**How it is defeated** (as the defender). A modified client controls every value it sends and when it sends it. It
+can shape aim paths and timing to look like any input device, so behavioural telemetry raises the cost of crude
+automation and gives evidence for offline review. It proves nothing about one player. The literature's results
+come with labelled data and human review: VACnet cases are judged by humans (AC §5.1, reported). That is the game's
+part (T2).
+
+**Option table.**
+
+| Option | Where | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|---|
+| `path` | `:aim(path, …)` | string | — | a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field, through records and optionals | required | 65–73 ns native, 221–228 ns interpreted per sampled frame |
+| `path` | `:series(path?, …)` | string or nil | — | a scalar or vector codec of T1, through records and optionals; nil: timing only | nil | timing: 22–24 ns native, 91–93 ns interpreted; values: not measured, expected near "aim entry, code in hand" (24–27 / 126–132 ns) |
+| `ring` | `:aim`, `:series` | integer | entries | 16–1024 | 64 | 4, 8 or 16 B × `ring` per player; at 64, about 1.07 s at 60 Hz |
+| `before` | `:atom` | number (real) | s | 0–2 | 0.5 (VACnet, AC §5.1) | needs `ring` ≥ (`before` + `after`) × sample rate, else atoms truncate |
+| `after` | `:atom` | number (real) | s | 0–1 | 0.25 (VACnet) | holds a pending slot `after` s plus up to one server frame |
+| `fields` | `:atom` | array of string | — | numeric or vector paths of the definition; at most 16 values | `{}` | 8 B per value per atom; trigger 35–38 ns native, 151–163 ns interpreted for 5 values |
+| `series` | `:atom` | a definition with `:aim()` or `:series()` | — | — | nil: no samples | completion 252–260 ns native, 477–506 ns interpreted per atom (46 entries) |
+| `pending` | `:atom` | integer | atoms per player | 1–64 | 8 | (14 + 8·F) B each; full means `atomsSkipped` |
+| `telemetry.batch` | `Lync.configure` | integer | atoms | 1–256 | 16 | up to `batch` × atom size per player held; 0.66–0.71 µs per hand-off plus 88–131 ns per connection |
+| `telemetry.seconds` | `Lync.configure` | number (real) | s | 1–600 | 30 | an open batch is held up to this long |
+
+Registered codes and counters: `telemetryKind`, `telemetryOption` (caller); counters `atomsDelivered`,
+`atomsSkipped`. No fact.
+
+### T5. Implications (telemetry)
+
+1. Declare telemetry on the server view: `:aim(path)`, `:series(path?)`, `:atom({ … })`. It stays out of the
+   hash and off the client, like checks (T1).
+2. Sample at a new step 6b, after validators and the checks' commit, delivered messages only, with one entry per
+   frame (T1).
+3. Store aim as yaw/pitch u16 pairs with server arrival ms and the frame key, 8 B per entry. One format serves every
+   aim codec and the published detectors (T1, AC §5.1).
+4. Find the atom window by binary search: 252–260 ns native per atom against 649 ns for a scan (T1,
+   `telemetry_cost.out`).
+5. Hand atoms to game code in bounded, pushed batches, and let game code pull streams. Lync exports nothing, as
+   DIAG §5.4 already rules. Amend `v5-extensions.md:34-37` to match (T2).
+6. Drop the research's online statistics. Telemetry raises no fact, and atom flags state only copy and check
+   events (T2).
+7. Take numeric codecs only and put no id in the buffer, so a batch can't carry typed text or an id that game code
+   did not add (T2, T3).
+8. Ship a docs page that quotes Creator Terms §14 (and §3.9 and §5.4 from 2026-11-01), the Privacy Policy's
+   definition, the Community Standards' measurement ban and the RTBF page. It says: own backend, a security
+   purpose, a retention period, deletion on erasure, and the legal call is the developer's (T3).
+9. Document that timing reflects frame rate, network and the game's own timers, and that aim analysis must sort by
+   key and use angles between directions. Unmodified clients produce every pattern a naive rule would flag (T4).
+10. Ask the lead to pin v5.md §5.1's flush rule to an accumulator that keeps the remainder: the "since the last
+    flush" reading flushes a 60 FPS client at 40 Hz in the model, and that changes the core's send rate, not only
+    telemetry (T4, part A2).

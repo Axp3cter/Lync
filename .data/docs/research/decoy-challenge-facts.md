@@ -33,7 +33,7 @@ Xeon: timings show scale only.
 - [x] 4. U11: what it protects, how it fails on an unmodified client, cost, options
 - [x] 5. U14: mechanism, what Lync carries and what the game designs, API (Luau and roblox-ts)
 - [x] 6. U14: outcome, facts and evidence
-- [ ] 7. U14: known causes on an unmodified client, accessibility included
+- [x] 7. U14: known causes on an unmodified client, accessibility included
 - [ ] 8. U14: what it protects, cost, options
 - [ ] 9. Probes and measurements
 - [ ] Implications
@@ -127,14 +127,14 @@ end)
   invite game code to branch on it before its own test, and a fact from `rewound` would fire on every lookup of a
   named decoy, which `decoyReferenced` already states.
 
-**Cost** (server; `probes/decoy-challenge-facts/cost.out`, IR §11.7):
-- Ring push: 4.2–4.9 ns native for the bare 24 B write (probe (b)); IR §11.7 measures 9.5–10.5 ns for its full push.
+**Cost** (server; `probes/decoy-challenge-facts/cost_runs.out`, best of 5 per run, range over 3 runs; IR §11.7):
+- Ring push: 4.1–5.2 ns native for the bare 24 B write (probe (b)); IR §11.7 measures 9.5–10.5 ns for its full push.
   At 100 viewers × 1 decoy × 20 Hz × 10.5 ns: 21 µs/s.
 - Memory: viewers with decoys × `maxPerViewer` × K × 24 B: 100 × 1 × 27 × 24 B = 65 KB at 20 Hz and `maxRewind` 1 s;
   259 KB at `maxPerViewer` 4; 185 KB at 60 Hz (K = 77). History: one small record per decoy, live or removed in the
   last 2 s.
-- `held(seen)`: 333 ns native per call for 64 real + 1 decoy keys, 782 ns for 300 + 1 (probe (c)), one allocation.
-  The game's own loop over the 65 keys costs 720 ns, and a `rewound` per key costs 108–121 ns (IR §11.7). So a ray
+- `held(seen)`: 316–564 ns native per call for 64 real + 1 decoy keys, 808–891 ns for 300 + 1 (probe (c)), one
+  allocation. The game's own loop over the 65 keys costs 708–791 ns, and a `rewound` per key costs 108–121 ns (IR §11.7). So a ray
   test over every held record is dominated by the game's per-key work: about 8 µs per shot at 65 keys, 8 ms/s at
   1,000 shots/s (0.8% of a core). Games that narrow candidates first (by cell or distance) pay less.
 - Wire: zero.
@@ -170,9 +170,9 @@ end)
   that player", leaves removed decoys undefined) and add `removedAgo`. A reference to a decoy removed 0.2 s ago is the
   interpolation case of §4.2; a reference with no history entry is not a decoy reference at all.
 
-**Cost** (`cost.out` probe (a), server native; interpreted in brackets):
-- A real key (lookup misses): 24.3 ns (43 ns). Most calls take this path.
-- A decoy key: 46.9 ns (97 ns), evidence included, with a one-increment stand-in for the fact record; the real
+**Cost** (`cost_runs.out` probe (a), server native; interpreted in brackets; ranges over 3 runs):
+- A real key (lookup misses): 24–36 ns (41–43 ns). Most calls take this path.
+- A decoy key: 44–54 ns (97–106 ns), evidence included, with a one-increment stand-in for the fact record; the real
   record is 20.5 ns native (`v5.md` §7.3) and the fact's delivery is capped and coalesced as for every fact.
 - Memory: the decoy history of §1 (also needed without `rewind`, minus the ticks). Wire: zero.
 
@@ -205,7 +205,7 @@ warning[decoyRef]: arena.trade data.offers[].item has the key codec of pickups, 
 **Proposed widening of `refers`.** Today it takes "a client-sent field" holding keys. The check is satisfiable only if
 `refers` accepts a top-level field whose codec is the key, `t.optional` of it, or `t.array` of it (each element
 matched). Keys deeper than that (inside records in arrays, union variants) stay undeclarable; the game reports them
-with `reportInteraction` from the handler. Cost of arrays: one decoy-history lookup per element (24 ns native, §2).
+with `reportInteraction` from the handler. Cost of arrays: one decoy-history lookup per element (24–36 ns native, §2).
 
 **Measured on stand-in codecs** (`probes/decoy-challenge-facts/lint.luau` → `lint.out`, verified): the `arena` schema
 of `v5.md` §3.4 plus a `pickups` collection with decoys and five demo definitions gives 4 reports:
@@ -297,10 +297,10 @@ The same for `decoyInteraction`, `decoyReferenced` and a rewound hit on a decoy:
 
 | Item | Server CPU (native) | Memory | Wire | Developer |
 |---|---|---|---|---|
-| decoy rings (§1) | 9.5–10.5 ns per decoy per state tick (IR §11.7; bare write 4.2–4.9 ns) | `maxPerViewer` × K × 24 B per viewer with decoys (65 KB at 100 viewers, 1 decoy, 20 Hz, 1 s) | 0 | none: follows `rewind` |
-| `held(seen)` (§1) | 333 ns per call at 65 keys, 782 ns at 301, one allocation | the frozen array | 0 | hit code iterates `held` instead of its own list |
+| decoy rings (§1) | 9.5–10.5 ns per decoy per state tick (IR §11.7; bare write 4.1–5.2 ns) | `maxPerViewer` × K × 24 B per viewer with decoys (65 KB at 100 viewers, 1 decoy, 20 Hz, 1 s) | 0 | none: follows `rewind` |
+| `held(seen)` (§1) | 316–564 ns per call at 65 keys, 808–891 ns at 301, one allocation | the frozen array | 0 | hit code iterates `held` instead of its own list |
 | decoy history (§1, §2) | one map update per decoy add and remove | one record per decoy, live or removed in the last max(2 s, `maxRewind` + 0.25 s) | 0 | none |
-| `reportInteraction` (§2) | 24.3 ns per call (miss), 46.9 ns (decoy) | none | 0 | one call where the game resolves an interaction |
+| `reportInteraction` (§2) | 24–36 ns per call (miss), 44–54 ns (decoy) | none | 0 | one call where the game resolves an interaction |
 | `decoyRef` (§3) | build time only | — | 0 | one `refers` per key field, or a deliberate ignore |
 
 ### 4.4 Options
@@ -392,7 +392,7 @@ Net.use:fire({ target = key, code = enteredCode })
 ### 5.3 roblox-ts
 
 ```ts
-interface ChallengeOptions { within: number; values?: number; attempts?: number }
+interface ChallengeOptions { within: number; values: number; attempts?: number }
 type ChallengeClosed =
 	| { readonly outcome: "answered" | "mismatched"; readonly after: number; readonly attempts: number; readonly minPing: number; readonly definition: string }
 	| { readonly outcome: "timeout" | "cancelled" | "left" | "shutdown"; readonly after: undefined; readonly attempts: number; readonly minPing: number; readonly definition: undefined };
@@ -457,3 +457,67 @@ recommended: a fact `challengeClosed` with the same evidence, which duplicates o
   players by chance; equality across players proves nothing.
 - **Coalescing** as every fact (`v5.md` §7.3): key (player, reason, namespace, definition), the definition being the
   answers definition.
+
+---
+
+## 7. U14: known causes on an unmodified client, accessibility included
+
+Every outcome other than `answered` has causes that involve no modified client. The outcome states what arrived and
+when; it cannot tell a person from a program, or a person who stepped away from one who could not answer.
+
+### 7.1 `timeout`
+
+1. **The player is away.** This is the thing an AFK check measures, not a property of the client. Roblox itself
+   fires `Player.Idled` "approximately two minutes after the engine classifies the player as idle", then "every 30
+   seconds", "only … in client scripts", and "automatically disconnects players that have been idle for at least 20
+   minutes" (documented, `Player.yaml` in `Roblox/creator-docs`, fetched 2026-10-15).
+2. **Slower than `within`.** "People with physical disabilities often need more time to react, to type and to
+   complete activities" (WCAG 2.2 Understanding 2.2.1, [W3C](https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html),
+   documented). SC 2.2.1 asks that a time limit can be turned off, adjusted "over a wide range that is at least ten
+   times the length of the default setting", or extended after a warning with "at least 20 seconds to extend the
+   time limit with a simple action", unless it is part of a real-time event, essential, or longer than 20 hours.
+   `within` per call and `extend` make all three possible; choosing them is the game's.
+3. **Controllers and touch.** A prompt whose buttons a gamepad can't select can't be answered without a mouse.
+   `GuiObject.Selectable`, `GuiService.SelectedObject`, `ProximityPrompt.GamepadKeyCode` and
+   `UserInputService.PreferredInput` exist for this (verified in the API dump 0.741.19). A typed code on a console
+   needs an on-screen keyboard; a choice among a few buttons doesn't. Small touch targets on phones cost attempts.
+4. **Screen readers.** The API dump 0.741.19 has no scriptable screen-reader member (verified: no member name
+   containing "screenreader", "accessib" or "texttospeech"), and Roblox's accessibility guide doesn't mention
+   screen readers (documented absence, [guide](https://create.roblox.com/docs/production/publishing/accessibility),
+   fetched 2026-10-15; searched DevForum and the web for in-experience screen-reader support, found none). So a game
+   can't detect a screen-reader user, and a visual-only prompt can't be presumed reachable. The guide also warns
+   that events "only conveyed with sound" confuse hearing-impaired players (documented): a prompt needs both a
+   visual and a sound form, answerable with one key.
+5. **Motion and text settings.** A moving target conflicts with `GuiService.ReducedMotionEnabled`, which means the
+   player wants motion "reduced or completely removed" (documented, same guide). A larger `PreferredTextSize` can push
+   a prompt's parts off screen.
+6. **The prompt is covered or missing**: the Roblox menu open (`GuiService.MenuOpened`), another modal, a loading
+   screen or teleport, the mobile app in the background (whether a backgrounded client keeps receiving is
+   unmeasured), or a message arriving before the client's handler is connected (what Lync's client does then is
+   unspecified in `v5.md`; §10 lists the engine-side question).
+7. **Network**: a reliable-lane stall longer than the time left (the test model's stalls are 0.3 s; mobile is
+   unmeasured), or a challenge issued before `WELCOME`, which waits in the server's join hold (`v5.md` §5.3) while the
+   deadline runs.
+
+### 7.2 `mismatched`
+
+- Typos and misclicks: with `attempts` 1 a single slip closes the challenge. Controller drift selecting a neighbour.
+- A code misread: font, text size, contrast, or colour ("over 5% of people in the world have some form of color
+  blindness", the same guide, documented).
+- An answers field that also means something in ordinary play, so values arrive that were never answers.
+
+### 7.3 `answered` sooner than a person could
+
+- Game code that fills the answer itself (autofill, a default-focused correct button).
+- A confirm key still held from the previous action on a gamepad, or key repeat.
+- `firstAfter` and `after` close to `minPing` show these as numbers; any reaction floor is the game's (U10 is the
+  separate unit on reaction floors).
+
+### 7.4 Least work, and the docs recipe
+
+The page "Challenges" in the docs gives, as practice and not as Lync behaviour: a `within` per player from a saved
+setting with at least a 10× range; a warning 20 s before the deadline and `extend` on any simple action; `attempts`
+at least 3 for typed codes; every answer button `Selectable`, with `SelectedObject` set when the prompt opens; a
+visual and a sound form; a still form when `ReducedMotionEnabled`; no challenges during menus, cutscenes or the
+first seconds after join; a way to opt out where the game has other evidence; and the statement that one `timeout`
+distinguishes nothing listed above.

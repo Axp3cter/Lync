@@ -1,0 +1,90 @@
+== run 1 interpreted
+(a) reportInteraction, real key (miss)                         41.1 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)      105.2 ns/op
+(b) decoy ring push (24 B slot)                                71.3 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                356.8 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              828.1 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               882.8 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3883.3 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            32.9 ns/op
+(d) answers check, field nil                                    7.4 ns/op
+(d) answers check, value, no open challenge                    35.4 ns/op
+(d) answers check, value, open challenge (match)               62.1 ns/op
+(d) answers check, value, open challenge (mismatch)            80.2 ns/op
+(d) deadline sweep per flush, 50 open challenges              556.9 ns/op
+sink	true	unsolicited	true
+== run 1 native
+(a) reportInteraction, real key (miss)                         35.9 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)       54.3 ns/op
+(b) decoy ring push (24 B slot)                                 5.2 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                563.9 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              790.6 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               890.9 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3498.0 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            28.3 ns/op
+(d) answers check, field nil                                    2.5 ns/op
+(d) answers check, value, no open challenge                    14.3 ns/op
+(d) answers check, value, open challenge (match)               26.0 ns/op
+(d) answers check, value, open challenge (mismatch)            23.6 ns/op
+(d) deadline sweep per flush, 50 open challenges              293.1 ns/op
+sink	true	unsolicited	true
+== run 2 interpreted
+(a) reportInteraction, real key (miss)                         43.0 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)      105.9 ns/op
+(b) decoy ring push (24 B slot)                                63.4 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                350.1 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              842.9 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               820.8 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3814.2 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            31.7 ns/op
+(d) answers check, field nil                                    7.9 ns/op
+(d) answers check, value, no open challenge                    38.5 ns/op
+(d) answers check, value, open challenge (match)               64.8 ns/op
+(d) answers check, value, open challenge (mismatch)            60.7 ns/op
+(d) deadline sweep per flush, 50 open challenges              561.3 ns/op
+sink	true	unsolicited	true
+== run 2 native
+(a) reportInteraction, real key (miss)                         25.5 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)       45.2 ns/op
+(b) decoy ring push (24 B slot)                                 4.6 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                332.7 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              751.3 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               820.6 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3313.5 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            26.9 ns/op
+(d) answers check, field nil                                    2.4 ns/op
+(d) answers check, value, no open challenge                    14.6 ns/op
+(d) answers check, value, open challenge (match)               23.8 ns/op
+(d) answers check, value, open challenge (mismatch)            24.6 ns/op
+(d) deadline sweep per flush, 50 open challenges              304.1 ns/op
+sink	true	unsolicited	true
+== run 3 interpreted
+(a) reportInteraction, real key (miss)                         41.0 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)       97.4 ns/op
+(b) decoy ring push (24 B slot)                                62.9 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                374.4 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              809.7 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               909.0 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3848.3 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            30.6 ns/op
+(d) answers check, field nil                                   10.0 ns/op
+(d) answers check, value, no open challenge                    36.4 ns/op
+(d) answers check, value, open challenge (match)               59.4 ns/op
+(d) answers check, value, open challenge (mismatch)            61.2 ns/op
+(d) deadline sweep per flush, 50 open challenges              594.5 ns/op
+sink	true	unsolicited	true
+== run 3 native
+(a) reportInteraction, real key (miss)                         24.2 ns/op
+(a) reportInteraction, decoy key (hit, evidence, record)       43.7 ns/op
+(b) decoy ring push (24 B slot)                                 4.1 ns/op
+(c) held(seen) frozen array, 64 real + 1 decoy                315.7 ns/op
+(c) game loop over held keys, 64 + 1, whole loop              708.1 ns/op
+(c) held(seen) frozen array, 300 real + 1 decoy               807.9 ns/op
+(c) game loop over held keys, 300 + 1, whole loop            3336.5 ns/op
+(d) token draw, math.random(0, values - 1) stand-in            27.4 ns/op
+(d) answers check, field nil                                    2.4 ns/op
+(d) answers check, value, no open challenge                    14.4 ns/op
+(d) answers check, value, open challenge (match)               24.8 ns/op
+(d) answers check, value, open challenge (mismatch)            30.5 ns/op
+(d) deadline sweep per flush, 50 open challenges              335.9 ns/op
+sink	true	unsolicited	true

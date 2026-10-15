@@ -4,7 +4,7 @@
 interface Player { readonly UserId: number }
 declare const player: Player;
 
-interface ChallengeOptions { within: number; values?: number; attempts?: number }
+interface ChallengeOptions { within: number; values: number; attempts?: number }
 type ChallengeClosed =
 	| { readonly outcome: "answered" | "mismatched"; readonly after: number; readonly attempts: number; readonly minPing: number; readonly definition: string }
 	| { readonly outcome: "timeout" | "cancelled" | "left" | "shutdown"; readonly after: undefined; readonly attempts: number; readonly minPing: number; readonly definition: undefined };
@@ -30,7 +30,7 @@ if (closed.outcome === "answered") {
 	const after: number = closed.after; // EXPECT
 	print(after);
 }
-Lync.challenge(player, { within: 120, attemps: 3 }); // EXPECT (excess property check)
+Lync.challenge(player, { within: 120, values: 10_000, attemps: 3 }); // EXPECT (excess property check)
 
 interface Fighter { position: { X: number }; health: number }
 interface Perceived { readonly tick: number; readonly exact: boolean }

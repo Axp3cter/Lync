@@ -1,0 +1,89 @@
+== cost, luau 0.742 -O2, run 1
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4462.08    4134.49    6882.23     1.00     1.00     1.00
+quickselect median                    6963.27    6605.55    9077.58     1.58     1.32     1.67
+fill only (input setup)               2402.79    2264.13    2687.17     0.54     0.33     0.59
+table.sort median      2059 ns per epoch; at one epoch per 5 s: 0.412 us/s
+quickselect median     4560 ns per epoch; at one epoch per 5 s: 0.912 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                17.54      16.56      20.52     1.00     1.00     1.00
+guard test                              21.74      20.66      23.19     1.24     1.03     1.28
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    42.81      38.45      68.95     1.00     1.00     1.00
+result + 3 timing fields                88.23      78.54     137.12     2.03     1.83     2.25
+frozen result { ok, value }            138.25     117.58     164.05     3.10     2.22     3.46
+frozen result + 3 timing fields        168.72     149.08     219.63     4.01     2.67     5.24
+os.clock() read                         50.59      48.08      67.48     1.25     0.90     1.69
+record send time + ping in slot         25.17      20.90      35.39     0.57     0.32     0.84
+sink	22179798302694.832
+== cost, luau 0.742 -O2, run 2
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4561.96    4025.94    6038.64     1.00     1.00     1.00
+quickselect median                    7024.99    6648.12    7916.78     1.60     1.14     1.88
+fill only (input setup)               2393.91    2239.66    3646.14     0.56     0.39     0.86
+table.sort median      2168 ns per epoch; at one epoch per 5 s: 0.434 us/s
+quickselect median     4631 ns per epoch; at one epoch per 5 s: 0.926 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                18.23      16.53      19.87     1.00     1.00     1.00
+guard test                              21.96      20.84      26.81     1.19     1.10     1.55
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    40.25      35.56      42.16     1.00     1.00     1.00
+result + 3 timing fields                79.48      73.72     121.45     2.05     1.82     2.88
+frozen result { ok, value }            119.31     112.71     184.42     3.06     2.74     4.72
+frozen result + 3 timing fields        151.52     142.03     167.03     3.90     3.53     4.26
+os.clock() read                         46.29      44.69      48.87     1.18     1.12     1.29
+record send time + ping in slot         19.99      19.41      21.99     0.50     0.47     0.56
+sink	22179903966200.35
+== cost, luau 0.742 -O2, run 3
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     4963.57    4267.12    7232.69     1.00     1.00     1.00
+quickselect median                    7212.22    6849.21    8677.37     1.54     1.11     1.98
+fill only (input setup)               2785.53    2220.90    3491.19     0.53     0.43     0.82
+table.sort median      2178 ns per epoch; at one epoch per 5 s: 0.436 us/s
+quickselect median     4427 ns per epoch; at one epoch per 5 s: 0.885 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                17.83      16.04      20.99     1.00     1.00     1.00
+guard test                              22.05      19.60      31.73     1.25     1.12     1.51
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    39.94      36.89      41.48     1.00     1.00     1.00
+result + 3 timing fields                79.81      73.23     104.85     1.99     1.90     2.62
+frozen result { ok, value }            123.63     115.05     166.83     3.20     2.91     4.02
+frozen result + 3 timing fields        156.87     145.12     214.25     3.93     3.71     5.30
+os.clock() read                         49.19      46.51      54.64     1.23     1.19     1.37
+record send time + ping in slot         22.07      20.04      23.40     0.56     0.50     0.59
+sink	22180009170145.184
+== cost, luau 0.742 -O2 --codegen, run 1
+check: the two medians agree on 50 inputs
+## U3: median of 100 slopes, once per 5 s epoch (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+table.sort median                     2886.82    2544.29    3932.06     1.00     1.00     1.00
+quickselect median                    2213.00    1936.88    2929.71     0.76     0.61     0.89
+fill only (input setup)                622.45     539.02     922.78     0.22     0.14     0.28
+table.sort median      2264 ns per epoch; at one epoch per 5 s: 0.453 us/s
+quickselect median     1591 ns per epoch; at one epoch per 5 s: 0.318 us/s
+## U3: per-fit guard test (both directions) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+raw test                                 3.09       2.97       4.15     1.00     1.00     1.00
+guard test                               3.33       3.15       3.87     1.08     0.81     1.29
+## U4: result of an answered server ask (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    35.52      32.73      56.23     1.00     1.00     1.00
+result + 3 timing fields                58.09      51.16      83.86     1.55     1.35     1.74
+frozen result { ok, value }            122.35     110.72     144.31     3.20     2.07     3.98
+frozen result + 3 timing fields        134.77     124.09     210.69     3.83     2.31     4.70
+os.clock() read                         49.12      47.28      58.79     1.39     0.86     1.55
+record send time + ping in slot         16.38      14.84      18.43     0.45     0.28     0.55
+sink	22180083724766.414
+== cost, luau 0.742 -O2 --codegen, run 2

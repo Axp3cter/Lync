@@ -356,30 +356,63 @@ build found no client code using), so one reason with one evidence value per tri
   the source check is removed); the command bar's identity and source string; whether a script renamed or moved
   after loading keeps its source string; whether `task.spawn` and signal routes leave no outer frame on Roblox.
 
-## 5. Inbound-frame reports
+## 5. Inbound frames and self-check
 
-The client counts two things about the downstream frames it receives, and `REPORT` (§4) carries both within one
-flush. They price **signal** tools that inject frames into the client's own view (`getconnections`, `firesignal`)
-`[security-tooling §9]`.
+Three client counts that `REPORT` (§4) carries within one flush, each client-stated.
 
 - **Refused frames.** The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it
-  refuses is counted (`refusedFrames`, `v5.md` §7.4). It prices injectors of non-canonical frames, who must build
-  canonical frames for this build and server or patch Lync. Cost: none beyond decode.
+  refuses is counted (`refusedFrames`, `v5.md` §7.4). It prices **signal** injectors of non-canonical frames into
+  the client's own view (`getconnections`, `firesignal`) `[security-tooling §9]`, who must build canonical frames
+  for this build and server or patch Lync. Cost: none beyond decode.
 - **Injected frames** `[refusals-rejudged-3 R1 (d)]`. The function Lync passes to `Reliable.OnClientEvent:Connect`
   and `Unreliable.OnClientEvent:Connect` reads `debug.info(2, "f")` as its first statement, in that function itself
   and never in a helper, which `-O2` could inline. The engine resumes the listener as the first function of its
   thread, so nothing is below it; a synchronous call from other code leaves a function below it. A frame so entered
-  is decoded and delivered as usual and counted in `injectedFrames`. It prices canonical injection (replayed
-  captures, frames built with Lync's own encoder) fired synchronously into the listener. It doesn't see injection
-  fired from a thread of its own (a deferred fire starts like an engine delivery), **packet** receive injection,
-  which the engine delivers normally (non-canonical frames still reach `refusedFrames`), or a client that patches
-  Lync. Cost: 30.0–38.2 ns per frame interpreted, at most 3.1 µs/s at the busy model's 80 downstream frames a
-  second; 1 bit in each `REPORT` while the count is 0. No option: the cost leaves no game a trade to make
-  (`v5.md` principle 2).
+  is decoded and delivered as usual and counted in `injectedFrames`. It prices **signal** injection of canonical
+  frames (replayed captures, frames built with Lync's own encoder) fired synchronously into the listener. It
+  doesn't see injection fired from a thread of its own (a deferred fire starts like an engine delivery), **packet**
+  receive injection, which the engine delivers normally (non-canonical frames still reach `refusedFrames`), or a
+  client that patches Lync. Cost: 30.0–38.2 ns per frame interpreted, at most 3.1 µs/s at the busy model's 80
+  downstream frames a second. No option: the cost leaves no game a trade to make (`v5.md` principle 2).
   - **Unverified, gating (§12):** that `debug.info(2, "f")` is nil inside the listener for every engine delivery,
     under both `Workspace.SignalBehavior` values, including events queued before the listener connected (the
     engine "queues it and delivers it, in order, as soon as a handler connects"). The design assumes it holds; if
     any case finds a function below, the check is removed.
+- **Self-check of Lync's own tables** `[refusals-rejudged-4 R18]`.
+  - **Frozen API tables.** Lync freezes every table it hands to game code that holds a Lync closure: each namespace
+    table, view, field handle and method table reached through a metatable. Game code that writes a field into one
+    raises "attempt to modify a readonly table" at the write.
+  - **Items.** The client shard holds one list of (table, key, closure, expected line) for every entry of those
+    tables that holds a Lync closure; `manifest.json` names each item by its 1-based index. On the runtime path the
+    modules build the same list at load, reading lines with `debug.info(f, "l")` in their own module before
+    `require` returns. An item's expected source is `debug.info(1, "s")` read by the module defining the closure.
+  - **Check, in this order, stopping at the first failure:** kind 3, `rawequal(rawget(t, k), f)` is false; kind 4,
+    `table.isfrozen(t)` is false; kind 1, `debug.info(f, "s")` differs from the expected source; kind 2,
+    `debug.info(f, "l")` differs from the expected line. Function values only, never stack levels.
+  - **Schedule.** One pass over the list per second, spread over flushes: each flush checks the next
+    ⌈|list| × Δt⌉ items, Δt the time since the previous flush's check, capped at |list| (a runtime constant,
+    chosen: a hook that persists is found within 1 s; no schedule finds one removed between passes).
+  - **Report.** `selfCheckFailures` (failing items), `selfCheckItem` and `selfCheckKind` (the first failure) in
+    `REPORT`; a persistent failure forces at most one `REPORT` a second. The build runs the emitted check against
+    the emitted shard before writing it; an item failing there is a build error, a Lync emission bug.
+  - **What it states, exactly.** Kind 3 (an entry replaced) and kind 4 (a table unfrozen) have no cause on an
+    unmodified client: freezing is irreversible, and writes to a frozen table raise, `rawset` included, for game
+    code, plugins and the command bar alike (verified in the VM). `rawequal` and `rawget` are fast calls, so an
+    in-place hook of them can't change what kind 3 sees while Lync's environment is safe. Kinds 1 and 2 (source or
+    line differs) catch an in-place hook of Lync's closures only if the executor's hook changes what `debug.info`
+    reports for the original reference, which is unverified.
+  - **What it doesn't price.** `table.isfrozen` and `debug.info` are ordinary calls: one spoof of the two that
+    returns the originals' values passes kinds 1, 2 and 4 in every Lync game and every build, since generation
+    varies which items and lines are checked, never the functions the check calls; kind 3 falls too once the
+    environment-safety capability turns fast calls back into hookable ones. Also **mem** (the counts zeroed before
+    `REPORT`), **naming** (`debug.setinfo` makes a hook report any source and line), hooks that leave Lync's
+    functions alone (engine functions, **packet**, values changed above the API), and hooks installed and removed
+    between two passes. Checks of engine functions and the environment stay refused: they inspect functions
+    generation can't change, which `newcclosure` makes look unchanged, and one bypass covers every Lync game.
+  - **Cost.** Per item, interpreted: kind 3 alone 31.7–33.8 ns, kinds 3–4 48.7–51.4 ns, kinds 1–2 77.1–84.9 ns; a
+    pass over 202 items 21.9–24.7 µs, so 22–25 µs of client CPU a second for 200 views. While an item fails, up to
+    one forced `REPORT` a second, 3 B of fields beyond the others. Shard: four values per item. No option: the
+    cost scales with the list, not with traffic.
 - Downstream tags and a client replay window stay refused: a per-recipient tag ends `FireAllClients`, a shared key
   is held by every client that could inject, and a frame number would change the seed-0 golden frames to catch
   replays only `[refusals-rejudged-3 R1]`.
@@ -436,9 +469,9 @@ flush. They price **signal** tools that inject frames into the client's own view
 - **Prices** **clock**: tools that accelerate or slow the client clock while Lync's stamps follow it. Not priced:
   stamps kept on unmodified time, or patched; a client that blocks Lync's frames, which leaves a count gap
   (`frameGap` on the next reliable frame) and, blocking every beacon, no fit (`clockRestarts` counts the gaps).
-- **Cost** `[clock-facts §U3.6, BEACON gap]` `[security-costs claim 9]`. Wire: a forced `BEACON`-only frame is 8 B
-  with the tag (11 B with a full ack, 9 B with a `REPORT`); riding another frame, 20 bits of chunk plus 2–4 bits of
-  toc; ≤ 8 B/s and one `FireServer` a second per idle client at the default (≤ 16 B/s at 5). Client: ≤ 1.8 µs per
+- **Cost** `[clock-facts §U3.6, BEACON gap]` `[security-costs claim 9]`. Wire: a forced `BEACON`-only frame is 9 B
+  with the tag, 11 B with a `REPORT` (`v5.md` §4.6); riding another frame, 20 bits of chunk plus 2–4 bits of toc;
+  ≤ 9 B/s and one `FireServer` a second per idle client at the default (≤ 18 B/s at 5). Client: ≤ 1.8 µs per
   forced frame interpreted. Server, native: 8.8 ns per beacon, 1.52–1.59 µs per fit, 0.56–0.60 µs for the halves
   (only beyond the threshold), 1.72–2.10 µs per epoch to sort 100 slopes, ≤ 0.12 µs per fact: ≤ 71 µs/s at 100
   players (0.007% of a core), plus ≤ 16 µs/s for 100 idle players' forced frames. Memory: one number per player
@@ -446,7 +479,7 @@ flush. They price **signal** tools that inject frames into the client's own view
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 | ≤ 8 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME` |
+| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 | ≤ 9 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME` |
 | `clock.reportSlope` | number (real) | s/s (seconds of drift per second) | 0.001–1 | 0.01 (derived above) | none; server-only |
 | `clock.reportFits` | integer | consecutive counting fits | 1–12 | 3 (derived above) | none; server-only |
 
@@ -490,23 +523,26 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 ### 7.3 Reactions (`reactsTo`)
 
 - **Declaration** (server view, invisible to the client, not hashed) `[server-facts §U10]`:
-  `Net.<response>:reactsTo(stimulus, { key, floor, factor, track })`. The response is a client-sent event or
-  request; `stimulus` names a server-sent event (either lane) or a collection of the namespace, whose stimulus is
-  a record's add to this viewer. `key` pairs a response with its stimulus: for a collection, the response field
-  holding the record key; for an event, a path present in both (`"id"`) or `{ response = …, stimulus = … }`. A
-  second call on one response replaces the first.
-  - Errors at the caller: an unknown stimulus or path, `unknownField`; a stimulus that is not a server-sent event or
-    a collection (a server request is `earlyAnswer`'s), `stimulusKind`; key paths whose codecs differ,
-    `fieldCodec`; an option out of range, `valueRefused`; an unknown option key, `unknownOption`.
+  `Net.<response>:field(keyPath):reactsTo(stimulus, { floor, factor, track })` (field handles, `v5.md` §3.4). The
+  response is a client-sent event or request, and `keyPath` the response field that pairs it with its stimulus.
+  `stimulus` is a collection view (`Net.coins`: the stimulus is a record's add to this viewer, paired by record
+  key) or a field handle of a server-sent event on either lane (`Net.prompt:field("id")`: paired by equal values).
+  A second call on one response replaces the first. Examples:
+  `Net.collect:field("coin"):reactsTo(Net.coins, { floor = 0.12 })`,
+  `Net.answer:field("id"):reactsTo(Net.prompt:field("id"), { floor = 0.15 })`.
+  - Errors at the caller (the generated path makes most of them type errors): a stimulus that is neither a
+    collection view nor a server-sent event's field handle (a server request is `earlyAnswer`'s), `stimulusKind`;
+    key fields whose codecs differ, `fieldCodec`; an option out of range, `valueRefused`; an unknown option key,
+    `unknownOption`.
 - **Candidates.** Events: the stimuli with the response's key value among the last `track` sent to the player.
   Collections: the record's first add to this viewer in its current incarnation. Of several candidates Lync takes
   the **oldest**, which gives the longest elapsed time, so a pairing error can only miss a fact. A key with no
   candidate (an event outside the ring, a record no longer live) counts `reactionsUnmatched` (`v5.md` §7.4) and
   raises no fact.
-- **Receipt.** Each upstream reliable frame's header carries `rcv:u8`, the client's count of downstream reliable
-  frames decoded mod 256, which the server extends into (S − 256, S] of its own count S of reliable frames sent to
-  that player (`v5.md` §4.1). It is client-stated; a modified runtime that overstates it leaves only the time rule.
-  Aliasing (a client 256 or more frames behind) extends upward, which can only miss a fact.
+- **Receipt.** Each upstream reliable frame's header carries `rcv`, the client's count of downstream reliable
+  frames received mod 256, extended by the server against its own count (`v5.md` §4.1). It is client-stated: a
+  modified runtime that overstates it leaves only the time rule. A client 256 or more frames behind reads as having
+  received early, which can only miss a fact.
 - **Triggers** (with t_s the candidate's, t_r the response's, b §7.1):
   1. **case 3, never sent** (collections): the key names a live record whose current incarnation was never added
      to this viewer;
@@ -535,16 +571,14 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 
 | Option (`reactsTo`) | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `stimulus` | string | — | a server-sent event or a collection of the namespace | required | collections: 4 B per (viewer, slot) |
-| `key` | string, or `{ response: string, stimulus: string }` | — | field paths with equal codecs | required | none |
+| `stimulus` (argument) | collection view, or field handle of a server-sent event | — | its codec equal to the key field's | required | collections: 4 B per (viewer, slot) |
 | `floor` | number (real) | s | 0 (off) or 0.01–2 | 0 (derived: the floor is the game's; none is a default human floor) | none beyond the response test |
 | `factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (§7.1) | none |
 | `track` | integer | event stimuli remembered per player | 1–64 | 8 (chosen: a response more than 8 stimuli of its definition behind counts `reactionsUnmatched`, never a fact) | 24 B per entry per player; the scan is linear in it |
 
-- `key` is required: paired with "the newest stimulus" instead, a slow answer to frequent stimuli pairs with the
-  wrong one, and the floor fires on an unmodified client. The frame-time ring is 256 because the receipt's range
-  is 256 frames. Generated types: one overload per stimulus name, each taking only the key paths whose codec
-  matches; old-solver overload selection by literal is milestone 3's typing proof `[server-facts §U10.9]`.
+- The key field is required: paired with "the newest stimulus" instead, a slow answer to frequent stimuli pairs
+  with the wrong one, and the floor fires on an unmodified client. The frame-time ring is 256 because the
+  receipt's range is 256 frames.
 
 ### 7.4 Challenges
 
@@ -555,8 +589,8 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   shared schema, on the wire or in Lync's client: a challenge shape in Lync's client would be the same in every
   Lync game, and one hook on it would answer them all.
 - **API** (server):
-  - `Net.d:answers(field)` on the server view of a client-sent event or request: `field` is a top-level
-    `t.int(min, max)` or `t.optional` of one (unknown: `unknownField`; another codec: `fieldCodec`). Several
+  - `Net.d:field(path):answers()` on the server view of a client-sent event or request: `path` names a top-level
+    `t.int(min, max)` or `t.optional` of one (another codec: `fieldCodec`; on the generated path a type error). Several
     definitions may declare one. A message's answer is read in `v5.md` §6.1 step 5's report-only checks, after
     `unresolved` and `limit`, before validators; a nil field answers nothing.
   - `Lync.challenge(player, { within, values, attempts })` returns a handle. `token` = `Random:NextInteger(0,
@@ -620,51 +654,155 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 
 ## 8. Decoys
 
-- **Mechanism.** `Net.fighters:decoys(behaviour, { maxPerViewer = n })` on the server view. Each state tick Lync
-  calls `behaviour(viewer, tick)` for each viewer; it returns `{ [Key]: Record }` or nil. Lync diffs the result
-  against the viewer's previous decoys and sends adds, updates and removes.
-  - **No placement tell** `[review-2 M4]`: a viewer with decoys gets its own copy of each partition state chunk
-    that has changes, re-encoded with its decoys' rows mixed in, so decoy updates ride where real updates ride.
-    Their `:newest()` rows are per-viewer rows like any other.
-  - **Slots.** Decoys take slots from a pool of `maxPerViewer` slots per collection, drawn at random among free
-    slots and shared by every viewer's decoys (viewer A's j-th decoy and viewer B's j-th decoy use pool slot j).
-    Real allocation never uses pool slots, so `maxRecords` must cover live records, the 2 s reuse delay and
-    `maxPerViewer`. A decoy's key equal to a live record's key, or one that later becomes a real key while the decoy
-    lives, throws `decoyKeyLive` in the behaviour's thread and the decoy is removed.
-  - `Net.strike:refers("target", "fighters")` declares that a client-sent field holds keys of a collection; unknown
-    fields or collections throw `unknownField` at the caller `[review-2 m10]`. A delivered message whose referenced
-    key is a decoy sent to that player is reported as `decoyReferenced` (§10).
-- **Prices** raw-state readers: a raw-state reader must reproduce the game's notion of visibility, per game and per
-  behaviour. Remaining tell: two colluding accounts comparing key sets can spot a decoy where every viewer sees
-  every record.
-- **Developer cost.** The behaviour must place decoys where the game's own rendering and logic never use them; game
-  code that targets every record it holds (aim assist, "target everything") produces `decoyReferenced`.
+- **Mechanism.** `Net.fighters:decoys(behaviour, { maxPerViewer = n })` on the server view of a collection. Each
+  state tick Lync calls `behaviour(viewer, tick)` for each viewer, in a pooled thread; it returns
+  `{ [Key]: Record }` or nil. Lync diffs the result against the viewer's previous decoys and sends adds, updates and
+  removes. Where decoys go and what they hold is the behaviour's, so the developer's: only the game knows where its
+  own rendering and logic never look `[generation-methods M15b]`. Lync checks every returned record as `set` checks
+  one, and each failure below throws in the behaviour's thread and leaves that decoy unsent:
+  - a record a codec refuses, `valueRefused`;
+  - a key equal to a live record's key, or one that becomes a real key while the decoy lives, `decoyKeyLive`;
+  - under `interest` (`v5-collections.md`), a decoy whose filed cell is outside the viewer's block and hysteresis
+    ring, or whose PVS bit for (viewer cell, decoy cell) is 0, `decoyOutsideInterest`: a real record there is never
+    sent, so a decoy there would be the only record of its kind outside the viewer's region
+    `[interest-rewind §6.1]`.
+- **Values from a live record.** `Net.c:decoyFrom(sourceKey, overrides)` returns a new record: a copy of the live
+  record `sourceKey` with the fields of `overrides` replaced, so every value is one the game itself produced; nil
+  when `sourceKey` has no live record, which leaves that key out of the behaviour's result. An `overrides` field the
+  record lacks throws `unknownField`. Cost: 81–85 ns native per decoy of 6 fields (118–138 ns interpreted). It
+  supplies values only; the decoy's own placement still passes the interest test above.
+- **Slots: one allocator** `[refusals-rejudged-4 R16]`. A decoy add takes its slot as a real `set` does: uniform
+  among free slots (server `Random`), held from its add until 2 s after its remove (`v5-collections.md` §2). Each
+  viewer's decoys hold their own slots. Decoys hold at most `Players.MaxPlayers` × `maxPerViewer` slots per
+  collection, so `maxRecords` must cover live records, those removed in the last 2 s, and that product. A decoy add
+  that finds no free slot is not made that tick and counts `decoysUnplaced` (`v5.md` §7.4); the next result retries
+  it. A real `set` that finds none throws `recordLimit`, whose causes gain decoys holding slots under a `maxRecords`
+  that doesn't cover the product. Every add carries its slot's generation (`gen:u2`, `v5-collections.md` §3),
+  which shared slots need: viewers sent different adds in one slot would otherwise count its generations
+  differently. One viewer's statistic over slot reuse (an add's time since that slot's last remove) separates its
+  decoys at 0.506–0.507 balanced accuracy under one allocator, against 0.65–1.00 under draft 3.5's shared pool and
+  1.00 under a separate slot range, which stays refused as an exact mark.
+- **No placement tell in the encoding.** A viewer's copy of a changed shared chunk (under `interest`, of a changed
+  cell chunk) is re-encoded with its decoys' rows only in a flush where its decoys have adds or updates in that
+  chunk; otherwise it gets the shared chunk as other viewers do, and stays in `FireAllClients` for that flush if
+  nothing else in its frame is per viewer. A decoy's remove goes into the viewer's copy of the remove chunk. The
+  re-encode uses the full mode and k search: the reference encoder is deterministic and minimal, so a copied chunk
+  is the minimal encoding of the real rows and a re-encoded one of real and decoy rows, and a client re-costing
+  columns finds both minimal. Reusing the shared chunk's k (1.8–2.0× faster native) is refused: it leaves
+  non-minimal encodings (+0–17% bytes), which mark a chunk as holding rows other viewers didn't get
+  `[security-costs claim 6]`. A decoy's `:newest()` rows are per-viewer rows like any other. A decoys-only-in-
+  `:newest()` mode is not offered: a behaviour that moves only `:newest()` fields already pays one re-encode per
+  add.
+- **History.** Per viewer and collection, each decoy's (slot, add tick, remove tick, add time, remove time), kept
+  while it lives and for r after its remove: r = 2 s, or max(2 s, `maxRewind` + 0.25 s) when the collection has
+  `rewind` (`v5-collections.md`) (a runtime constant, `v5.md` §4.9). `decoyReferenced` and `decoyInteraction` match
+  against it `[decoy-challenge-facts §1, §2]`.
+- **References.** `Net.d:field(path):refers(Net.c)` on the server view of a client-sent event or request declares
+  that a field holds keys of collection `c`: a top-level field whose codec is `c`'s key codec, `t.optional` of it,
+  or `t.array` of it, each element matched (another codec: `fieldCodec`; on the generated path a type error). A
+  delivered message whose referenced key is in the sender's decoy history is `decoyReferenced` (§10), one
+  occurrence per matching element. Keys deeper in a payload are reported through `reportInteraction`.
+- **Rewind** (a collection with both `decoys` and `rewind`) `[decoy-challenge-facts §1]`. After each state tick's
+  result is applied, each live decoy's `rewind` fields are written into a ring per (viewer, decoy), the 24 B slot
+  and length real records use, holding the decoded quantized values that viewer was sent. `rewound(seen, key)` and
+  `rewoundSpan(seen, key)` for a key that is one of `seen`'s player's decoys return from that ring, in the shape a
+  real record's result has; a tick outside the decoy's life gives `notHeld`; another viewer's decoy key gives
+  `unknownKey`, as a key never live does; `at(tick, key)` gives `unknownKey` for every decoy, which has no truth,
+  only what one viewer was shown. `Net.c:held(seen)` returns a frozen array, in slot order, of every key k for
+  which `rewound(seen, k)` is `ok`: the records in the viewer's audience and interest at some tick of the window,
+  those removed since its low end, and the viewer's decoys alive in it. Slot order puts decoys among real records,
+  so a ray-tested shot that names no target reaches a decoy through the game's own test. Lync builds no hit test
+  and puts no decoy flag on a result: the game decides hits.
+- **Interactions.** `Net.c:reportInteraction(player, key, kind)` (server view of any collection) states that the
+  game resolved an interaction of `player` with `key`; `kind` is the game's integer 0–255 (otherwise
+  `valueRefused`). It returns nothing for real and decoy keys alike, so game code calls it for every interaction
+  it resolves without branching; a key in the player's decoy history is `decoyInteraction` (§10). It belongs where
+  the client's own message selected the record (named, aimed at, touched, opened), never where the server selected
+  it (area damage, server auto-target), which would make the fact fire with no client involvement.
+- **Prices** **state** readers that act on what they read (aim, target selection, auto-collect choosing records from
+  replicated state rather than the screen) and **api** drivers firing at every key they find. The fact is computed
+  on the server from the client's own message and the game's own test, so a modified client can avoid it only by
+  never choosing a decoy. What it proves is exact: the server sent this record only to this player, and the
+  player's message named it or the game's test found an interaction with it; what that means rests on placement,
+  which is the game's. Not priced: tools acting only on what is rendered; readers that reproduce the game's
+  visibility; passive readers; engine-replicated parts; and **share**: two accounts comparing key sets spot a decoy
+  only one of them holds (R15 stays refused). Nothing on the client marks a decoy (R19 stays refused), so **mem**
+  and **code** learn nothing new.
+- **Known causes on an unmodified client** `[decoy-challenge-facts §4.2]` (for `decoyReferenced`, `decoyInteraction`
+  and a rewound hit): (1) placement the game's client renders; (2) a camera turn faster than the behaviour follows:
+  "behind" is relative to the server's last view, so after a fast turn a "behind" decoy can be on screen for about
+  rtt + 1/`state.rate` + D, 0.25 s at 100 ms round trip, 20 Hz and D = 0.1 s (derived, unmeasured); (3) in-flight
+  removes and interpolation: a decoy moved out of view stays drawn at its old place for up to one-way latency + D
+  (`removedAgo` at most about rtt + D, `heldAtPerceived` 1); (4) streamed-out occluders, absent on the client with
+  `StreamingEnabled` (`Model.ModelStreamingMode = Persistent` keeps them); (5) a hit test that doesn't raycast the
+  world first; (6) server-selected interactions passed to `reportInteraction`; (7) game code that targets every
+  record it holds (aim assist, target lock, tab-targeting, an auto-collect magnet, "select nearest", a report
+  button).
+- **Cost** (server native). Behaviour call and diff 0.21–0.32 µs per viewer per state tick; per decoy viewer one
+  full-search re-encode of each changed chunk in flushes where its decoys have rows there, 19.3 µs at one decoy,
+  2× a shared-chunk encode at 16 and 15× at 256 (an upper bound: the probe's encoder runs at about twice the
+  build's ns per value) `[security-costs claim 6]`; a behaviour that moves only `:newest()` fields and replaces its
+  decoy every 5 s pays 3.9 µs/s per viewer. Ring push 9.5–10.5 ns per decoy per tick; ring memory 24 B × K per
+  (viewer, decoy), 65 KB at 100 viewers, one decoy, 20 Hz and `maxRewind` 1 s. `held` 316–564 ns per call at 65
+  keys, 808–891 ns at 301. `reportInteraction` 24–36 ns for a real key, 44–54 ns for a decoy. History: one map
+  update per decoy add and remove. Wire: the decoys' own rows, and 1 bit per slot field of the collection whenever
+  the product raises ⌈log2 `maxRecords`⌉ (a 64-record collection at 100 players: 7 → 8 bits, about +1% of the
+  100-player shooter's rows).
+- **Developer cost.** The behaviour must place decoys where the game's own rendering and logic never use them;
+  `maxRecords` must cover the decoy slots.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `maxPerViewer` | integer | records | 1–256 | 1 | per viewer with decoys: one re-encode of each changed partition chunk per flush and the decoys' bytes; one behaviour call and diff per viewer per state tick, 236 ns native `[probes review-redundancy-2 integrity_state]`; such viewers leave `FireAllClients` for those flushes; the pool takes `maxPerViewer` slots out of `maxRecords` |
+| `maxPerViewer` | integer | records | 1–256 | 1 | above; up to `MaxPlayers` × `maxPerViewer` slots of `maxRecords` |
+| `kind` (argument of `reportInteraction`) | integer | — | 0–255 | required | none; evidence only |
 
 ## 9. Canaries
 
-- **Mechanism.** `Net.inventory:canary("promoCode")` on the server view marks a top-level `t.string` or `t.buffer`
-  field of a collection with `maxBytes` ≥ 12 (an unknown field throws `unknownField` at the caller, a shorter one
-  `valueRefused`). On each add Lync fills it with 12 random characters from `[A-Za-z0-9]` (strings) or 12 random
-  bytes (buffers), unique per record per server; `set` or `patch` of it is `canaryWrite`. The server keeps one
-  server-wide map from value to slot and, per viewer, a bitset of slots whose add it sent.
-- **Matching.** Every inbound string or buffer value of length 12 is looked up whole (a buffer is converted only
-  after the length test). A value of 13 to `canary.scanBytes` bytes is also searched at every offset, and a longer
-  one in its first `canary.scanBytes` bytes. A hit for a slot sent to that player is delivered and reported as
-  `canaryEchoed` (§10) `[review-redundancy-2 9]`. Draft 3 matched whole values only `[review-2 m3]`; the scan finds
-  a canary pasted into a chat line.
-- **Prices** raw-state readers that send hidden values back, and attributes leaks (a canary found outside the game
-  names its record and server).
-- **Cost.** 12 B per add; 13 ns per inbound string of length 12, no allocation for buffers of other lengths; up to
-  `scanBytes` − 11 lookups per longer value (per-offset cost measured in milestone 5); 47 KB for 100 players ×
-  1024 records against 3.2 MB for per-player sets. Developer: the UI must never show or send the field.
+- **Declaration.** `Net.c:field(path):canary()` on the server view of a collection marks a top-level `t.string`
+  or `t.buffer` field with `maxBytes` ≥ 12 (another codec or a shorter one: `fieldCodec`). A field the `strings`
+  extension may intern throws `canaryInterned` at the call: an interned value would travel as a shared table
+  entry, and an echo as a reference rather than bytes `[refusals-rejudged-1 R33]`. `set` or `patch` of a canary
+  field is `canaryWrite`. The UI must never show or send the field.
+- **Values.** On each add Lync fills the field:
+  - `canary.perViewer` false: 12 random characters of `[A-Za-z0-9]` (strings) or 12 random bytes (buffers), unique
+    per record per server, the same for every viewer;
+  - `canary.perViewer` true `[generation-methods M15c]`: 8 such characters or bytes, unique per record per server,
+    then a 4-character (4-byte) suffix per viewer carrying s = j XOR p, where j is the viewer's join number on this
+    server mod 2^23 and p the low 23 bits of HalfSipHash-1-3 keyed by a 64-bit server key (drawn at start from an
+    entropy-seeded `Random`, never sent) over (slot u16le ‖ the slot's add count u32le). Strings write s as 4
+    base-62 digits of `[A-Za-z0-9]`, most significant first (62^4 ≥ 2^23); buffers write it as u32le. The bit
+    section of a state chunk is the same for every viewer (strings and buffers live in the tail, `v5.md` §4.2), so
+    the chunk is encoded once and each viewer's copy has 4 tail bytes patched; frames holding such adds leave
+    `FireAllClients` for that flush.
+  - The server keeps one map from value (from its 8-byte prefix with `perViewer`) to slot and, per viewer, a bitset
+    of the slots whose add it sent.
+- **Matching.** Every inbound string or buffer value of length 12 is looked up whole (a buffer converted only after
+  the length test). A value of 13 to `canary.scanBytes` bytes is searched at every offset, and a longer one in its
+  first `canary.scanBytes` bytes: per offset, the 4-byte prefix is read (`readu32` of the value as a buffer), its low
+  16 bits tested in a 64 Kbit bitset, then looked up in a map of canary prefixes, then compared in full
+  `[security-costs claim 10]`. A hit is a live canary sent to some player: without `perViewer`, one sent to the
+  sender; with it, any viewer whose bitset holds the slot, named by the suffix. It is delivered and reported as
+  `canaryEchoed` (§10).
+- **Prices** **state** readers that send hidden values back, and, with `perViewer`, **share**: a value relayed
+  through another account, or found outside the game, names the session it was sent to. Not priced: readers that
+  never send values back or normalise them before sharing; per-build variation adds nothing, since a canary that
+  varied per build but not per viewer would name only the build.
+- **Cost.** 12 B per add. Matching: 13 ns per inbound value of length 12; per offset of a longer value 5.2–6.0 ns
+  native (44–51 ns interpreted), so at most 0.34–0.39 ms/s per player native when strings fill the default
+  65,536 B/s of inbound bytes; the bitset 8 KB per server; the map and bitsets 47 KB for 100 players × 1024 records.
+  `perViewer`: 220 ns native per (viewer, add) for the suffix, 67 ns per viewer for the patched copy, 312 ns per hit
+  to recover j; about 0.29 ms/s at 100 viewers × 10 canary adds a second; one 64-bit key and one join-number table
+  (one `UserId` per join) per server.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `canary.scanBytes` | integer | B | 0 (whole values only) or 13–16,000 | 256 | up to `scanBytes` − 11 map lookups per inbound string or buffer value longer than 12 B, server-only |
+| `canary.scanBytes` | integer | B | 0 (whole values only) or 13–16,000 | 256 (chosen: a chat line of 200 B is scanned whole) | up to `scanBytes` − 11 offsets per inbound string or buffer value longer than 12 B, 5.2–6.0 ns native each; server-only |
+| `canary.perViewer` | boolean | — | — | `true` (below) | as above; frames holding canary adds leave `FireAllClients`; server-only |
+
+- **`canary.perViewer` default, derived.** It reports every echo the shared form reports, plus echoes from players
+  the value wasn't sent to, and names the session of a value found outside the game, for 0.29 ms/s at 100 viewers
+  and 10 adds a second. The engine's cost of one `FireClient` per recipient against one `FireAllClients` is
+  unmeasured (§12); a measurement showing it material is what would change the default.
 
 ## 10. Facts
 

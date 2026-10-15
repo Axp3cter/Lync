@@ -216,14 +216,14 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
   field naming which one fired and the known causes listed per value (`dynamicAccess` `kind`, `editedShard`
   `regenerated`).
 - **Fixed severities**, for codes where no setting makes the finding right or wrong: declaration codes, the
-  configuration and environment codes, `staleShard`, `editedShard`, `unpairedShard` and the first three
-  `published*` codes are errors; `staleManifest`, `trapsIncomplete`, `trapNamesShort` and `publishedScriptChanged`
-  are warnings. Each is a mistake in the configuration, a failure of the environment, a mismatch between artefacts
+  configuration and environment codes, `staleShard`, `editedShard`, `unpairedShard`, `definitionTooLarge`,
+  `publishedShardDiffers`, `publishedShardMissing` and `publishedWovenDiffers` are errors; `staleManifest`,
+  `regenerateSkipped`, `lyncHeaderMismatch` and `publishedScriptChanged` are warnings. Each is a mistake in the configuration, a failure of the environment, a mismatch between artefacts
   of one build, or a statement of what the build made against what the configuration asked `[build-checks §3.5]`.
 - **`[check]` severities**, for every other code: `check.<code>` takes `"off"`, `"warn"` or `"error"`. Its default
-  follows one rule: `"error"` when no known cause in an unmodified game is correct code; `"warn"` when some known
-  cause is correct code; `"off"` for `foreignBindable` alone, whose trigger names nothing that carries traffic
-  between a client and the server. `"off"` stops the check: no Diagnostic and no manifest entry of that code.
+  follows one rule, in this order: `"off"` when the trigger names an instance that carries no traffic between a
+  client and the server (today `foreignBindable`); `"error"` when no known cause in an unmodified game is correct
+  code; `"warn"` when some known cause is correct code. `"off"` stops the check: no Diagnostic and no manifest entry of that code.
   Computations that another product reads still run: `check.dynamicAccess = "off"` leaves the namespace
   incomplete.
 
@@ -239,10 +239,14 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
   - *Client scan set:* `v5-integrity.md` §3's (scripts in replicating containers, `Packages/`, every `LocalScript`,
     every `Script` with `RunContext = Client`, the scripts under `check.clientRoots`).
   - *All scripts:* every script in the place.
-  - Both exclude Lync's own package (the subtree of any `ModuleScript` whose first line is
-    `-- Lync <version> runtime`) and Lync's outputs (shards, the PVS module).
-- **Namespace values** (for `dynamicAccess`, reachability, the caller probe's source lists, weave closure and trap
-  placement): the result of a `require` or `TS.import` whose static path matches the client shard's full instance
+  - *Replicating:* a top-level service without the reflection tag `NotReplicated` (rbx-dom's reflection database
+    carries the tags); `ServerStorage`, `ServerScriptService` and `Chat` carry it, `Lighting`, `SoundService` and
+    `Teams` don't (checked, API dump 0.741.19).
+  - Both exclude Lync's outputs (shard and variant parts, PVS parts) and Lync's own package, identified by content:
+    the generator carries the SHA-256 of each runtime module of its version, and the subtree of a `ModuleScript`
+    whose first line is `-- Lync <version> runtime` is excluded only when every module in it matches. A subtree that
+    carries the header and doesn't match is scanned and reported as `lyncHeaderMismatch`.
+- **Namespace values** (for `dynamicAccess`, reachability, the caller probe's source lists and weave closure): the result of a `require` or `TS.import` whose static path matches the client shard's full instance
   path suffix, never its leaf name alone, since `client` is a common module name `[build-checks §2.3]`; followed
   through aliases, fields, module returns and same-named function parameters (`v5-integrity.md` §3). The
   incompleteness predicate is computed once per run and every reader takes the same set.
@@ -254,6 +258,9 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
     doesn't manage only if the place was downloaded.
   - *Studio plugin:* `game:GetDescendants()` of the edit DataModel; in a play test, of the play-test server
     DataModel (§4.2).
+  - *A place `lync weave` wrote* (its shard parts' digests equal their `wovenDigest`): `lync check` runs only the
+    shard, manifest and `published*` codes on it and no scan, since an inline site no longer names its definition;
+    the scans belong to the unwoven place the weave read (§4.3).
 
 ### 3.4 Codes
 
@@ -265,55 +272,56 @@ unmodified game, and the milestone that raises it (M).
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
 | `configSyntax` | `lync.toml` text that doesn't parse as TOML | `line`, `col` | error | a mistake in `lync.toml` | 3 |
-| `configUnknownKey` | a key the JSON Schema of `lync.toml` doesn't define | key path | error | a misspelled key; a key removed in this version (`[types]` in draft 3.6) | 3 |
+| `configUnknownKey` | a key the JSON Schema of `lync.toml` doesn't define | key path | error | a misspelled key; a key removed in v5 (`[types]`) | 3 |
 | `configType` | a value of the wrong type | key path, expected type | error | a mistake in `lync.toml` | 3 |
 | `configRange` | a value outside its range in §2 or §5.7, including an unsupported `format` and a range that names another key or the sourcemap | key path, the range | error | a mistake in `lync.toml`; a sourcemap that now maps `output.manifest`'s folder | 3 |
 | `configMissing` | no `lync.toml` and no `ServerStorage.Lync.Config`; a required key or table absent (such as `[[namespace]]`); a required file absent (`project.sourcemap` under §2's condition) | key path or file | error | a fresh project; a sourcemap not generated before the run | 3 |
 | `cloudRequestFailed` | an Open Cloud request of `lync check --published` answered with a status outside 200–299 | `endpoint`, `status` | error | an API key without scope `universe.place.luau-execution-session:write`; an exhausted rate limit (5 task creations per minute per key owner) | 6 |
 | `cloudTaskFailed` | the Luau Execution task ended in a state other than `COMPLETE` | `state` | error | a place whose listed scripts take the task past its 5-minute limit | 6 |
-| `publishedUnreadable` | the task's read of a listed script's `Source` raised | `path`, `error` (the raised text) | error | a task thread without capability `PluginOrOpenCloud` (unverified, §8) | 6 |
+| `publishedUnreadable` | the task's read of a script's `Source` raised | `path`, `error` (the raised text) | error | a task thread without capability `PluginOrOpenCloud` (unverified, §8) | 6 |
+| `generatorMismatch` | `lync weave` run by a generator whose `coreDigest` differs from the manifest's | `manifestCore`, `runningCore` | error | another Lync version installed in CI than built the manifest | 6 |
+| `replayMismatch` | `lync replay` given a capture whose `HELLO` `buildId` or `idTableHash` differs from the manifest's | `captureBuild`, `manifestBuild`, `idTableDiffers` | error | the manifest of another release than the capture's | 6 |
 
 **Shards and manifest:**
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
 | `staleShard` | a shard part's seed-0 schema hash differs from the live schema's | `side`, `part` | error | the schema edited and not rebuilt | 3 |
-| `editedShard` | a part's recomputed digest differs from the digest on its line 1 (`regenerated` 0); or, with the manifest present and the running generator's `coreDigest` equal to the manifest's, regenerating the part at the manifest's `rotationSeed` gives another digest (`regenerated` 1) | `side`, `part`, `regenerated` | error; `lync build` and `lync watch` overwrite nothing while it holds | a formatter over generated files (StyLua, format-on-save); a darklua pass over shards; a merge resolved by hand; Team Create "Merge From Server" on a drafted shard. Not a CRLF checkout (normalised) `[build-checks §3.3]` | 3 |
-| `unpairedShard` | the parts of a namespace's client and server shards don't all carry one `buildId`, one generator version and one schema hash in their bodies, or a part the shard module's part count names is absent | `clientBuild`, `serverBuild`, `generatorDiffers`, `schemaDiffers`, `missingPart` (0, or the part number) | error | one side committed and not the other (Team Create Drafts commits per script); a partial checkout; a plugin write refused for one script (Script Injection denial, `UpdateSourceAsync` rejection); a stale copy in a place Rojo only partly manages | 3 |
-| `staleManifest` | the manifest records a `buildId` or part digests other than the shards' (`wovenDigest` for a place `lync weave` wrote, `digest` elsewhere) | `side`, `part` | warning | the manifest not kept with the shards (not committed, or from another CI run) | 3 |
+| `editedShard` | a part's recomputed digest differs from the digest on its line 1 (`regenerated` 0); or (`regenerated` 1), in `lync check` only, with the part's body `buildId`, every `inputs` value and the generator equal to the manifest's: regenerating an unwoven part gives a digest other than its `digest`, or a woven part's digest differs from its `wovenDigest` (`lync weave` proved that part's regeneration before writing it, §5.2) | `side`, `part`, `variant` (0 for a shard part), `regenerated` | error; `lync build`, `lync watch` and the plugin run only `regenerated` 0 before overwriting, and overwrite nothing while it holds. Fix: restore or delete the part, and keep shard folders out of formatters (`.styluaignore`, darklua's input set) `[build-checks §3.5]` | a formatter over generated files (StyLua, format-on-save); a darklua pass over shards; a merge resolved by hand; Team Create "Merge From Server" on a drafted shard; for `regenerated` 1, an edit that also rewrote line 1's digest. Not a CRLF checkout (normalised) `[build-checks §3.3]` | 3 |
+| `regenerateSkipped` | `lync check` with a manifest whose recorded input differs from the live one, so regeneration doesn't run | `input` (1 `lync.toml`, 2 a schema module, 3 the scan result, 4 the generator) | warning | any edit since the build: a script, a schema (also `staleShard`), `lync.toml`, or another Lync version | 3 |
+| `unpairedShard` | the parts of a namespace's client shard, server shard and variant modules don't all carry one `buildId`, one generator version and one schema hash in their bodies; a part the shard module's part count names is absent; or a child `Part<k>` with k beyond that count exists | `clientBuild`, `serverBuild`, `generatorDiffers`, `schemaDiffers`, `missingPart` (0, or the part number), `extraPart` (0, or the part number) | error | one side committed and not the other (Team Create Drafts commits per script); a partial checkout; a plugin write refused for one script (Script Injection denial, `UpdateSourceAsync` rejection); a stale copy in a place Rojo only partly manages | 3 |
+| `staleManifest` | the manifest records a `buildId` or part digests other than the parts' (`wovenDigest` for a place `lync weave` wrote, `digest` elsewhere) | `side`, `part`, `variant` | warning | the manifest not kept with the shards (not committed, or from another CI run) | 3 |
+| `definitionTooLarge` | one definition's generated code exceeds the 200,000-byte part cap (§1.1) | `bytes`; range at the definition's schema line | error | an enum of thousands of long item names; a record of thousands of fields | 3 |
 
-`lync check` runs the regeneration whenever the manifest is present and the generators match, at the cost of one
-generation run (planner and codegen, measured in milestone 3); with another generator it skips it and the summary
-says so. The no-build path has no shards and no manifest, so none of these codes applies to it.
+The regeneration costs one generation run (planner and codegen, measured in milestone 3). The no-build path has no
+shards and no manifest, so none of these codes applies to it.
 
 **Scans:**
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
 | `rawRemote` | a method call `:FireServer(`, `:InvokeServer(`, `:FireClient(`, `:FireAllClients(` or `:InvokeClient(` in any script of the all-scripts set | `method` | `[check]`, `"warn"` | the game's own remotes; packages firing their own remotes (Knit, Cmdr); a raw call on Lync's own remotes, which then fails the tag (`tagMismatch`) | 3 |
-| `foreignRemote` | an instance of class `RemoteEvent`, `UnreliableRemoteEvent` or `RemoteFunction` anywhere in the place, except exactly `ReplicatedStorage.Lync.Reliable` of class `RemoteEvent` and `ReplicatedStorage.Lync.Unreliable` of class `UnreliableRemoteEvent` (a same-named instance of another class is listed); not raised for paths in `check.knownRemotes` | `class`, `instance`, `replicates` (1 when its top-level service replicates to clients, 0 for `ServerScriptService` and `ServerStorage`), `runtime` (1 when found by the plugin's play-test walk) | `[check]`, `"warn"` | the game's own remotes from before Lync or kept on purpose; a Toolbox model or gear carrying a remote inside a `Tool`; a remote in `ServerStorage` that game code clones into a replicated container (`replicates` 0); remotes frameworks and the legacy chat system create at run time (`runtime` 1) `[build-checks §1.5]` | 3; `runtime` 6 |
+| `foreignRemote` | an instance of class `RemoteEvent`, `UnreliableRemoteEvent` or `RemoteFunction` anywhere in the place, except exactly `ReplicatedStorage.Lync.Reliable` of class `RemoteEvent` and `ReplicatedStorage.Lync.Unreliable` of class `UnreliableRemoteEvent` (a same-named instance of another class is listed); not raised for paths in `check.knownRemotes` | `class`, `instance`, `replicates` (1 when its top-level service is replicating, §3.3, else 0), `runtime` (1 when found by the plugin's play-test walk) | `[check]`, `"warn"` | the game's own remotes from before Lync or kept on purpose; a Toolbox model or gear carrying a remote inside a `Tool`; a remote in `ServerStorage` that game code clones into a replicated container (`replicates` 0); remotes frameworks and the legacy chat system create at run time (`runtime` 1). Not listed: remotes created after the play test ends, or inserted from assets at run time `[build-checks §1.5]` | 3; `runtime` 6 |
 | `remoteCreation` | in the all-scripts set, `Instance.new(` whose first argument is one string literal naming one of `foreignRemote`'s classes (`literal` 1), or is not a string literal (`literal` 0) | `class` (empty when `literal` 0), `literal` | `[check]`, `"warn"` | Knit's Comm (`literal` 1); Cmdr's helper `Instance.new(className)` (`literal` 0); forked legacy chat scripts; a `literal` 0 site whose helper creates only other classes `[build-checks §1.2]` | 3 |
 | `foreignBindable` | an instance of class `BindableEvent` or `BindableFunction` anywhere in the place | `class`, `instance`, `replicates` | `[check]`, `"off"` | every bindable is game code's own signal; a client fires only its own, never the server's `[build-checks §1.2]` | 3 |
+| `lyncHeaderMismatch` | a `ModuleScript` whose first line is `-- Lync <version> runtime` in a subtree whose modules don't all match the generator's runtime digests; the subtree is scanned | `path`, `version` (from the header) | warning | a vendored copy of another Lync version inside a package; an edited runtime | 3 |
 | `dynamicAccess` | in the client scan set, a dynamic access of a namespace value as `v5-integrity.md` §3 defines it: `kind` 1 an index whose key is not one string literal, 2 iteration (`for … in`, `pairs`, `ipairs`, `next`), 3 a hand-off the scan cannot follow by name | `namespace`, `kind`, `binding` (uri and range of the binding source) | `[check]`, `"warn"`; severity only, never whether the namespace is incomplete, and no per-site suppression (`check.reachability = false` is the opt-out) | kind 1: a generic helper `Net[name]:fire(v)`; kind 2: a client loop connecting every event, even one that fires nothing; kind 3: a framework registering the namespace with package code the scan has no definition for; any kind: following by name, which binds the parameter of every same-named function (`X.new(Net)` binds the first parameter of every `new`) and follows shadowing locals `[build-checks §2.5]` | 5 |
-| `trapsIncomplete` | `build.traps` > 0 for a namespace that is incomplete: no trap is generated for it | `namespace`, `requested` | warning | any `dynamicAccess` cause | 5 |
-| `trapNamesShort` | a complete namespace with fewer trap-name candidates (§1.1) than `build.traps` | `namespace`, `requested`, `generated` | warning | a namespace whose names yield fewer candidates than requested: one definition `chat` gives none, `buy` and `chat` give 2 | 5 |
 | `solverOff` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code under the old solver, the default in Roblox and luau-lsp, where its types degrade to error types; a project on the new solver, whose setting no tool can read (`NotScriptable`, `v5.md` §3.2), which sets `check.solverOff = "off"` | 3 |
 | `freeFormField` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > 65,536, `t.number` or `t.vector3` with more than 65,536 codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. The 65,536 is a constant, chosen: below it every input of `v5.md` §3.4 and the measured demo inputs (255-code sticks, enums, slot indices), above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]` | 3 |
-| `decoyRef` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormField` walks it, whose codec serialises (`v5.md` §4.7) identically to C's `key` codec; and no `:refers("<top-level field>", "C")` for that definition and field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
-| `unscopedRef` | a server-sent event or request whose `data` holds a field whose codec serialises identically to some collection's `key` codec, with no `:about("<field>", …)` call on that definition in the all-scripts set | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
-| `stagedReplicated` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps to `ReplicatedStorage`, `ReplicatedFirst`, `Workspace`, `StarterGui`, `StarterPack` or `StarterPlayer` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
-| `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains as a path expression or string literal the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
-| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least 4 bytes long, occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
+| `decoyRef` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormField` walks it, whose codec serialises (`v5.md` §4.7) identically to C's `key` codec; and, for that definition, no `:field("<path>"):refers(` whose argument is an expression ending in `.C`, with `<path>` the leaf's top-level field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
+| `unscopedRef` | a server-sent event or request whose `data` holds a field whose codec serialises identically to some collection's `key` codec, with no `:field("<path>"):about(` call on that definition whose argument is an expression ending in `.C`, for that field and collection C, in the all-scripts set | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
+| `stagedReplicated` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps anywhere other than under `ServerStorage` or `ServerScriptService` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
+| `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains, as a string literal or as a path expression (a chain of `.Name`, `:WaitForChild("Name")` or `:FindFirstChild("Name")` rooted at `game:GetService("X")` or `game.X`), the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, either as built under `ServerStorage` or as released (the same path below `ReplicatedStorage`), or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
+| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least 4 bytes long (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate would change it), occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
 | `streamingOff` | the place read with `--place` has `Workspace.StreamingEnabled = false`, and the project has a staged namespace or an `:interest(` call in the all-scripts set | place path | `[check]`, `"warn"` | a game that streams nothing on purpose; with streaming off, all of `Workspace` reaches every client at join, whatever `interest` withholds `[interest-rewind §12.1]` | 3 |
 
 **Weaving** (§5; each at its site's line, or line 1 of its script):
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `weaveNotStatement` | a resolved site (§5.3) in expression context, such as `local r = Net.buy:invoke(…)` | definition | `[check]`, `"warn"` | every request (`invoke` yields and returns a result); a `fire` whose value is used | 6 |
 | `weaveArgument` | a resolved site of a record definition whose argument is not a table constructor | definition | `[check]`, `"warn"` | a payload built elsewhere and passed by name; a roblox-ts spread | 6 |
 | `weaveKeys` | a resolved site whose table constructor's keys are not exactly the record's field set, or not all constant strings | definition, the differing key | `[check]`, `"warn"` | an optional field left out; a computed key | 6 |
-| `weaveShadowed` | a local named `type`, `math`, `buffer`, `vector` or with prefix `__lync_` in scope at a resolved site | definition, the name | `[check]`, `"warn"` | a game local named `type` or `vector` | 6 |
+| `weaveShadowed` | a free name the site's fragment references (a builtin such as `buffer`, `math`, `type`, `Enum` or `Vector3`, or a name with prefix `__lync_`) is bound by a local in scope at the site | definition, the name | `[check]`, `"warn"` | a game local named `type`, `vector` or `Enum` | 6 |
 | `weaveCompile` | a woven script that fails to compile; the script stays unwoven | script, compiler message | `[check]`, `"warn"` | woven imports pushing a function past 200 locals or 200 upvalues `[generation-security §4.2]` | 6 |
 | `weaveUnparsed` | a script the Luau parser, at the version the host pins, refuses; it stays unwoven | script, parser message | `[check]`, `"warn"` | syntax newer than the pinned parser | 6 |
 | `weaveLiteralRefused` | with `weave.literals`, a literal site whose constant the codec refuses; the site stays unwoven and throws `valueRefused` when it runs, as unwoven | definition, field path, the value | `[check]`, `"warn"` | the call in code that never runs | 6 |
@@ -322,17 +330,25 @@ says so. The no-build path has no shards and no manifest, so none of these codes
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `publishedShardDiffers` | a shard part in the published version whose `Source` digest differs from the manifest's (`wovenDigest` when present, else `digest`) | `path`, `part`, `expectedBuild`, `foundBuild` (the body's `buildId`) | error | a Studio publish after the plugin regenerated shards; a hand edit published from Studio; the manifest of another CI run passed to the check | 6 |
+| `publishedShardDiffers` | a shard or variant part in the published version whose `Source` digest differs from the manifest's (`wovenDigest` when present, else `digest`) | `path`, `part`, `expectedBuild`, `foundBuild` (the body's `buildId`, which the task returns for parts) | error | a Studio publish after the plugin regenerated shards; a hand edit published from Studio; the manifest of another CI run passed to the check | 6 |
 | `publishedShardMissing` | a shard part the manifest lists, absent at its path in the published version | `path`, `part` | error | a Studio publish from a place copy without it; a shard moved after the build | 6 |
-| `publishedWovenDiffers` | a script in `wovenScripts` whose published `Source` digest differs from the manifest's | `path` | error | a Studio publish, which carries the developer's unwoven source | 6 |
-| `publishedScriptChanged` | a script of the client scan set that Lync didn't write whose digest differs from `scripts`, or that is new or absent | `path`, `change` (1 changed, 2 added, 3 removed) | warning | any edit published after the CI build; this is the developer's own code | 6 |
+| `publishedWovenDiffers` | at a path in `wovenScripts`, the published scripts' digests differ, as a multiset, from the manifest's | `path` | error | a Studio publish, which carries the developer's unwoven source | 6 |
+| `publishedScriptChanged` | at a path of the client scan set that Lync didn't write, the published version's scripts differ from the `--place` file's: a digest present in one and not the other (`change` 1), a path only in the published version (2), or only in the file (3); paths are compared as multisets of digests, so same-path siblings need no order | `path`, `change` | warning | any edit published after the CI build; this is the developer's own code | 6 |
+
+**Costs**, build time only, zero at run time and on the wire: SHA-256 0.04 ms per 64 KB part, CRLF normalisation
+0.6–0.9 ms per 64 KB in Lune `[build-checks §3.5]`; the tree walk for `foreignRemote` and `foreignBindable` 3 µs per
+instance after reading the place (1.36 s for 100,003 instances and 7.4 MB of source, scan included, in Lune)
+`[build-checks §1.6]`; the shared lexer pass of §3.3; one codec-tree walk per client-sent payload for
+`freeFormField` and `decoyRef`, and one codec comparison per leaf per collection with decoys (or per server-sent
+field per collection for `unscopedRef`) `[checks-telemetry C5]` `[decoy-challenge-facts §3]`; one Luau Execution
+task and one SHA-256 per walked script for `--published` (§4.3).
 
 ### 3.5 Exit codes
 
 0 no errors; 1 one or more errors outside exit 2's codes; 2 usage (an unknown command, flag or argument, printed as
 plain text) or a configuration or environment code; 3 `internal`, a Lync bug (a failed generator invariant, a woven
-script whose line count changed, a woven site failing the differential, §5.4), printed with a request to file an
-issue.
+script whose line count changed, a woven site failing the gate's differential, §5.4), printed with a request to file
+an issue. When codes of several classes occur in one run, 3 takes precedence over 2, and 2 over 1.
 
 ## 4. Hosts
 
@@ -342,11 +358,11 @@ issue.
 |---|---|---|
 | `lync build [--place <file>]` | draws one (`buildId`, `rotationSeed`) and plans every namespace once with it; writes shards, `.d.ts`, the manifest and the report; runs every check of §3.4 except `staleShard`, `unpairedShard`, `staleManifest` (it rewrites all three artefacts), the weaving codes and the `published*` codes, and runs `editedShard` before overwriting; runs each `[[pvs]]` bake | 3; bakes 4 |
 | `lync watch` | `lync build` again on each change to `lync.toml`, a schema module, the sourcemap or a scanned script; under `build.seed = "release"` each rebuild draws a new pair | 3 |
-| `lync check [--place <file>] [--published <universe>/<place>[/<version>]] [--manifest <path>]` | every check of `lync build` plus the drift codes, writing nothing; with `--published`, the published-place codes | 3; `--published` 6 |
+| `lync check [--place <file>] [--published <universe>/<place>[/<version>]] [--manifest <path>]` | every check of `lync build` plus the drift codes, writing nothing; with `--published`, which requires `--place` (the file that was published), the published-place codes | 3; `--published` 6 |
 | `lync explain <code>` | prints the code's registry page | 3 |
 | `lync weave <place> -o <file> [--manifest <path>]` | §5 | 6 |
-| `lync diff <old> <new>` | compares two manifests and lists each definition whose wire changed: ids, codecs, layout | 6 |
-| `lync replay <capture> [--manifest <path>]` | decodes a capture (its frames with their `HELLO` and `WELCOME`) using the layouts and keys the planner reproduces from the manifest (§1.2) | 6 |
+| `lync diff <old> <new>` | compares two manifests at seed 0 and lists each definition whose ids or codecs changed; differences that come only from the two builds' pairs (field order, offsets) are listed apart | 6 |
+| `lync replay <capture> [--manifest <path>]` | decodes a capture (its frames with their `HELLO` and `WELCOME`) using the layouts and keys the planner reproduces from the manifest (§1.2); refuses with `replayMismatch` when the capture's `buildId` or `idTableHash` isn't the manifest's | 6 |
 
 `--manifest` defaults to `output.manifest`. `watch` is in milestone 3 because, outside Studio-only projects, it is
 the only regenerate-on-edit path.
@@ -356,10 +372,12 @@ the only regenerate-on-edit path.
   `[codecs-in-scripts §2]`. Lute 1.0 is not used: its latest release has no macOS x86_64 binary, and its module paths
   differ from its own documented definitions (`@lute/crypto` against `@std/crypto`, a CST node's field `token`
   against `value`) `[client-security-build §1.2]`.
-- **Entropy.** The Rust host draws `buildId` and `rotationSeed` from OS entropy (`getrandom`)
-  `[security-tooling §6]`, never from a clock-seeded generator, which is searchable from the build's approximate
-  time `[generation-methods M1]`. No OS entropy source in Lune is verified (§8); until one is, builds
-  from the Lune host have a public-quality `rotationSeed`, as Studio-only builds do (§4.2).
+- **Entropy**, recorded as `rotation.entropy` (§1.2). The Rust host draws `buildId` and `rotationSeed` from OS
+  entropy (`getrandom`) `[security-tooling §6]` (`"os"`), never from a clock-seeded generator, which is searchable
+  from the build's approximate time `[generation-methods M1]`. The Lune host, on Linux and macOS, reads 12 bytes
+  of `/dev/urandom` through `process.exec("od", { "-An", "-N12", "-tx1", "/dev/urandom" })` (`"os"`; that Lune
+  passes the output intact is unverified, §8); where that fails it draws with `math.random` seeded from `os.clock()`
+  and `os.time()` (`"public"`).
 - **Decision: how a run names the built place.**
   - *Problem.* Foreign remotes in the tree, staged-path mapping, the streaming settings and the `scripts` inventory
     need the built place, which exists only after `rojo build`, so on a developer's machine it is often absent.

@@ -439,12 +439,9 @@ moving server state.
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 | `oneIn` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that for `fn`'s cost) | above 1: one draw per message, 24–32 ns in the CLI (`v5-integrity.md` §4's figure; `Random:NextInteger` on Roblox servers unmeasured, §11) and `fn` on 1/`oneIn` of messages on average; a message not drawn passes unchecked, under `"drop"` too |
 
-- **Types.** Generated shard (both solvers): `derive` is an intersection of one overload per accepted path, each
-  with its own `fn` return type: `((self, path: "landing", options: DeriveOptions<ShotData, Vector3>) -> ()) &
-  ((self, path: "flight", options: DeriveOptions<ShotData, number>) -> ())`, with `DeriveOptions<D, T> = { fn:
-  (Player, D) -> T?, tolerance: number, policy: "drop" | "deliver", oneIn: number? }`. Runtime path: a type
-  function from the literal path to the field type under the new solver; `unknown` under the old. roblox-ts: one
-  overload per path, `this: void`.
+- **Types.** `Net.shot:field("landing")` is a `Field<ShotData, Vector3>`, whose `derive` takes `{ fn: (Player,
+  ShotData) -> Vector3?, tolerance: number, policy: "drop" | "deliver", oneIn: number? }`, so `fn`'s return type is
+  the field's (`v5.md` §3.4's field handles; roblox-ts the same, `this: void`).
 - **Measured** (`server-facts/server_facts_cost.out`): Lync's share for a vector field is 6–12 ns native and
   32–36 ns interpreted per message; with an exact compare (`t.enum`) the whole runner is 7.2–8.5 ns native. Add the
   protected call (§1.7) and 20.5 ns per failure. State 0 B; wire 0 B.
@@ -476,33 +473,44 @@ Otherwise it fails when not (d(v, p) ≤ `rate` × (t − t_p) + `burst`), or no
 **Commit** (§1.4): if s is newer than the stored key, (p, t_p, key) ← (v, t, s), and when t − t_a ≥ `window` also
 (a, t_a) ← (v, t). The first message sets both. A late frame stores nothing.
 
-**Why two references.** The previous value bounds a jump against the last sample, so allowance can't be saved up;
-the anchor bounds net displacement over up to `window`, which catches sustained excess speed per-step comparisons let
-through. Each is one comparison of two samples, so honest error doesn't accumulate.
+**Why two references.** The previous value bounds a jump against the last sample, so a jump can't spend allowance
+accrued before that sample; the anchor bounds net displacement over up to `window`, which catches sustained excess
+speed that per-step comparisons let through. Each is one comparison of two samples, so honest error doesn't
+accumulate.
 
-**Derived `burst`.** Between two samples, the arrival span can be shorter than the send span by the lane's
-compression c, and each sample carries up to e of decode error, so `burst` = `rate` × c + 2e:
-- c = jitter range + server step = 0.02 + 1/60 = 0.0367 s on the unreliable lane (`v5.md` §9's model); 2 s more on
-  the reliable lane, `limit`'s stall slack (`v5.md` §4.9): 2.0367 s;
-- e = √3 · step/2 for `t.vector3` (√2 · step/2 with `"xz"`), step/2 for `t.number`, π/n for `t.angle`, the
-  octahedral error for `t.direction` (0.2369° at 10 bits), 0 for `t.int` and `t.f64`. `t.f32` and `t.vector3f32`
-  have a relative error (2^−24 of the value), so no constant e exists and `burst` is required for them (a change
-  from the research, whose e of 2^−24 × the codec's largest magnitude makes `burst` about 2 × 10^31 for an
-  unbounded `t.f32`).
+**Decision: `burst` and `window` are required.**
+- **Problem.** `burst` must cover an honest pair's excess, which has two parts: each sample's decode error e, which
+  the codec fixes exactly, and the compression of arrival spans against send spans, which depends on the player's
+  real network, unknown to Lync. `window` sets how long sustained excess speed may run before the anchor sees it.
+- **Options:** (a) R35's defaults, `burst` derived from `v5.md` §9's simulated network and `window` 10 s, chosen
+  `[refusals-rejudged-4 R35]`; (b) **both required**, with the derivation in the docs.
+- **Choice: (b).** A default from a network model is a threshold Lync would be guessing for every game, which the
+  rule "Lync does only what it can do exactly" gives to the developer; `maxDistance`, `tolerance` and `cap` are
+  required for the same reason.
+- **The docs' derivation:** `burst` = `rate` × c + 2e. On `v5.md` §9's model, c = jitter range + client flush +
+  server step = 0.02 + 1/60 + 1/60 = 0.0533 s on the unreliable lane, plus `limit`'s 2 s stall slack on the reliable
+  lane (`v5.md` §4.9): 2.0533 s. e = √3 · step/2 for `t.vector3` (√2 · step/2 with `"xz"`), step/2 for `t.number`,
+  π/n for `t.angle`, the octahedral error for `t.direction` (0.2369° at 10 bits), 0 for `t.int` and `t.f64`; `t.f32`
+  and `t.vector3f32` err by 2^−24 of the value, so their e is 2^−24 × the largest magnitude the game sends (R35's e,
+  2^−24 × the largest magnitude the codec admits, is about 2 × 10^31 for an unbounded `t.f32`). At 16 studs/s and
+  `t.vector3` step 1/32 this gives 0.907 studs unreliable and 32.907 reliable.
 
-Checked against the simulation (rate 16 studs/s, step 1/32, 3 × 10^6 messages per line, `r4_maxrate.out`):
+Checked against the simulation (rate 16 studs/s, step 1/32, 3 × 10^6 messages per line,
+`refusals-rejudged/r4_maxrate.out`); the model sends each sample in the frame it is taken, so its needs sit at least
+`rate`/60 = 0.27 studs below the derivation, which covers a flush up to 1/60 s after the sample:
 
-| Lane and network | Smallest `burst` with no failure | Derived default |
+| Lane and network | Smallest `burst` with no failure | The docs' derivation |
 |---|---|---|
-| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.641 |
-| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.641 |
-| reliable, jitter 0.02 s | 0.309 | 32.6 |
-| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.6 |
+| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.907 |
+| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.907 (derived at 0.02 s) |
+| reliable, jitter 0.02 s | 0.309 | 32.907 |
+| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.907 |
 
 ### 6.3 What it bounds, and how it is defeated
 
 - A forged stream stays within `rate` × elapsed + `burst` of the previous sample and of the anchor; the excess speed
-  it can sustain unseen is `burst`/`window`, 0.064 studs/s at the unreliable defaults (0.4% of 16 studs/s).
+  it can sustain unseen is `burst`/`window`: 0.091 studs/s (0.57% of 16 studs/s) at `burst` 0.907 and `window`
+  10 s.
 - A client that withholds messages for T seconds may then move `rate` × T + `burst`: the server can't know where it
   was in between, so that is the bound.
 - Defeated by moving at `rate` exactly, and by any client physics change `rate` allows. It bounds only what the
@@ -517,25 +525,27 @@ Checked against the simulation (rate 16 studs/s, step 1/32, 3 × 10^6 messages p
 
 1. **Game-applied motion:** teleports, respawns, seats, vehicles, knockback, conveyors. Call `resetChecks` with
    `seconds` (§1.6) where the game moves the player.
-2. **Falling and jumping** with `plane = "xyz"`: no fixed fall-speed bound exists in this model; ground movement uses
-   `"xz"`, as Roblox's movement-validation guidance says (documented, creator-docs
+2. **Falling and jumping** with `plane = "xyz"`: a falling character's vertical speed grows under
+   `Workspace.Gravity` (196.2 studs/s² by default), so it passes a walking `rate` about `rate`/196.2 s into a fall.
+   Ground movement uses `"xz"`, as Roblox's movement-validation guidance says (documented, creator-docs
    `scripting/security/network-ownership.md`).
 3. **A server step longer than 1/60 s** (a hitch), or a reliable stall longer than 2 s, compresses arrival spans by
    its length; evidence `span` shows it.
-4. **Network jitter above the derived c** (mobile jitter unmeasured, §11), and a speed boost above `rate`.
+4. **Network jitter above the c the developer's `burst` covers** (mobile jitter unmeasured, §11), and a speed boost
+   above `rate`.
 
 ### 6.5 Options and cost
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `rate` | number (real) | the field's unit per second | > 0, finite | required | none |
-| `burst` | number (real) | the field's unit | ≥ 0, finite | derived (§6.2): `rate` × 0.0367 s + 2e on unreliable definitions, `rate` × 2.0367 s + 2e on reliable ones; required for `t.f32` and `t.vector3f32` | none |
-| `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.4% of `rate` at the unreliable default; a larger window lets less through) | none |
-| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `viewOptionRange`) | `"xyz"` | none measurable (`r4_maxrate.out`: within noise) |
+| `burst` | number (real) | the field's unit | ≥ 0, finite | required (§6.2; the docs' derivation) | none |
+| `window` | number (real) | s | 0.1–3600 | required (§6.2) | none; unseen excess speed is `burst`/`window`, so a larger window lets less through |
+| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `callOptionRange`) | `"xyz"` (the codec's own metric, as in `within`) | none; `"xz"` is 3–11 ns cheaper native (`r4_maxrate.out`) |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
-Measured, net (`refusals-rejudged/r4_maxrate.out`, 3 runs, best of 7): 77–84 ns native and 316–332 ns interpreted per
-message in 3-D; 73–87 ns native and 290–331 ns interpreted with `"xz"`. State 80 B per player per check; wire 0 B.
+Measured, net (`refusals-rejudged/r4_maxrate.out`, 3 runs, best of 7): 84–85 ns native and 318–330 ns interpreted per
+message in 3-D; 74–82 ns native and 299–305 ns interpreted with `"xz"`. State 80 B per player per check; wire 0 B.
 
 **`cooldown`** stays out: a cooldown of s seconds is `limit = { perSecond = 1/s, burst = 1 }` (`v5.md` §5.4). The
 client never sends two messages less than s apart; the server admits at most 1 + (T + 2)/s over any T seconds
@@ -567,7 +577,7 @@ Two codec methods in the shared schema, non-generic and returning the same codec
 
 | Marker | Placement | Default | Cost |
 |---|---|---|---|
-| `:claim()` | any codec in a client-sent payload | unmarked leaves are inputs | 0 B wire; 2 B hash input; one flag test per message; a verifier per claim leaf of `data` (§7.2) |
+| `:claim()` | any codec in a client-sent payload | unmarked leaves are inputs | 0 B wire; 2 B hash input; nothing per message; a verifier per claim leaf of `data` before its handler (§7.2, §7.3) |
 | `:input()` | as `:claim()` | — | 0 B wire; 2 B hash input; no run-time effect |
 
 ### 7.2 Decision: what verifies a claim
@@ -582,31 +592,24 @@ Two codec methods in the shared schema, non-generic and returning the same codec
   suffices, so choosing which kinds count would be Lync judging sufficiency. (a) makes a game write an empty
   validator beside a check that already verifies. (b) leaves out the one kind built for claims.
 - **The rule.** A claim leaf of `data` is *verified* when the definition has a validator, or when at least one check
-  of any kind and any policy has a path naming that leaf. A `"deliver"` check counts: its failures are reported, and
-  the policy is the developer's. Leaves inside arrays, maps and union variants, and leaves of codecs no check takes
-  (strings, instances), are verified only by a validator.
-- **The flag.** Lync keeps one flag per definition, "has an unverified claim leaf", set at definition time from the
-  schema and recomputed at each `validate` or check declaration. Per message it costs one boolean test.
+  of any kind and any policy is declared on that leaf's field handle (checks take leaf codecs only, so no record's
+  handle carries one). A `"deliver"` check counts: its failures are reported, and the policy is the developer's.
+  Leaves inside arrays, maps and union variants, and leaves of codecs no check takes (strings, instances), are
+  verified only by a validator. No declaration can be removed, so a leaf once verified stays verified.
 - **Replies** of server requests may carry markers, for the lint only; answers have no validator step.
 
-### 7.3 Decision: a message with an unverified claim
+### 7.3 The claim requirement
 
-- **Problem.** A message arrives for a definition whose claim leaves the server hasn't verified. Its cause is the
-  server's declarations, not what the player sent. The hard window is the time between a server script's first use
-  of the namespace and its `validate` or check calls, when messages can already arrive.
-- **Options:** (a) **drop it, count it, and report a fault**; (b) deliver it and report the fault; (c) hold it until
-  a verifier is declared.
-- **Choice: (a).** `:claim()` is the developer's declaration that the leaf reaches game code only after a server
-  verification; (b) would deliver exactly what the marker excludes, and (c) holds client data for an unbounded
-  time. The drop executes the developer's declaration, as `limit` does.
-- **Exact trigger and action.** A message of a definition whose flag (§7.2) is set, at step 6 (§1.4) before checks
-  and validators: dropped, an ask answered `rejected`, counted in `claimsUnverified`, and reported natively as
-  **`claimUnverified`** (family `fault`), at most once per definition per `observe.window` (`v5.md` §7.2):
-  `[Lync] claimUnverified: arena.strike data.target must have a validator or a check, got none`. It carries no fix,
-  since there are two (`v5.md` §7.1).
-- **Known causes:** none on the client side. On the server, game code that declares no verifier, or declares it
-  after the definition's first messages arrive (a script that yields between requiring the shard and declaring).
-  The docs say: declare checks and validators before the script's first yield.
+The decision is `v5.md` §3.3's ("Decision: claims"), which the core-api unit owns; this file states what it means
+for checks.
+- **Rule.** On the server view, `connect` or `handle` on a definition whose `data` holds an unverified claim leaf
+  (§7.2) throws the caller error `claimUnverified` at that call:
+  `[Lync] claimUnverified: arena.strike:connect data.target must have a validator or a check, got none`. No message
+  is dropped for it, and nothing is counted: the requirement costs nothing per message.
+- **Why at the handler** (`v5.md` §3.3): a drop of canonical messages for what the game forgot to declare would be
+  Lync acting on input, and delivering them would let the marker guarantee nothing. Refusing the handler acts on no
+  input and names the line to change; its only cost is an order, verifiers before the handler. Messages decoded
+  before a handler exists reach no handler and are counted in `messagesUnheard` (`v5.md` §3.5).
 - **What it guarantees:** no message holding a claim reaches `connect` or `handle` without a game validator or a
   declared check having run on it. It is defeated by a validator that returns `true` unconditionally, and by marking
   a claim `:input()` to silence the lint.
@@ -616,10 +619,11 @@ Two codec methods in the shared schema, non-generic and returning the same codec
 strike = Lync.event({ from = "client", lane = "unreliable", data = {
 	target = t.int(1, 2 ^ 40):claim(), origin = t.vector3(-2048, 2048, 1 / 32):claim(), aim = t.direction(11),
 } }),
--- server
-Net.strike:within("origin", { reference = rootOf, maxDistance = 6, policy = "drop" })
-Net.strike:refers("target", "fighters") -- v5-integrity.md §8
+-- server: verifiers first, then the handler
+Net.strike:field("origin"):within({ reference = rootOf, maxDistance = 6, policy = "drop" })
+Net.strike:field("target"):refers(Net.fighters) -- v5-integrity.md §8
 Net.strike:validate(function(player, s) return Fighters.alive(s.target) end)
+Net.strike:connect(onStrike)
 ```
 
 ### 7.4 The `freeFormField` lint
@@ -656,20 +660,21 @@ and computes nothing about them.
   no client rebuild; the server shard is never replicated, so a modified client can't read which fields are sampled;
   nothing the client must see depends on it.
 - **Scope** as checks (§1.2): `data` of client-sent events and client requests' asks, on the server; elsewhere
-  `viewPlacement`. Paths as §1.2 (`unknownField`, `fieldKind`). Declared at any time; applies to frames decoded
-  after the call.
+  `viewPlacement`. A sampled field is named by its field handle (§1.2: `unknownField`, `fieldKind`); `atom`'s
+  `fields` are path strings, typed as unions of the paths it accepts (`v5.md` §3.4). Declared at any time; applies
+  to frames decoded after the call.
 
 ### 8.2 Streams and their entries
 
 Each declaration keeps one ring per player of `ring` entries; one ring per definition, so a definition names its
-ring (a second `:aim` or `:series` on a definition throws `telemetryTwice`).
-- **Timing** (`Net.<def>:series()`): one entry per frame carrying a delivered message of the definition.
-- **Values** (`Net.<def>:series(path)`): the same, plus the field's value. Scalars (`t.int`, `t.number`, `t.f32`,
-  `t.f64`, `t.angle`, `t.bool` as 0 or 1, a list enum's 0-based index, a Roblox enum item's `Value`) are stored as
+ring (a second `aim` or `series`, on the definition or any of its fields, throws `telemetryTwice`).
+- **Timing** (`Net.<def>:series(options?)`): one entry per frame carrying a delivered message of the definition.
+- **Values** (`Net.<def>:field(path):series(options?)`): the same, plus the field's value. Scalars (`t.int`,
+  `t.number`, `t.f32`, `t.f64`, `t.angle`, `t.bool` as 0 or 1, a list enum's 0-based index, a Roblox enum item's `Value`) are stored as
   the nearest f32, so integers above 2^24 lose precision; vectors (`t.vector3`, `t.vector3f32`, `t.direction`) as three
   f32. Lync stores values; differences are the analyst's.
-- **Aim** (`Net.<def>:aim(path)`): the field's look direction as yaw and pitch. Each aim codec gives a unit
-  direction (x, y, z): `t.direction` itself; `t.rotation` and `t.cframe` their `LookVector`; a record
+- **Aim** (`Net.<def>:field(path):aim(options?)`): the field's look direction as yaw and pitch. Each aim codec gives
+  a unit direction (x, y, z): `t.direction` itself; `t.rotation` and `t.cframe` their `LookVector`; a record
   `{ yaw = t.angle(…), pitch = t.angle(…) }` the vector (−sin yaw · cos pitch, sin pitch, −cos yaw · cos pitch).
   Then yaw = atan2(−x, −z) (0 looks along −Z) and pitch = asin(clamp(y, −1, 1)), quantized to
   yawCode = ⌊(yaw + π) · 65536/2π + 0.5⌋ mod 65536 (0.0055° a step) and pitchCode = ⌊(pitch + π/2) · 65535/π + 0.5⌋
@@ -760,7 +765,7 @@ The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative 
 
 ```luau
 -- server
-Net.look:aim("dir")                                   -- look: from = "client", data = { dir = t.direction(11) }
+Net.look:field("dir"):aim()                           -- look: from = "client", data = { dir = t.direction(11) }
 Net.strike:series()                                   -- timing only
 Net.strike:atom({ before = 0.5, after = 0.25, fields = { "origin", "target" }, series = Net.look })
 local connection = Lync.telemetry.atoms(function(batch: Lync.AtomBatch)
@@ -770,8 +775,9 @@ local look = Lync.telemetry.read(player, Net.look)    -- a copy of the ring, or 
 ```
 
 Types are plain records with no `read` modifiers, since the old solver rejects them in generated shards (`v5.md`
-§3.2); the tables are frozen at run time (the layout and its `fields` too). The generated server shard types each
-call's `path` and `fields` as unions of the literal paths it accepts; the runtime path checks strings at the call.
+§3.2); the tables are frozen at run time (the layout and its `fields` too). `aim` and `series` are methods of the
+field handle `Field<D, T>`, present only where T is a codec they take; `atom`'s `fields` is typed as a union of the
+definition's numeric paths.
 
 ```luau
 export type AtomBatch = {
@@ -798,10 +804,13 @@ fields):
 
 ```ts
 interface ServerEvent<T> {
-	aim(this: void, path: AimPath<T>, options?: { ring?: number }): void;
-	series(this: void, path?: SeriesPath<T>, options?: { ring?: number }): void;
+	series(this: void, options?: { ring?: number }): void; // timing only
 	atom(this: void, options: { before?: number; after?: number; fields?: ReadonlyArray<NumericPath<T>>;
 		series?: ServerEvent<unknown>; pending?: number }): void;
+}
+interface Field<D, T> { // aim on aim codecs, series on value codecs
+	aim(this: void, options?: { ring?: number }): void;
+	series(this: void, options?: { ring?: number }): void;
 }
 declare namespace telemetry {
 	function atoms(this: void, fn: (batch: AtomBatch) => void): Connection;
@@ -810,8 +819,8 @@ declare namespace telemetry {
 }
 ```
 
-`AimPath<T>`, `SeriesPath<T>` and `NumericPath<T>` are emitted per definition as literal unions, never computed by
-type-level recursion. Caller errors: `unknownField`, `fieldKind` (the codec isn't one the call takes),
+`NumericPath<T>` is emitted per definition as a literal union, never computed by type-level recursion. Caller
+errors: `unknownField`, `fieldKind` (the codec isn't one the call takes),
 `telemetryTwice`, `seriesMissing` (`series =` a definition with neither `:aim` nor `:series`), `viewPlacement`, and
 the option codes of §10.
 
@@ -889,8 +898,8 @@ player.
 
 | Option | Where | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|---|
-| `path` | `:aim(path, …)` | string | — | a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field, through records and optionals | required | 65–73 ns native, 221–228 ns interpreted per sampled frame from a decoded direction; the record form adds four trigonometric calls (unmeasured) |
-| `path` | `:series(path?, …)` | string or nil | — | a codec of §8.2's values, through records and optionals; nil: timing only | nil | timing: 22–24 ns native, 91–93 ns interpreted per sampled frame; values: unmeasured (§11) |
+| field | `field(path):aim` | field handle | — | a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field | — | 65–73 ns native, 221–228 ns interpreted per sampled frame from a decoded direction; the record form adds four trigonometric calls (unmeasured) |
+| field | `field(path):series`, or `series` on the definition for timing only | field handle or none | — | a codec of §8.2's values | none: timing only | timing: 22–24 ns native, 91–93 ns interpreted per sampled frame; values: unmeasured (§11) |
 | `ring` | `:aim`, `:series` | integer | entries | 16–1024 | 64 (chosen: at least the 45 entries of the default window at 60 frames/s; atoms truncate above 85.3 frames/s) | E × `ring` per player: 768 B for aim at 64 |
 | `before` | `:atom` | number (real) | s | 0–2 | 0.5 (the reported VACnet window `[anticheat-design §5.1]`) | needs `ring` ≥ (`before` + `after`) × the series' frames per second, else bit 1 |
 | `after` | `:atom` | number (real) | s | 0–1 | 0.25 (VACnet, as `before`) | a pending slot held `after` s plus up to one server frame |
@@ -978,7 +987,7 @@ Net.nextRound:connect(function(layout) end)
 
 - **`sealed`** is a definition option of server-sent reliable events, in the shared schema and hashed (the client
   must decrypt). On a client-sent event, a request, a collection or the unreliable lane it is the declaration error
-  `sealedPlacement`; a `data` reaching a `t.instance` is `sealedInstance`, since instances travel in the frame's
+  `optionPlacement` (`v5.md` §3.4); a `data` reaching a `t.instance` is `sealedInstance`, since instances travel in the frame's
   instance array in the clear (`v5.md` §4.2) and can't be sealed.
 - **`fire`** on a sealed definition returns a `Seal` with `reveal()` and `discard()`; calling either on a seal
   already revealed or discarded throws `sealSettled`. Generated path: `fire`'s return type is `Seal` for sealed
@@ -1052,10 +1061,11 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
 
 Nothing sealed flows upstream, so there is no other server fact.
 
-| Option | Type | Unit | Range | Default | Cost |
-|---|---|---|---|---|---|
-| `sealed.outstanding` | integer | unrevealed seals per player per definition | 1–256 | 1 (chosen: one pending reveal, such as the next round; a game pre-sending several reveals raises it) | client: up to `outstanding` × 8 × ⌈W/8⌉ B per sealed definition; server: one recipient set per outstanding seal |
-| `sealed.hideLength` | boolean | — | — | true (below) | true: every seal is ⌈W/8⌉ blocks, up to W − B + 7 B more per seal and the decrypt of the padded size at the reveal |
+The options `sealed.outstanding` (integer, unrevealed seals per player per definition, 1–256, default 1, chosen)
+and `sealed.hideLength` (boolean, default true) are rows of `v5.md` §3.4's option table, the one home for definition
+options, with their costs: the client holds up to `outstanding` × 8 × ⌈W/8⌉ B per sealed definition and the server
+one recipient set per outstanding seal; with `hideLength` every seal is ⌈W/8⌉ blocks, up to W − B + 7 B more per
+seal, and the padded size is decrypted at the reveal.
 
 **Decision: `hideLength` defaults to true.** Problem: the ciphertext's length is plaintext information disclosed
 before the reveal (a layout's size, an answer's length), and sealing exists to disclose nothing before it. Options:
@@ -1082,24 +1092,24 @@ server at the reveal, 0.18–0.22 µs native for 8 B (12 B unmeasured).
 
 Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units list them in `v5.md` §7.
 - **Fact:** `constraint` (§1.5); `sendDropped` gains `cause` 5 (§9.7).
-- **Fault:** `claimUnverified` (§7.3).
-- **Declaration:** `rolePlacement` (§7.1), `sealedPlacement`, `sealedInstance` (§9.2).
+- **Declaration:** `rolePlacement` (§7.1, `v5.md` §3.3), `sealedInstance` (§9.2); `sealed` where the definition
+  doesn't take it is `v5.md` §3.4's `optionPlacement`.
 - **Caller:**
-  - `fieldKind`: the codec at a check's or telemetry call's `path` isn't one that call takes;
+  - `fieldKind`: a check or telemetry call on a field handle whose codec that call doesn't take (`v5.md` §7.1 uses
+    it for every call that names a field);
   - `checkPool`: two `maxTotal` checks in one pool with different `cap` or `seconds`;
   - `viewPlacement`: a check or telemetry call on a definition outside its scope (§1.2, §8.1);
-  - `telemetryTwice`: a second `:aim` or `:series`, or a second `:atom`, on one definition;
-  - `seriesMissing`: an atom's `series` names a definition with neither `:aim` nor `:series`;
+  - `telemetryTwice`: a second `aim` or `series` (on the definition or any of its fields), or a second `atom`, on
+    one definition;
+  - `seriesMissing`: an atom's `series` names a definition with neither an `aim` nor a `series`;
   - `sealSettled`: `reveal()` or `discard()` on a seal already revealed or discarded;
-  - `unknownViewOption`, `missingViewOption`, `viewOptionRange`: in the options table of a server-view call, a key
-    the call doesn't take; a required option absent; a value outside its range, of the wrong type, or a fraction for
-    an integer option. Three codes because the three fixes differ (rule C); one set for every server-view call, by
-    principle 4;
-  - `unknownField` (exists) for a path naming no field.
+  - `claimUnverified`: `connect` or `handle` on a definition with an unverified claim leaf (§7.3, `v5.md` §3.3);
+  - `unknownCallOption`, `missingCallOption`, `callOptionRange`: `v5.md` §7.1's set for every run-time options
+    table, used by every call here;
+  - `unknownField` (`v5.md` §3.4) for a path naming no field.
 - **Build:** `freeFormField` (`v5-tooling.md` §3.4).
 - **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
-  `checksExempted` (a message inside a `resetChecks` window, §1.6),
-  `claimsUnverified` (§7.3), `atomsDelivered`, `atomsSkipped` (§8.5).
+  `checksExempted` (a message inside a `resetChecks` window, §1.6), `atomsDelivered`, `atomsSkipped` (§8.5).
 - **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§8.10).
 - **Runtime constant:** `maxTotal` buckets, 16 (§4.1).
 - **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§7.1); the `sealed` option (§9.3).
@@ -1111,8 +1121,8 @@ Each has a default or a rule the design uses; none blocks the milestone.
   lookup by `Player` against the probes' slot index.
 - `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §9.4).
 - The engine's downstream rate per player (sealing against withholding, §9.1); HalfSipHash over 12 B (§9.7).
-- The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks, against
-  `maxRate`'s derived compression c (§6.2).
+- The engine's replication delay for client-owned physics (`within` cause 1); jitter on mobile networks (the c of
+  the docs' `burst` derivation, §6.2).
 - Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
   (`monotonic` cause 4).
 - Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).
@@ -1120,7 +1130,5 @@ Each has a default or a rule the design uses; none blocks the milestone.
 - Telemetry: the value-series cost, the record-form aim cost and the widened layout (§8.10); real frame-delta
   noise at a 60 FPS cap; the server-load timing burst (cause 10); the HTTP request body limit (§8.8); the three
   terms sources of §8.11.
-- Typing proofs for milestone 3: old-solver overload selection by literal path (§1.2, §5.4); the runtime-path type
-  of a sealed `fire` (§9.2).
-- Whether clients may compute claims from values as they decode (a codec `:round`), the core-api unit's decision
-  (`derive` cause 3).
+- Typing proofs (`v5.md` §10): the runtime path's field handles for nested paths, and its type for a sealed `fire`
+  (§9.2).

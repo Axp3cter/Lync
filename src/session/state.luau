@@ -303,6 +303,25 @@ export type Connection = {
 	limits: { [Definition]: Buckets.Bucket },
 }
 
+--[=[
+	A live set of players, `Lync.group(players?)`; leaving players are removed (v5.md §3.5).
+
+	@field kind        marks a group among targets
+	@field members     the players in it
+	@field memberCount how many
+]=]
+export type Group = {
+	kind: "group",
+	members: { [Player]: true },
+	memberCount: number,
+}
+
+--[=[
+	Who a server send goes to (v5.md §3.5): a player, an array of players, a group, `Lync.all`
+	or `Lync.except(target)`.
+]=]
+export type Target = any
+
 --- How a side's scheduler flushes (v5.md §5.1).
 export type Mode = "automatic" | "manual"
 
@@ -397,6 +416,9 @@ const EMPTY_PAYLOAD: Payload = table.freeze({
 })
 
 -- Public ------------------------------------------------------------------------------------------
+
+--- `Lync.all`: every player.
+State.ALL = table.freeze({ kind = "all" })
 
 --- The payload of a message that carries none.
 State.EMPTY_PAYLOAD = EMPTY_PAYLOAD

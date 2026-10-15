@@ -39,9 +39,10 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a8d693323bb70d522` | builder | milestone 2 unit E: `Host` seams, facts, counters, console, buckets, simulated world and network model | `src/host/`, `src/diag/`, `docs/codes/`, `src/session/buckets.luau`, `test/support/{world,net}.luau`, `test/{host,diag}/` | done (27 codes; `Facts.new` takes `Counters`); reusable for host, diag and world work |
 | `ac8059b22a5323815` | builder | milestone 2 unit D: frames, headers, toc, control, tag, sequences, replay window, permutation, goldens G5, G7, G10, G11 | `src/transport/`, `src/session/{permutation,replay}.luau`, `test/transport/`, `test/golden/` | done (430 tests; goldens through G11; fuzzed); reusable for transport work |
 | `a1cbd31181cf78f54` | builder | milestone 2 unit F: session (handshake, tag, acks, requests, inbound pipeline), scheduler (flushing, ticks, budgets), API views, simulated-world honest and attack suites | `src/session/` (rest), `src/sched/`, `src/api/`, `src/init.luau`, `test/{session,sched,api,world}/` | running |
+| `a743c6cfb1140eef3` | critic | simplification audit: judging words (e.g. "anomaly"), presets and tiers, options missing unit/range/default/cost, facts without exact triggers, vague quantities, vague refusal reasons; design, plans, `src`, `docs/codes` | `reviews/simplifications.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
 ## Next
 
-- Milestone 1 closed. Milestone 2: D and E done (430 tests); F next (session, scheduler, API, simulated-world suites).
+- **Paused by the author:** no new milestone work without the author's go-ahead. Unit F keeps running. Simplification audit running.

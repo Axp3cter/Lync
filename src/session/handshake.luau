@@ -21,6 +21,7 @@
 -- Imports -----------------------------------------------------------------------------------------
 
 local Bits = require("../wire/bits")
+local Buckets = require("./buckets")
 local Connection = require("./connection")
 local Control = require("../transport/control")
 local Counters = require("../diag/counters")
@@ -59,6 +60,12 @@ local function definitionOf(rt: State.Runtime, namespace: State.Namespace, ir: I
 		slots[i] = Counters.slot(rt.counters, `{field}.{subject}`)
 	end
 
+	local limit = ir.limit
+	local bucket = nil
+	if rt.side == "client" and ir.from == "client" and limit ~= nil then
+		bucket = Buckets.new(limit.perSecond, limit.burst, rt.host.clock())
+	end
+
 	local definition: State.Definition = {
 		ir = ir,
 		namespace = namespace,
@@ -72,7 +79,7 @@ local function definitionOf(rt: State.Runtime, namespace: State.Namespace, ir: I
 		validator = nil,
 		handler = nil,
 		reportedAt = -math.huge,
-		bucket = nil,
+		bucket = bucket,
 		fifo = {},
 		sentSlot = slots[1],
 		receivedSlot = slots[2],

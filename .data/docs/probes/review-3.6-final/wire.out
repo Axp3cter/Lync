@@ -9,3 +9,6 @@ bits in strike' single-row frame body: 82
 G5   00 60 01 0c 00 08 56 2d c5 9a | golden 00 60 01 0c 00 08 56 2d c5 9a
 down patch health 90, slot 5: a4 03 54 11 5a
 down patch health 90, slot 5, health:team() in its team chunk: a4 03 54 11 b5
+G10  03 00 d4 01 29 00 00 00 00 00 44 8f 40 54 06 40 80 c0 00 41 81 c1 01 00 01 00 00 00 00 00 00 00
+     golden 03 00 d4 01 29 00 00 00 00 00 44 8f 40 54 06 40 80 c0 00 41 81 c1 01 00 01 00 00 00 00 00 00 00
+stream frame: 207 bits before align, 30 B with tag: 07 20 03 fc ff 93 6a 32 b0 00 04 60 00 80 00 00 02 00 28 09 00 22 00 88 00 20 21 b2 b3 26

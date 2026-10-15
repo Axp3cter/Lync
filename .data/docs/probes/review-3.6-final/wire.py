@@ -250,3 +250,55 @@ def down_patch(slot=5, health=90, team_class=False, ws=6):
 if __name__ == "__main__":
     print("down patch health 90, slot 5:", hexs(down_patch()))
     print("down patch health 90, slot 5, health:team() in its team chunk:", hexs(down_patch(team_class=True)))
+
+
+def g10():
+    import struct
+    w = Bits()
+    w.u(2, 0b11); w.u(16, 0)           # tick '11' u16, T = 0 (bits in stream order: '1','1')
+    w.eg0(0)                           # segs(state): none
+    w.eg0(1); w.eg0(0); w.eg0(0)       # segs(run): one segment, namespace 0 (control), one chunk
+    w.eg0(0)                           # segs(remove): none
+    w.align()
+    w.u(3, 1); w.eg0(0)                # control chunk: type 1 WELCOME, count 1
+    w.eg0(1)                           # namespace index 1
+    w.u(1, 0)                          # layout
+    bits = struct.unpack("<Q", struct.pack("<d", 1000.5))[0]
+    w.u(32, bits & 0xFFFFFFFF); w.u(32, bits >> 32)
+    w.u(6, 20); w.u(8, 25)
+    w.u(32, 0x03020100); w.u(32, 0x07060504)
+    w.u(15, 1024); w.u(32, 0)
+    w.u(8, 0); w.u(6, 0); w.u(1, 0); w.u(1, 0); w.u(4, 0)
+    w.align()
+    return w.tobytes()
+
+
+if __name__ == "__main__":
+    print("G10 ", hexs(g10()))
+    print("     golden 03 00 d4 01 29 00 00 00 00 00 44 8f 40 54 06 40 80 c0 00 41 81 c1 01 00 01 00 00 00 00 00 00 00")
+
+
+def stream_frame():
+    """Up unreliable, seq 7, full ack (seq 12, all 16 earlier received), one stream chunk of `move` =
+    { look = t.direction(11), position = t.vector3(-2048, 2048, 1/32) } (name order look, position; up ids buy 0,
+    chat 1, move 2, strike 3): indices first..first+2, ref 1 back 0; copy 1 changes both fields, copy 2 the same as
+    copy 1, copy 3 changes position only. Identity build; tag under the G4 key, lane 1."""
+    w = Bits()
+    w.u(12, 7); w.u(1, 0)
+    w.u(1, 1); w.u(12, 12); w.u(16, 0xFFFF)
+    w.u(1, 0)                                   # receipt '0' (no ackEveryFrame message)
+    w.eg0(1); w.eg0(1); w.eg0(0)                # segs(run)
+    w.u(2, 2); w.eg0(2); w.u(12, 100); w.u(1, 0); w.u(1, 1); w.eg0(0)
+    pos_w = 18                                   # t.number(-2048, 2048, 1/32): n = 131072, u(ceil(log2 131073)) = 18
+    w.u(1, 0); w.u(1, 1); w.u(11, 1024); w.u(11, 1024); w.u(1, 1); [w.u(pos_w, 65536) for _ in range(3)]
+    w.u(1, 1)
+    w.u(1, 0); w.u(1, 0); w.u(1, 1); [w.u(pos_w, 65540) for _ in range(3)]
+    n = len(w.bits)
+    w.align()
+    body = w.tobytes()
+    return n, body + tag(KEY, 7, 1, 0, body)
+
+
+if __name__ == "__main__":
+    n, fr = stream_frame()
+    print(f"stream frame: {n} bits before align, {len(fr)} B with tag:", hexs(fr))

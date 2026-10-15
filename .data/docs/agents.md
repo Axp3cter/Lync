@@ -143,6 +143,8 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   weigh or decide is the developer's (trap names, consequences, scores, policies). One naming convention for every
   code, fact, counter and option; current names like `foreignRemote` and `dynamicAccess` are not acceptable.
   Audits: `reviews/v5-3.6-scope.md`, `reviews/v5-3.6-naming.md`.
+- **After 4 pm, at most one agent at a time, reusing an existing agent when possible** (author, 2026-10-15). The two
+  running at the time (final critic, inbound-bound prover) finish; every later step is one agent, reused.
 - Agents allowed again (author); finish faster without lowering quality by giving each unit slightly more. Remaining
   after the four units above: (1) one critic: naming re-check plus an end-to-end trace from schema to wire to facts
   across every file; (2) one architect: merge the change records into `v5-changes.md` ("Draft 3.5 to 3.6") and apply

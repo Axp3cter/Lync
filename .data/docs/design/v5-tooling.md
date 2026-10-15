@@ -10,8 +10,8 @@ rule.
 
 **Generation inputs.** The generated files are a function of exactly these: the schema modules' text, `lync.toml`'s
 text, the generator (`coreDigest`, §1.2), the pair (`buildId`, `rotationSeed`), and the scan result (§3.3: the
-client scan set's paths, ordinals and digests, and whether they came from files or a place), which sets the server
-shard's reachability lists and each namespace's completeness. With equal inputs the compiler always produces the
+client scan set's paths, ordinals and digests, and whether they came from files or a place), which sets the
+unreferenced-definition lists and each namespace's completeness. With equal inputs the compiler always produces the
 same bytes `[client-security-build §2.2]`; the manifest records every input (§1.2). A build run draws the pair once
 for every namespace and both sides (`v5-integrity.md` §2).
 
@@ -88,13 +88,18 @@ order of the place or, for files, in the sourcemap's order.
 | `rotation` | each value `v5-integrity.md` §2 draws from `rotationSeed` that sets a run-time cost (the tag's compression and finalization rounds, the rotation-set index), so the report states the build's cost without running the planner; and `entropy`: `"os"` (OS entropy), `"guid"` (Studio, §4.2) or `"public"` (a source a tool can search, §4.1) |
 | `inputs` | SHA-256 of `lync.toml`'s text and of each schema module's text, and of the canonical serialization of `scan` (§1); regeneration (§3.4 `editedShard`) runs only when every one equals the live value |
 | `scan` | the client scan set (§3.3): `{ path, ordinal, digest }` per script, SHA-256 over LF-normalised `Source`, and `source` (`"files"` or `"place"`) |
-| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `variants`, one `{ variant, part, path, digest }` per variant part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); per definition `{ line, worstCase, reachable?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
+| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `variants`, one `{ variant, part, path, digest }` per variant part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); `unreferenced`, for a complete namespace, the exact list of its client-sent definitions with no `.name`, `:name` or `"name"` token in `scan`; per definition `{ line, worstCase, scanReferenced?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
 | `foreignRemotes`, `remoteCreations` | the `foreignRemote` and `remoteCreation` entries of §3.4 with their evidence, sorted by path and ordinal, written whenever those checks run |
 | `wovenScripts` | `{ path, ordinal, digest }` of each built copy `lync weave` rewrote (§5) |
 | `streaming` | the place's `StreamingEnabled`, `StreamingTargetRadius`, `StreamingMinRadius`, `StreamOutBehavior`, `ModelStreamingBehavior` and the place file, when a place was read `[interest-rewind §12.3]` |
 | `decoyReview` | each (definition, field, collection) where a `refers` declaration meets `:decoys`, with the scripts of the client scan set that name the definition `[decoy-challenge-facts §3]` |
 | `pvs` | per `[[pvs]]` entry: cell count N, table bytes, part digests, bake time |
 | `diagnostics` | the count of each code the run reported |
+
+`unreferenced` and `closed` are observations about the scan set, not about every client: code outside `scan` (a
+module in `ServerStorage` cloned into a client, an asset inserted at run time) can still fire such a definition.
+They have no run-time effect unless the developer opts a definition in (`check.reachability`, `v5-integrity.md`
+§3); only opted-in definitions' lists go into the server shard.
 
 `lync build` and `lync watch` write it; `lync weave` rewrites it with the same `buildId`, adding the weave fields.
 It must never ship, since it holds `rotationSeed`: an `output.manifest` path inside a folder the sourcemap maps into
@@ -116,13 +121,14 @@ release" draws a pair (§4.2).
 ### 1.3 `report.md`
 
 Rendered from the manifest; it never contains `rotationSeed`. Per namespace: shard sizes; per definition its
-worst-case size, reachability, closed or open with the first open reason, and woven site count; the
-`dynamicAccess` sites. Per build: the `rotation` values with the per-frame cost each sets (`v5-integrity.md` §2) and
-one line naming `rotation.entropy`; the `foreignRemotes` and `remoteCreations` tables, with one line stating that
-engine entry points other than remotes (`ClickDetector`, `ProximityPrompt`, `Tool` activation, physics ownership) are
-not listed `[build-checks §1.1]`; the `decoyReview` list; the `streaming` settings; each PVS table's N, size and
-bake time; the `diagnostics` counts. `output.report` takes `output.manifest`'s range (§2), since the report lists
-review material that need not reach clients.
+worst-case size, whether the scan found a reference to it, whether it is opted in to run-time reporting, closed or
+open with the first open reason, and woven site count; the `unreferenced` list with the size and source of the scan
+set it holds for; the `dynamicAccess` sites. Per build: the `rotation` values with the per-frame cost each sets
+(`v5-integrity.md` §2) and one line naming `rotation.entropy`; the `foreignRemotes` and `remoteCreations` tables, with
+one line stating that engine entry points other than remotes (`ClickDetector`, `ProximityPrompt`, `Tool` activation,
+physics ownership) are not listed `[build-checks §1.1]`; the `decoyReview` list; the `streaming` settings; each PVS
+table's N, size and bake time; the `diagnostics` counts. `output.report` takes `output.manifest`'s range (§2), since
+the report lists review material that need not reach clients.
 
 ## 2. `lync.toml`
 
@@ -147,7 +153,7 @@ server = "src/server/Net"
 dts = "types/net.d.ts"          # optional
 
 [check]
-reachability = true             # v5-integrity.md §3
+reachability = false            # opt-in to run-time reporting (v5-integrity.md §3)
 clientRoots = []                # v5-integrity.md §3
 knownRemotes = ["ReplicatedStorage.Remotes.LegacyShop"]
 rawRemote = "warn"              # any code of §3.4 with a [check] severity, by its own name
@@ -169,14 +175,24 @@ report = "build/lync-report.md"
 | `namespace.staged` | boolean | — | — | `false` | `true`: the namespace's `schema` and `client` must map under `ServerStorage` (`stagedReplicated`, §3.4); one more namespace index in the segment toc after `Lync.release` `[interest-rewind §12.3]` |
 | `staged.paths` (`[[staged]]`) | array of instance paths | — | — | `[]` | one container lookup per path per run |
 | `staged.loader` (`[[staged]]`) | instance path of a release folder | — | — | none | exempts references to that path from `stagedReferenced` |
-| `pvs.place` (`[[pvs]]`) | path to a built `.rbxl` | — | — | required in each entry | one place read per bake `[interest-rewind §10]` |
+| `pvs.place` (`[[pvs]]`) | path to a built `.rbxl` | — | — | none: no bake, and the module at `output` is the developer's own table, read as is | one place read per bake `[interest-rewind §10]` |
 | `pvs.cell` | integer | studs | 8–256, and N = ⌈X / `cell`⌉ × ⌈Z / `cell`⌉ ≤ 65,536, with X and Z the extents in studs of the place's `Workspace` parts (the runtime's `pvs` range, `[interest-rewind §10]`; else `configRange`) | 32 (chosen: 1,024 cells on a 1,024-stud square map; a measured bake time or table size that a game can't afford changes it) | a table of N²/8 B: 128 KiB at 1,024 cells, 512 MiB at 65,536; as base64 it alone fills the documented 100 MB place limit `[generation-security §2.4]` at N = 24,495 |
-| `pvs.samples` | integer | rays per axis per cell | 1–4 | 2 (chosen: a measured rate of pairs marked hidden that are visible would change it) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
+| `pvs.samples` | integer | sample points per axis per cell | 1–4 | 2 (chosen: a measured rate of pairs marked hidden that are visible would change it) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
 | `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place, in parts of at most 200,000 bytes of source with line 1 and digest as shard parts (§1.1): 1 part at 1,024 cells, 14 at 4,096 |
 | `check.knownRemotes` | array of instance paths; `*` matches one path segment | — | — | `[]` | none; a listed `foreignRemote` entry keeps its manifest row and gets no Diagnostic |
+| `check.freeFormCodes` | integer | codes per component | 2–2^53 | 65,536 (chosen: below it every input of `v5.md` §3.4 and the measured demo inputs, above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]`; a schema whose claims or inputs fall on the other side changes it) | none; it sets `freeFormField`'s threshold |
+| `check.stagedNameBytes` | integer | B | 1–64 | 4 (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate changes it) | none; it sets `stagedNameLeak`'s minimum length |
 | `check.<code>` | `"off"` \| `"warn"` \| `"error"` | — | one key per code marked `[check]` in §3.4 | per code, §3.4 | `"off"` stops that check: no Diagnostic and no manifest entry of that code; computations another product reads still run (§3.2) |
 | `output.manifest` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-manifest.json"` | — |
 | `output.report` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-report.md"` | — |
+
+**The PVS bake** is an approximation the developer reviews, not an exact visibility test: a cell pair is marked
+hidden iff every one of the `samples`² × `samples`² segments between the two cells' sample points, at one eye
+height in XZ, intersects an opaque collidable part's box `[interest-rewind §4.1–§4.2]`. Its errors go both ways:
+an opening narrower than `cell`/`samples`, and every height difference (a viewer on a ledge), can be marked hidden
+though visible (`probes/scope-3.6/pvs_gap.luau`); meshes, unions, terrain and moving parts never occlude. What Lync
+does exactly is apply the table it is given: a pair is withheld iff its bit is 0 (`v5-collections.md`). The
+developer reviews the baked table, edits it, or supplies their own through an entry without `place`.
 
 **Keys defined elsewhere**, by the section that states their meaning and cost: `build.seed`, `build.offsets`,
 `build.tagRounds`, `build.playerVariants`, `build.playerVariantScope` (`v5-integrity.md` §2); `check.reachability`,
@@ -309,12 +325,12 @@ shards and no manifest, so none of these codes applies to it.
 | `lyncHeaderMismatch` | a `ModuleScript` whose first line is `-- Lync <version> runtime` in a subtree whose modules don't all match the generator's runtime digests; the subtree is scanned | `path`, `version` (from the header) | warning | a vendored copy of another Lync version inside a package; an edited runtime | 3 |
 | `dynamicAccess` | in the client scan set, a dynamic access of a namespace value as `v5-integrity.md` §3 defines it: `kind` 1 an index whose key is not one string literal, 2 iteration (`for … in`, `pairs`, `ipairs`, `next`), 3 a hand-off the scan cannot follow by name | `namespace`, `kind`, `binding` (uri and range of the binding source) | `[check]`, `"warn"`; severity only, never whether the namespace is incomplete, and no per-site suppression (`check.reachability = false` is the opt-out) | kind 1: a generic helper `Net[name]:fire(v)`; kind 2: a client loop connecting every event, even one that fires nothing; kind 3: a framework registering the namespace with package code the scan has no definition for; any kind: following by name, which binds the parameter of every same-named function (`X.new(Net)` binds the first parameter of every `new`) and follows shadowing locals `[build-checks §2.5]` | 5 |
 | `solverOff` | each call site of `Lync.server(` or `Lync.client(` in the all-scripts set | — | `[check]`, `"warn"` | runtime-path code under the old solver, the default in Roblox and luau-lsp, where its types degrade to error types; a project on the new solver, whose setting no tool can read (`NotScriptable`, `v5.md` §3.2), which sets `check.solverOff = "off"` | 3 |
-| `freeFormField` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > 65,536, `t.number` or `t.vector3` with more than 65,536 codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. The 65,536 is a constant, chosen: below it every input of `v5.md` §3.4 and the measured demo inputs (255-code sticks, enums, slot indices), above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]` | 3 |
+| `freeFormField` | in a client-sent payload (`data` of `from = "client"` events and requests, `reply` of `from = "server"` requests), walked depth first in name order through records, `t.optional`, array elements, map keys and values, union variants, `t.convert`'s base and `t.cframe`'s position codec, a leaf with no `:claim()` or `:input()` on itself or an enclosing codec that is `t.f32`, `t.f64`, `t.vector3f32`, `t.int()`, `t.int(min, max)` with max − min + 1 > `check.freeFormCodes`, `t.number` or `t.vector3` with more than `check.freeFormCodes` codes per component, `t.string`, `t.buffer`, `t.instance` or `t.custom` | field path, the leaf's code count; range at the definition's schema line | `[check]`, `"warn"` | chat and other free text, names and search strings, fine settings sliders, cosmetic camera or UI coordinates: each takes one `:input()`. Not found: claims in input-shaped codecs (`t.bool`, `t.int(1, 500)`) and below the threshold (`t.number(0, 600, 0.01)`): the rule is syntax and can't recognise outcomes `[checks-telemetry C5]` | 3 |
 | `decoyRef` | a collection C with a `.C:decoys(` call in the all-scripts set; a leaf of a client-sent payload, walked as `freeFormField` walks it, whose codec serialises (`v5.md` §4.7) identically to C's `key` codec; and, for that definition, no `:field("<path>"):refers(` whose argument is an expression ending in `.C`, with `<path>` the leaf's top-level field | field path, collection, `declarable` (0 when the path is not a top-level key, optional key or array of keys, and the message names `reportInteraction`) | `[check]`, `"warn"` | a field that shares the key codec but isn't a key (a `t.int(1, 2^40)` score beside `UserId` keys); a key left undeclared on purpose (a player naming its own record, never a decoy) `[decoy-challenge-facts §3]` | 5 |
 | `unscopedRef` | a server-sent event or request whose `data` holds a field whose codec serialises identically to some collection's `key` codec, with no `:field("<path>"):about(` call on that definition whose argument is an expression ending in `.C`, for that field and collection C, in the all-scripts set | field path, collection; range at the definition's schema line | `[check]`, `"warn"` | a field that shares the codec but isn't a key; an event sent to every viewer on purpose `[interest-rewind §8]` | 4 |
 | `stagedReplicated` | a staged namespace's `schema` or `client` path, or a `[[staged]] paths` entry, maps anywhere other than under `ServerStorage` or `ServerScriptService` | namespace or path, container | `[check]`, `"error"` | none: the declaration says server-only | 3 |
 | `stagedReferenced` | a script of the client scan set, or a released namespace's schema, contains, as a string literal or as a path expression (a chain of `.Name`, `:WaitForChild("Name")` or `:FindFirstChild("Name")` rooted at `game:GetService("X")` or `game.X`), the instance path of a staged namespace's `schema` or `client` module or of a `[[staged]] paths` entry, either as built under `ServerStorage` or as released (the same path below `ReplicatedStorage`), or a `require` that resolves to one, other than through a `[[staged]] loader` path | namespace, path | `[check]`, `"error"` | none outside the loader exemption | 3 |
-| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least 4 bytes long (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate would change it), occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
+| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least `check.stagedNameBytes` bytes long, occurs byte for byte as a string literal in a released namespace's schema or a script of the client scan set | the string | `[check]`, `"warn"` | a common word ("level") used in both; only the game knows whether it leaks `[interest-rewind §12.3]` | 3 |
 | `streamingOff` | the place read with `--place` has `Workspace.StreamingEnabled = false`, and the project has a staged namespace or an `:interest(` call in the all-scripts set | place path | `[check]`, `"warn"` | a game that streams nothing on purpose; with streaming off, all of `Workspace` reaches every client at join, whatever `interest` withholds `[interest-rewind §12.1]` | 3 |
 
 **Weaving** (§5; each at its site's line, or line 1 of its script):
@@ -414,12 +430,14 @@ the only regenerate-on-edit path.
   the play test ends, and reports each foreign remote with `runtime` 1: the only view of remotes that helpers create
   at run time (Cmdr, legacy chat) `[build-checks §1.3]`. That plugin code runs in that DataModel
   is unverified (§8); where it doesn't, the walk doesn't run.
-- **"Bake"** runs each `[[pvs]]` bake on the edit DataModel's parts, on demand, never on the edit path: a 1,024-cell
-  bake takes 0.17–2.16 s native on the CLI `[interest-rewind §4.2]`.
+- **"Bake"** runs each `[[pvs]]` bake, with the approximation §2 states, on the edit DataModel's parts, on demand,
+  never on the edit path: a 1,024-cell bake takes 0.17–2.16 s native on the CLI `[interest-rewind §4.2]`.
 - **Not in the plugin:** weaving, which would rewrite the open place's own scripts `[codecs-in-scripts §2]`; a
   publish or save hook, which no plugin can register `[client-security-build §1.4]`; execution coverage as a
-  reachability check `[security-tooling Impl5]`, since in a play test the server's `unreachable` fact already
-  reports each message of a definition the scan inferred unreachable, and its fix names `check.clientRoots`.
+  reachability check `[security-tooling Impl5]`: it would see only the paths a play test happens to run and needs
+  plugin code in the play-test client DataModel (unverified), while the report's `unreferenced` list already names
+  exactly what the scan found no token for, for the developer to judge against their own cloning and asset
+  patterns.
 
 ### 4.3 CI and release
 
@@ -532,12 +550,16 @@ which exists only after `rojo build`.
 ### 5.4 Closure and the gate
 
 - **Closed definition:** its namespace is complete (§3.3's predicate, the one `v5-integrity.md` §3 defines: aliases,
-  fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in the
-  client scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site or of an alias declaration
-  whose uses are all woven `[codecs-in-scripts §4.2]`. The scope is the client scan set, as for reachability: server
-  handlers name every definition they handle, so a scope of all scripts would close none. A declared trap that no
-  client code names is closed like any such definition; with `weave.dropClosed` its encoder goes too, so a driver
-  calling it raises at the caller and sends nothing: the developer's trade-off, stated in the option's row.
+  fields, returns and same-named parameters are followed, not escapes), and every occurrence of its name in the client
+  scan set, as `.name`, `:name` or the string `"name"`, is part of a woven site or of an alias declaration whose uses
+  are all woven `[codecs-in-scripts §4.2]`. Closure is exact relative to the scan set and nothing more, as
+  `unreferenced` is (§1.2): the manifest and report list every closed definition; a generic-id message on one is
+  reported at run time only for definitions the developer opts in (`check.reachability`, `v5-integrity.md` §3), and
+  site ids, constant elision and woven speed don't depend on that opt-in. The scope is the client scan set, as for the
+  unreferenced list: server handlers name every definition they handle, so a scope of all scripts would close none. A
+  declared trap that no client code names is closed like any such definition; with `weave.dropClosed` its encoder goes
+  too, so a driver calling it raises at the caller and sends nothing: the developer's trade-off, stated in the
+  option's row.
 - **Gate**, per script, before anything is written `[codecs-in-scripts §4.3]`:
 
   | Check | On failure |

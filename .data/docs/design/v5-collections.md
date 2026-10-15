@@ -36,13 +36,18 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   drawn uniformly at random among free slots (server `Random`) and held until its remove plus 2 s. Each viewer's
   decoys hold their own slots. A separate decoy pool marks decoys to the viewer through slot reuse: a viewer's best
   gap rule sorts them at a balanced accuracy of 0.65–1.00 with the pool, and 0.51 (chance) with one allocator
-  `[refusals-rejudged-4 R16]`. A decoy add that finds no free slot is not made that tick (counter `decoysUnplaced`,
-  §14) and is retried when the behaviour's next result is diffed.
-- **Sizing `maxRecords`.** It must cover live records, records removed in the last 2 s, and up to
-  `Players.MaxPlayers` × `maxPerViewer` decoy slots. A 64-record collection at 100 players and `maxPerViewer` 1
-  needs at least 165 slots plus the reuse delay, 8 bits per slot field instead of 7: about 12 B more per state tick
-  per viewer on the 100-player shooter's 1,190 B of rows, +1% (derived) `[refusals-rejudged-4 R16]`. `recordLimit`'s
-  known causes include decoys holding slots under a `maxRecords` that doesn't cover that product.
+  `[refusals-rejudged-4 R16]`. Decoys hold at most `maxSlots` slots of the collection, live and in their reuse delay
+  together (a `decoys` option, `v5-integrity.md` §8: how many slots the game spares for decoys is its decision); the
+  cap is on the count, so every slot is still drawn uniformly. A decoy add beyond the cap, or with no free slot, is
+  not made that tick (counter `decoysUnplaced`, §14) and is retried when the behaviour's next result is diffed.
+- **Sizing `maxRecords`.** It must cover live records, records removed in the last 2 s, and `maxSlots`. Decoys need
+  at most Σ over viewers of (live decoys + decoys removed in the last 2 s) ≤ `Players.MaxPlayers` × `maxPerViewer`
+  × (1 + 2 s × r) slots, r the behaviour's replacements per decoy per second: a behaviour replacing each decoy every
+  0.5 s holds 5 slots per decoy. A 64-record collection at 100 players, `maxPerViewer` 1 and r ≤ 0.2/s needs at
+  least 64 + 140 slots plus the real records' reuse delay, 8 bits per slot field instead of 7: about 12 B more per
+  state tick per viewer on the 100-player shooter's 1,190 B of rows, +1% (derived) `[refusals-rejudged-4 R16]`.
+  Real records never wait on decoys: once `maxRecords` covers live records, their reuse delay and `maxSlots`, a real
+  `set` always finds a slot.
 - **Keys** travel once, in the add; everything after addresses the record by slot.
 - **Decision: how a client knows which occupant of a slot a row belongs to.**
   - *Problem.* `:newest()` rows are encoded once per tick (§5) and travel on the unreliable lane, so a row can
@@ -60,9 +65,13 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
     count, and a viewer not sent it sees only a gap, as interest produces anyway `[refusals-rejudged-4 R16]`. The
     fault is a property of the stated rules, not a measurement: milestone 4's two-sided world tests it with a record
     that leaves and re-enters one viewer's audience while other viewers keep it.
+- **Ticks are full counters.** A and every tick stored below are extended ticks: the reliable header's `u16` and the
+  state frame's `u8` are extended to the value nearest the client's estimate ⌊(`GetServerTimeNow()` − epoch) ×
+  `stateRate`⌋, and a `RATE` keeps T continuous (its epoch is now − T / new rate), so stored ticks stay comparable
+  across a rate change (`v5.md` §4.1, §4.6).
 - **Row acceptance on the client.** Per slot the client keeps: whether it is occupied, the stored `gen` g and add
-  tick A (the tick of the reliable frame that carried the add, `v5.md` §4.1), the extended seq s of the last applied
-  row, and at most one held row. A row (gen r, frame seq q, frame tick T):
+  tick A (the tick of the reliable frame that carried the add), the extended seq s of the last applied row, and at
+  most one held row. A row (gen r, frame seq q, frame tick T):
   - applies when the slot is occupied, r = g, T ≥ A and q is newer than s;
   - otherwise replaces the held row if q is newer than the held row's seq.
   - On an add (gen g, tick A) the held row applies if its gen is g and its T ≥ A, then is discarded either way.
@@ -74,8 +83,12 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   `previous` for nothing. The cost moves to applying changes: 182 ns and 320 B per changed record, interpreted
   (64 fighters at 20 Hz ≈ 0.23 ms/s and 410 KB/s of garbage) `[probes review-redundancy get_snapshot]`
   `[review-redundancy-2 R18]`.
+- **What an add carries.** An add's `:newest()` fields hold the record's values at the latest state tick (the
+  values that tick's rows carried); a record created since that tick carries the values it was created with. So the
+  add is a sample at tick A that the server holds too (§12.4).
 - **Server API.** `set(key, record)` adds or replaces; `patch(key, partial)` changes fields (a misspelled key is
-  `unknownPatchKey`); `remove(key)`; `audience(key, target)`; `cut(key)` (§11.3). A singleton's take no key. The
+  `unknownPatchKey`); `remove(key)`; `audience(key, target)`; `cut(key)` (§11.3); `rebind(key)` (§9). A singleton's
+  take no key. The
   server-view declarations `interest`, `owner(fn)`, `team(fn)`, `rewind` and the field handle's `gate(fn)`
   (`Net.c:field(path)`, `v5.md` §3.4) are in §8, §9 and §12.
 - **Client API.** `get(key)`; `interpolated(key)` (§11); signals `added(key, record)`, `changed(key, record,
@@ -102,12 +115,14 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   - a *cell* chunk, under interest: the records filed in one cell, per partition (§8.4);
   - a *team* chunk: one (partition or cell, team) pair's `:team()` and fallback `:gated()` fields (§9);
   - a *piece*: one record's update, for viewers that hold it outside any shared chunk (hysteresis, a predicate,
-    `:owner()` and `:seen()` fields; §8.4, §9);
+    `:owner()` fields; §8.4, §9);
   - a viewer's *own* chunk (kind 0): its catch-up adds and class transitions, encoded for that viewer alone.
 - **Column coding** applies to kind 0 adds and updates of `columnMinRows` or more rows (`v5.md` §4.3). Add columns
-  use the previous row as baseline; update columns use, per (record, field), the value last sent to the record's
-  holders in that field's unit, which every holder has (a viewer joining a unit receives the current value in its own
-  chunk first; the lane is ordered). A mask column flattens like an optional: each field's column covers the rows
+  use the previous row as baseline. Update columns of fields without a visibility class use, per (record, field),
+  the value last sent to the record's holders, which every holder has (every holder receives every update of the
+  record through some unit, a viewer gaining sight gets the current value in its own chunk first, and the lane is
+  ordered). Class fields (§9) use the previous row, as add columns do: holders of one unit can hold different values
+  of a class field (nil outside the class), so a temporal baseline would decode differently between them. A mask column flattens like an optional: each field's column covers the rows
   whose mask has it. Slot columns are coded like any integer column. Pieces and rows are never column-coded (§5).
 - **Order inside a namespace's state chunks:** collections in index order; for each, the viewer's own chunk, then
   shared partition or cell chunks, then team chunks, then its piece chunk (kind 1, the per-viewer header followed by
@@ -176,33 +191,42 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
 - **Budget.** At each state tick the scheduler may write up to `state.budget` × Δt − charged bytes of rows to a
   player, never less than `state.floor` × `state.budget` × Δt. Δt is the time since the previous state tick (at
   most 2/`state.rate`); charged is every byte sent to that player since (reliable frames, unreliable events).
-- **One rule: the largest accumulated weight goes first.** Each pending (viewer, record) has a score s. At every
-  state tick while it is pending (the tick it became pending included), s += w, with
-  w = `priority` × distanceFactor × ownerBoost × firstSendBoost. s resets to 0 when the row is *sent*, not acked;
-  a record re-pended after a loss starts again from 0. Outside interest the three factors are 1.
-  - distanceFactor (interest only), with d the distance in studs from the viewer's focus to the record's filed
-    position (§8.3) and R the cell side: 1 for d ≤ R/4; 1 − 0.8 × ((d − R/4) / 0.75R)² for R/4 < d ≤ R (0.2 at R);
-    0.1 for d > R (members held by hysteresis). The Iris sphere's bands `[state-sync §2.1]`.
-  - ownerBoost (interest only): 4 when the collection has an `owner` binding (§9) and the viewer is the record's owner, else 1.
-  - firstSendBoost (interest only): 4 for the first row after a catch-up add to that viewer, else 1. Both ×4 come from Iris
-    `SphereWithOwnerBoost` and Netcode for Entities' `FirstSendImportanceMultiplier` `[state-sync §3.3]`.
-  - **Age floor.** A record pending for more than 2 s (`maxPendingAge`) is taken before every other, oldest first.
-    Strict weights can otherwise starve a record for as long as the weight ratio allows (1000 / 0.001 between
-    `priority` bounds); 2 s is the research's floor, never reached in its simulations `[state-sync §3.4]`.
-- **Two implementations of the rule.**
-  - *Without interest*, w is constant per collection, so s = `priority` × age in state ticks, and one FIFO per
-    collection ordered by the tick records became pending keeps them in score order: the head has the largest s.
-    O(1) per step; 1.2–5.8x less CPU than accumulators with a bucket pass `[probes review-redundancy sched_fifo]`.
-  - *With interest*, w changes per viewer every tick, which a FIFO can't hold. Each viewer's pending interest records
-    sit in 40 buckets by b = clamp(⌊log2 s⌋ + 20, 0, 39), oldest first within a bucket; b covers s from 2^−20 (the
-    smallest w, 0.001 × 0.1 ≈ 2^−13.3, after one tick) to 2^19 and above. 20–60 ns native per (viewer, pending
-    record) per tick, and a comparator sort costs 3.5–7x as much `[state-sync §3.5]`. At 50% of demand the far
-    records wait a mean of 1.1 ticks and p99 3, with own and near records at 0; strict priority starves them
-    `[state-sync §3.4]`.
-  - *One selection across both.* Each step takes the candidate with the largest key among every FIFO head (key s)
-    and the oldest record of the highest non-empty bucket (key 2^(b − 20), the bucket's lower bound); ties go to the
-    FIFO head, then to the lower collection index. A collection's rows are fixed-width, so once its next row doesn't
-    fit none of it does, and the others continue until nothing fits.
+- **Decision: who weighs records.**
+  - *Problem.* Under the budget some rows wait, and which wait (the owner's record, a near one, one just entered) is a
+    judgement about the game: draft 3.6's first text fixed the Iris sphere's bands and ×4 owner and first-send boosts
+    `[state-sync §2.1, §3.3]`, figures from other engines that bound no quantity of Lync's.
+  - *Options:* Lync's fixed bands (cheap; Lync decides importance for every game); a table of band values (the
+    developer sets numbers, Lync still fixes the shape); **a developer weight function, with Lync's selection rule
+    exact around it**.
+  - *Choice: the developer's weight function.* Lync keeps only what it can do exactly: accumulate, order, bound age.
+- **Score.** Each pending (viewer, record) has a score s. At every state tick while it is pending (the tick it became
+  pending included), s += w; s resets to 0 when the row is *sent*, not acked, and a record re-pended after a loss
+  starts again from 0. w = `priority` × g, where g = `weight(viewer, key, record, distance, first)` when the
+  collection's `interest` declares `weight` (§8.2), else 1. `distance` is studs from the viewer's focus to the
+  record's filed position (§8.3); `first` is true for the first row after a catch-up add to that viewer. A result that
+  is not a finite number in (0, 1000], a throw or a yield counts as g = 1 that tick and is reported natively as
+  `weightError` or `weightYielded` (§8.7). The docs give Iris's sphere with owner and first-send boosts as an example
+  function; at 50% of demand it kept far records at a mean of 1.1 ticks and p99 3, with own and near records at 0,
+  where strict priority starves them `[state-sync §3.4]`.
+- **Order** (one rule, exact). The candidates at each step are each collection's pending rows for the viewer.
+  1. A record pending for longer than `state.maxPendingAge` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen: the
+     research's starvation floor, never reached in its simulations `[state-sync §3.4]`; a game's freshness
+     requirement would change it) goes before every other, oldest first.
+  2. Then the largest class c = clamp(⌊log2 s⌋, −20, 19) first;
+  3. within a class, the oldest pending first; then the lower collection index.
+  A collection's rows are fixed-width, so once its next row doesn't fit none of it does, and the others continue
+  until nothing fits.
+- **Two implementations of the one rule.**
+  - *Without `weight`* (with or without interest), w is constant per collection, so s = `priority` × age in state
+    ticks, and one FIFO per collection, ordered by the tick records became pending, holds them in order: its head is
+    its oldest and largest. O(1) per step; 1.2–5.8x less CPU than accumulators with a bucket pass
+    `[probes review-redundancy sched_fifo]`.
+  - *With `weight`*, w changes per pair every tick, which a FIFO can't hold: each viewer's pending records of such
+    collections sit in 40 buckets by c, oldest first within a bucket. 20–60 ns native per (viewer, pending record)
+    per tick for the pass, a comparator sort costing 3.5–7x as much `[state-sync §3.5]`, plus one `weight` call per
+    (viewer, pending record) per tick (§8.7's thread, 119 ns interpreted on the CLI before the function's own work,
+    `probes/collections-3.6/callback_thread.out`). Each step compares the FIFO heads' classes with the highest
+    non-empty bucket's.
 - **Over budget** Lync defers rows (counter `rowsDeferred`) and never lowers precision. Pending is a flag, so the
   backlog is bounded by the record count `[state-sync §3.9]`.
 

@@ -8,13 +8,12 @@ formatted text (compression §5's templates), for:
   interned  t.string(max):intern(T): value = entry:u1, then id:u(w) (entry) or the plain t.string form (literal);
             definitions in the viewer's strings chunk: per table count:EG0, then per definition id:u(w) len:u(Lt),
             bytes in the tail; plus the chunk's framing (below)
-Framing charged to interned, per frame carrying definitions: the strings chunk's collection index (0 bits in an
-events-only namespace, 1 bit with one collection), EG0 of the definition count, 3.5 bits of mean alignment padding
-(chunks start on a byte, residue assumed uniform), and the toc change (events-only namespace: a new state segment,
-+2 bits for segs n 0 -> 1, EG0 namespace index 1 = 3 bits, count-1 = 1 bit; with collections, the namespace's
-existing state segment count +1: +2 bits from EG0(0) to EG0(1)). Per reliable state chunk of a namespace whose
-collection count is a power of two, +1 bit of collection index (the strings index widens it), charged on every
-frame of the collection models (an upper bound: one state chunk per frame).
+Framing charged to interned, per frame carrying definitions: EG0 of each table's definition count, 3.5 bits of
+mean alignment padding (chunks start on a byte, residue assumed uniform), and the toc change (events-only
+namespace: a new state segment, +2 bits for segs n 0 -> 1, EG0 namespace index 1 = 3 bits, count-1 = 1 bit,
+strings flag 1 bit; with collections, the namespace's existing state segment's count +1: +2 bits from EG0(0) to
+EG0(1)). Per state segment of a namespace declaring a table, the strings:u1 flag: charged on every frame of the
+collection models (an upper bound: a state segment in every frame).
 Bytes = bits / 8 (expected value; the frame rounds once).
 Usage: python3 -B strings_model.py   (no zstd needed: compression §5 found zstd adds nothing at these sizes)
 """
@@ -57,8 +56,8 @@ def frame_cost(values, viewer, tables, ns_has_collections, w_of):
         if s not in viewer.held and s not in defs.get(tbl, {}):
             defs.setdefault(tbl, {})[s] = b
     if defs:
-        hdr = (1 if ns_has_collections else 0) + ALIGN
-        hdr += 2 if ns_has_collections else (2 + 3 + 1)
+        hdr = ALIGN
+        hdr += 2 if ns_has_collections else (2 + 3 + 1 + 1)
         for tbl in tables:
             hdr += eg0(len(defs.get(tbl, {})))
         interned += hdr
@@ -73,6 +72,7 @@ def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of, state
     m = traffic.MODELS[model](hz=hz, seed=51)
     v = Viewer()
     tot_in = tot_int = 0.0
+    ss_in = ss_int = 0.0
     nd = ndframes = nref = 0
     table_bytes = {t: 0 for t in tables}
     entries = {t: set() for t in tables}
@@ -87,6 +87,9 @@ def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of, state
             first = (a, b, sum(len(d) for d in defs.values()))
         tot_in += a
         tot_int += b
+        if i > 0:
+            ss_in += a
+            ss_int += b
         nref += sum(1 for t, _, _ in vals if t is not None)
         if defs:
             ndframes += 1
@@ -102,6 +105,8 @@ def run(name, model, hz, frames, mapper, tables, ns_has_collections, w_of, state
     print(f"  inline   {tot_in / 8 / secs:8.2f} B/s")
     print(f"  interned {tot_int / 8 / secs:8.2f} B/s   saved {(tot_in - tot_int) / 8 / secs:7.2f} B/s"
           f" ({100 * (1 - tot_int / tot_in):.1f}%)")
+    print(f"  steady state (frame 0, the join catch-up, excluded): inline {ss_in / 8 / secs:.2f} B/s,"
+          f" interned {ss_int / 8 / secs:.2f} B/s")
     for t in tables:
         print(f"  table {t}: {len(entries[t])} entries, {table_bytes[t]} B of strings, w = {w_of[t]}")
     print(f"  first frame: inline {first[0] / 8:.1f} B, interned {first[1] / 8:.1f} B ({first[2]} definitions)")
@@ -131,14 +136,14 @@ def tycoon_map(tbl):
         out = []
         for ctx, s in fr.strings:
             if ctx == "notify":
-                item, lvl = NOTIFY.match(s).groups()
-                out += [(tbl, 32, item), (None, 0, "")]  # level t.int(1, 255): 8 bits, both sides
-                out[-1] = ("LEVEL", 0, "")
+                item, _ = NOTIFY.match(s).groups()
+                out.append((tbl, 32, item))
+                out.append((None, 255, ""))  # level t.int(1, 255): u(8), the same on both sides; no bytes
             elif ctx in ("label", "purchase"):
                 out.append((tbl, 32, s))
             else:
-                out.append((None, 200, s))  # chat: never interned
-        return [(t, mx, s) for t, mx, s in out if t != "LEVEL"] + [(None, 255, "") for t, _, _ in out if t == "LEVEL"]
+                out.append((None, 200, s))  # chat t.string(200): never interned
+        return out
     return f
 
 

@@ -1,0 +1,11 @@
+run: luau 0.740, CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+fresh, normal:	true	2	dead
+fresh, yields:	true	nil	suspended
+fresh, throws:	false	boom	dead
+pooled, normal:	true	2	ok
+pooled, yields:	false	nil	yielded
+pooled, after:	true	3	ok
+coroutine.close exists:	true
+direct pcall: 43.1 ns/call
+fresh thread: 249.6 ns/call
+pooled thread: 118.5 ns/call

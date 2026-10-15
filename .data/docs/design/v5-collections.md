@@ -16,7 +16,7 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
 |---|---|---|---|
 | structure: add, remove, audience change | reliable | every flush | changes since the last flush, encoded once per unit (§3) |
 | reliable fields | reliable | every flush, or at `reliableRate` | changes since the last send, encoded once per unit, no acks (ordered delivery keeps the client equal to the last sent state) |
-| `:newest()` fields | unreliable | state ticks | absolute rows encoded once per tick, chosen per viewer, repaired by notify |
+| `:newest()` fields | unreliable | state ticks | absolute rows encoded once per tick (or, with `acked`, predicted per viewer, §5.1), chosen per viewer, repaired by notify |
 
 - **Reliable fields are sent as often as they are written** (every flush) unless the collection declares
   `reliableRate`: then field changes are coalesced and sent on flushes where ⌊(`GetServerTimeNow()` − epoch) ×

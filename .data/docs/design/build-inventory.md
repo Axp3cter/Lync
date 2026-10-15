@@ -16,8 +16,8 @@ details of draft 3.6 are cited only as "in progress".
 
 Status (each section written in its own edit):
 - [x] 1. Module map of `f1fbfd7`
-- [ ] 2. Test harness
-- [ ] 3. Tooling and config
+- [x] 2. Test harness
+- [x] 3. Tooling and config
 - [ ] 4. Lessons
 - [ ] 5. Reusable as is, with changes, discard
 - [ ] 6. Unit sizing evidence
@@ -79,7 +79,7 @@ milestone 2 `init.luau` additions (`m2-plan.md` §3.6), `bench/inbound.bench.lua
 
 Layering as built (all requires checked against the list above): `diag` and `host` at the bottom, then
 `wire → plan → codec → transport → session → sched`; no file requires a later layer. Two placements differ from
-`v5.md` §2's layer list (`v5.md:94-95`, "session (handshake, tag, acks, requests) → sched (flushing, ticks,
+`v5.md` §2's "Runtime layers" ("session (handshake, tag, acks, requests) → sched (flushing, ticks,
 budgets)"): the tag is `transport/tag.luau` and the buckets are `session/buckets.luau` (`m2-plan.md` §3.3, §3.4).
 No check enforces the layer rule (no test or script scans requires) *(inferred from a search of `test/`)*.
 
@@ -88,3 +88,160 @@ are not: new solver 6 errors in `sched/outbox`, 14 in `session/requests`, 6 in `
 `session/inbound`; old solver 2 each in `outbox`, `requests`, `inbound` (for example
 `f1fbfd7:src/session/requests.luau:160` "Function only returns 1 value, but 2 are required"). Every F module loads
 under Lune; `host/roblox` cannot (it calls `game:GetService` at load).
+
+## 2. Test harness
+
+**Runner.** `f1fbfd7:test/run.luau` (117 lines, Lune): finds every `*.spec.luau` under `test/`, requires each, and
+runs each named function of the returned table in its own `pcall`; prints failures and `N passed, M failed`, exits 1
+on any failure. Filter `lune run test/run.luau [filter]` is a plain substring of `"<spec path> <test name>"`
+(`:95-98`); every spec is still required. It copies `Vector3 CFrame Color3 Instance Enum` from `@lune/roblox` into
+`getfenv(0)` before any require (`:39-45`, `:76`), the only `getfenv` in the tree. Env switches: `LYNC_SEED=<n>` (replay),
+`LYNC_FULL=1` (full counts) (`:14-16`). No setup/teardown framework.
+
+**Assertions** (`test/support/check.luau`, 230 lines): `expect`, `expectEqual` (deep; buffers by content; NaN equals
+NaN), `expectBytes(actual, hex)` (first differing byte), `expectThrow(fn, { code, at?, subject?, path? })` parsing
+`^(.-):(%d+): %[Lync%] (%a+): (.*)$` (`:28`); `subject`/`path` must be whole tokens; prose is never compared.
+`expectFact` and `expectQuiet` live in `world.luau` (below).
+
+**Properties** (`test/support/prop.luau`, 79 lines): `Prop.check(name, generate(size), test, { runs?, seed? })`;
+200 runs, size 1 → 100; run i reseeds `math.random` with base + i − 1; shrink = regenerate the failing run at halved
+sizes; the error names `LYNC_SEED`, run and smallest size. No combinators.
+
+**Generators** (`test/support/gen.luau`, 438 lines): `Gen.codec(depth, size)` builds random DSL codecs (22 leaf
+kinds; never an optional where `optionalPlacement` refuses one, `:229-230`); `Gen.plan` plans one as an event's data
+through `Lync.schema`; `Gen.plannedCodec` retries until the planner accepts; `Gen.value(codec, size, style)` draws
+values **as the codec decodes them** (quantized, canonical direction/rotation, f32-rounded) so a round trip returns
+the same value (`:9-11`); `Gen.style` varies absent-optional chance and used variants; `t.custom` is a u10.
+
+**Frame pieces** (`test/support/frame.luau`, 223 lines; owned C, then D): `Frame.arena()` plans `v5.md` §3.4's
+`arena`; `writeRunHeader/readRunHeader`, `writeAnswerPrefix/readAnswerPrefix` (slot u4, epoch u1, outcome u2,
+`:38-40`), `encodeRun/decodeRun` (a run's payloads alone, rule 4 when bits and tail don't meet).
+`test/transport/frames.luau` (535 lines) is a test-only whole-frame decoder standing in for the inbound pipeline
+(rule 7 for ids, lanes, unwelcomed namespaces, control direction; no tag) plus a random chunk generator.
+
+**Simulated network** (`test/support/net.luau`, 243 lines). Per link and direction; holds no clock.
+- Reliable: arrival = now + latency + jitter·U, then `max(arrival, lastReliableAt)` keeps order; stalls start as a
+  Poisson process (`stall.chance`/s) and hold every frame due inside one until its end (`:99-113`).
+- Unreliable: over `unreliableLimit` dropped; Gilbert–Elliott burst state (`enter`/`leave` per frame, drops all
+  while in it); then `loss`; arrival with its own jitter (reorders); `duplicate` sends a second copy with fresh jitter
+  (`:115-139`).
+- Randomness: xorshift128 seeded through murmur3's finalizer, 16 warm-up draws (`:65-77`, `:201-224`).
+- Defaults `Net.HONEST` (`:144-153`): latency 0.05, jitter 0.02, loss 0.05, burst `{0, 1}`, duplicate 0, stall
+  `{0.05, 0.3}`, fps 60, unreliableLimit 1000. `Net.params(base, overrides)` replaces whole fields.
+
+**Simulated world** (`test/support/world.luau`, 743 lines). One virtual clock; server steps at 60 Hz, each client at
+its link's `fps`; `world:step(dt)` advances to each due step in time order, delivers every arrived frame (binary heap,
+FIFO on ties), then runs that peer's `onStep` (`:723-741`). `Host` per peer: `now` = 1000 + t, `clock` = t,
+`entropy32` seeded, `spawn` runs at once in a coroutine and records a raise as a native report, `report`/`warn`
+recorded (`:352-422`). Players are frozen tables with `UserId`, `Name`, a recording `Kick`. Frames are copied at
+send; delivered only after both ends opened and a handler is set; `world.calls` records `send`/`broadcast`/`raw`
+(a broadcast is one call). `World.raw(client, lane, ...)` sends any arguments (the modified-client path).
+Assertions: `expectFact(peer, { reason, player?, count?, definition?, evidence? })` claims the earliest match;
+`claimLines`, `claimReports`; `expectQuiet` fails on any unclaimed fact, report or console line (`:606-655`).
+Runtimes come through an `Endpoint { new, observe }` (`:41-44`); at `f1fbfd7` only a stub endpoint was ever plugged
+in (`host/world.spec.luau`); unit F never connected a real runtime, so no honest or modified-client suite exists.
+
+**Golden frames.** `test/golden/index.json` has 65 entries: G1, G2, G2b, G3, G4, G5, G7, G8, G9a, G9b, G10, G11,
+`PERM-12345678`, and 52 `Q-*` quantizer vectors (edges of each quantizer, every smallest-three branch, the 24 axis
+rotations). Entry shape `{ id, file | bits, milestone, what, design }`; `bits` is a stream-order string for vectors
+that end inside a byte (`test/support/golden.luau:34-41`).
+- Produced: `.bin` files written once from `v5.md` §4.10's hex and never regenerated by the code under test
+  (`m1-plan.md` §4.4); G10 and G11 from `probes/design-3/golden_m2.luau` (`m2-plan.md` §5); the `Q-*` bits by
+  `test/wire/quant.golden.luau`, which "requires nothing from `src/`" (its header) and encodes from §3.3 alone.
+- Checked: frames are built by `src/transport` around `Run.encode` payloads, compared with `expectBytes`, then the
+  `.bin` is opened and decoded back to the values (`golden.spec.luau:230-388`); tagged vectors use key `00…07`,
+  count 0, cover 1024. G6 (bytes and hash `ab 86 8b 15 cd 9c 16 40`) is in `test/plan/serialize.spec.luau:32-43`;
+  G1 and G9a/b in `test/wire/ints.spec.luau:88-130`; `Q-*` in `test/wire/quant.spec.luau:171`. A meta-test fails if
+  any milestone ≤ 2 frame vector is not in its `REPRODUCED` table (`golden.spec.luau:404-419`).
+- G4, G5 and G8 carry the **16-bit** tag (`probes/build/README.md`); draft 3.6 in progress changes G4, G5, G6, G7,
+  G8 and G10 and adds G4c, DERIVE, W1, W2 (`v5.md` §4.10 "Provenance", in progress).
+
+**Fuzzers and mutation.**
+- `test/codec/mutation.spec.luau`: padding flips, truncation, appended byte, map order, rule 9 lists, codes past max
+  (each its rule); a seeded random-mutation property (400 runs, 30,000 with `LYNC_FULL`, `:31-32`) that never raises
+  and, for single rows, re-encodes accepted input to the same bytes (C8).
+- `test/transport/mutation.spec.luau`: one test per rule 2–10 on whole frames both ways, random frames and mutated
+  encoder frames (300 / 20,000 runs, `:53-54`), reader budget 65,536 (`:12`).
+- `test/transport/frame.spec.luau`: random chunk lists round-trip in every frame kind (200 / 5,000 runs, `:43-44`).
+- The review's own fuzzer (`probes/review-m1/p5_fuzz.luau`, 140,000 cases) stayed outside the suite.
+
+**Exhaustive and heavy checks.** In-suite with a `LYNC_FULL` switch: `quant.spec.luau` random counts default
+`min(n, 10,000)`, full 10^6 per width (`:17-21`). Outside the suite, run by hand: `test/codec/rotation_full.luau`
+(exhaustive codes per width, splittable by part; 10^7 random; worst-case error search),
+`test/codec/min_rows.luau` (the `columnMinRows` table). In-suite always: exhaustive 8-bit direction (511
+non-canonical), every colour code, every grid code of the `number_steps` cases, sampled 7–8-bit rotations, 20,000
+random rotations (`rotation.spec.luau:41`).
+
+**Typing proofs** (`test/types/run.sh`, 84 lines): each `<name>.luau` runs through `luau-analyze --solver=new`
+and/or `luau-lsp analyze` on both solvers, output diffed against `<name>.expected` with paths normalised; exit 139 is
+a failure; `--update` rewrites expectations. Seven proofs: `arena brand enums request sides typo typo_schema`
+**(rerun: 7 PASS, 21.4 s)**.
+
+**Benchmarks.** `bench/column.bench.luau` (Luau CLI, `-O2` and `-O2 --codegen`, one JSON line per result appended to
+`bench/results/<sha>.json`): column encode with full k search vs k = 0 on 64-row columns of four patterns, decode,
+EG-0 per value and batched, HalfSipHash 64 B / 1024 B. Recorded: `579015b.json` (38 lines), `c91960e.json` (40
+lines, has `readEgMany0` 42.9 ns interpreted / 27.9 native, `searchRatio` ≤ 2.58). `test/codec/rotation.bench.luau`
+(checked decode 2.56× interpreted, 2.66× native; `test/codec/results/rotation-3a222e0.json`). Copies are in
+`probes/build/results/` (byte-identical **(rerun: cmp)**).
+
+**Default vs `LYNC_FULL=1`, counts and times.** Recorded: 242 tests at the review baseline (`m1-code.md:9`); 362
+tests and "about 37 s" at milestone 1 close (`m1-plan.md:691`); 430 at unit D's finish (ledger,
+`f1fbfd7:.data/docs/agents.md:40`); "wire 4.5 s default" (ledger `:35`). **(rerun)** at `f1fbfd7`: default 430
+passed in 35.0 s; `LYNC_FULL=1` 430 passed in 182.3 s. Per directory (default, tests / seconds incl. ~0.4 s load):
+wire 63 / 5.1, plan 77 / 18.5, diag 91 / 2.7, codec 96 / 4.9, golden 11 / 0.6, transport 54 / 3.2, session 13 /
+0.8, host 25 / 3.2. `plan/sizes.spec.luau` alone is 2 tests and 17.8 s (B11's 20,000 messages per definition);
+`registry.spec` 56 and `codec/refusal.spec` 59 are generated per code/case. Test code: 13,530 lines
+(`test/**`), of which support 2,047.
+
+## 3. Tooling and config
+
+**At `f1fbfd7`** (root files: `.gitignore default.project.json rokit.toml selene.toml stylua.toml`; no `.luaurc`, no
+`scripts/`, no CI workflow, no `wally.toml`/`package.json`; `git ls-tree f1fbfd7`).
+- `rokit.toml`: `lune-org/lune@0.11.0`, `rojo-rbx/rojo@7.7.1`, `JohnnyMorganz/luau-lsp@1.70.1`,
+  `JohnnyMorganz/StyLua@2.6.0`, `Kampfkarren/selene@0.32.0`. The Luau CLI 0.740 is not rokit-managed; it comes from
+  `~/.cache/luau-skill/luau-0.740-linux-x86_64/` (`m1-plan.md:32-33`), as do the Roblox definitions
+  `roblox-defs-2857efa82454.luau` used by every type check (`m1-plan.md:85`).
+- `stylua.toml`: `syntax = "Luau"`, column 100, Unix endings, **tabs**, width 4, `AutoPreferDouble`,
+  `call_parentheses = "Always"`, `collapse_simple_statement = "Never"`, `sort_requires` on. StyLua's output wins
+  over the skill's alignment-padding rule (`m1-plan.md:60-61`).
+- `selene.toml`: `std = "roblox"`, linting `src` and `bench` only. The plan's lead note says the roblox std could not
+  be generated behind the proxy and `std = "luau"` was used "until CI" (`m1-plan.md:530-531`); the committed file
+  says `roblox`. `types.luau` carries `--# selene: allow(undefined_variable)` for type-function bodies
+  (`f1fbfd7:src/types.luau:3-4`).
+- Requires: relative strings everywhere; `@self/` only in `src/init.luau`; tests reach `src` as `../../src/...`.
+  Checked on Lune 0.11.0 and Luau 0.740 (`m1-plan.md:16-19`). No aliases were needed, so no `.luaurc`.
+- Rojo: `default.project.json` = `{ "name": "lync", "tree": { "$path": "src" } }`, also the `sourcemap.json`
+  source. `.gitignore`: `__pycache__/ *.pyc sourcemap.json roblox.yml bench/results/*.tmp`.
+- Commands (`m1-plan.md:82-89`): `lune run test/run.luau [filter]`; `luau-lsp analyze --platform=roblox
+  --flag:LuauSolverV2=true|false --definitions=@roblox=<defs> src`; `sh test/types/run.sh`;
+  `luau -O2 [--codegen] bench/<name>.bench.luau`; `stylua --check src test bench`; `selene src bench`.
+  No StyLua or selene result is recorded in the plans, ledger or review; this scout did not run them (neither
+  binary is installed here).
+- Planned, not built: the Studio kit `studio/` (`m2-plan.md:445-447`), `bench/inbound.bench.luau` (`:362-363`), a
+  CI that runs any of the above. `bench/rows.luau` was built as `test/codec/min_rows.luau` (Lune, because it needs
+  the codec and Roblox types) (`v5-changes.md:358`).
+
+**The v4 working tree** (`research/v4.md`; files read at HEAD):
+- `rokit.toml`: luau-lsp 1.69.0, lune 0.10.5, rojo 7.7.0, StyLua 2.5.2, **wally 0.3.2**, no selene.
+- `stylua.toml`: **spaces**, width 4, column 100, `collapse_simple_statement = "ConditionalOnly"`, sort_requires;
+  `.styluaignore` excludes `build/ node_modules/ typedefs/`.
+- `.luaurc`: `languageMode: strict`, all lints, `lintErrors: true`, aliases `bench fixtures lune(=./typedefs/lune)
+  src test`.
+- `default.project.json` named `"Lync"`; `wally.toml` `axp3cter/lync` 4.0.3; `package.json` `@axpecter/lync`
+  4.0.3 with roblox-ts 3.0.0 and TypeScript 5.5.3; `tsconfig.json` checks the hand-written `index.d.ts` against
+  `test/Declaration.ts` and `test/Rejections.ts`.
+- `scripts/` (Lune): `run.luau` with commands `setup verify fmt analyze test bench check build`; checks include
+  `width` and `edges` ("holding the layer stack", `scripts/run.luau:41-42`). `.github/workflows/ci.yml` runs
+  `lune run scripts/run.luau verify` and `check`; `release.yml` adds `bench` and `build`; `docs.yml` runs
+  `mkdocs build --strict`. `.vscode/settings.json` enables luau-lsp's new solver with `./typedefs/roblox.d.luau`.
+- `typedefs/` vendors Lune and Roblox definitions (19k lines, `research/v4.md:20`); `fixtures/` holds v4 test
+  doubles and schemas.
+
+**What v5 keeps or replaces.** Stated: v5 publishes `lync` on Wally, pesde and the Creator Store and `@lync/core` on
+npm (`v5.md` §2 "Packages"), so v4's `axp3cter/lync` and `@axpecter/lync` identities and the hand-written `index.d.ts` are
+replaced by generated `.d.ts` (milestone 3, `v5.md` §10 item 3); repo tooling "never shipped" is StyLua and selene
+with a Lync `std` file, Moonwave, Markdown guides and `docs/codes/`, GitHub Actions, Python
+(`v5-tooling.md` §7 "Repo tooling"). What the milestone build already changed against v4, as facts of the two trees: tabs for
+spaces, newer pinned tools plus selene, no wally, no `.luaurc` aliases, no vendored `typedefs/` (skill-cache
+definitions instead), no `scripts/` runner and no CI. *(inferred)* v4's `edges` layer check and its CI gate have no
+v5 counterpart yet; the next plan must either port them or name a replacement.

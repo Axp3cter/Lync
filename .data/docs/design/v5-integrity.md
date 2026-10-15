@@ -247,11 +247,12 @@ below `[security-tooling §9]` `[generation-methods §0]`.
 
 ## 3. Traps and reachability
 
-One fact, `unreachable`, for a message of a client-sent definition that the developer declared, or opted in as,
-fired by no unmodified client code, with evidence `basis` naming what established that: 0 the scan found no
-reference, 1 `:trap()`, 2 a closed definition's generic id `[review-redundancy-2 5]` `[codecs-in-scripts §7.1]`.
-Three triggers with one meaning, so one reason with one evidence value per trigger (`v5.md` principle 4). A
-trapped definition reports `basis` 1, never 0 or 2.
+Three facts for a message of a client-sent definition that the developer declared, or opted in as, fired by no
+unmodified client code, one per way that was established `[review-redundancy-2 5]` `[codecs-in-scripts §7.1]`:
+`trapMessageReceived` (the definition is marked `:trap()`), `unreferencedMessageReceived` (the scan found no
+reference) and `genericIdMessageReceived` (a closed definition's generic id). They are three codes, not one with a
+`case`, because their action (dropped against delivered) and their fix differ (`reviews/v5-3.6-naming.md` §11.2's
+rule). A trapped definition reports `trapMessageReceived` only.
 
 - **Completeness** (generated path). A namespace is incomplete, and nothing is inferred or closed for it, when the
   scan of the client scan set (`v5-tooling.md` §3.3: scripts in replicating containers, the top-level services

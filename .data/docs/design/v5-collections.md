@@ -311,9 +311,10 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
 
 ## 7. Scheduling and budget
 
-- **Budget.** At each state tick the scheduler may write up to `state.bytesPerSecond` × Δt − charged bytes of rows to a
-  player, never less than `state.newestMinFraction` × `state.bytesPerSecond` × Δt. Δt is the time since the previous state tick (at
-  most 2/`state.ticksPerSecond`); charged is every byte sent to that player since (reliable frames, unreliable events).
+- **Budget.** At each state tick the scheduler may write up to `state.bytesPerSecond` × Δt − charged bytes of rows
+  to a player, never less than `state.newestMinFraction` × `state.bytesPerSecond` × Δt. Δt is the time since the
+  previous state tick (at most 2/`state.ticksPerSecond`); charged is every byte sent to that player since (reliable
+  frames, unreliable events).
 - **Decision: who weighs records.**
   - *Problem.* Under the budget some rows wait, and which wait (the owner's record, a near one, one just entered) is a
     judgement about the game: an earlier text of this draft fixed the Iris sphere's bands and ×4 owner and first-send boosts
@@ -328,12 +329,12 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
   collection's `interest` declares `weight` (§8.2), else 1. `distance` is studs from the viewer's focus to the
   record's filed position (§8.3); `first` is true for the first row after a catch-up add to that viewer. A result that
   is not a finite number in (0, 1000], a throw or a yield counts as g = 1 that tick and is reported natively as
-  `weightError` or `weightYielded` (§8.7). The docs give Iris's sphere with owner and first-send boosts as an example
+  `weightResultRefused`, `weightRaised` or `weightYielded` (§8.7). The docs give Iris's sphere with owner and first-send boosts as an example
   function; at 50% of demand it kept far records at a mean of 1.1 ticks and p99 3, with own and near records at 0,
   where strict priority starves them `[state-sync §3.4]`.
 - **Order** (one rule, exact). The candidates at each step are each collection's pending rows for the viewer.
-  1. A record pending for longer than `state.maxPendingSeconds` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen: the
-     research's starvation floor, never reached in its simulations `[state-sync §3.4]`; a game's freshness
+  1. A record pending for longer than `state.maxPendingSeconds` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen:
+     the research's starvation floor, never reached in its simulations `[state-sync §3.4]`; a game's freshness
      requirement would change it) goes before every other, oldest first.
   2. Then the largest class c = clamp(⌊log2 s⌋, −20, 19) first;
   3. within a class, the oldest pending first; then the lower collection index.

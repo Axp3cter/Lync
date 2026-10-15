@@ -309,16 +309,19 @@ unmodified game, and the milestone that raises it (M).
 
 | Code | Exact trigger | Evidence | Severity | Known causes | M |
 |---|---|---|---|---|---|
-| `configSyntax` | `lync.toml` text that doesn't parse as TOML | `line`, `col` | error | a mistake in `lync.toml` | 3 |
-| `configUnknownKey` | a key the JSON Schema of `lync.toml` doesn't define | key path | error | a misspelled key; a key removed in v5 (`[types]`) | 3 |
-| `configType` | a value of the wrong type | key path, expected type | error | a mistake in `lync.toml` | 3 |
-| `configRange` | a value outside its range in §2 or §5.7, including an unsupported `format` and a range that names another key or the sourcemap | key path, the range | error | a mistake in `lync.toml`; a sourcemap that now maps `output.manifest`'s folder | 3 |
-| `configMissing` | no `lync.toml` and no `ServerStorage.Lync.Config`; a required key or table absent (such as `[[namespace]]`); a required file absent (`project.sourcemap` under §2's condition) | key path or file | error | a fresh project; a sourcemap not generated before the run | 3 |
+| `configMalformed` | `lync.toml` text that doesn't parse as TOML | `line`, `column` | error | a mistake in `lync.toml` | 3 |
+| `configKeyUnknown` | a key the JSON Schema of `lync.toml` doesn't define | key path | error | a misspelled key; a key removed in v5 (`[types]`) | 3 |
+| `configValueWrongType` | a value of the wrong type | key path, expected type | error | a mistake in `lync.toml` | 3 |
+| `configValueOutOfRange` | a value outside its range in §2 or §5.7, including an unsupported `format` and a range that names another key | key path, the range | error | a mistake in `lync.toml` | 3 |
+| `outputPathMisplaced` | `output.manifest` or `output.report` inside a folder the sourcemap maps into the place, or a `pvs.output` that maps anywhere other than under `ServerStorage` or `ServerScriptService` | key path, the folder or container it maps to | error | a sourcemap that now maps `output.manifest`'s folder; a `pvs.output` written under `ReplicatedStorage` | 3 |
+| `configMissing` | no `lync.toml` and no `ServerStorage.Lync.Config` | — | error | a fresh project | 3 |
+| `configKeyMissing` | a required key or table absent (such as `[[namespace]]`) | key path | error | a fresh or partly written `lync.toml` | 3 |
+| `sourcemapMissing` | the `project.sourcemap` file absent when §2's condition requires it | file | error | a sourcemap not generated before the run | 3 |
 | `cloudRequestFailed` | an Open Cloud request of `lync check --published` answered with a status outside 200–299 | `endpoint`, `status` | error | an API key without scope `universe.place.luau-execution-session:write`; an exhausted rate limit (5 task creations per minute per key owner) | 6 |
 | `cloudTaskFailed` | the Luau Execution task ended in a state other than `COMPLETE` | `state` | error | a place whose listed scripts take the task past its 5-minute limit | 6 |
-| `publishedUnreadable` | the task's read of a script's `Source` raised | `path`, `error` (the raised text) | error | a task thread without capability `PluginOrOpenCloud` (unverified, §8) | 6 |
-| `generatorMismatch` | `lync weave` run by a generator whose `coreDigest` differs from the manifest's | `manifestCore`, `runningCore` | error | another Lync version installed in CI than built the manifest | 6 |
-| `replayMismatch` | `lync replay` given a capture whose `HELLO` `buildId` or `idTableHash` differs from the manifest's | `captureBuild`, `manifestBuild`, `idTableDiffers` | error | the manifest of another release than the capture's | 6 |
+| `publishedSourceReadFailed` | the task's read of a script's `Source` raised | `path`, `raisedText` | error | a task thread without capability `PluginOrOpenCloud` (unverified, §8) | 6 |
+| `generatorMismatch` | `lync weave` run by a generator whose `coreDigest` differs from the manifest's | `manifestCoreDigest`, `runningCoreDigest` | error | another Lync version installed in CI than built the manifest | 6 |
+| `captureBuildMismatch` | `lync replay` given a capture whose `HELLO` `buildId` or `idTableHash` differs from the manifest's | `captureBuild`, `manifestBuild`, `idTableHashMismatch` | error | the manifest of another release than the capture's | 6 |
 
 **Shards and manifest:**
 

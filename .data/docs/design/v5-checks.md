@@ -650,9 +650,11 @@ Two codec methods in the shared schema, non-generic and returning the same codec
   world: a hit target, a shot origin, an amount gained, a completion time) `[anticheat-design §3.2]`. A leaf's role is
   the nearest marker on it or on a codec enclosing it within the payload; unmarked leaves are inputs. So
   `{ … }:claim()` marks a whole record, and an inner `:input()` overrides it for its own leaves.
-- **Placement.** Markers are allowed only in client-sent payloads: `data` of `from = "client"` events and requests,
-  and `reply` of `from = "server"` requests. Anywhere else (server-sent `data`, a client request's `reply`, collection
-  fields) is the declaration error `roleMarkerMisplaced` at the definition's line.
+- **Placement.** Markers are allowed only in client-sent payloads: `data` of `from = "client"` events and requests
+  and of streams (`Lync.stream`), and `reply` of `from = "server"` requests (`v5.md` §3.3). Anywhere else (server-sent
+  `data`, a client request's `reply`, collection fields) is the declaration error `roleMarkerMisplaced` at the
+  definition's line. A stream's claim leaves are verified per index at playout, and its `connect` is the handler the
+  requirement (§7.3) refuses (`v5-collections.md` §15.4).
 - **Decision: hashing.** (a) Not hashed, an exception to "every value in the schema goes into the schema hash"
   (`v5.md` §3.4); (b) **hashed as a wrapper codec**, type 26 `role`: role u8 (1 input, 2 claim), then the codec
   (`v5.md` §4.7). Choice: (b): no exception, 2 B of hash input per marker, nothing at run time. A changed role gives

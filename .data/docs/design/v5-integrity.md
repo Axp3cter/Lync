@@ -390,16 +390,17 @@ reference) and `genericIdMessageReceived` (a closed definition's generic id). Th
   0.15–0.19 ms/s or 0.24–0.25 ms/s interpreted on the CLI; which of the two Roblox's capability error matches is
   unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Build: following views extends the scan's
   fixed point by the same rule (§3). Wire: the caller bit, 0 or 1 B per upstream frame (`v5.md` §4.1). `REPORT`: a
-  forced frame alone is 8–17 B with the tag (`v5.md` §4.6's formula: 8 B for one count of 1, 14 B for the five
-  counts at 60, and at most 3 B more for a self-check failure's `selfCheckItem` and `selfCheckCase`, 18 bits at
-  item 202, case 3); at most 60 forced
+  forced frame alone, tag included, is 8 B for one count of 1, 13 B for four counts at 60, 14 B for five and 18 B
+  for all six counts at 60 with a self-check failure at item 202, case 3 (`v5.md` §4.6's formula, 2⌊log2(c + 1)⌋ + 1
+  bits per field value c; `probes/design-3.6/golden_wire.luau`, SIZES); `probes` grows between reports, so the
+  size has no fixed upper bound (43 bits for `probes` alone after 10 h at 60 probes a second); at most 60 forced
   frames a second, only while a count changes every flush, about 0.14 ms/s of client CPU interpreted at that bound
   `[refusals-rejudged-2 R26]`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `callerProbe.callsPerProbe` | integer | calls per probe | 0 (off) or 1–255 | 1 (below) | one draw per call; u8 in `WELCOME` |
-| `callerProbe.maxProbesPerSecond` | integer | probes/s | 1–63 | 60 (below) | ≤ 4.5 µs per probe; ≤ 0.25 ms/s at 60; u6 in `WELCOME` |
+| `callerProbe.callsPerProbe` | integer | calls per probe | 0 (off) or 1–255 | 1 (below) | one draw per call; u8 in the connection's first `WELCOME` (`v5.md` §4.6) |
+| `callerProbe.maxProbesPerSecond` | integer | probes/s | 1–63 | 60 (below) | ≤ 4.5 µs per probe; ≤ 0.25 ms/s at 60; u6 in the connection's first `WELCOME` |
 | `check.callerSources` (`lync.toml`) | table from definition path to an array of instance paths | — | definitions and scripts of the project | `{}` | the listed scripts join that definition's list; build only |
 
 - **Defaults.** `callsPerProbe` 1: every call probed, so an identity-8 driver's first call reports; Studio showing that a
@@ -476,13 +477,14 @@ counter and a cost, so each has an option (below); whether such a fact informs a
     bypass covers every Lync game.
   - **Cost.** Per item, interpreted: case 3 alone 31.7–33.8 ns, cases 3–4 48.7–51.4 ns, cases 1–2 77.1–84.9 ns; a
     pass over 202 items 21.9–24.7 µs, so 22–25 µs of client CPU a second for 200 views. While an item fails, up to
-    one forced `REPORT` a second, 3 B of fields beyond the others. Shard: four values per item. Option
-    `report.checkOwnTables` (below); the frozen tables stay frozen either way.
+    one forced `REPORT` a second, 20 bits of fields beyond an all-zero self-check (`selfCheckMismatches` 1,
+    `selfCheckItem` 202, `selfCheckCase` 3; 2⌊log2(c + 1)⌋ + 1 bits each, `v5.md` §4.6). Shard: four values per
+    item. Option `report.checkOwnTables` (below); the frozen tables stay frozen either way.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `report.checkListenerCaller` | boolean | — | — | `true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line removes in every game informs nothing) | as above; 1 bit in `WELCOME` |
-| `report.checkOwnTables` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; 1 bit in `WELCOME` |
+| `report.checkListenerCaller` | boolean | — | — | `true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line removes in every game informs nothing) | as above; u1 in the connection's first `WELCOME` (`v5.md` §4.6) |
+| `report.checkOwnTables` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; u1 in the connection's first `WELCOME` (`v5.md` §4.6) |
 
 - Downstream tags and a client replay window stay refused: a per-recipient tag ends `FireAllClients`, a shared key
   is held by every client that could inject, and a frame number would change the seed-0 golden frames to catch
@@ -554,7 +556,7 @@ counter and a cost, so each has an option (below); whether such a fact informs a
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `clock.beaconSeconds` | number (real) | s | 0 (off) or 0.5–1.5, a multiple of 0.1 (`WELCOME` carries tenths) | 1 (chosen inside the derived bound: no 5 s window is empty without a restart while 3P ≤ 4.5 s, P ≤ 1.5 s `[clock-facts, BEACON gap]`) | ≤ 9 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME`, in tenths of a second |
+| `clock.beaconSeconds` | number (real) | s | 0 (off) or 0.5–1.5, a multiple of 0.1 (`WELCOME` carries tenths) | 1 (chosen inside the derived bound: no 5 s window is empty without a restart while 3P ≤ 4.5 s, P ≤ 1.5 s `[clock-facts, BEACON gap]`) | ≤ 9 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in the connection's first `WELCOME`, in tenths of a second |
 | `clock.minSlope` | number (real) | s/s (seconds of drift per second) | 0.001–1 | 0.01 (derived above) | none; server-only |
 | `clock.minFits` | integer | consecutive counting fits | 1–12 | 3 (derived above) | none; server-only |
 

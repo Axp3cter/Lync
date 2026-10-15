@@ -206,8 +206,10 @@ little-endian, as `buffer`'s functions read them:
 | 10 | `columns`, `rows` | u16 each | cells along X and along Z, each at least 1; N = `columns` × `rows` ≤ 65,536 |
 | 14 | bits | ⌈N²/8⌉ B | bit b = u × N + s at byte ⌊b / 8⌋, bit b mod 8 counted from the least significant: 1 when cell s is visible from cell u, 0 when hidden; a position (x, z) is in cell ⌊(x − `originX`) / `cellSize`⌋ + `columns` × ⌊(z − `originZ`) / `cellSize`⌋ |
 
-A table is exactly 14 + ⌈N²/8⌉ bytes; bits past N² in the last byte are 0. `interest` requires its `radius` to be
-an integer multiple of the table's `cellSize` (`v5-collections.md` §8.5).
+A table is exactly 14 + ⌈N²/8⌉ bytes; bits past N² in the last byte are 0. `interest` refuses any other bytes, and
+a string that is not padded standard base64, with `callOptionOutOfRange` naming the first rule broken
+(`v5-collections.md` §8.2), and requires its `radius` to be an integer multiple of the table's `cellSize`
+(`v5-collections.md` §8.5).
 
 **Keys defined elsewhere**, by the section that states their meaning and cost: `build.rotationSeed`,
 `build.varyOffsets`, `build.playerVariantCount` (`v5-integrity.md` §2.5); `check.inferReachability` (`false`,

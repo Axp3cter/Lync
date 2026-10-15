@@ -379,7 +379,14 @@ applies from the next state tick; a second call replaces the options from the ti
 `callOptionMissing`, a value out of range `callOptionOutOfRange`, one of another Luau type `callOptionWrongType`.
 `position` is a path string typed as the union of the record's eligible fields (`v5.md` §3.4's rule for options
 naming fields), so a wrong name is a type error; untyped, a path naming no top-level field throws
-`fieldPathUnknown` and one of another codec `fieldCodecUnsupported`.
+`fieldPathUnknown` and one of another codec `fieldCodecUnsupported`. A `pvs` that is neither a string nor a
+`buffer` throws `callOptionWrongType`; one whose bytes break `v5-tooling.md` §2's table format throws
+`callOptionOutOfRange`, its message naming the first rule broken, checked in this order: a string that is not
+padded standard base64 (length a multiple of 4, characters `A–Z a–z 0–9 + /`, at most two trailing `=`), checked
+before decoding so `Base64Decode`'s handling of other input never matters (unverified); fewer than 14 bytes;
+`cellSize` outside 8–256; `originX` or `originZ` not a multiple of `cellSize`; `columns` or `rows` 0, or N above
+65,536; a length other than 14 + ⌈N²/8⌉; a bit past N² set. Cost: one pattern match over the string and these
+reads, once at the call.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
@@ -1147,11 +1154,17 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 
 ### 15.2 Declaration and API
 
-- **Shared schema:** `move = Lync.stream({ data = codec })`, a fourth definition kind (hash kind byte 4, `from` client,
-  lane unreliable, `v5.md` §4.7), in the namespace's up id space. `data` must have a fixed single-row width (no strings,
-  buffers, arrays, maps, optionals or unions), else the declaration error `streamCodecUnsupported`: copies are
-  delta-coded per top-level field. A namespace's streams must fit one chunk each at 33 copies in 960 B together
-  (`streamBytesExceeded`), so they always ride the first unreliable frame of a flush, with one fate and one ack.
+- **Shared schema:** `move = Lync.stream({ data = codec })`, a fourth definition kind (hash kind byte 5, `from` client,
+  lane unreliable, `v5.md` §4.7; kind 4 is the string table), in the namespace's up id space. `data` must have a fixed
+  single-row width (no strings, buffers, arrays, maps, optionals, unions, `t.int()`, Roblox enums, instances or custom
+  codecs: each has a variable width in `v5.md` §3.3), else the declaration error `streamCodecUnsupported`: copies are
+  delta-coded per top-level field. Instances are also refused for what their code is: an index into one frame's
+  instance list (`v5.md` §4.2), so `same`, `ref` and the redundant-copy comparison (§15.6) would compare positions in
+  two frames' lists, not instances, and the stream chunk carries no `instances` field. A namespace's streams must fit
+  one chunk each at 33 copies in 960 B together (`streamBytesExceeded`), so they always ride the first unreliable
+  frame of a flush, with one fate and one ack.
+- **Roles.** `:claim()` and `:input()` may mark leaves of a stream's `data`, as of any client-sent payload (`v5.md`
+  §3.3, `v5-checks.md` §7.1); a claim leaf needs a verifier before `connect` (§15.4).
 - **Client:** `Net.move:set(value)` latches the value; `Net.move:stop()` ends sampling until the next `set`.
 - **Server view:** `Net.move:playout({ depth = J })` sets the depth for every player, `Net.move:playout({ depth = J,
   player = p })` for one. `Net.move:connect(function(player, input, index) … end)` throws the caller error
@@ -1219,13 +1232,30 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
   which advances by exactly 1 / `stateRate` per index while o holds (`v5-checks.md`). `limit` doesn't apply to
   streams: an unmodified client delivers one index per tick, and `inbound.elements` bounds a modified one's new
   indices.
+- **Claims.** The claim requirement (`v5.md` §3.3) is not a step and runs once, at `connect`: `connect` on a stream
+  whose `data` holds a claim leaf with neither a validator nor a check on that leaf throws `claimUnverified`; the
+  verifiers then run per index at playout, as above, with `v5-checks.md` §7.3's guarantee `[acked-inputs §7.2]`.
 
 ### 15.5 The downstream ack
 
-- **Field.** The downstream state-frame header gains `in := '0' | '1' index:u12` on connections with a welcomed
-  namespace that declares a stream: the newest index received from that client. The client extends it to the value
-  in (K − 4096, K]. Aliasing needs an ack 4096 ticks stale (68 s at 60 Hz). Cost: 13 bits per state frame, 33 B/s at
-  20 Hz and 98 B/s at 60 Hz when every tick carries one (derived).
+- **Field.** Every downstream state-frame header carries `in := '0' | '1' index:u12`: `'1'` and the newest index
+  received from that client once the server has received one, else `'0'`. The client extends it to the value in
+  (K − 4096, K]; a client that has sent no stream index discards it. Aliasing needs an ack 4096 ticks stale (68 s at
+  60 Hz). Cost: 13 bits per state frame once an index was received, 33 B/s at 20 Hz and 98 B/s at 60 Hz when every
+  tick carries one (derived); 1 bit on every other state frame.
+- **Decision: when `in` is present.** *Problem:* the header has no length field, so both ends must agree on whether
+  `in` is there before reading it, and a state frame is unreliable: it can be decoded before the reliable frame
+  carrying the `WELCOME` that made a stream namespace live, so presence keyed on welcomed namespaces gives the two
+  ends different header lengths and the client refuses the frame. *Options:* (a) present
+  on every state frame, 1 bit when empty; (b) a bit in the connection's first `WELCOME` saying whether the server's
+  loaded schema declares a stream, fixing presence before any state frame can be accepted (rule 7 refuses rows of an
+  unwelcomed namespace), at 0 bits per frame, but a namespace loaded later on the runtime path gets no ack, and G10
+  changes; (c) presence from a state the client acknowledged (the receipt of the `WELCOME`'s frame), which still
+  needs the client to learn per frame when the server switched, so it is (a) plus a rule. *Choice: (a):* the only one
+  that is exact on both paths with no connection state; its cost is 1 bit per state frame, which adds 1 B to a state
+  frame exactly when its bits before the first chunk would otherwise end on a byte boundary: at most 20 B/s at 20 Hz
+  and 60 B/s at 60 Hz with one state frame a tick, 0.13–0.38% of the default `state.budget`, and only on state
+  frames, which exist anyway.
 - **Only in state frames that exist anyway.** A player with no `:newest()` rows gets no state frames, and its client
   sends by the deadline window alone (485–768 B/s instead of 306–607, measured). A rows-less state frame per tick
   only for `in` would cost about 170 B/s at 20 Hz and 517 B/s at 60 Hz to save at most 208 B/s, so none is sent
@@ -1271,8 +1301,12 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 | each new index | `inbound.elements` | it becomes a delivered message (steps 5–7 and a handler call); charged from the header before allocation |
 | each redundant copy | no bucket; a bounded parse term | parsed and compared, never allocated, at most 33 per stream per frame (rule 2): per player ≤ `inbound.unreliable.frames` × Σ_streams 33 × c_copy, 120 × 33 × 64.7 ns = 0.26 ms/s native for one 42-bit stream at the defaults, a term added to `v5.md` §7.5's bound |
 
-- Charging redundant copies as elements would refuse an unmodified 60 Hz stream's frames (167–406 of the 411
-  elements a second the derived default gives at L = 6) for work measured at 28–65 ns a copy `[acked-inputs §7.1]`.
+- Charging a redundant copy at its index's weight would price it at p(6) = 2,798 ns, 28 units (`v5.md` §7.5), for
+  parse work measured at 28.5–64.7 ns, 43–98 times its cost. For the busy model's six-leaf `move6` at 60 Hz, 167–406
+  copies a second (measured) would take 4,676–11,368 units a second, beside 1,680 for the 60 new indices:
+  6,356–13,048 against `inbound.elements`' 10,000 (provisional), so an unmodified client's frames would be refused at
+  the high end `[acked-inputs §6.1, §7.1]`. The bounded parse term above prices copies at their measured cost
+  instead.
 - **CPU.** Server parse per redundant copy 28.5–64.7 ns native (64.9–181 ns interpreted); at most 26 µs/s per
   player at the measured 98–406 copies a second; per delivered index one element and steps 5–7, `stateRate` a second
   per stream. Client encode per flush of up to J + 2 copies, unmeasured (§16).

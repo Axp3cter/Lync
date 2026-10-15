@@ -1,0 +1,6 @@
+check: luau-lsp 1.70.1 with Roblox definitions (from luau-lsp 1.70.1), new solver, no sourcemap.json here: instance paths like script.Parent.X are typed any and unchecked
+position_path.luau(10,26): TypeError: Expected this to be '"position" | "spawn.at"', but got '"positon"'
+position_path.luau(11,26): TypeError: Expected this to be '"position" | "spawn.at"', but got '"health"'
+position_path.luau(43,26): TypeError: Expected this to be '"facing" | "position"', but got '"health"'
+position_path.luau(44,26): TypeError: Expected this to be '"facing" | "position"', but got '"positon"'
+4 issue(s)

@@ -540,3 +540,263 @@ and sent `monotonic` down its late-frame branch. The probe asserts that only the
 13. Register the new codes: `constraint` (fact); `claimUnverified` (fault); `rolePlacement` (declaration);
     `checkKind`, `checkOption`, `checkPool` (caller); `freeFormField` (build). Register the counters
     `checksSkipped` and `claimsUnverified` (C0, C4, C5).
+
+## Telemetry
+
+Researcher brief, 2026-10-15 (D4, `research/security-refusals.md` §3). Also read for this part: `research/anticheat-design.md`
+§5 and §8 (cited `AC`), `research/diagnostics.md` §5 and §9 (`DIAG`), `research/security-tooling.md` §1, and
+`v5.md` §3.4, §5.1, §6, §7.3–§7.5. Same labels and tools as above.
+
+**Probes** (`.data/docs/probes/checks-telemetry/`):
+- `telemetry_cost.luau` → `telemetry_cost.out`: the sampler's per-message and per-atom work over 100 players
+  (3 process runs per mode, best of 7 per line).
+- `telemetry_samples.luau` → `telemetry_samples.out`: what samples look like for unmodified clients under v5.md
+  §9's network and §5.1's flush rule. A model: frame times are drawn per case, not measured on devices.
+
+**Terms sources** were read 2026-10-15 through the Help Center API (`/api/v2/help_center/en-us/articles/<id>.json`,
+because the article pages return a Cloudflare challenge) and the creator-docs checkout at efe8741. Nothing fetched is
+kept in the repo.
+
+- [x] T1. What Lync samples, where, the API, what is copied and when, memory and cost
+- [x] T2. Delivery to game code, and what Lync does not do
+- [ ] T3. Roblox's terms on sending player data off-platform, and what Lync's docs must say
+- [ ] T4. How it fails on an unmodified client, the option table, and implications
+
+### T1. What Lync samples, where, the API, copies, memory and cost
+
+**What the docs fix already.** `v5-extensions.md:34-37`: "schema-marked gameplay feature streams exported in batches
+to the developer's backend (marker, batch size and transport unspecified)"; not a diagnostics exporter. The research
+(AC §5.2) had cadence (`:human()`), aim (`:aim(rateHz)`), atoms (`:atom(before, after)`), `:feature()` fields, a
+4 B aim sample, a 180 B atom and Welford statistics. This design keeps the three streams, drops the online
+statistics (they are analysis, T2), and fixes the rest.
+
+**Decision: where telemetry is declared.**
+- Options: (a) codec methods in the shared schema (`t.direction(11):aim()`), as AC §5.2 had; (b) **server-view
+  calls**, like the checks (C0) and `rewind` (`Net.fighters:rewind({ … })`, `research/interest-rewind.md`).
+- Choose (b), for C0's reasons. Sampling changes no bytes, so it stays out of the hash (§4.7) and a retune needs no
+  client rebuild. The server shard is never replicated, so a modified client can't read from the schema which
+  fields are sampled. Nothing the client must see depends on it, unlike `:claim()`.
+
+**What is sampled.** Only `data` of client-sent events and of client requests' asks, on the server. Three kinds,
+each a per-player ring:
+- **Timing** (`Net.<def>:series()`): one entry per frame that carries a delivered message of the definition:
+  arrival time and frame key. 4 B per entry.
+- **Values** (`Net.<def>:series(path)`): the same, plus the field's value as f32: 8 B for a scalar
+  (`t.int`, `t.number`, `t.f32`, `t.f64`, `t.angle`, `t.bool` as 0/1, enum index), 16 B for a vector (`t.vector3`,
+  `t.vector3f32`, `t.direction`). This is the "input deltas" stream: Lync stores values; the analyst takes deltas.
+- **Aim** (`Net.<def>:aim(path)`): the field as yaw and pitch, two u16. 8 B per entry. The field is a
+  `t.direction`, a `t.rotation` or `t.cframe` (its `LookVector`), or a record `{ yaw = t.angle(…), pitch =
+  t.angle(…) }`. Yaw is `atan2(-x, -z)` of the look direction (0 looks along −Z), quantized to
+  ⌊(yaw + π)·65536/2π + 0.5⌋ mod 65536 (0.0055° a step); pitch is `asin(y)`, quantized to
+  ⌊(pitch + π/2)·65535/π + 0.5⌋ (0.0027°). Pitch and yaw are the two inputs XGuardian needs (AC §5.1, "requires
+  only two raw data inputs, pitch and yaw"), and one format serves every aim codec.
+- One series or aim per definition (else `telemetryOption`), so a definition names its ring.
+
+**Entry layout** (little-endian; ring entries and exported samples are byte-identical, so an atom copies them
+with `buffer.copy`):
+
+| Bytes | Field | Meaning |
+|---|---|---|
+| 0–1 | `ms` u16 | ⌊`os.clock()` × 1000⌋ mod 65,536 when Lync's handler received the frame (server arrival, never client time, R20) |
+| 2–3 | `key` u16 | the frame key mod 65,536: tag count on the reliable lane, extended upstream seq on the unreliable lane (C2) |
+| 4–7 | aim: `yaw` u16, `pitch` u16; scalar: f32 | aim and scalar series |
+| 4–15 | three f32 | vector series |
+
+**Decision: one sample per frame.** A frame's messages share one arrival time, so Lync samples the last message of
+the definition in each frame (messages of a frame are in call order, §4.1).
+- More samples per frame would add values with no time between them.
+- One per frame bounds a ring's turnover by the inbound frame budget, at most 120 + 240 frames/s by default
+  (§7.5), whatever game code fires.
+- At a 60 Hz flush, a 64-entry ring holds about 1.07 s.
+
+**Where it runs** (`v5.md` §6.1, with C0's checks). A new step 6b, after validators and the checks' commit and
+before delivery: **sample**. It sees only messages that will be delivered, with the values game code will see
+(post-clamp).
+- Messages that are dropped never reach game logic. Each drop is already a fact or a counter (`overLimit`,
+  `constraint`, `validatorRejections`), so sampling them would mix two records of one event.
+- It runs in the pipeline loop, not in the handler's pooled thread, so a yielding handler can't delay it.
+- Arrival time is read once per frame, and the key is the one step 3 already holds.
+
+**Atoms** (`Net.<def>:atom({ before, after, fields, series, pending })`). An atom is a fixed record taken when a
+message of the definition is delivered:
+1. **Trigger** (step 6b). If any `Lync.telemetry.atoms` connection exists and the player has a free pending slot, Lync
+   copies the header and the listed `fields` (numbers only, as f64) into the slot. The due time is `os.clock()` +
+   `after`. With no free slot it skips the atom and counts it (`atomsSkipped`); it never evicts. With no
+   connection it takes nothing.
+2. **Complete**, once per flush (where fact windows are swept, §7.3). For each pending atom that is due, Lync
+   binary-searches the named series' ring for the first entry no older than trigger − `before`, then copies
+   entries up to the newest into the player's batch buffer.
+3. **Hand off** (T2), when the batch holds `telemetry.batch` atoms, when `telemetry.seconds` have passed since
+   its first atom, or when the player leaves. On leave, pending atoms complete at once and are marked partial.
+
+**Atom layout** (version 1): `serverTime` f64 (`GetServerTimeNow()` at the trigger frame), `ms` u16 and `key`
+u16 of the trigger frame (the samples' clock), `flags` u8, `n` u8 (sample count), then the fields as f64 in
+declaration order (a vector as x, y, z), then n entries. Size = 14 + 8·F + n·(entry size). With 5 field values and
+45 aim entries that is 14 + 40 + 360 = 414 B. Flags record facts about the copy, never a judgement:
+- bit 0: a check clamped this message;
+- bit 1: a check with `policy = "deliver"` failed on it (its `constraint` fact exists);
+- bit 2: the window was truncated, because the ring's oldest entry was newer than trigger − `before`;
+- bit 3: partial, because the player left before `after` elapsed.
+
+Samples are timed relative to the trigger as (entry.ms − atom.ms) wrapped into ±32.768 s. That is exact while the
+ring spans less than 32 s, and at 64 entries it spans about 1 s.
+
+**API, Luau.** The generated server shard types `path` and `fields` as unions of the literal paths each call
+accepts (as C0's checks do). On the runtime path they are strings checked at the call.
+
+```luau
+-- server
+Net.look:aim("dir")                                  -- look = { from = "client", lane = "unreliable", data = { dir = t.direction(11) } }
+Net.strike:series()                                  -- timing only
+Net.strike:atom({ before = 0.5, after = 0.25, fields = { "origin", "target" }, series = Net.look })
+local connection = Lync.telemetry.atoms(function(batch: Lync.AtomBatch)
+	Export.queue(batch.player, batch.definition, batch.data) -- game code (T3)
+end)
+local look = Lync.telemetry.read(player, Net.look)   -- pull: a copy of the ring, oldest first, or nil
+```
+
+**Types** (plain records, so they read the same on both solvers; no type functions):
+
+```luau
+export type AtomBatch = {
+	read player: Player,
+	read namespace: string,
+	read definition: string,
+	read count: number,              -- atoms in data
+	read layout: AtomLayout,         -- frozen, one per atom declaration
+	read data: buffer,               -- count atoms in the version 1 layout
+}
+export type AtomLayout = {
+	read version: number,            -- 1
+	read fields: { read string },    -- value names in order: "origin.x", "origin.y", "origin.z", "target"
+	read entry: "timing" | "aim" | "scalar" | "vector" | "none",
+	read entryBytes: number,         -- 4, 8, 8, 16 or 0
+}
+export type Stream = { read layout: AtomLayout, read count: number, read data: buffer }
+```
+
+`Lync.telemetry.decode(batch): { Atom }` turns a batch into tables (`{ serverTime, key, flags, fields: { [string]:
+number }, samples: { { dt, key, yaw?, pitch?, value? } } }`) for game code that analyses in process. It is a cold
+path that allocates per atom.
+
+**API, roblox-ts** (the same IR emits the `.d.ts`; dot calls, `this: void`):
+
+```ts
+// server view of a client-sent event
+interface ServerEvent<T> {
+	aim(this: void, path: AimPath<T>, options?: { ring?: number }): void;
+	series(this: void, path?: SeriesPath<T>, options?: { ring?: number }): void;
+	atom(this: void, options: { before?: number; after?: number; fields?: ReadonlyArray<NumericPath<T>>;
+		series?: ServerEvent<unknown>; pending?: number }): void;
+}
+declare namespace telemetry {
+	function atoms(this: void, fn: (batch: AtomBatch) => void): Connection;
+	function read(this: void, player: Player, def: ServerEvent<unknown>): Stream | undefined;
+	function decode(this: void, batch: AtomBatch): ReadonlyArray<Atom>;
+}
+```
+
+`AimPath<T>`, `SeriesPath<T>` and `NumericPath<T>` are emitted per definition as literal unions (`"dir"`,
+`"origin" | "target"`), never computed by type-level recursion.
+
+**Caller errors** (family `caller`): `unknownField` (exists), `telemetryKind` (the codec isn't one the call takes,
+or a path into an array, map or union), `telemetryOption` (an unknown or out-of-range option, a second series on a
+definition, `series =` a definition with none, or a declaration on a server-sent definition).
+
+**Memory per player** (derived from the layouts; `telemetry_cost.out` prints the probe's sizes):
+- aim or scalar ring: 8 B × `ring`, 512 B at 64; timing ring: 256 B; vector ring: 1,024 B;
+- pending: `pending` × (14 + 8·F) B, 432 B at 8 slots and 5 values;
+- batch buffer: up to `batch` atoms, 16 × 414 B = 6.6 KB at the defaults with a 45-entry window, and at most
+  16 × (54 + 8 × 64) = 9.1 KB;
+- all of it allocated at the player's first sampled message and freed on leave.
+- 100 players with one aim series, one timing series and one atom declaration: at most about 1.0 MB.
+
+**Cost** (measured, `telemetry_cost.out`, ns per operation, range over 3 runs; the baseline is a loop plus the
+player-slot hash lookup):
+
+| Line | Interpreted | Native |
+|---|---|---|
+| baseline: loop + slot lookup | 25–27 | 12–16 |
+| timing entry (u16 ms, u16 key) | 91–93 | 22–24 |
+| aim entry, code already in hand | 126–132 | 24–27 |
+| aim entry from a decoded direction (`atan2`, `asin`, quantize) | 221–228 | 65–73 |
+| atom trigger, 5 values as f64 | 151–163 | 35–38 |
+| atom complete: binary search + 3 copies, 46 entries, 368 B | 477–506 | 252–260 |
+| raw window copy alone, 180 B, two-part (C6) | 87–90 | 55–61 |
+| batch hand-off: exact-size buffer for 16 atoms + frozen table | 665–712 | 661–703 |
+
+- The first probe found the window by a linear scan back from the head: 2,085 ns interpreted and 649 ns native.
+  The binary search (6 probes over 64 entries) cuts that to the line above.
+- A delivery adds the pooled-thread resume per connection, 88–131 ns (DIAG §5.1).
+- **At scale** (derived): 100 players at 60 aim samples/s is 0.39–0.44 ms/s native (0.04% of a core) and
+  1.3 ms/s interpreted. Two atoms per player per second add 0.06 ms/s native and 0.13 ms/s interpreted, and the
+  batches about 0.01 ms/s.
+- **Wire: 0 B.** Lync samples traffic the game already sends. An aim stream needs the game to send its look
+  direction upstream, about 22 bits per message for `t.direction(11)` at the game's rate plus framing (AC §9:
+  "Aim field costs upstream bytes").
+- Not measured: Roblox's server build, and a `Player` key against the probe's table key.
+
+**Not sampled.** Server-sent traffic, client-side anything, and `Player:GetCameraState()`. That call is documented
+to need Server Authority (creator-docs `Player.yaml`; dump: security None, thread Safe) and gives the camera on
+the server with no Lync bytes. It isn't traffic Lync decodes, so game code samples it itself.
+
+### T2. Delivery to game code, and what Lync does not do
+
+**Decision: how samples reach game code.**
+
+| Option | Cost | Memory | Fit |
+|---|---|---|---|
+| (a) a callback per atom | a frozen table and a pooled thread per atom: 259 ns native to build one event, plus 88–131 ns to resume (DIAG §5.1, §9) | none held | one HTTP request per atom would exhaust 500 requests/min at about 8 atoms/s per server; game code would batch anyway |
+| (b) **batches pushed to a callback** | 0.66–0.71 µs per batch of 16 plus one resume per connection (measured, T1) | at most `batch` atoms per player | matches the export unit; bounded |
+| (c) pull (`read(player)`) | a copy per call | Lync must hold atoms until game code asks: unbounded, or dropped without anyone knowing | right for streams, wrong for atoms |
+
+- **Choose (b) for atoms and (c) for streams.**
+- Atoms are events: each has a moment and a fixed size, so pushing them in bounded batches keeps memory bounded
+  and gives game code the unit it exports.
+- Streams are continuous, and game code rarely needs all of them. At 60 Hz and 8 B, a stream is 480 B/s per
+  player. Game code pulls a copy when it wants one (a report filed, a round ended, a sample of players).
+  - `Lync.telemetry.read(player, def)` returns the ring oldest first, with `serverTime` and `ms` of the newest
+    entry as the anchor. That is one buffer copy of at most 8 B × `ring`.
+- **Delivery rules,** as for observers (§7.3):
+  - each connection is called in a pooled thread, so a throwing callback is reported natively and a yielding one
+    holds only itself;
+  - the batch table and its layout are frozen;
+  - the buffer is a fresh copy that game code owns, may keep, and may send.
+- **Batch close:** at `telemetry.batch` atoms, at `telemetry.seconds` after the batch's first atom, or when the
+  player leaves (§5.1: a leaving player's pending frame is flushed first, then the batch is handed off).
+  - A server shutting down hands off every open batch in `BindToClose`, as Lync's flush does.
+  - Game code that exports must finish its own HTTP within the shutdown window. That limit is Roblox's, not Lync's.
+- **Counters** (§7.4): `atomsDelivered`, `atomsSkipped` (no free pending slot), per definition. Atoms raise no
+  fact: a fact needs an exact trigger condition, and an atom has none beyond "a message arrived".
+
+**What Lync does not do.** Each item follows "Lync reports facts" (R23) and "no automatic consequence" (R22, R24):
+- **No statistics, scores, thresholds or models.** The research's online Welford mean and variance (AC §5.2) is
+  dropped: a summary chosen by Lync is the first step of a verdict, and the raw samples are as cheap to keep. Means,
+  deltas, angular speed, reaction times and any model belong to the game or an offline tool.
+- **No fact from a telemetry value, and no flag meaning "unusual".** The atom flags (T1) record what happened to
+  the copy and to the message, each with an exact condition.
+- **No consequence.** Nothing in telemetry drops, delays, throttles or tags a player. Sampling never changes what is
+  delivered.
+- **No export, storage or transport.** Lync makes no HTTP request, writes no DataStore and holds no secret.
+  - The game owns the quota: 500 HTTP requests/min per server, shared with every other use (documented,
+    `cloud-services/http-service.md`).
+  - The game owns the "Allow HTTP Requests" setting (the same page).
+  - The game owns the legal obligations (T3).
+  - This is the rule diagnostics follows (DIAG §5.4: "Lync exports nothing itself"). It replaces
+    `v5-extensions.md`'s "exported in batches to the developer's backend" with "handed in batches to game code".
+- **No user ids in the data.** A batch carries the `Player`; the buffer carries none. Game code picks the key it
+  exports (T3).
+- **No client text.** Atoms and series take numeric codecs only. Free text, strings, buffers and instances can't
+  be sampled, so a batch can't carry chat or any other personal data a player typed.
+
+**The export recipe** (docs, game code). It is one `Lync.telemetry.atoms` connection that appends `batch.data` with
+a small per-batch header (version, definition, the exported player key, count) to a buffer. Every few seconds it
+sends the buffer with one `HttpService:RequestAsync` whose `Body` is `buffer.tostring(…)`, since the body "can be
+any string, including binary data" (documented, `HttpService.yaml`). It retries with backoff (documented best
+practice, `http-service.md`).
+- At 100 players × 2 atoms/s × 414 B, that is 83 KB/s, or 30 requests/min at one request per 2 s (derived).
+- A request body size limit is not documented. I searched `HttpService.yaml` and `http-service.md` for "size",
+  "limit", "MB" and "body" and found none, so the recipe must state that the limit is unknown and keep requests
+  small (unverified).
+- `PostAsync`'s `compress` argument gzips the body (documented, `HttpService.yaml`). `EncodingService`'s Zstd is
+  the other route (`security-tooling.md` §1).

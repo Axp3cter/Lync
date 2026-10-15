@@ -5,6 +5,7 @@
 -- PostSimulation once >= 1/60 s has accumulated since the last automatic flush; the accumulator restarts at 0).
 -- Parts:
 --   A. flush rate and server-side inter-arrival of consecutive frames, per frame-rate case
+--   A2. the flush rate under two other readings of the flush rule
 --   B. a timer-driven action in unmodified game code (fire every 0.1 s of game time), seen at the server
 --   C. aim samples inside an atom window (0.5 s before, 0.25 s after), one sample per frame, with loss
 --   D. late frames on the unreliable lane: aim deltas in arrival order against frame-key order
@@ -101,6 +102,31 @@ for _, c in CASES do
 	local cm, csd = stats(ci)
 	local sm, ssd, sp1, sp99 = stats(si)
 	print(string.format("%-30s %7.1f %5.2f ± %4.2f %5.2f ± %5.2f %9.2f .. %7.2f", c.name, #fl / SECONDS, cm, csd, sm, ssd, sp1, sp99))
+end
+
+print("")
+print("-- A2. the same frames under two other readings of the flush rule (flush rate in Hz)")
+print("--     carry: accumulator -= 1/60 at each flush, capped at 1/60 so it never sends two in a row")
+print("--     slack: flush when >= 0.9/60 s has passed since the last flush")
+print(string.format("%-30s %10s %10s %10s", "case", "reset", "carry", "slack"))
+for _, c in CASES do
+	local fr = frames(c)
+	local reset = #flushes(fr)
+	local carry, acc, prev = 0, 0, 0
+	local slack, last = 0, 0
+	for _, t in fr do
+		acc = math.min(acc + (t - prev), 2 / 60)
+		prev = t
+		if acc >= 1 / 60 then
+			carry += 1
+			acc = math.min(acc - 1 / 60, 1 / 60)
+		end
+		if t - last >= 0.9 / 60 then
+			slack += 1
+			last = t
+		end
+	end
+	print(string.format("%-30s %10.1f %10.1f %10.1f", c.name, reset / SECONDS, carry / SECONDS, slack / SECONDS))
 end
 
 print("")

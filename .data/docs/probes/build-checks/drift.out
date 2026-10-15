@@ -2,9 +2,9 @@ as built:                     clean
 CRLF checkout (autocrlf):     clean
 one constant hand-edited:     editedShard client
 reformatted (tabs to spaces): editedShard client
-server from another run:      unpairedShards client build 3735928559, server build 42
+server from another run:      unpairedShard client build 3735928559, server build 42
 header line edited only:      clean
-sha256     4 KB:    0.004 ms (1087 MB/s); CRLF normalise    0.042 ms
-sha256    64 KB:    0.043 ms (1469 MB/s); CRLF normalise    0.614 ms
-sha256   640 KB:    0.414 ms (1509 MB/s); CRLF normalise    7.501 ms
-sha256  6400 KB:    5.222 ms (1197 MB/s); CRLF normalise   77.102 ms
+sha256     4 KB:    0.004 ms (875 MB/s); CRLF normalise    0.063 ms
+sha256    64 KB:    0.044 ms (1407 MB/s); CRLF normalise    0.941 ms
+sha256   640 KB:    0.458 ms (1365 MB/s); CRLF normalise    7.019 ms
+sha256  6400 KB:    4.491 ms (1392 MB/s); CRLF normalise   79.348 ms

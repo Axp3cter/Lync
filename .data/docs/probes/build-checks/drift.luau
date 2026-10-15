@@ -35,7 +35,7 @@ local function check(client, server)
 	end
 	local hc, hs = header(client), header(server)
 	if field(hc, "build") ~= field(hs, "build") or field(hc, "schema") ~= field(hs, "schema") then
-		table.insert(out, string.format("unpairedShards client build %s, server build %s", field(hc, "build"), field(hs, "build")))
+		table.insert(out, string.format("unpairedShard client build %s, server build %s", field(hc, "build"), field(hs, "build")))
 	end
 	return if #out == 0 then "clean" else table.concat(out, "; ")
 end

@@ -8,4 +8,8 @@ t.number(0, 1, 0.333333): steps 3, bits 2, q(max) 3, max error at grid points 0
 t.number(0, 0.7, 0.1): steps 7, bits 3, q(max) 7, max error at grid points 1.11e-16
 t.number(0, 2.3, 0.1): steps 23, bits 5, q(max) 23, max error at grid points 4.44e-16
 t.number(-512, 512, 0.05): steps 20480, bits 15, q(max) 20480, max error at grid points 0
-t.number(0, 1, 0.3): steps 3, bits 2, q(max) 3, max error at grid points 0
+t.number(0, 1, 0.3): (max - min) / step = 3.3333333333333335 -> numberStep (declaration error)
+t.angle(math.rad(1)): 2pi/step = 360 -> n = 360
+t.angle(2*pi/1000): 2pi/step = 999.99999999999989 -> n = 1000
+t.angle(2*pi/256): 2pi/step = 256 -> n = 256
+t.angle(0.3): 2pi/step = 20.943951023931955 -> n = 21

@@ -36,10 +36,6 @@ client = "src/shared/Net/client"
 server = "src/server/Net"
 dts = "types/net.d.ts"          # optional
 
-[rotate]
-fields = true                   # effective only with a nonzero seed
-tag = true
-
 [types]
 solver = "old"                  # "old" | "new": with "new", runtime-path use is not reported as solverOff
 

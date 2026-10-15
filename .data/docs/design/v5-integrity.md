@@ -28,22 +28,26 @@ Tamper cost of the milestone 2 measures: the tag makes a forger read the key eve
 lockstep with Lync's own sends; the permutation makes a byte tool read this server's seed or table every session
 `[review-2 m5]`.
 
-## 2. Per-build rotation (kept as in draft 1; deferred to the author)
+## 2. Per-build rotation (kept: author decision)
 
-- **Mechanism.** A nonzero `build.seed` (`lync.toml`) permutes each record's field order, starting from name order,
-  by Fisher–Yates driven by xorshift32 seeded with the build seed XOR the low 32 bits of the record path's
-  HalfSipHash (a zero result replaced as in `v5.md` §4.5); with `rotate.tag` it also replaces HalfSipHash's two initialisation constants in the upstream tag
-  with the first two xorshift32 outputs seeded with the build seed. Union variant order and ids don't rotate `[review-2 m1]`. On the generated path the
-  tag function, key and count live in the client shard. The runtime path always runs at seed 0.
+- **Mechanism.** A nonzero `build.seed` (`lync.toml`) rotates two things on the generated path:
+  - each record's field order: Fisher–Yates over the fields in name order, exactly as `v5.md` §4.5's permutation,
+    with xorshift32 seeded by the build seed XOR the low 32 bits of HalfSipHash-2-4 (zero key, 64-bit output) of the
+    record's path (`arena.fighters.data`, UTF-8), a zero seed replaced as there;
+  - the upstream tag's HalfSipHash initialisation constants (`0x6c796765`, `0x74656462`), replaced by the first two
+    outputs of xorshift32 seeded with the build seed.
+
+  Union variant order and ids don't rotate `[review-2 m1]`. On the generated path the tag function, key and count
+  live in the client shard. The runtime path always runs at seed 0.
 - **Prices** static encoders and decoders, and tag reimplementations, built against an earlier build: they are
   rebuilt per release, or written to re-derive layout and constants from each shard.
 - **Cost.** Zero at run time: seeded shards compile to the same opcode sequences, differing only in constants and
   the order of field writes `[client-security-build §2.3]`; zero bytes. Developer: a fresh seed per release
   (`seed = "release"` in CI, or the plugin's "Prepare release"); offline decoding needs the seed, which the shard
   header, the manifest and every `HELLO` carry.
-- **Options** (`lync.toml`): `build.seed` (integer 0–2^32 − 1 or `"release"`, default 0), `rotate.fields` and
-  `rotate.tag` (booleans, default true, effective only with a nonzero seed). The overlap of `seed = 0` with both
-  `rotate.*` false is left to the author with the rest of rotation.
+- **Option** (`lync.toml`): `build.seed`, integer 0–2^32 − 1 or `"release"` (a fresh seed per CI release), default
+  0. The seed is the one switch: draft 3's `rotate.fields` and `rotate.tag` are gone, since a nonzero seed with both
+  off changed nothing at run time yet still refused runtime-path clients `[review-redundancy-2 7]`.
 
 ## 3. Traps and reachability
 

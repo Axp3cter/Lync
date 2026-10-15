@@ -303,3 +303,44 @@ Event `newest`; `timestamped`; runtime demotion of oversized unreliable items; `
 the roblox-ts transformer; compiler plugins and `rans`; suspicion weights, scores and `Lync.suspicion`;
 quiet-mitigation hooks; the unreliable-event deadline; `:initial()`; an audience-by-field shortcut. Reasons are in
 the draft-1-to-2 tables above.
+
+---
+
+# Draft 3 to 3.1
+
+2026-10-15. Applies `.data/docs/reviews/v5-design-3.md` (review-3: M, m ids), a builder-readiness review. New
+probes: `probes/design-3/golden.luau` (the golden set) and a re-run `number_steps.luau`.
+
+**Count:** 12 findings. Accepted 9, changed 3, rejected 0.
+
+**Author decision recorded:** per-build rotation is kept (client hardening at zero run-time cost). The draft-1-to-2
+outcome "deferred, author to decide" for R7, M12's and R17's rotation parts, and draft 3's "deferred to the author"
+notes are closed: rotation is part of the design (`v5.md` §4.5, `v5-integrity.md` §2).
+
+| Id | Title | Outcome | Reason |
+|---|---|---|---|
+| M1 | A server-wide unreliable `seq` breaks the ack window and extension | changed | Neither proposed fix: two downstream unreliable frame kinds instead. Event frames (`'0' tick:u8`) carry runs only and no seq, so they stay identical for every recipient and broadcast (B3, S3); state frames (`'1' seq:u12 tick:u8`) carry rows only, with a per-player seq, so the ack window and extension cover consecutive frames and notify works. Unreliable events need no seq because they are never resent. Cost: one more call and a 9-bit header on a state tick when a player gets both rows and events (`v5.md` §4.4). |
+| M2 | The control chunk format is undefined | accepted | `control chunk := type:u3 count−1:EG0 rows`; protocol version 1; tail order by the general rule (`v5.md` §4.1, §4.6). |
+| M3 | A welcome and the held sends it releases arrive in an order rule 7 refuses | accepted | Released holds follow the `WELCOME`'s control chunk; control messages take effect as decoded, for the rest of the frame; rule 7 judges a namespace "when it is decoded" (§4.6, §4.8, §5.3). |
+| M4 | Wrong-lane messages are no longer detected | accepted | Rule 7 covers a message on a lane its definition doesn't use, both ways, plus control chunks and rows in the wrong frame kind. |
+| M5 | Integer codes at 2^53 | changed | EG-k redefined as EG-0 of ⌊u/2^k⌋ then the k low bits, which is the standard equivalent and exact for every code up to 2^53 − 1; `t.int()` is −2^52 … 2^52 − 1 and `t.int(min, max)` within it; column codes defined per codec on an interval of n ≤ 2^53, residuals wrapped into [−⌊n/2⌋, ⌈n/2⌉ − 1] (bools fall out as XOR). The review's "zigzag the plain difference" was not used: for negative differences near 2^53 it isn't exact (§3.3, §4.1, §4.3; G9 in `golden.out`). |
+| M6 | Milestone 1 byte-level choices left open | accepted | Presence 1 = present; zero-row columns write nothing; bools are 2-code columns; the reference encoder's tie rule; instances once per chunk in first-reference order (rule 9); axis-aligned rotations in lexicographic matrix order; the quaternion branch rule and component order; color and direction decodes; every numeric hash parameter a `num`; collections' `from` and lane; enums up to 65,535 items. |
+| M7 | Milestone 2 behaviour left open | accepted | Untagged `HELLO` frames don't advance the count (G4 at count 0); a first reliable frame uses `'11'`; `received` bit i is seq − 1 − i; every seq and epoch starts at 0; reliable frame first in a flush, ack in the first frame; buckets start full and refill continuously. The `REKEY` switch point is also defined (§4.5). |
+| m1 | A late answer after a reclaim matches two rules | accepted | Epoch first, then the `slotConflict` cases, now numbered (§5.2, §7.3). |
+| m2 | Splitting shared runs across 16,384 B frames | changed | Chunks are capped at 16,256 B (960 B unreliable) and messages at 16,000 B (960 B), so every chunk fits an empty frame; the review's 16,000 B figure became the message cap, with the chunk cap set from the frame overhead (§4.1, §4.9). |
+| m3 | A cited probe disagrees with its rule | accepted | `number_steps` re-run under the stated rule: `t.number(0, 1, 0.3)` is `numberStep`. |
+| m4 | "Namespace hash" and "schema hash" | accepted | "Schema hash" throughout. |
+| m5 | `t.angle` steps rely on ⌈⌉ | accepted | n uses `t.number`'s 1e-9 tolerance, then ⌈⌉ (`number_steps.out`). |
+
+**Golden frames.** The review's proposed set is adopted as `v5.md` §4.10, corrected and completed under 3.1's rules:
+G2–G6 are byte-identical to the review's build; G4 is the count-0 frame (M7.1); G5 uses `received` bit i = seq − 1 − i
+(M7.3); G6 writes `max` as a `num` (M6.9); G7 (`HELLO`), G8 (a column block, with the reference encoder's mode
+choices) and G9 (the `t.int()` extremes) are new.
+
+**Decisions made in 3.1.**
+1. Two downstream unreliable frame kinds (M1).
+2. The `REKEY` switch: the client tags with the new key from count 0; the server tries the new key while a `REKEY`
+   is pending, and the first match must carry `REKEY-ACK`.
+3. `[rotate]` removed from `lync.toml`: with rotation kept, the build seed is its one switch, which closes the knob
+   overlap redundancy-2 S7 had left to the author.
+4. Chunk and message caps as protocol constants (16,256 / 16,000 B reliable, 960 B unreliable).

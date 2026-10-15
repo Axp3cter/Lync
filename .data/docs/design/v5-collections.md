@@ -49,7 +49,7 @@ state chunk  := collection:u(wc) adds updates
 adds         := n:EG0, then n rows of { slot:u(ws) key fields }               -- every field, :newest() included
 updates      := n:EG0, then n rows of { slot:u(ws) mask fields }              -- mask: 1 bit per reliable field; then the masked fields
 remove chunk := collection:u(wc) n−1:EG0, then n × slot:u(ws)
-rows chunk   := collection:u(wc) n−1:EG0, then n rows of { slot:u(ws) gen:u2 :newest() fields }
+rows chunk   := collection:u(wc) n−1:EG0, then n rows of { slot:u(ws) gen:u2 :newest() fields }  -- state frames only
 ```
 
 - wc = ⌈log2(collections in the namespace)⌉; collection indices are the namespace's collection id space, permuted
@@ -103,8 +103,8 @@ rows chunk   := collection:u(wc) n−1:EG0, then n rows of { slot:u(ws) gen:u2 :
 
 ## 6. Repair (notify)
 
-- Per viewer, a ring of the last 17 downstream unreliable seqs sent to that viewer records which rows each carried,
-  in a buffer (the ack covers 17 seqs). A frame is lost when an ack shows a newer seq received and not it; its rows
+- Rows travel only in state frames, whose seq counts that viewer's state frames (`v5.md` §4.4). Per viewer, a ring
+  of the last 17 state frames records which rows each carried, in a buffer (the ack covers 17 seqs). A frame is lost when an ack shows a newer seq received and not it; its rows
   become pending again unless a later frame carried them. A frame that leaves the ring unacked counts as lost.
 - The client applies a record's row only if its frame's seq is newer than the stored one; both are extended
   sequences (`v5.md` §4.4), so a record idle for any time is never frozen `[review-redundancy-2 1]`.

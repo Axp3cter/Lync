@@ -501,7 +501,490 @@ pinned dump (Roblox 0.741.19).
 
 ## Checklist (rewind and timing)
 
-- [ ] §11 D2 `rewind`: rings at the perceived tick
-- [ ] §12 U15: `StreamingTargetRadius` and staged release
-- [ ] §13 `PlayerGui` variant timing
-- [ ] Implications (rewind and timing)
+- [x] §11 D2 `rewind`: rings at the perceived tick
+- [x] §12 U15: `StreamingTargetRadius` and staged release
+- [x] §13 `PlayerGui` variant timing
+- [x] Implications (rewind and timing)
+
+---
+
+## 11. D2 `rewind`: rings at the perceived tick
+
+### 11.1 What it protects, and what it is not
+
+- **The claim it prices.** A client says "I hit record k" or "I fired from here". The server must judge that
+  against the state *that client was shown*, not the state now; otherwise every honest player with latency misses
+  (Bernier's lag compensation, AC §4.1).
+- **The flaw it removes.** Community rewind libraries take the rewind time from the client, clamped to a window
+  (RollbackHitbox: `clientTimestamp` "clamped to [0, MAX_REWIND_SECONDS]", AC §4.1, reported). A clamped client time
+  is a free choice of any past position inside the window: the "backtrack" advantage. R20 refuses it.
+- **What Lync adds.** Lync sent every state frame and receives every ack, so the server can name the state frame a
+  client had applied when it sent a message. The rewind tick is derived from Lync's own frames and the engine's ping,
+  never stated by the client.
+- **What it is not.** Lync returns state at a tick. The game decides the hit: hitbox shape, ray test, tolerances,
+  world occlusion, and anything done about a miss (R36, `v5-extensions.md`: "the game decides what a hit is").
+
+### 11.2 What Lync records, per tracked entity and per tick
+
+- **Declared on the server view**, because it is server policy and the client never needs it:
+  `Net.fighters:rewind({ fields = { "position", "look", "alive" }, maxRewind = 1 })`. Nothing goes into the schema
+  hash.
+- **One slot per record per state tick**, written after the tick's `:newest()` rows are encoded, for every tracked
+  record (changed or not), so a read is an index, never a search:
+
+  | Bytes | Content | Why |
+  |---|---|---|
+  | 4 | state tick T (u32) | a slot is valid only if it holds the tick asked for |
+  | 12 | position x y z (f32) | the *decoded quantized* value the row carried, which is what the client saw (a `t.vector3(-2048, 2048, 1/32)` value is exact in f32) |
+  | 4 | rotation as its `t.rotation(9)` code (30 bits used) | 4 B instead of a 16 B quaternion; decoded only when queried |
+  | 1 | up to 8 boolean `:rewind()` fields | `alive`, `crouched` |
+  | 3 | padding | keeps slots aligned |
+
+  Other declared fields add their single-row width rounded up to bytes. The ring holds
+  K = ⌈(`maxRewind` + 0.25 s) × `stateRate`⌉ + 2 slots per record: the window, the 0.25 s extrapolation cap of the
+  `interpolation` extension, and the two lerp neighbours.
+- **Per player**, a map from state-frame seq to (state tick, send time), L = K + 17 entries of 12 B. The notify ring
+  already holds 17 frames (COL §6); rewind extends the per-frame tick and send time back to `maxRewind`.
+- **Per (viewer, record), only in "as received" mode (§11.5):** the ticks of the last M rows of that record the
+  viewer acked, M = ⌈`delay` × `stateRate`⌉ + 2 (4 at 20 Hz with 0.1 s), u32 each, plus a 1 B head.
+
+### 11.3 How the perceived tick is established
+
+Two ticks matter, because the client shows `:newest()` fields `delay` behind and applies reliable fields at once.
+
+**Inputs, all on the server:**
+- s, the newest state-frame seq acked in the header of the frame that carried the message (`v5.md` §4.1 `ack`);
+  T_s its state tick and t_s its send time, from the per-player map.
+- t_r, `GetServerTimeNow()` when the frame was decoded.
+- rtt, the round trip: `Player:GetNetworkPing()` ("round-trip, isolated network latency in seconds … doesn't involve
+  data deserialization or processing", documented, `Player.yaml`), raised to Lync's own ack round trip where that is
+  larger, by at most `rttSlack`. The ack round trip is the windowed minimum of (arrival of the first frame acking
+  seq n) − t_n. Engine ping excludes processing, so it is a lower bound on what a remote sees.
+- D, the interpolation delay the client used (below).
+
+**Formula (fractional ticks):**
+- held = clamp(t_r − t_s − rtt, 0, h_max), how long the client had held frame s when it sent; h_max is the time
+  until the next state frame to this player was sent, plus one client flush (1/60 s). The unclamped value is kept as
+  evidence.
+- **Q = T_s + held × `stateRate`**: the newest state the client had applied. Reliable fields are returned at Q.
+- **P = Q − D × `stateRate`**: the tick the client was rendering. `:newest()` fields are returned at P.
+- **Window:** [P − u, P + u] with u = (jitter + 1/60 s) × `stateRate`, clamped to
+  [T_s − D × rate, T_s + (h_max − D) × rate]. Jitter is the mean absolute deviation of the ack round trip. The game
+  may test a hit against the whole window (§11.6).
+
+**Rule: a frame carrying a perceived message carries its ack.** Today only the first frame of a flush carries a
+full ack, and only when a state frame arrived since the last one; the rest carry `'0'` (`v5.md` §4.1). With `'0'`
+the server would use the newest ack it holds, which is wrong in two ways: the frame that carried the real newest ack
+may be an unreliable frame that was lost (P too old), or a frame sent later on the other lane may have arrived first
+(P too new). So a client definition declared `perceived = true` (shared schema, hashed, since the client must act on
+it) makes every frame holding one of its messages carry `'1' seq received` whenever any state frame has arrived.
+- Cost: 28 bits on each such frame that would have carried `'0'`. At 10 claim frames a second, at most 35 B/s up.
+- An undeclared definition can still be rewound; its result has `exact = false`.
+
+**Rule: D is chosen by the server, never by the client.** The `interpolation` extension as scoped adapts its delay
+from jitter the client measures (`v5-extensions.md`: max(2/rate, 0.1 s) + 2 × jitter). A client-chosen D is a
+client-stated rewind offset bounded by a formula, which is R20 again. So:
+- the server computes D per player with the same formula, using its own jitter estimate (the deviation of the ack
+  round trip, which includes both directions, so it errs toward a longer delay);
+- it sends D to that client, in 4 ms units, in a `delay u8` field added to `RATE` (control types are a full u3, so a
+  new type costs a wider field); this changes protocol version 1;
+- D moves by at most one unit per second and takes effect at the tick named in the message; the server keeps a log
+  of (tick, D) back to `maxRewind`, so P uses the D in force at that time.
+- A game that interpolates with its own code sets `delay` to the constant it uses. Lync can't see it.
+
+### 11.4 The engine's interpolation delay
+
+- **Searched:** creator-docs at `efe8741` for "interpolat" across classes, guides and Server Authority pages;
+  devforum for physics replication, character interpolation and buffers.
+- **Found:**
+  - Server Authority: other characters "will render slightly in the past" (documented,
+    `projects/server-authority/techniques.md`), with no figure.
+  - No engine property sets or reports it. `Workspace.InterpolationThrottling` "no longer takes effect"
+    (documented).
+  - Roblox replaced its physics replication backend for "eventual consistency" from 2026-06-15
+    (`Workspace.ImprovedPhysicsReplication`; staff post,
+    [thread](https://devforum.roblox.com/t/upcoming-improvements-to-physics-replication/4675512), 2026-06-09). The
+    post gives no delay figure, and any delay measured before it may no longer hold.
+  - Community statements only: "a large, non configurable interpolation delay … designed primarily for mobile
+    devices" (Chrono, [thread](https://devforum.roblox.com/t/chrono-drop-in-custom-physics-replication-library/3873294),
+    2025-08-10, reported, no figure); "no fixed period … varies with distance and ping"
+    ([thread](https://devforum.roblox.com/t/character-interpolation-period/1523855), 2021, reported).
+- **Status: unverified.** It can't be measured outside a live engine, and the only candidate figure (a 2021 "100"
+  with no unit) predates the new backend.
+- **Design rule that holds either way:**
+  - Lync records are rewound with Lync's own D (§11.3), which is exact by construction. The engine delay never
+    enters that path.
+  - For engine-replicated parts (characters the game doesn't render from Lync records), the delay is a game option,
+    `engineDelay`, never a Lync constant, with a spread `engineSpread`. Lync returns the state at both ends of
+    [t_r − rtt/2 − engineDelay − engineSpread, t_r − rtt/2 − engineDelay + engineSpread]. A hit test against the
+    swept span is correct for any true delay inside it.
+  - The docs give a calibration recipe for a test server: the server keeps a ring of a character's root `CFrame`
+    by `GetServerTimeNow()`; a test-only client script reports the rendered `CFrame` of another character with its
+    own `GetServerTimeNow()`; the server finds the lag that fits best. Its median gives `engineDelay` and its
+    spread `engineSpread`. These reports are client-stated, so they are for calibration only, never enforcement.
+  - Games that need exact rewind of characters render them from Lync records (AC §1.2).
+
+### 11.5 Truth at P, or what the viewer had
+
+**Problem.** Under the state budget a viewer doesn't get every row (COL §7: a 100-player shooter's rows run at about
+13 Hz instead of 20), and rows are lost. The client interpolates between the samples it *received*. The server's
+ring holds the truth for every tick. Lerping the ring at P differs from what that client showed whenever rows
+were missing around P.
+
+**Measured** (`rewind_full.out`): a target strafing at 16 studs/s, reversing every 0.2–0.6 s, 20 Hz, D = 2 ticks.
+Error of truth-at-P against the client's own samples:
+
+| Rows missing | Mean | p99 | Max |
+|---|---|---|---|
+| 0% | 0 | 0 | 0 |
+| 5% (loss) | 0.005 studs | 0.16 | 1.24 |
+| 33% (≈ the 100-player shooter's deferral) | 0.084 | 1.33 | 4.89 |
+| 50% | 0.245 | 2.55 | 8.66 |
+
+**Options.**
+- (a) **Truth:** lerp the ring at P. Exact when the viewer got every row; at 33% missing, p99 1.3 studs, a large
+  share of a 2-stud-wide root part.
+- (b) **As received:** bracket P with the ticks of the rows this viewer acked (the per-pair ring of §11.2), then lerp
+  the ring at those two ticks, as the `interpolation` extension did. It is exact for Lync's interpolation, because
+  the server runs the same sampling function on the same inputs.
+  - Cost: 8.3–8.8 ns native per acked row recorded, done where notify already walks the rows of each acked frame,
+    plus the per-pair memory.
+  - A record the viewer never received in the window returns `notHeld`. That is a fact worth having: the client
+    named a record Lync never sent it, which on an unmodified client happens only when the game also shows that
+    entity through Workspace or another remote.
+- **Recommendation: (b) when the collection uses the `interpolation` extension, (a) otherwise** (a game's own
+  interpolation is invisible to Lync).
+
+### 11.6 What Lync returns, what the game decides
+
+```luau
+Net.strike:connect(function(player, shot)
+	local seen = Net.fighters:perceived(player) -- only inside the handler's synchronous part
+	local target = Net.fighters:rewound(seen, shot.target)
+	if target.ok then
+		-- game code: its own ray test against target.value.position, with its own tolerance
+	end
+end)
+```
+
+- `perceived(player)` returns a frozen value: `tick` (P), `applied` (Q), `low`, `high`, `ackSeq`, `ackTick` (T_s),
+  `held`, `heldRaw`, `ping`, `rtt`, `delay` (D), `exact` (the frame carried a full ack), `expired` (P older than the
+  ring). It may be stored and used later, while its ticks are still in the ring. Called outside a handler it throws
+  the caller error `perceivedOutsideDispatch`.
+- `rewound(seen, key)` returns `{ ok: true, value }` with the declared fields (`:newest()` fields at P, reliable
+  fields at Q) or `{ ok: false, error }` with `"expired"`, `"notHeld"` or `"unknownKey"`, the one error model of
+  `v5.md` §3.5. `rewoundSpan(seen, key)` returns the two records at `low` and `high`.
+- Interpolation per codec: positions, `t.number` and `t.angle` lerp; `t.rotation` and `t.direction` nlerp; every
+  other field holds the value at ⌊tick⌋.
+- `Net.fighters:at(tick, key)` reads the truth ring at any tick in the window.
+- **No new `Lync.observe` fact.** Lync can't know a message is a hit claim, so it states no trigger about one. The
+  evidence goes in the value the game asked for. Acks of frames never sent are already `impossibleAck`.
+- **The game decides:** the hit test and its tolerance, world occlusion (Roblox can't rewind geometry), what a miss
+  or `expired` means, and anything done about a player.
+
+### 11.7 Cost
+
+Probes `rewind_full.out` and `rewind_cost.out`, two runs each; native is the server figure.
+
+| Operation | Native | Interpreted |
+|---|---|---|
+| push, one record per tick (24 B slot) | 9.5–10.5 ns | 130–138 ns |
+| perceived tick (map lookup, clamps, window) | 26–32 ns | 130–134 ns |
+| truth sample: lerp xyz, two rotation decodes, nlerp | 80–87 ns | 381–388 ns |
+| position-only lerp (the earlier 16 B slot) | 26–31 ns | 141–146 ns |
+| as received: record one acked row | 8.3–8.8 ns | 56 ns |
+| as received: bracket P, lerp, two decodes | 108–121 ns | 389–437 ns |
+
+Memory (24 B slots, `maxRewind` 1 s; `rewind_full.out` also has 0.5 s):
+
+| Model | K | Ring per record | Ring total | Seq map | As received |
+|---|---|---|---|---|---|
+| shooter, 30 players, 20 Hz | 27 | 648 B | 19 KB | 9.7 KB | 15 KB |
+| shooter, 30 players, 60 Hz | 77 | 1,848 B | 55 KB | 28 KB | 15 KB |
+| shooter, 100 players, 20 Hz | 27 | 648 B | 65 KB | 32 KB | 170 KB |
+| mmo, 300 tracked, 100 viewers, 20 Hz | 27 | 648 B | 194 KB | 32 KB | 510 KB |
+
+CPU at the 100-player shooter (rows capped at about 66 per viewer per tick by the 16,000 B/s budget; 10 claims a
+second per player, 5 targets each, all derived from the table):
+- pushes: 100 × 20 × 10.5 ns ≈ 21 µs/s;
+- as-received recording: 100 viewers × 66 rows × 20 Hz × 8.8 ns ≈ 1.2 ms/s;
+- queries: 1,000 claims/s × (32 + 5 × 121 ns) ≈ 0.64 ms/s;
+- in total about 1.8 ms/s, 0.2% of a core.
+
+Wire: nothing for the ring. 28 bits per `perceived` frame that would have carried `'0'`, and 1 B per D change
+(at most one a second per player).
+
+### 11.8 How it fails on an unmodified client
+
+- **Ping above `maxRewind`** (minus `delay`): `expired`. The game chooses whether to judge at the oldest tick or
+  refuse. AC §4.1: under-coverage punishes high-ping players with misses.
+- **Bursty downstream loss, or a client hitch longer than a tick:** `heldRaw` exceeds h_max and is clamped; the
+  window widens by up to h_max. `exact = false` on undeclared definitions.
+- **Asymmetric links:** rtt/2 misplaces the client's send time by half the asymmetry. Only `held` and Q depend on
+  it, because s pins the state frame exactly.
+- **Reliable fields** are returned at Q on the assumption that the reliable lane is as current as state frames.
+  During a reliable stall (the test network model's 0.3 s stalls), the client held older reliable values. Reliable
+  frames aren't acked, so Lync can't tell.
+- **Teleports:** a lerp across a teleport returns a point on the line between. A `Net.fighters:cut(key)` call marks
+  the tick so neither the ring nor the interpolation extension lerps across it. This needs one bit in the next row,
+  unspecified here.
+- **A game's own interpolation** with a delay other than `delay`: P is off by the difference.
+
+**Defeated by (capability class, not steps):** a modified client that withholds acks or delays its own traffic,
+engine pings included, makes itself look laggier and moves P older, at most to `maxRewind`. This is the inherent
+limit of lag compensation (Bernier accepts it). The evidence fields `held`, `heldRaw`, `ping`, `rtt` and `ackTick`
+show it as numbers. Lync attaches no verdict. Aim itself is an input, and an aimbot passes any geometric test.
+
+### 11.9 Options
+
+Server view, `Net.<collection>:rewind({ … })`:
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `fields` | array of top-level field names | — | — | every `:newest()` field | single-row width (bytes, rounded up) × K per record |
+| `maxRewind` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: above typical p99 round trips) | K = ⌈(maxRewind + 0.25) × stateRate⌉ + 2 slots per record; L = K + 17 map entries per player |
+| `mode` | `"received" \| "truth"` | — | — | `"received"` with the `interpolation` extension, else `"truth"` | received: (4M + 1) B per (viewer, record) and 8.3–8.8 ns native per acked row |
+| `delay` | number (real) | s | 0–1 | the extension's server-chosen D; else 0.1 (Source's `cl_interp`, AC §4.1) | none |
+| `rttSlack` | number (real) | s | 0–0.2 | 0.05 (chosen, unmeasured) | none; bounds how far Lync's ack round trip may raise engine ping |
+
+Shared schema, client-sent definitions: `perceived = true` (boolean, default false; 28 bits per carrying frame that
+would have had `'0'`; hashed). Engine parts, `Lync.rewind.parts(parts, { engineDelay, engineSpread, maxRewind })`:
+`engineDelay` s, 0–0.5, default 0.1 (unverified, calibrate, §11.4); `engineSpread` s, 0–0.25, default 0.05; cost
+one `CFrame` read per part per state tick (allocates a userdata; cost on Roblox unmeasured) plus a 32 B slot.
+
+Constants: M = ⌈`delay` × `stateRate`⌉ + 2; L = K + 17; D unit 4 ms, at most one unit per second.
+
+---
+
+## 12. U15: `StreamingTargetRadius` and staged release
+
+### 12.1 What the engine streams, and why the radius is no secrecy bound
+
+All documented (`workspace/streaming/index.md`, `frustum.md`, `Workspace.yaml` at `efe8741`) unless marked.
+
+- **The region.** Parts stream in around each replication focus: the character's `PrimaryPart` or
+  `Player.ReplicationFocus`, plus foci added with `Player:AddReplicationFocus()`. `StreamingMinRadius` defaults to
+  64 studs and `StreamingTargetRadius` to 1024.
+- **Three things widen it:**
+  - frustum streaming reaches "the lesser of the client's current draw distance and an engine-defined maximum
+    range" in the camera view (`Player.FrustumStreaming`, server-only);
+  - predictive streaming adds temporary foci at spawn points and recently left places;
+  - extra foci.
+- **The radius bounds stream-in, not what a client holds:**
+  - "the engine is allowed to retain previously loaded instances beyond the target radius, memory permitting";
+  - under the default `StreamOutBehavior` `LowMemory`, "the client only streams out regions beyond the minimum
+    radius in a low memory situation";
+  - so a client keeps most of what it has ever been near. `Opportunistic` lets the client drop it, but a modified
+    client keeps its own copies regardless.
+- **Some content ignores the radius altogether:**
+  - Workspace instances other than parts and atomic or persistent models replicate at join: folders, values, their
+    attributes, scripts;
+  - under `ModelStreamingBehavior` `Legacy` (the default), every model's container and its non-part descendants do
+    too;
+  - `ReplicatedStorage` and `ReplicatedFirst` "are ineligible for streaming": everything in them reaches every
+    client at join;
+  - with streaming off, the whole Workspace does.
+- **Readable by whom** (verified, API dump 0.741.19): `StreamingTargetRadius`, `StreamingMinRadius`,
+  `StreamOutBehavior` and `ModelStreamingBehavior` are `NotScriptable`, so neither Lync's runtime nor a plugin can
+  read them. `StreamingEnabled` has no `NotScriptable` tag (read None, write PluginSecurity) although its doc prose
+  says "not scriptable". I believe the dump and the doc's own empty tag list: game code can read it (unverified in
+  an engine). A build host reads all of them from a place file: verified, `stream_read.out` (set, serialized,
+  read back under Lune 0.11.0).
+- **Characters** stream like other Workspace content, to every client whose region covers them (AC §1.2).
+
+### 12.2 What Lync's docs say (a page, "What engine streaming shows, and what Lync can hide")
+
+1. **The leak radius of an entity is the larger of the engine's and Lync's.** `interest.radius` hides a record
+   beyond its cells only if the same information isn't also in Workspace: a part, a model, an attribute, a
+   character. A game that hides X with interest keeps X's instance out of Workspace, or accepts that the engine
+   shows it out to the streaming region.
+2. **The engine's region is wider than `StreamingTargetRadius` suggests:** retention under `LowMemory`, frustum
+   streaming, extra and predictive foci (§12.1). Treat the region as "everything this client has been near since
+   joining".
+3. **What reduces it:** a smaller `StreamingTargetRadius` (pop-in is the cost, and the docs recommend 1024),
+   `StreamOutBehavior = Opportunistic` (recommended for memory anyway), `ModelStreamingBehavior = Improved`, and no
+   frustum streaming where it isn't needed. None of these hides anything from a modified client inside the region.
+4. **Never put a secret in a Workspace attribute or value.** It replicates at join, whatever the radius.
+5. **Fog of war for players** needs characters rendered from Lync records (AC §1.2, §1.4); `interest` and
+   `rewind` (§11) then work on exact data.
+6. **Lync's interest focus defaults to the engine's focus** (§2), so the two regions are centred on the same point.
+
+### 12.3 Staged release of unreleased content
+
+**What leaks.** Anything replicated can be read before it is used:
+- models and assets in `ReplicatedStorage`;
+- script code: clients can "Decompile any replicated LocalScript or any ModuleScript, even if they never run on the
+  client" (documented, `scripting/security/security-tactics.md`, quoted in `generation-security.md` §2.2);
+- Lync's shared schema and client shard, which name every definition, field and enum item. One
+  `t.enum({ …, "dragonblade" })` announces the item.
+- Kicking doesn't help: "replication begins as soon as the player joins and before server-side kick logic can
+  execute" (documented, `scripting/security/access-control.md`).
+
+**Mechanism: a staged namespace.** v5 already carries any number of namespaces over one remote pair. The server
+numbers them in order of first server-side use, and a `HELLO` for one the server hasn't loaded is held up to 10 s
+(`v5.md` §4.6). So:
+1. Unreleased definitions go in their own schema module, declared in `lync.toml` as `[[namespace]] staged = true`.
+   Its schema module and client shard are built to a server-only folder (`ServerStorage`).
+2. At release, server code calls `Lync.release(folder)`. It requires the server view first (its first server-side
+   use), then parents the folder into `ReplicatedStorage`.
+3. Client code waits for the folder and requires the client shard, which sends `HELLO` and gets `WELCOME`.
+4. No restart, no new remote. Released namespaces never change, so their schema hash is unaffected.
+- **Cost:**
+  - run time: one namespace index more in the segment toc (a few bits per segment of it), and one `HELLO`/`WELCOME`
+    round trip per client at release;
+  - sends made during that round trip wait in the join hold (32,768 B);
+  - developer effort: one more schema module per staged feature, written as its own namespace from the start.
+- **Limit:** content that has to extend a *released* definition (a new item in a released enum) can't be staged
+  this way. It needs a new build and a server restart, which is a design constraint the docs state.
+
+**Build checks** (`lync check`; each `[check]` key takes `"off" | "warn" | "error"`):
+
+| Code | Exact trigger | Evidence | Default | Known causes without a leak |
+|---|---|---|---|---|
+| `stagedReplicated` | a staged namespace's `schema` or `client` path, or a path listed in `[[staged]] paths`, maps to a replicated container (`ReplicatedStorage`, `ReplicatedFirst`, `Workspace`, `StarterGui`, `StarterPack`, `StarterPlayer`). It is mapped through the Rojo project file, the plugin's instance path, or the built place when `[check] place` names one | namespace or path, container | `"error"` | none: the declaration says server-only |
+| `stagedReferenced` | a scanned replicated script, or a released namespace's schema, contains the staged module's instance path or a `require` of it | file, line, column | `"error"` | a client loader that waits for the folder by name, which is allowed when it names the release folder in `[[staged]] loader` |
+| `stagedNameLeak` | a definition name, field name, union variant or enum item of a staged namespace, at least 4 bytes long, occurs byte for byte as a string literal in a released namespace's schema or a scanned replicated script | the string, file, line | `"warn"` | a common word ("name", "level") used in both; the check reports the match, and only the game knows whether it is a leak |
+| `streamingOff` | the place read through `[check] place` has `Workspace.StreamingEnabled = false` | place path | `"off"` | a game that streams nothing on purpose |
+
+- **Report.** `report.md` lists the place's `StreamingEnabled`, `StreamingTargetRadius`, `StreamingMinRadius`,
+  `StreamOutBehavior` and `ModelStreamingBehavior`, with the place file they came from. The runtime can't read most
+  of them (§12.1); the build can (`stream_read.out`).
+- **Cost:** build time only.
+  - The text checks share the scan that `rawRemote` and reachability already make (`v5-tooling.md` §3,
+    `v5-integrity.md` §3).
+  - Reading a place costs one Lune `deserializePlace`; time for a large place is unmeasured.
+- **What no build can check:**
+  - whether an asset is unreleased, unless the developer lists its path;
+  - game code that parents content into a replicated container early at run time;
+  - attributes set at run time.
+- **Least developer work:** `staged = true` on a namespace and one `Lync.release(folder)` call. The defaults
+  catch the two mistakes that leak everything, a staged module in a replicated folder and a replicated `require` of
+  it, as errors.
+
+**`lync.toml` keys:**
+
+| Key | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `[[namespace]] staged` | boolean | — | — | false | the namespace's shard goes to `ServerStorage`; one namespace index at release |
+| `[[staged]] paths` | array of instance paths | — | — | [] | one container lookup per path at build |
+| `[[staged]] loader` | instance path of the release folder | — | — | none | exempts that path from `stagedReferenced` |
+| `[check] place` | path to a built `.rbxl` | — | — | none | one place read per `check` |
+| `check.stagedReplicated`, `.stagedReferenced`, `.stagedNameLeak`, `.streamingOff` | `"off" \| "warn" \| "error"` | — | — | as the table above | build time only |
+
+---
+
+## 13. `PlayerGui` variant timing
+
+**Context.** R7 (per-player client shard variants from a build-time pool) is refused today; one of its recorded
+costs is that the variant may arrive after the client's first send (CH:107). This section gives the protocol rule
+that keeps Lync correct whichever arrives first, so a re-judgment of R7 can weigh it with its real cost.
+
+### 13.1 The facts the rule rests on
+
+- `PlayerGui` exists from join: "When a player first joins the experience, their `PlayerGui` is automatically
+  inserted" (documented, `PlayerGui.yaml`). A child the server parents there replicates to that player only
+  (`PlayerReplicated`, verified, `generation-security.md` §2.1). It doesn't wait for spawn; only `StarterGui`
+  copies do.
+- A `LayerCollector` with `ResetOnSpawn = true` "deletes itself and re-clones" on respawn (documented,
+  `LayerCollector.yaml`), so the variant sits in a `ScreenGui` with `ResetOnSpawn = false`, as Adonis does
+  (`generation-security.md` §2.1).
+- **Unverified:** the arrival order of a server-parented `PlayerGui` child relative to `ReplicatedFirst` and
+  `ReplicatedStorage` content, and relative to remote messages. The remote docs order messages "across different
+  `RemoteEvent` instances" but say nothing about instance replication against remotes (searched
+  `scripting/events/remote.md`, `projects/client-server.md`). So no rule may depend on it.
+- `RemoteEvent`: with no handler connected, "Roblox queues it and delivers it, in order, as soon as a handler
+  connects. The queue is limited in both count and memory" (documented, `remote.md`). `UnreliableRemoteEvent`
+  messages with no handler are discarded "immediately".
+- Before a namespace's `WELCOME` the client sends only untagged `HELLO`s (`v5.md` §4.5). A `HELLO` is a control row
+  of namespace 0 with fixed fields, untouched by the seed (the seed changes record field order and the tag's
+  constants only, §3.2). It carries the build seed (u32).
+
+### 13.2 The rule
+
+1. **Assignment before cloning.** Lync's server runtime picks each player's variant at `Players.PlayerAdded`, and
+   for players already present at start (the loop `PlayerAdded` needs). It records the variant's seed for the
+   player, then parents the clone under a `ResetOnSpawn = false` `ScreenGui`. The server always knows the
+   assignment before the client can see the clone.
+2. **Bind before `HELLO`.** Game code requires a shared stub (`ReplicatedStorage`), which returns the API at once,
+   so `require` still never yields (`v5.md` §3.5). The stub binds to the variant when it finds it under `PlayerGui`
+   and only then sends `HELLO`, carrying that variant's seed. Until binding, every send goes to the join hold
+   exactly as before `WELCOME` (§5.3): reliable sends are held, and unreliable sends are dropped as `sendDropped`
+   cause 2.
+3. **The hold keeps values, not bytes.** Field order isn't known until binding, so held sends stay as values and
+   are encoded at release with the bound plan. Their size against the 32,768 B cap is counted with the seed-0
+   plan. That count is exact, because no codec's encoded size depends on field order:
+   - single rows sum their fields;
+   - column blocks code each column on its own;
+   - the tail holds the same bytes in another order;
+   - (derived from `v5.md` §4.3).
+4. **The server accepts only the assigned seed.** A `HELLO` whose seed differs from the player's assignment gets
+   `MISMATCH` and the existing fact `schemaMismatch` (`seedDiffers` = 1). If any variant in the pool were accepted,
+   a modified client could choose the variant its tool was built for, and per-player variation would be void.
+5. **Bind once per connection.** Later changes under `PlayerGui` (a respawn, a game script deleting the
+   `ScreenGui`) are ignored. The server never reassigns within a session; a rejoin may get a different variant.
+6. **Variants change the upstream plan and the tag constants only.** Downstream chunks keep the build's own field
+   order, so encode-once and cell chunks (§3, §6.2) keep sharing across players. The client then decodes downstream
+   frames from first use, and its `OnClientEvent` handler connects at once. With rule 2, the only message the
+   engine's queue ever holds for it is a `WELCOME` (or `MISMATCH`), one small control frame, well inside any
+   plausible queue limit. No bulk data waits on that undocumented limit.
+
+### 13.3 Why it is correct either way
+
+- **Variant first:** binding is immediate, and the join behaves as today.
+- **First send first:** the send waits in the hold. `HELLO` leaves when the variant is bound, and `WELCOME` releases
+  the hold. No frame is ever encoded with a plan the server doesn't expect, because nothing but `HELLO` (which has
+  no seed-dependent bits) leaves before binding, and the server checks the seed against its own assignment.
+- **No ordering assumption** between instance replication and remotes is needed (§13.1).
+
+### 13.4 Cost
+
+| Item | Cost |
+|---|---|
+| join latency | max(0, variant arrival − client first use), plus the `HELLO`/`WELCOME` round trip as today. The arrival time is unmeasured; measure it in Studio and live from `os.clock()` at a `ReplicatedFirst` script's start to the variant's `ChildAdded` |
+| client memory | held values up to 32,768 B of encoded size (the existing cap), now kept as values until binding |
+| server memory | one seed per player; V upstream decode plans (size per plan unmeasured; about one shard's tables each) |
+| server CPU | one plan reference per player, read once per upstream frame (a table field) |
+| wire | none: `HELLO` already carries the seed |
+| replication | one script instance per player, about one shard's size (CSB §3.3) |
+| developer effort | `[variants] count = N` in `lync.toml`. The stub, the variants and the server's assignment are generated; game code requires the stub as it requires the shard today |
+
+### 13.5 How it fails on an unmodified client
+
+- **The variant never arrives** (a server error before parenting, or `PlayerGui` missing): the client keeps waiting
+  and reports natively `variantMissing` after 10 s, as `remotesMissing` does (`v5.md` §7.3). It is a local, client
+  fact with no evidence, and a new runtime constant: variant wait 10 s (chosen, unmeasured).
+- **A slow variant:** sends beyond the hold are `sendDropped` cause 1, and unreliable sends cause 2. Their known
+  causes gain "waiting for the variant (`[variants]` set)".
+- **A game script that clears `PlayerGui`** before binding: as "never arrives". After binding it has no effect
+  (rule 5).
+- **A modified client** can read its own variant in full, as it reads the shared shard today. Variation prices only
+  tools shared between players inside one build (R7's recorded reason), and rule 4 keeps a client from opting out
+  of its assignment.
+
+---
+
+## Implications (rewind and timing)
+
+1. **Specify `rewind` as tick-indexed 24 B slots per tracked record** (quantized position, rotation code, flag
+   byte), declared on the server view and never hashed. It costs 648 B per record at 20 Hz for 1 s, and about
+   10 ns native per push (§11.2, §11.7).
+2. **Derive two ticks per message from the ack in its own frame,** Q (applied) and P = Q − D (rendered), with
+   `held` from engine ping raised to Lync's ack round trip. Never take a time from the client (§11.3, R20).
+3. **Add `perceived = true` on client definitions,** forcing a full ack into every frame that carries them. It costs
+   28 bits per such frame and makes P exact (§11.3).
+4. **Make the interpolation delay a server value sent in `RATE`** (4 ms units, at most one step a second, logged by
+   tick). A client-adapted delay is a client-stated rewind offset (§11.3).
+5. **Default to "as received" sampling with the `interpolation` extension.** Truth-at-P is off by p99 1.3 studs once
+   a third of rows are deferred, and as received costs about 1.2 ms/s at 100 players (§11.5, §11.7).
+6. **Return evidence, not a verdict:** `perceived()` values (`held`, `heldRaw`, `ping`, `rtt`, `exact`, `expired`)
+   and `rewound()` results with `notHeld`. Add no `observe` fact, because Lync can't know a message is a claim (§11.6).
+7. **Keep the engine's interpolation delay out of Lync's constants.** It stays unverified. Rewind engine parts over
+   a game-set `engineDelay ± engineSpread` span, and ship the calibration recipe (§11.4).
+8. **Ship the streaming page:** the leak radius is the larger of the engine's and Lync's. The engine region keeps
+   what a client has been near, and Workspace attributes replicate at join (§12.1–§12.2).
+9. **Stage unreleased features as their own namespace** in `ServerStorage`, released with `Lync.release(folder)`.
+   Build checks `stagedReplicated` and `stagedReferenced` (error) and `stagedNameLeak` (warn), and `report.md`
+   lists the place's streaming settings, which only the build can read (§12.3).
+10. **If R7 is re-judged, adopt the variant rule with it:** bind before `HELLO`, hold values, accept only the
+    assigned seed, bind once, and vary upstream only. That costs no wire bytes, and join latency only by the
+    unmeasured variant arrival (§13).

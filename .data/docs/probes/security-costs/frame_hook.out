@@ -8,3 +8,12 @@ default identity, always called         30.93      27.32      38.36     1.03    
 for scale: tag a 100 B frame          3944.27    3644.47    4105.67   131.91    98.62   143.05
 sink	24989010319
 == frame_hook, luau -O2, run 2
+## end of one flush (per frame) (3000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+none                                    29.16      25.59      37.28     1.00     1.00     1.00
+nil-checked table field                 30.69      26.01      34.81     1.02     0.86     1.25
+nil-checked upvalue                     29.42      25.69      45.34     1.00     0.78     1.58
+default identity, always called         28.68      26.11      46.56     0.99     0.81     1.62
+for scale: tag a 100 B frame          3967.87    3711.68    4310.28   131.45   105.96   158.67
+sink	24989010319
+== frame_hook, luau -O2, run 3

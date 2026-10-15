@@ -27,7 +27,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `ad69e26579bcfc07b` | prover | re-measures every performance figure used to refuse or narrow a security measure, plus generated cheaper forms | `probes/security-costs/RESULTS.md` | running |
 | `a5072800c2daf5fdc` | researcher | **the methods agent**: concrete generation methods in Lync's pipeline; re-checks M1–M12 against their probes and goes further (per-player tag binding, generated traps/decoys/canaries, runtime-path per-session parameters) | `research/generation-methods.md`, `probes/generation-methods/` | M1–M12 done, all on Opus 5.5; key finding: the build seed is public, so per-build values price nothing until a private `rotationSeed` exists (M1); per-session/per-player layouts vary upstream only; retired |
 | `a6b292c4df871349d` | researcher | client shard self-checks: finishes `security-tooling.md` §2; U1 captured `FireServer`, U2 tag rounds and rotation amounts, U7 caller information in the tag | `research/security-tooling.md` §2, `research/client-self-checks.md`, `probes/client-self-checks/` | done on Opus 5.5, nothing unwritten; U1 captured method (≤ 8 ns less, `__namecall` spies only), U2 rounds (vetted rotation pool, `build.tagRounds`), U7 one caller bit in the lane byte, replacing `sourceUnlisted`; retired |
-| `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | append to `research/interest-rewind.md`, `probes/interest-rewind/` | running |
+| `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | `research/interest-rewind.md` §11–§13, `probes/interest-rewind/` | done on Opus 5.5, nothing unwritten; rewind 24 B per record per tick, perceived tick from acks plus ping, server-chosen interpolation delay in `RATE`; staged release via `Lync.release`; variant timing rule; retired |
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | append to `research/generation-methods.md`, `probes/generation-methods/run4.sh` | running |
@@ -49,7 +49,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 - Units, smallest first, each to a fresh agent as a slot frees (at most five running). Fallbacks count as
   interruptions: a unit written after one is redone as its own unit.
   1. ~~`interest`~~ done.
-  2. `rewind`: D2, U15, the PlayerGui variant timing rule → append to `research/interest-rewind.md` (on `a0f684951116653fa`).
+  2. ~~`rewind`~~ done.
   3. `checks`: D3, U12 → `research/checks-telemetry.md` (on `aaaa767102bda45cc`).
   4. `telemetry`: D4, with Roblox's terms on off-platform data → append to `research/checks-telemetry.md`.
      Note for units 3–4: `probes/checks-telemetry/checks_cost.luau` exists; its "atom copy" line divides by N but runs N/10 copies (real figure 10x the printed one).

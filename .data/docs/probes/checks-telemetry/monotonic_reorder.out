@@ -1,0 +1,4 @@
+jitter 0.020 s loss 0.05: 950046 frames delivered, 12478 late (1.313%), window drops 0; naive failures 12478 (1.313% of frames), seq-aware failures 0
+jitter 0.020 s loss 0.05: 950188 frames delivered, 12613 late (1.327%), window drops 0; naive failures 12613 (1.327% of frames), seq-aware failures 0
+jitter 0.050 s loss 0.05: 950046 frames delivered, 224030 late (23.581%), window drops 0; naive failures 224030 (23.581% of frames), seq-aware failures 0
+jitter 0.000 s loss 0.05: 950046 frames delivered, 0 late (0.000%), window drops 0; naive failures 0 (0.000% of frames), seq-aware failures 0

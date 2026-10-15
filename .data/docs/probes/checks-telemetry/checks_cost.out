@@ -41,3 +41,82 @@ clamp vector to sphere (on failure, policy clamp)             57.7 ns/op  (sink 
 state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
 failures counted: 14000000 (expected 14000000: only the failing case fails)
 ## run 2 interpreted -O2
+-- A. raw kernels
+within (distance^2 <= max^2)                                  54.2 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                17.6 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              75.3 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                           52.1 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             89.6 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  46.1 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)              155.5 ns/op  (sink 0)
+runner, within number (reference fn)                         153.8 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                   221.3 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                           285.6 ns/op  (sink 0)
+runner, maxTotal token bucket                                286.6 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      555.6 ns/op  (sink 0)
+runner, within vector failing every message (drop)           151.2 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             55.5 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)
+## run 2 native -O2 --codegen
+-- A. raw kernels
+within (distance^2 <= max^2)                                   7.4 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                 5.9 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              20.6 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                            7.5 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             54.9 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  21.8 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)               78.1 ns/op  (sink 0)
+runner, within number (reference fn)                          69.1 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                    84.4 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                           102.4 ns/op  (sink 0)
+runner, maxTotal token bucket                                 87.3 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      204.7 ns/op  (sink 0)
+runner, within vector failing every message (drop)            74.4 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             62.7 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)
+## run 3 interpreted -O2
+-- A. raw kernels
+within (distance^2 <= max^2)                                  60.6 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                18.1 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              77.6 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                           52.5 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             89.0 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  49.9 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)              150.4 ns/op  (sink 0)
+runner, within number (reference fn)                         160.1 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                   225.3 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                           298.0 ns/op  (sink 0)
+runner, maxTotal token bucket                                251.8 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      591.3 ns/op  (sink 0)
+runner, within vector failing every message (drop)           155.1 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             57.9 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)
+## run 3 native -O2 --codegen
+-- A. raw kernels
+within (distance^2 <= max^2)                                   8.3 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                 3.3 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              14.1 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                            8.2 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             58.5 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  22.3 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)               71.9 ns/op  (sink 0)
+runner, within number (reference fn)                          69.1 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                    84.7 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                           106.6 ns/op  (sink 0)
+runner, maxTotal token bucket                                 88.0 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      203.1 ns/op  (sink 0)
+runner, within vector failing every message (drop)            71.7 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             52.9 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)

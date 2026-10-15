@@ -25,10 +25,10 @@ first case, the baseline in the same run. `run.sh` runs each probe 3 times inter
 - [x] 4. Per-session upstream id shuffle: ~20,000-slot decode table (`id_shuffle.luau`)
 - [x] 5. Low-order watermarks: per-viewer encoding cost (`per_viewer.luau` part A)
 - [x] 6. Decoys: per-viewer re-encode and pool slots (`per_viewer.luau` part B)
-- [ ] 7. Caller probe on every call ≤ 0.2 ms/s at 60/s (`caller_probe.luau`)
+- [x] 7. Caller probe on every call ≤ 0.2 ms/s at 60/s (`caller_probe.luau`)
 - [x] 8. `tag.cover` 16,384 default ≤ 0.23 ms/s per player; 0.022 / 0.0035 µs/B (`tag_cover.luau`)
-- [ ] 9. Clock beacon: one 66-slope fit per 5 s per player (`clock_fit.luau`)
-- [ ] 10. Canary scan up to 256 B: per-offset lookup cost (`canary_scan.luau`)
+- [x] 9. Clock beacon: one 66-slope fit per 5 s per player (`clock_fit.luau`)
+- [x] 10. Canary scan up to 256 B: per-offset lookup cost (`canary_scan.luau`)
 - [ ] 11. Other figures used to refuse or narrow a measure (`tag_cover.luau`, `per_viewer.luau`, `enum_rotation.luau`, `getfenv_deopt.luau`)
 - [ ] 12. R39: an unused per-frame transform hook slot vs none (`frame_hook.luau`)
 
@@ -261,3 +261,66 @@ runs, ratio to the tag over the same bytes in the same run:
   against passive readers, which is the reader masking prices.
 - A mask keyed per server and per tick, rather than per connection, keeps downstream frames identical for every
   recipient, so it need not end `FireAllClients`; per-connection keys do.
+
+### 7. Caller probe on every call: "≤ 0.2 ms of client CPU a second at 60/s" — **inconclusive for Roblox; on the CLI true with Lua-raised errors (0.15–0.19 ms/s), false with a C-raised error (0.24–0.25 ms/s)**
+
+Source: `v5-integrity.md` §4 (cost line and options table), `v5-changes.md:550`; figures from
+`client-security.md` §2.2 (failing `pcall` 2.2–3.3 µs) and `review-redundancy-2/inbound_hotpath.out`
+(failPcall 2.2–2.5 µs, debug.info 57–72 ns). Probe: `caller_probe.luau`, output `caller_probe.out`. The identity
+probe's capability error cannot be raised in the CLI; four stand-ins bracket it. Per probe, medians of 3 runs:
+
+| Per probe | interpreted (client) | native |
+|---|---|---|
+| `pcall` of a function that returns (baseline) | 27 ns | 27 ns |
+| failing `pcall`, `error(string)` level 1 | 2.81 µs | 3.08 µs |
+| failing `pcall`, `error(string, 0)` | 2.40 µs | 2.61 µs |
+| failing `pcall`, `error(table)` | 2.46 µs | 2.61 µs |
+| failing `pcall`, error raised by a C builtin (`buffer.readu8(nil, 0)`) | 3.93 µs | 4.47 µs |
+| `debug.info(2, "s")` + cache lookup (source probe) | 68 ns | 54 ns |
+| `math.random()` draw per fire | 33 ns | 25 ns |
+
+At 60 probes/s (identity + source + draw), interpreted: 0.17–0.19 ms/s (level-1 string), 0.15–0.16 (level 0),
+0.15–0.16 (table), **0.24–0.25 ms/s (C-raised)**; native 0.27–0.29 ms/s for the C-raised case.
+
+- The design's 3.3 µs ceiling is exceeded by a C-raised error on this desktop CPU (3.9–4.5 µs), so the 0.2 ms/s
+  holds only if Roblox's capability error is as cheap as a Lua `error`; phones are slower again (unmeasured factor,
+  `client-security.md` §2.2). Settling it needs the Studio/device run listed in `v5-integrity.md` §4.
+- Claim 11(a): "a `pcall` whose callee errors 2.2–3.3 µs (error string construction dominates)"
+  (`client-security.md` §2.2) — **false on the reason**: `error(table)` builds no string and costs the same as
+  `error(string, 0)` (2.46 against 2.40 µs); the cost is the unwind, so no choice of message makes the probe cheaper.
+  Only sampling (`callerProbe.oneIn`) scales it.
+
+### 9. Clock beacon: "one 66-slope fit per 5 s per player" (CPU unmeasured) — **true, and negligible: ≤ 6 µs per fit, ≤ 0.012% of a core at 100 players**
+
+Source: `v5-integrity.md` §6 ("CPU unmeasured, milestone 5"), `v5-changes.md:551`. Probe: `clock_fit.luau`,
+output `clock_fit.out`; Theil–Sen median of the 66 pairwise slopes over 12 window minima; all three fits agree
+on 50 inputs. Medians of 3 runs:
+
+| Per fit | interpreted | native |
+|---|---|---|
+| 66 slopes, `table.sort`, median (baseline) | 4.80 µs | 2.86 µs |
+| 66 slopes, quickselect | 6.01 µs | 1.52 µs |
+| generated: 66 slope lines with constant divisors, quickselect | 4.79 µs | 1.06 µs |
+| per-beacon window minimum update | 29 ns | 8.8 ns |
+
+100 players, one fit per 5 s each: 20 fits/s = 0.10 ms/s interpreted with `table.sort` (0.010% of a core), 0.02
+ms/s native generated (0.002%). Per beacon: one comparison, 9–29 ns.
+
+### 10. Canary scan up to 256 B: "up to `scanBytes` − 11 lookups per longer value (per-offset cost measured in milestone 5)" — **true (linear in offsets); a lookup per offset costs 54–64 ns, a generated prefix filter 5 ns native**
+
+Source: `v5-integrity.md` §9 (cost line and option row), `v5-changes.md:553`. Probe: `canary_scan.luau`, output
+`canary_scan.out`; 1024 live canaries, chat-like inputs of 32, 128 and 256 B; every case finds a planted canary and
+nothing in the plain input. Per offset, range over 3 runs:
+
+| Scan method | interpreted ns/offset | native ns/offset | 256 B value, native |
+|---|---|---|---|
+| `string.sub` of 12 B + map lookup per offset (the cost as specified) | 56–64 | 50–58 | 13.1–13.8 µs |
+| rolling 4-byte key + map of canary prefixes, full compare on a prefix hit | 42–49 | 21–30 | 5.9–6.2 µs |
+| `buffer.fromstring` once, `readu32` per offset, prefix map | 27–30 | 16–20 | 4.4–4.6 µs |
+| as above, with a 64 Kbit bitset of prefix low 16 bits before the map | 44–51 | 5.2–6.0 | 1.3 µs |
+| `t.buffer` input, bitset + prefix map | 44–55 | 4.2–5.2 | 1.2 µs |
+
+- Worst case per player (derived): strings filling the default 65,536 B/s of inbound bytes put about one offset per
+  byte through the scan: 3.5–3.8 ms/s native as specified, 0.34–0.39 ms/s with the bitset; interpreted 1.8–2.0 ms/s
+  with the prefix map, the best interpreted form (the bitset loses interpreted, where map lookups are cheap).
+- The scan needs no build step; the prefix map and bitset are built when canaries are added (12 B each).

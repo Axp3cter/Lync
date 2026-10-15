@@ -54,6 +54,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a75374bcd3227e4ff` | architect (Opus) | draft 3.6, collections: `v5-collections.md` plus interest, rewind, interpolation; awaits rejudged-4 (R16, R19) | `design/v5-collections.md`, `design/v5-3.6-changes-collections.md` | running |
 | `a61dd67964f674f75` | architect (Opus) | draft 3.6, checks: new `v5-checks.md` (checks, derive, telemetry, sealed) and `v5-extensions.md`; awaits rejudged-4 (R35) | `design/v5-checks.md`, `design/v5-extensions.md`, `design/v5-3.6-changes-checks.md` | running |
 | `a8d8d1902366d183b` | critic (Opus) | reviews `v5-tooling.md` at draft 3.6 against the shared brief | `reviews/v5-3.6-tooling.md` | running |
+| `a05178a23ec42b0d6` | scout (Opus) | build inventory from `f1fbfd7`, the m1/m2 plans and reviews: module map, harness, lessons, reuse, unit sizing | `design/build-inventory.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -99,6 +100,11 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   - Checks C0 proposes `policy = clamp`, which rewrites a client value instead of dropping it; weigh against "Lync only drops bad input" (§1) in the architect pass.
   - Self-checks open questions (direct method-call path for Instances, command-bar identity, renamed-script source, `task.spawn`) → add to `v5.md` §10 pending measurements in the architect pass.
   - Codecs-in-scripts found a reachability gap in `v5-integrity.md` §3 (namespace iteration) → the integrity architect unit.
+- Path to code (author asked to start coding once ready; work split into very small units): finish 3.6 → consistency
+  unit → critics per area plus one end-to-end trace → apply until no blocking or major finding → build plan (module
+  map, dependency graph, unit specs with owned files and proving tests, harness and fixtures first) → critic on the
+  plan → builder units, each with a code critic, a prover where it claims performance, a fallback check, a commit
+  when green. Prep now: `design/build-inventory.md`.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the

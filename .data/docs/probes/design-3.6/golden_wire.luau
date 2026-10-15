@@ -370,3 +370,15 @@ do
 	body = bytesOf(w)
 	print("W2 ", hex(body .. tag(key07, 0, 0, body, 0)), "(literal buy site, slot 0)")
 end
+-- SIZES: forced control-only upstream reliable frames under this header (caller, ack '0', rcv), tag included.
+do
+	local function frameBytes(rows: { number }): number
+		local bits = 1 + 1 + 8 + eg0bits(1) + eg0bits(0) + eg0bits(#rows - 1)
+		for _, r in rows do bits += 3 + eg0bits(0) + r end
+		return math.ceil(bits / 8) + 4
+	end
+	local function rep(a, b, c, d) return eg0bits(a) + eg0bits(b) + eg0bits(c) + eg0bits(d) end
+	print("SIZES REPORT (1,1,0,0)", frameBytes({ rep(1, 1, 0, 0) }), "(0,0,1,0)", frameBytes({ rep(0, 0, 1, 0) }),
+		"(0,0,80,0)", frameBytes({ rep(0, 0, 80, 0) }), "(60,60,60,60)", frameBytes({ rep(60, 60, 60, 60) }),
+		"BEACON", frameBytes({ 16 }), "BEACON+REPORT(1,1,0,0)", frameBytes({ 16, rep(1, 1, 0, 0) }))
+end

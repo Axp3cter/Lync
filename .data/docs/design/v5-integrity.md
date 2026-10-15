@@ -45,37 +45,172 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
   weights or scores (R23) and no automatic kick, ban, throttle or client-visible rejection (R24): each would be
   Lync deciding policy, which is the game's code (`v5.md` §0).
 
-## 2. Per-build rotation (kept: author decision)
+## 2. Per-build and per-player values
 
-- **Mechanism.** A nonzero build seed rotates two things on the generated path:
-  - each record's field order: Fisher–Yates over the fields in name order, exactly as `v5.md` §4.5's permutation,
-    with xorshift32 seeded by the build seed XOR the low 32 bits of HalfSipHash-2-4 (zero key, 64-bit output) of the
-    record's path (`arena.fighters.data`, UTF-8), a zero seed replaced as there;
-  - the upstream tag's HalfSipHash initialisation constants (`0x6c796765`, `0x74656462`), replaced by the first two
-    outputs of xorshift32 seeded with the build seed.
+### 2.1 Decision: what the build publishes and what it keeps
 
-  Union variant order and ids don't rotate `[review-2 m1]`. On the generated path the tag function, key and count
-  live in the client shard. The runtime path always runs at seed 0.
-- **Prices** static encoders and decoders, and tag reimplementations, built against an earlier build: they are
-  rebuilt per release, or written to re-derive layout and constants from each shard.
-- **Option** (`lync.toml`):
+- **Problem.** Every per-build value is a pure function of the planner (open source, pure Luau), the shared schema
+  module (replicated to every client) and a seed. Draft 3.5's seed travelled in `HELLO` and every shard header, so
+  a tool that runs Lync's planner on the schema and the seed from a captured `HELLO` reproduced every per-build
+  value with no per-build work, and the values priced only tools that hard-code them `[generation-methods §0.1]`.
+  The server still has to tell shards of different build runs apart, which needs a value both sides carry.
+- **Options:** one public seed (draft 3.5); a private seed in the shards only, with no identity check (shards of
+  different runs would then decode each other's frames wrongly and silently); **two values per build run: a public
+  `buildId` that `HELLO`, the shard bodies and the manifest carry, and a private 64-bit `rotationSeed` that only
+  the manifest holds, from which every per-build value is drawn.**
+- **Choice: two values** `[generation-methods M1]`. The server compares `buildId` (a difference is `MISMATCH`,
+  `v5.md` §4.6). 64 bits remove the offline search that one observed record order would allow against a 32-bit
+  secret. The seed must come from OS entropy, since a clock-seeded draw is searchable from the build's approximate
+  time; the manifest never ships (`v5-tooling.md` §1.2). Re-deriving the values then takes the shard's code each
+  build (**code**) or a calibration through the shard's own encoder (**mem**), redone per build.
+- **Public-quality seeds.** A host with no verified OS entropy source draws a seed that may be searchable: the
+  Lune host, and the Studio plugin's "Prepare release" (`HttpService:GenerateGUID()`, entropy source undocumented)
+  (`v5-tooling.md` §4.1, §4.2; §12). Under such a seed every value below prices only tools that hard-code it.
+
+### 2.2 Values drawn per build
+
+- **Streams.** A per-build value is drawn from the stream of a label L (UTF-8 text): xorshift32 (`v5.md` §4.5)
+  seeded with the low 32 bits of HalfSipHash-2-4 keyed by `rotationSeed` (two u32, low first) over L with 64-bit
+  output, 0 replaced by `0x9E3779B9`. v64(L) is that 64-bit output itself. Values are emitted as literals: a literal
+  and a folded constant cost the same, and a value computed at load costs one `GETUPVAL` per use
+  `[generation-security §3.2]`. Woven sites take every value from the same IR as the shard (`v5-tooling.md` §5.6).
+- **Identity.** At `rotationSeed` 0 every value takes its identity (name order, offsets 0, the reference constants,
+  S = 0, no masks) and `buildId` is 0, so the seed-0 golden set (`v5.md` §4.10) is unchanged
+  `[generation-methods §0.4]`.
+- **Codec paths** are the planner's diagnostic paths (`arena.strike.data.target`,
+  `arena.trade.data.offers[].item`), with a map's keys at `<path>{k}` and its values at `<path>{v}`, and a
+  collection's key at `<namespace>.<collection>.key`.
+
+| Value | Stream | Rule | Changes | Prices (§1) |
+|---|---|---|---|---|
+| field order of each record | `order:<record path>` (`order:arena.fighters.data`) | Fisher–Yates over the fields in name order, from the last index down, j = x mod (i + 1) | the order of field writes in single rows, and of a record's columns in column blocks (`v5.md` §4.3), both directions | static encoders, decoders and byte scripts made against another build (**code**, **share**); a one-field record, a bare codec and a union's index have no order to rotate |
+| code offsets (`build.offsets`) | `offset:<codec path>`; a codec with several bounded codes takes consecutive outputs in write order | a bounded code q of n codes travels as w = (q + c) mod n with c = x mod n, written `if q >= n − c then q − (n − c) else q + c` (exact up to n = 2^53); the decoder checks w < n (rule 2), inverts, then applies rules 3 and 6 to q | the value-to-code map of `t.int(min, max)`, `t.number`, `t.angle`, `t.color3` channels, `t.direction` and `t.rotation` components, list-enum and union-variant indices, bools (an XOR), and string, buffer, array and map lengths and counts; not `t.int()` (EG-coded), raw `t.f32`/`t.f64`/`t.vector3f32` bits, Roblox enums, instance indices or protocol fields | as field order, and also the definitions field order leaves fixed (`buy`'s enum, `announce`'s variant index); one known value of a field gives its c |
+| tag initialisation constants | `tag` | the first two outputs replace `0x6c796765` and `0x74656462` | the tag of every upstream frame | tag reimplementations that don't call Lync's own tag function; not a **mem** tool, which calls it |
+| key-derivation secret S | v64(`session`), 0 replaced by 1 | `v5.md` §4.5 derives the session key and permutation seed from the first `WELCOME`'s nonce under S | none: the fields keep their widths | **packet** tools that read the key from `WELCOME`, which must now read S from the shard each build |
+| identity-probe member | `probe` | index x mod (list length) into §4's list | none | a tool that spoofs one member's read |
+| variant masks | `mask:<v>:<r>` | §2.4 | §2.4 | §2.4 |
+| generated trap names and source codecs | `trap:<namespace>:<k>` | §3 | §3 | §3 |
+
+- **Not varied per build:** union variant order and ids `[review-2 m1]`; the column mode, which a build could fix
+  but which prices no capability class at +7% to +588% bits per column `[generation-methods M5]`; and enum and
+  variant indices by permutation, which prices the same tools as an offset at 0 to +194 bits per structured column
+  block against an offset's 0 to +77 `[generation-methods M3]` `[security-costs claim 11d]`.
+- **Never per session or per player downstream.** Downstream chunks are encoded once and copied, and identical
+  frames go through `FireAllClients`; a layout that varied per session or per player would end both
+  `[generation-methods §0.2]`. Per-session and per-player values vary the tag and nothing downstream.
+- **Column blocks** code the first row against 0 (`v5.md` §4.3), so an offset shows in every value of a block, at
+  up to +77 bits per column in the measured patterns and fewer at n = 4; coding it against c would cost 0 bits and
+  leave the block readable by a decoder that ignores c `[generation-methods M3]`.
+- **Runtime path.** It has no build and so no private value: `layout.vary` varies field order, offsets and tag
+  constants per server from what `WELCOME` carries (`v5.md` §4.5, §7.5), which prices only tools that hard-code a
+  no-build game's layout `[generation-methods M14]`.
+- **What the values price, overall:** a modified client that encodes or decodes outside Lync's own functions
+  (static forgers, extractors encoding outside `fire`, byte scripts carried between accounts) must re-read the
+  shard's code, or recalibrate through its encoder, every build. Not priced: **api** (Lync applies every value for
+  its caller), **hook**, **state**, and a tool that calibrates against the loaded shard each session
+  `[generation-methods §0.3]`.
+
+### 2.3 Decision: tag rotation amounts and round counts
+
+- **Problem.** Two levers beside the constants vary the tag function: its six rotation amounts (reference
+  5, 16, 8, 7, 13, 16) and its round counts (1-3). Amounts and finalization rounds are build-time immediates at no
+  measurable run-time cost; each compression round above 1 costs about 19 ns per covered byte interpreted and
+  2.7 ns native. The hard constraint: the reference amounts carry HalfSipHash's published analysis, altered sets
+  have none, and 16 of 40 random sets need one round more for full diffusion `[client-self-checks U2]`.
+- **Options:** (a) reference amounts and rounds `[generation-methods M2]`; (b) amounts from a vetted pool of 16–64
+  sets (4–6 bits of variation) and finalization rounds d from {3, 4}, each pool entry with its own golden vectors;
+  (c) (b) plus `build.tagRounds = [min, max]`, compression rounds drawn per build `[client-self-checks U2]`.
+- **Choice: (a).** Amounts and round counts sit in the function, and are read in the pass, that the two constants
+  already make a tool re-read each build, so a tool that reads the constants gains them by a one-time change: (b)
+  and (c) add no recurring work `[client-self-checks U2, "What it does not price"]`. (b) also gives up the analysed
+  reference for unanalysed sets, a cost to the tag's own strength. Keyless acceptance is set by the tag width and
+  is unchanged by either `[refusals-rejudged-3 R28]`. The round count stays a protocol constant (`v5.md` §4.9).
+
+### 2.4 Per-player variants
+
+- **Mechanism** (generated path; `build.playerVariants` N ≥ 2 and a nonzero `rotationSeed`)
+  `[generation-methods M7, M10, M12, M13]`:
+  - **Masks.** m_v (v = 1 … N) is the low 32 bits of v64(`mask:<v>:<r>`) for the first r = 0, 1, … that gives a
+    nonzero value differing from m_1 … m_(v−1). The server shard holds every mask and `VARIANT_OF` (mask to v);
+    the build writes `ModuleScript`s `Variant1` … `VariantN` as children of the server shard (never replicated),
+    each returning its mask as an integer literal.
+  - **Assignment**, at `Players.PlayerAdded` and for players present when the server shard loads, before cloning:
+    the lowest-numbered variant no present player holds; when every variant is held, the one the fewest present
+    players hold, lowest number first. It lasts for the connection; a rejoin is assigned again. While N is at least
+    the number of concurrent players, no two present players share a variant.
+  - **Delivery.** The server clones `Variant<v>` into a new `ScreenGui` named `Lync` (`ResetOnSpawn` false,
+    `Enabled` false) parented to the player's `PlayerGui`, whose children replicate to that player only
+    `[generation-security §2.1]` `[interest-rewind §13.1]`.
+  - **Client.** At first use the shared client shard starts a thread that waits for `PlayerGui.Lync`, requires its
+    module and installs the mask; `require` of the shard never yields. It binds once per connection and ignores
+    later changes under `PlayerGui`.
+  - **Tag** (`v5.md` §4.5). The client's tag is the keyed hash XOR m_v; the server verifies under the assigned
+    mask. A frame that fails under it at every candidate, and whose tag XOR the keyed hash at some candidate is
+    another variant's mask, is `tagVariant` (§10) in place of `tagMismatch`: dropped, e unchanged, counted toward
+    `desync`.
+  - **Join.** `HELLO` is untagged and comes from the shared shard, so it never waits for the variant. A namespace's
+    join hold (`v5.md` §5.3) releases once its `WELCOME` has arrived and the variant is installed; until then
+    reliable sends wait in the hold, and an unreliable send after `WELCOME` but before the variant is dropped as
+    `sendDropped` with its own cause (`v5.md` §7.3). Held sends stay encoded bytes: the tag is computed at send and
+    layouts don't vary per player.
+  - **`Lync.variantOf(player)`** (server) returns v, or 0 when there are no variants, so a game can log assignments
+    and tie a `tagVariant` to the player who held that variant.
+  - A variant not installed 10 s after the connection's first `WELCOME` is `variantMissing` (§10); the client keeps
+    waiting.
+- **Prices** **share**: a tag routine, mask or byte tool carried from one account to another fails under the
+  receiving player's mask, and the server names its source variant on each frame, which the assignment ties to a
+  player. Not priced: a tool that reads its own client's variant (**code**, **mem**: one integer in one module),
+  **api** and **hook** (`fire` tags with the client's own mask), and keyless senders, which meet it only by chance
+  (§10).
+- **Decision: what a variant holds.**
+  - *Problem.* A variant can vary the tag alone, or the upstream layouts as well; downstream stays per build either
+    way (§2.2). The join hold holds encoded bytes, and a layout that arrives with the variant can't encode a send
+    made before it.
+  - *Options:* **a mask only**; the mask plus upstream encoders under the variant's own order and offsets, with
+    held sends kept as values charged at their worst-case size `[generation-methods M12]` or at the seed-0 plan, and
+    `HELLO` sent only after binding and accepted only with the assigned variant `[interest-rewind §13.2]`.
+  - *Choice: a mask only.* A carried artefact already fails under another player's mask and is dropped and named
+    before decode, so any layout it carries is never decoded; a tool that reads its own variant reads the layouts
+    in the same module in the same pass. Per-variant layouts therefore add no recurring work beyond the mask, while
+    costing N times the upstream codec bytecode in the place and the server shard (about 1.1 MB at 200 definitions
+    and 16 variants), a value hold, a second join rule, and weaving, whose scripts every player shares
+    `[codecs-in-scripts §8]`. Verifying under the assigned mask alone keeps a client from choosing its variant, the
+    property `[interest-rewind §13.2]` rule 4 asks for. Per-variant tag constants or key secrets are not used:
+    naming the other variant would take 5 × (N − 1) full hashes per failing frame, 31.4 µs native per 64 B frame
+    at N = 16 `[generation-methods M13]`.
+- **Cost.** Place: N modules of one integer. Server: the masks and `VARIANT_OF`, 13,312 B at N = 256; one index
+  per player; one XOR per accepted frame (within noise); up to 5 table lookups per failing frame, +0.5 µs
+  interpreted and +0.24 µs native at 64 B `[generation-methods M13]`. Client: one XOR per frame; one `ScreenGui`
+  and module per player. Join: tagged sends wait max(0, variant arrival − first send); the arrival time after
+  `WELCOME` is unmeasured (§12). Wire: none.
+
+### 2.5 Options (`lync.toml`)
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `build.seed` | integer, or the string `"release"` | — | 0–2^32 − 1 | `"release"` | below |
+| `build.seed` | `"release"`, or 16 hex digits | — | `"0000000000000000"` (identity) to `"ffffffffffffffff"` | `"release"` | below |
+| `build.offsets` | boolean | — | — | `true` (derived below) | +5.0 ns encode and +7.3 ns decode per bounded field interpreted, +5.0 and +5.9 ns native; 224 → 356 B per encoder and 223 → 351 B per decoder (+59%); column bits per §2.2; only at a nonzero `rotationSeed` `[generation-methods M3]` |
+| `build.playerVariants` | integer | variants | 1–256 | 1 (chosen, below) | §2.4; 1 means no variants |
 
-  - **`"release"`**: each `lync build` or `lync watch` rebuild draws one seed, uniform on 1–2^32 − 1, from the
-    host's random generator seeded from the clock, and uses it for every namespace and both sides of that run; the
-    seed is written to `manifest.json` and every shard header. It need not be secret, since every shard header and
-    `HELLO` carries it; it only has to differ between builds. A client shard and a server shard from different runs
-    have different seeds, and the server answers that client's `HELLO` with `MISMATCH` (`schemaMismatch`,
-    `seedDiffers` 1). The Studio plugin's "Prepare release" writes a drawn integer the same way.
-  - **An integer** fixes the seed; 0 is the identity (no rotation), as on the runtime path and in tests.
-  - **Cost.** Zero at run time: seeded shards compile to the same opcode sequences, differing only in constants and
-    the order of field writes `[client-security-build §2.3]`; zero bytes. Developer: with `"release"`, every build
-    changes every shard's bytes (version-control diffs, if shards are committed), and client and server shards must
-    come from one run; offline decoding needs the seed, which the shard header, the manifest and every `HELLO`
-    carry. Draft 3's `rotate.fields` and `rotate.tag` are gone: the seed is the one switch `[review-redundancy-2 7]`.
+- **`"release"`**: each `lync build`, each `lync watch` rebuild and the plugin's "Prepare release" draws `buildId`
+  uniform on 1–2^32 − 1 and `rotationSeed` uniform on 1–2^64 − 1, independently, from OS entropy, for every
+  namespace and both sides of that run. Shards of different runs carry different `buildId`s and get `MISMATCH`.
+- **16 hex digits** fix `rotationSeed`; `buildId` is then the low 32 bits of v64(`build`) (0 replaced by 1), or 0
+  when `rotationSeed` is 0. This is for tests and reproducible builds: that `buildId` is a 32-bit check value over
+  `rotationSeed`, which still leaves a 2^64 search.
+- **Seed cost.** Zero at run time: seeded shards compile to the same opcode sequences (an 8-field codec pair is
+  116 instructions and 1012 B at both seeds `[generation-methods M1]`); zero bytes; one HalfSipHash-2-4 per stream
+  at build time. Developer: every `"release"` build changes every shard's bytes; client and server shards must come
+  from one run; offline decoding (`lync replay`, the inspector) needs that run's manifest, since a captured `HELLO`
+  no longer suffices (`v5-tooling.md` §1.2).
+- **`build.offsets` default, derived.** At the busy model's 70 upstream messages a second (`v5.md` §4.1) with 3
+  bounded fields each, offsets cost a client 70 × 3 × 5.0 ns ≈ 1.1 µs/s to encode; a collection of 64 records
+  whose 5 bounded fields change at 20 Hz costs it 6,400 × 7.3 ns ≈ 47 µs/s to decode; 200 definitions add at most
+  200 × 132 B ≈ 26 KB of client bytecode, 13–63 µs of load per join at 0.5–2.4 ns per byte
+  `[generation-security §5.1]`. For that, every bounded field varies per build, including those of definitions
+  whose field order can't.
+- **`build.playerVariants` default, chosen.** At N ≥ 2 each join's tagged sends wait for an instance replication
+  whose timing after `WELCOME` is unmeasured (§12); that measurement would change the default.
 
 ## 3. Traps and reachability
 

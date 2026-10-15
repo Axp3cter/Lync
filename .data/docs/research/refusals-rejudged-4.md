@@ -32,8 +32,8 @@ marked chosen.
 - [x] R16 per-viewer decoy slots outside the shared range; decoys only in `:newest()` rows
 - [x] R18 hook and environment checks on the client
 - [x] R19 client-side decoy filtering
-- [ ] R35 constraint modifiers dropped from `checks`: `maxRate`, `planar`, `exempt`, `cooldown`
-- [ ] Implications
+- [x] R35 constraint modifiers dropped from `checks`: `maxRate`, `planar`, `exempt`, `cooldown`
+- [x] Implications
 
 ## R8. Per-client or per-server generated code
 
@@ -85,20 +85,17 @@ So no route exists by which a server picks, at run time, code that a client then
   whose build id names that place's build. It needs no Lync option, no wire change and no run-time code. Its price
   is one build and one Open Cloud publish per place (`client-security-build.md` §1.8). It prices the classes M1
   prices, between places instead of between releases, and a tool that re-derives layouts per load (**code**,
-  **mem**) pays nothing extra. Unlike M7's upstream scope, it composes with weaving (M16).
+  **mem**) pays nothing extra. Unlike M7's upstream scope it composes with weaving, since woven scripts are per place
+(inferred from M16).
 
 **Changes / fixed.** Nothing in Lync. Seed-0 golden frames, the schema hash (computed at seed 0) and types are
 unchanged, since every per-place build is an ordinary build. The docs line, for the "Generation" page: "A game with
 several places can build each place separately. Each build draws its own rotation seed, so layouts and tag
 constants differ between places. Lync needs no setting for this."
 
-**Cost.** Zero at run time: each place runs an ordinary build, so there is nothing to measure. Build and publish
-time, once per place.
-
-**Facts.** None added. A client holding another place's shard can't reach that place's server in the same session.
-A mismatch would be `MISMATCH`, with `schemaMismatch` evidence `seedDiffers` 1 (`v5.md` §4.6), as today.
-
-**Options.** None.
+**Cost, facts, options.** Zero at run time (each place runs an ordinary build; nothing to measure); one build and
+publish per place. No fact or option: a shard from another place would meet `MISMATCH` (`schemaMismatch`,
+`seedDiffers` 1, `v5.md` §4.6), as today.
 
 **Outcome: kept refused,** for code generated per client or per server at run time. The reason is the platform,
 not cost: no member lets a server deliver code to a client (verified in the dump above). M7 with M13 resolves the
@@ -141,7 +138,8 @@ gives the best balanced accuracy of the rule "gap below G means decoy", over G f
   released it. The design doesn't say whether pool slots wait the 2 s reuse delay. Without it, a reuse under 2 s is
   an exact mark, because real slots never do that (`v5-collections.md` §2). With it, a reuse at about 2 s is still a
   near-exact mark wherever free slots are many, because real reuses are spread over minutes. A second tell needs no
-  timing: a fixed pool slot never holds a real record, and a viewer who sees every real add sees it.
+  timing: a fixed pool slot never holds a real record, which a viewer that sees every real add finds by counting
+  real adds per slot.
 - **One allocator leaves the statistic at chance** (0.506–0.507): a decoy's slot is drawn exactly as a real
   record's.
 
@@ -223,20 +221,14 @@ cost"): "the standard tools already pass them without extra work (spies wrap hoo
 hook in place), so they price nothing, and no generation changes the engine functions they inspect. Adonis ships its
 equivalent off for false positives; `getfenv` forms deoptimise every script and are barred from the Creator Store."
 
-**What it assumed, item by item.**
-- *Checks inspect engine functions* (`FireServer`, `__namecall`, builtins). That is true of every check
-  `client-security.md` §5 listed. For those the reason holds: an engine function is a C function, `newcclosure`
-  makes a hook report `[C]` and line −1 like the original (`client-security.md` §1.2, §2.2), and generation can't
-  change engine functions.
-- *The same holds for Lync's own functions.* It doesn't. Lync's closures are Lua functions that Lync creates, in
-  tables Lync can freeze, so a `newcclosure` hook put in place of one *differs* from the original (`[C]` instead of
-  Lync's source), and a replaced table entry differs by identity. What the check expects is a build product (lines)
-  or a load-time value inside Lync's own module, never a baseline taken from engine state that an auto-executed
-  script could poison first (`client-security.md` §1.1).
-- *Adonis's false positives.* Adonis checks engine and environment state that Roblox changes (`client-security.md`
-  §5). A check of Lync's own frozen tables depends on nothing Roblox ships.
-- *`getfenv`.* Not needed: the form below uses `debug.info(f, ...)` on function values, `rawget`, `rawequal` and
-  `table.isfrozen`.
+**What it assumed.** That checks inspect engine functions (`FireServer`, `__namecall`, builtins), as every check in
+`client-security.md` §5 does. For those the reason holds: `newcclosure` makes a hook of a C function report `[C]`
+and −1 like the original (§1.2, §2.2), and generation can't change engine functions. It does not hold for Lync's
+own closures: they are Lua functions in tables Lync can freeze, so a `newcclosure` hook in place of one *differs*
+from it (`[C]` instead of Lync's source), and a replaced entry differs by identity. The expected values are build
+products or load-time values inside Lync's module, not a baseline of engine state that auto-executed code could
+poison first (§1.1). Adonis's false positives come from engine and environment state Roblox changes; Lync's frozen
+tables depend on nothing Roblox ships. `getfenv` isn't needed.
 
 **VM facts the form rests on** (`r4_selfcheck.out`, **verified** on Luau 0.742 unless marked):
 - `rawequal` and `rawget` compile to `FASTCALL2` (builtins 51 and 50), so while Lync's environment is safe an
@@ -310,15 +302,16 @@ equivalent off for false positives; `getfenv` forms deoptimise every script and 
 | a whole pass, 202 items, kinds 3–4 | 7.8–9.1 µs |
 | a whole pass, 202 items, kinds 1–4 | 21.9–24.7 µs |
 
-So 22–25 µs of client CPU a second for 200 views on the CLI, plus up to one forced `REPORT` a second (6–10 B today, `r2_costs.out`, plus the three new fields:
-EG0 of count 1, index 200 and kind 4 is 3 + 15 + 5 = 23 bits, 3 B; derived), and only while an item fails. Server: three more EG0 fields to decode in a `REPORT`. Bytecode: the
-list, about four values per item.
+So 22–25 µs of client CPU a second for 200 views on the CLI. While an item fails, add up to one forced `REPORT` a
+second: 6–10 B today (`r2_costs.out`) plus the three new fields, EG0 of count 1, index 200 and kind 4, which is
+3 + 15 + 5 = 23 bits, 3 B (derived). Server: three more EG0 fields to decode in a `REPORT`. Shard: the list, four
+values per item.
 
 **Fact.**
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `reportedSelfCheck` | a `REPORT` with `selfCheckFailures` > 0 | none | `reported` (count), `item` (index in the build's list; `manifest.json` names it), `kind` (1 source differs, 2 line differs, 3 entry is another value, 4 table not frozen); all client-stated | kinds 3 and 4: none (a frozen table can't be written or unfrozen by game code, plugins or the command bar; verified in the VM); kinds 1 and 2: a Lync emission bug, which the build check removes before release |
+| `reportedSelfCheck` | a `REPORT` with `selfCheckFailures` > 0 | none | `reported` (count), `item` (index in the build's list; `manifest.json` names it), `kind` (1 source differs, 2 line differs, 3 entry is another value, 4 table not frozen); all client-stated | kinds 3 and 4: none (a frozen table can't be written or unfrozen by game code, plugins or the command bar; verified in the VM); kinds 1 and 2: a Lync emission bug, which the build check removes before release; on Roblox, whether `debug.info(1, "s")` and `debug.info(f, "s")` agree within one module is unverified (they agree on the CLI) |
 
 **Options.** None. The schedule is a constant (chosen: one pass per second). Its cost, 22–25 µs/s on the CLI for
 200 views, is 14–16% of the 154 µs/s that tagging the busy model's 70 upstream frames costs a client
@@ -383,4 +376,198 @@ sent to a test client would make the live and Studio wire differ. It is not prop
 **Outcome: kept refused.** The reason is protection, not cost: a client filter moves decoys' coverage away from
 API-driven readers, and one comparison of Lync's tables with its API defeats it, which no generation can vary.
 
-<!-- items -->
+## R35. Constraint modifiers dropped from `checks`: `maxRate`, `planar`, `exempt`, `cooldown`
+
+**Earlier reasons** (`security-refusals.md` R35): `maxRate` was removed before review-1 with no reason recorded;
+`planar` and `exempt` are never mentioned in the design; `cooldown` was folded into `limit` (principle 4, one rate
+limiter). Source: `anticheat-design.md` §4.2's table: `:maxRate(units/s, burst)`, "leaky bucket on |Δ|";
+`:planar("xz")`, "apply `maxRate` on a projection"; `:cooldown(s)`, "`t − last ≥ s`, measured on server arrival
+time, tolerant of jitter by `burst`"; `:exempt(reason)`, "server opens a short exemption window (teleport,
+respawn)". Roblox's movement-validation guidance names the same four ideas: "leaky bucket-style accumulators work
+well for handling burst movements", "projecting movement onto specific planes (e.g., XZ for ground-based
+movement)", "Games with legitimate teleportation mechanics need explicit exemption systems"
+([network ownership](https://create.roblox.com/docs/en-us/scripting/security/network-ownership.md), documented,
+fetched 2026-10-15). `checks-telemetry.md` C0–C3 specify `within`, `monotonic`, `maxTotal`, and `server-facts.md`
+U9 adds `derive` as kind 4.
+
+**What they protect.** Claims of motion: a client-stated position, angle or value that changes faster than the
+game allows, such as speed and teleport claims in Lync payloads (class **api**, and any forger). They don't
+protect engine-replicated characters (Lync sees only its own messages), and they bound only what the client claims.
+A game with server truth should compare against it with `within`.
+
+**Policy under this unit's rule.** Lync drops only malformed input and what a game declares. The modifiers below
+take `policy` = `"drop" | "deliver"`, required with no default (C0's reason). C0's `"clamp"` rewrites input, which
+the rule excludes, so it is not offered here. The same rule applies to C1–C3 and `derive` (Implications).
+
+### `cooldown`: expressed exactly by `limit`, with a stated bound
+
+- A cooldown of s seconds is `limit = { perSecond = 1/s, burst = 1 }` (`v5.md` §5.4; the range (0, 1000] admits
+  any s ≥ 0.001 s). **Client:** its bucket starts full with capacity 1 and gains 1/s tokens a second, so it never
+  sends two messages less than s apart. That is exactly `t − last ≥ s`, with over-limit fires held or dropped as
+  `sendDropped`.
+- **Server:** capacity 1 + 2 s × (1/s) tokens. `r4_cooldown.out` (verified): after idle it admits 1 + 2/s messages
+  at once when that is ≥ 2 (5 at s = 0.5 s, 3 at 1 s, 2 at 2 s). For s > 2 s it admits a second message only s − 2
+  seconds after the first (3.0 s at 5 s, 8.0 s at 10 s, 28.0 s at 30 s). Over any T seconds it admits at most
+  1 + (T + 2)/s, and refuses the rest as `overLimit`.
+- **Why no stricter server gap test.** An arrival-gap test `t − last ≥ s − τ` has honest causes that need τ to
+  cover them. A reliable stall releases queued frames together (p99 850 ms, `v5.md` §4.9), so τ ≥ the stall. On the
+  unreliable lane, jitter (0.02 s in the §9 model), the client flush (1/60 s) and the server step (1/60 s) compress
+  gaps. The bucket's 2 s slack is that τ, applied as tokens. A separate `cooldown` kind would be a second rate
+  limiter with the same slack, which principle 4 refuses. The gameplay cooldown is the server handler's own state.
+
+### `planar` on `within`: expressed exactly by the reference
+
+`within`'s reference receives `data` (C1). Returning `Vector3.new(r.X, v.Y, r.Z)`, where v is the claim, makes
+`|v − r'|` the XZ distance. In the same f32 vector arithmetic this equals the planar distance exactly, in 10^6 of
+10^6 random pairs (`r4_cooldown.out`, interpreted and native). No modifier is needed for `within`; the docs give
+the one-line reference. For `maxRate` the projection is an option (`plane`, below), because its references are
+Lync's state, which the game can't reach.
+
+### `maxRate`: a new checks kind 5, specified
+
+**Why the existing kinds can't express it.** A game could emulate it with `within`, a reference returning its last
+delivered value and `rate × elapsed`, but that fails in two ways. The game never sees frame keys, so unreliable
+frames that arrive late (1.3% on the §9 network, C2) move its "last value" backwards. And the comparison is per
+step, which accumulates error (below). `monotonic` needs frame keys for the same reason, which is why it is a Lync
+kind (C2).
+
+**The leaky bucket of the research drifts on honest traffic** (verified, `r4_maxrate.out`). A bucket draining at
+`rate` and filled by |Δ| between consecutive quantized samples, fed an honest client moving at exactly 16 studs/s
+(Roblox's default `WalkSpeed`), `t.vector3` step 1/32, 60 Hz, reaches 149 studs on the unreliable lane and 309
+studs on the reliable lane over 3 × 10^6 messages. It grows with session length: quantization makes each sampled
+step longer on average than the true step, and a sum of steps accumulates that. No `burst` fixes this, so the form
+compares samples pairwise instead.
+
+**Mechanism** (`Net.<definition>:maxRate(path, options)`, server view, C0's frame: declared like the other kinds,
+run in step 5 after `limit`, committed only for delivered messages). Per (player, check) Lync keeps the newest
+committed value p with its evaluation time t_p and frame key, and an anchor a with its time t_a.
+- d(x, y): |x − y| for `t.int`, `t.number`, `t.f32`, `t.f64`; the wrapped difference for `t.angle`; the angle for
+  `t.direction`; |x − y| for `t.vector3`, `t.vector3f32`, or on (X, Z) only with `plane = "xz"` (C1's metrics).
+- **Exact trigger**, for a value v in a frame with key s, evaluated at server time t (`os.clock()` at step 5):
+  with no stored value, never. Otherwise, not (d(v, p) ≤ `rate` × (t − t_p) + `burst`), or not (d(v, a) ≤ `rate` ×
+  (t − t_a) + `burst`). Equality passes.
+- **Commit** (delivered only): if s is newer than the stored key, then (p, t_p, key) = (v, t, s), and when t − t_a
+  ≥ `window` also (a, t_a) = (v, t). The first message sets both. A late frame (older key) is compared with both
+  references and never stored.
+- **Why two references.** The previous value bounds a jump against the last sample, so allowance can't be saved
+  up. The anchor bounds net displacement over up to `window`, which catches sustained over-speed that per-step
+  comparisons let through. Each is one comparison of two samples, so honest error doesn't accumulate.
+- **Derived `burst`** (an honest pair can't exceed it): the arrival-time span between two samples can be shorter
+  than their send-time span by the lane's compression c, and each sample carries up to e of decode error, so
+  `burst` = `rate` × c + 2e. Here c = jitter range + server step = 0.02 + 1/60 = 0.0367 s on the unreliable lane
+  (§9 model); and 2 s + 0.0367 s on the reliable lane (`limit`'s slack for stalls, `v5.md` §4.9). e is the codec's
+  maximum error: √3 · step/2 for `t.vector3` (√2 · step/2 with `plane = "xz"`), step/2 for `t.number`, π/n for
+  `t.angle`, 0.2369° for `t.direction(10)` (`v5.md` §3.3), and 0 for `t.int`, `t.f64`. For `t.f32` and
+  `t.vector3f32`, e is 2^−24 × the largest magnitude the codec admits.
+- **Checked against the simulation** (rate 16 studs/s, step 1/32, 3 × 10^6 messages per line, `r4_maxrate.out`):
+
+| Lane and network | Smallest `burst` with no failure | Derived default |
+|---|---|---|
+| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.641 |
+| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.641 (derived at 0.02 s) |
+| reliable, jitter 0.02 s | 0.309 | 0.641 + 32.0 = 32.6 (2 s slack) |
+| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.6 |
+
+**What it bounds, and how it is defeated.**
+- A forged stream stays within `rate` × elapsed + `burst` of the previous sample and of the anchor. The excess
+  speed it can sustain unseen is `burst` / `window`: 0.064 studs/s at the defaults, 0.4% of 16 studs/s.
+- A client that withholds messages for T seconds may then move `rate` × T + `burst`: the server can't know where
+  it was in between, so this is the honest bound.
+- A cheat moving at `rate` exactly passes, as does any client-side physics change the game's `rate` allows.
+
+**Known causes on an unmodified client:**
+1. Game-applied motion: teleports, respawns, seats, vehicles, knockback, conveyors. Call `resetChecks` with
+   `seconds` (below) where the game moves the player.
+2. Falling and jumping, with `plane = "xyz"`: Roblox has no fixed fall-speed bound in this model. Use `plane =
+   "xz"` for ground movement, as the guidance quoted above says.
+3. A server step longer than 1/60 s (a hitch) compresses arrival spans by its length; a reliable stall longer than
+   2 s does the same on that lane. Evidence `span` shows it.
+4. Network jitter above the derived c (mobile jitter is unmeasured, `v5.md` §10), and a speed boost above `rate`.
+
+**The fact:** `constraint` (C0), kind 5.
+
+| Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
+|---|---|---|---|---|
+| `constraint` (kind 5) | the trigger above | by `policy`: dropped (ask `rejected`) or delivered | `check`, `kind` 5, `policy` (1 drop, 3 deliver), `observed` (d against the failing reference, the field's unit), `bound` (that reference's allowance), `late` (1 for a frame older than the stored key), new `span` (t − t_ref, s), new `against` (1 previous value, 2 anchor; when both fail, 1) | causes 1–4 above |
+
+`span` and `against` join C0's flat evidence set and are 0 for kinds 1–4. Evidence values are pre-commit numbers
+from decoded values only.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `path` | string | — | a field of a codec listed above, through records and optionals (C0) | required | none |
+| `rate` | number (real) | the field's unit per second (studs/s, rad/s, units/s) | > 0, finite | required | none |
+| `burst` | number (real) | the field's unit | ≥ 0, finite | derived: `rate` × c + 2e, with c = 0.0367 s for unreliable definitions and 2.0367 s for reliable ones | none |
+| `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.4% of `rate` at the unreliable default) | none; larger values let less excess speed through |
+| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `checkKind`) | `"xyz"` | none (`r4_maxrate.out`: within noise) |
+| `policy` | `"drop" \| "deliver"` | — | — | required | none |
+
+**Cost** (`r4_maxrate.out`, net of the probe runner's no-check baseline, 3 runs, best of 7): 77–84 ns native and
+316–332 ns interpreted per message for 3-D, and 73–87 ns native and 290–331 ns interpreted for `"xz"` (the server
+runs native when the game marks Lync native). State: 80 B per player per check. Wire: 0 B.
+
+### `exempt`: `resetChecks` gains a duration
+
+**Why `resetChecks(player)` alone is not exact.** It clears state at one instant. Messages the client sent before
+the teleport are still in flight and arrive afterwards. The first of them reseeds `maxRate` (or `monotonic`) with
+the old value, and the first post-teleport message then fails: one false fact per teleport, with `observed` about
+the teleport distance. No frame key separates them, since the in-flight frames are newer than any frame the server
+has seen.
+
+**Form:** `Net.<definition>:resetChecks(player, options?)`, `options = { seconds: number?, check: number? }`.
+- State of the scoped checks is cleared at the call. For `seconds` after it, messages of that definition from that
+  player are not evaluated by the scoped checks and commit nothing. They are counted in the server counter
+  `checksExempted` (per player, definition). After the window the next message seeds the state.
+- `check` scopes the call to one check (its 1-based index); nil means every check of the definition, as today.
+- **Derived `seconds`** for a server-applied move on the §9 model: the client keeps sending pre-move values until
+  the move reaches it, and those arrive one way later: 2 × (0.05 + 0.02) one-way, plus a server flush, a client
+  frame and a server step at 1/60 s each, which is 0.19 s; on the reliable lane add the 2 s stall slack. The docs
+  give this formula; the game knows its own ping (`GetNetworkPing`).
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `seconds` | number (real) | s | 0–10 | 0 (chosen: today's `resetChecks`) | one time compare per message of the definition while a window is open |
+| `check` | integer or nil | 1-based check index | 1 to the definition's check count, else `checkOption` | nil: every check of the definition | none |
+
+**Outcome: adopt (this form) for `maxRate`** (kind 5, two references, derived `burst`). **Adopt narrowed for
+`planar`** (a `plane` option of `maxRate`; `within` expresses it exactly through its reference). **Adopt narrowed
+for `exempt`** (`resetChecks` with `seconds` and `check`). **Keep `cooldown` refused:** `limit` expresses it exactly,
+with the bound stated above, and a second limiter would break principle 4.
+
+## Implications
+
+1. **Keep R8 refused on the platform**, recorded with the dump facts (no code-loading member reaches clients); point
+   per-player, per-session and per-server variation at M7+M13, M6/M8 and M14 (R8, grain table).
+2. **Add the docs line on per-place builds;** they need no Lync change once the private `rotationSeed` is adopted
+   (R8, per place).
+3. **Replace the decoy pool with the one allocator:** decoy slots drawn like real slots; the pool marks decoys at
+   0.65–1.00 balanced accuracy from slot reuse alone, the allocator at 0.51 (R16, `r4_decoy_slots.out`).
+4. **Size `maxRecords` for decoys as `MaxPlayers` × `maxPerViewer`,** add counter `decoysUnplaced`, and add the
+   decoy cause to `recordLimit` (R16, form).
+5. **Make `gen:u2` in adds (`interest-rewind.md` §3) a prerequisite of shared decoy slots;** without it, viewers'
+   generation counts diverge (R16, generations).
+6. **Re-encode a decoy viewer's chunk copy only in flushes where its decoys have rows, with the full k search;**
+   refuse the shared-k shortcut, which leaves non-minimal encodings as a mark (R16, `:newest()`-only).
+7. **Keep the separate slot range and the `:newest()`-only mode refused;** the first is an exact mark, the second's
+   saving comes from rule 6 (R16, outcome).
+8. **Freeze every Lync table handed to game code that holds a Lync closure,** and document the write error (R18,
+   form).
+9. **Adopt the self-check of Lync's own tables and closures** (kinds 1–4, one pass per second, three `REPORT`
+   fields, `reportedSelfCheck`), 22–25 µs/s interpreted for 200 views (R18, cost).
+10. **State the self-check's limits beside it:** one spoof of `debug.info` and `table.isfrozen` passes it in every
+    Lync game, and kinds 1–2 depend on unverified executor internals (R18, what it does not protect).
+11. **Extend R26's forcing rule to `selfCheckFailures`** (R18, report).
+12. **Keep engine-function and environment checks refused** for the recorded reason (R18, last paragraph).
+13. **Keep client-side decoy filtering refused** on protection: it removes coverage of API-driven readers, and a
+    comparison of Lync's tables with its API defeats it at any generation grain (R19).
+14. **Add `maxRate` as checks kind 5** with two references (newest value, anchor), the derived `burst`, `window` 10 s
+    and `plane`; record that the research's leaky bucket drifts to 149–309 studs on honest traffic (R35,
+    `r4_maxrate.out`).
+15. **Add `span` and `against` to `constraint`'s evidence** (0 for kinds 1–4) (R35, fact).
+16. **Give `resetChecks` `seconds` (0–10, default 0) and `check`,** with counter `checksExempted` and the 0.19 s
+    in-flight formula in the docs (R35, `exempt`).
+17. **Document `cooldown` as `limit = { perSecond = 1/s, burst = 1 }`** with the server bound of 1 + (T + 2)/s
+    messages per T seconds; no new kind (R35, `r4_cooldown.out`).
+18. **Document planar `within` as a reference returning `(r.X, v.Y, r.Z)`,** exact in f32 (R35, `planar`).
+19. **Remove `"clamp"` from C0's policies** (`within`, `monotonic`, `maxTotal`, `derive`): it rewrites input, which
+    the rule "drop malformed or declared input, report facts" excludes (R35, policy).

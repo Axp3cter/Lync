@@ -24,3 +24,4 @@ G11	ea 0a
 DERIVE key	3a 33 49 1c 72 20 4e d1 	permutation seed 0x908e0dfe
 W1 	00 48 57 00 67 67 5c 4c 1f 9d 	(chat site, "gg")
 W2 	00 48 19 00 1a 77 5b 5a 	(literal buy site, slot 0)
+SIZES REPORT (1,1,0,0)	8	(0,0,1,0)	8	(0,0,80,0)	9	(60,60,60,60)	12	BEACON	9	BEACON+REPORT(1,1,0,0)	11

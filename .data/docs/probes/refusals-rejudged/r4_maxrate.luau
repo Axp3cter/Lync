@@ -94,18 +94,20 @@ local function simulate(lane: string, msgs: number, seed: number, jitter: number
 end
 
 print("-- A. honest traffic at exactly rate 16 studs/s, t.vector3 step 1/32, 60 Hz, 3 x 10^6 messages per line, window 10 s")
+-- derived default burst: rate * (jitter range + client flush 1/60 + server step 1/60 + stall slack) + 2e; the model
+-- sends at sample time (no flush delay), so its needs sit below this by at least rate/60
 local function derived(jitter: number, slack: number): number
-	return RATE * (jitter + 1 / 60 + slack) + 2 * QERR
+	return RATE * (jitter + 1 / 60 + 1 / 60 + slack) + 2 * QERR
 end
-for _, c in { { "unreliable", 0.02, false, 0 }, { "unreliable", 0.05, false, 0 }, { "reliable", 0.02, false, 0 }, { "reliable", 0.02, true, 0.85 } } do
+for _, c in { { "unreliable", 0.02, false, 0 }, { "unreliable", 0.05, false, 0 }, { "reliable", 0.02, false, 2 }, { "reliable", 0.02, true, 2 } } do
 	local lane, jitter, stalls, slack = c[1] :: string, c[2] :: number, c[3] :: boolean, c[4] :: number
 	local worst, worstNeed, lates = 0, 0, 0
 	for seed = 1, 3 do
 		local a, b, n = simulate(lane, 1_000_000, seed, jitter, stalls)
 		worst = math.max(worst, a); worstNeed = math.max(worstNeed, b); lates += n
 	end
-	print(string.format("%-10s jitter %.2f s stalls %-5s: bucket max level %.3f studs | two-reference: burst needed %.3f, derived %.3f | %d late frames",
-		lane, jitter, tostring(stalls), worst, worstNeed, derived(jitter, slack), lates))
+	print(string.format("%-10s jitter %.2f s stalls %-5s: bucket max level %.3f studs | two-reference: burst needed %.3f, derived default (jitter 0.02 s) %.3f | %d late frames",
+		lane, jitter, tostring(stalls), worst, worstNeed, derived(0.02, slack), lates))
 end
 
 print("-- B. cost per message, table-driven runner (best of 7, ns)")

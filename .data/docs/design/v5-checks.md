@@ -719,7 +719,7 @@ Each follows "Lync reports facts" (R23) and "no automatic consequence" (R22, R24
 - **No export, storage or transport.** Lync makes no HTTP request, writes no DataStore and holds no secret, as
   diagnostics export is a recipe `[diagnostics §5.4]`. Game code owns the 500 HTTP requests/min per server, the
   "Allow HTTP Requests" setting (documented, creator-docs `cloud-services/http-service.md`) and the legal obligations
-  (§7.10).
+  (§7.11).
 - **No user ids and no client text in the data.** A batch carries the `Player`; the buffer carries no id. Atoms and
   series take numeric codecs only, so a batch can't carry chat or any other text a player typed.
 
@@ -833,3 +833,184 @@ readings are the research's, unverified, and not legal advice):
 - **Before the page is written** it must also cite three sources the research didn't fetch: rules for users under
   13 on creator-side data, the Creator Analytics Terms the Community Standards cite, and the scoped-id announcement
   the users page links (§10).
+
+## 8. Sealed delivery
+
+### 8.1 What it protects, and the decision against withholding
+
+- **Problem.** A value the server sends before the game makes it visible (next round's layout, a drop table, a timed
+  puzzle's answer) is readable on every client from its arrival. Withholding it until the reveal costs the transfer
+  time at the reveal: N bytes take N/R, R being the engine's downstream rate for that player (unmeasured, §10).
+- **Options:** (a) withhold until the reveal (draft 3.5's recipe, R34's earlier reason); (b) **send it sealed under a
+  per-seal 64-bit key and reveal the key** `[refusals-rejudged-1 R34 (a)]`.
+- **Choice: (b)**, for the case where the reveal time matters; (a) stays the game's choice. A reveal is 67–79 bits for the first 127 seals,
+  then the client decrypts N bytes at 210–231 ns/B interpreted (CLI), so sealing shortens the reveal whenever R is
+  below 4.3–4.8 MB/s divided by the device factor (both unmeasured on Roblox).
+- **Protects,** before the reveal: the plaintext is not on the client at all, only ciphertext under a key the client
+  doesn't hold, so readers of memory, packets and state, and accounts sharing artefacts, face 2^63 expected key
+  trials per seal; HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide the maximum PRF security" for its key and
+  output size (documented, the SipHash README). Unlike every measure in `v5.md` §6.2, its secret is not on the client
+  before the reveal.
+- **Doesn't protect:** anything after the reveal (every client gets the plaintext then, a modified one no sooner);
+  the time and count of seals; whatever the server's own behaviour discloses; the length, when `hideLength` is false.
+  Only server-side code can defeat it, by revealing early or sending the value elsewhere.
+
+### 8.2 Declaration and API
+
+```luau
+-- shared schema
+nextRound = Lync.event({ from = "server", data = Layout, sealed = { outstanding = 1 } }),
+-- server
+local seal = Net.nextRound:fire(Lync.all, layout) -- returns a Seal for a sealed definition
+-- … when the round starts
+seal:reveal()                                     -- or seal:discard()
+-- client: unchanged; the handler runs at the reveal with the decoded value
+Net.nextRound:connect(function(layout) end)
+```
+
+- **`sealed`** is a definition option of server-sent reliable events, in the shared schema and hashed (the client
+  must decrypt). On a client-sent event, a request, a collection or the unreliable lane it is the declaration error
+  `sealedPlacement`; a `data` reaching a `t.instance` is `sealedInstance`, since instances travel in the frame's
+  instance array in the clear (`v5.md` §4.2) and can't be sealed.
+- **`fire`** on a sealed definition returns a `Seal` with `reveal()` and `discard()`; calling either on a seal
+  already revealed or discarded throws `sealSettled`. Generated path: `fire`'s return type is `Seal` for sealed
+  definitions; runtime path: a type function on the presence of `sealed` in the definition's table type, under the
+  new solver (unverified, milestone 3's typing proofs, §10). roblox-ts: `fire(this: void, target, data): Seal`.
+- **Client types** are unchanged: `connect` handlers receive the decoded value at the reveal.
+
+### 8.3 Wire
+
+Each message of a sealed definition is one row (`v5.md` §4.3's runs):
+
+```
+sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8 × blocks bytes in the tail
+                      | 1 reveal:  seal:EG0 key:u32 key:u32     -- the seal key, low then high
+                      | 2 discard: seal:EG0 )
+```
+
+- **Plaintext:** the codec's single-row encoding of the value written as its own `bits align tail`, zero-padded to
+  8 × `blocks` bytes. `blocks` = ⌈B/8⌉ for the value's B bytes, or ⌈W/8⌉ for the codec's worst-case W bytes when
+  `hideLength` is true.
+- **Ciphertext** = plaintext XOR keystream; keystream block j (j = 0 … `blocks` − 1) = HalfSipHash-2-4/64 under the
+  seal key K_i over (i mod 2^32 as u32le, j as u32le). Sealing and opening are the same operation.
+- **Size.** A sealed message's worst case is 8 × ⌈W/8⌉ B of tail plus a header of at most 2 + 107 + the EG-0 length
+  of ⌈W/8⌉ bits; `messageTooLarge` applies to it. A reveal is 2 bits + the seal id's EG-0 + 64 bits: 67 bits for id 0, at
+  most 79 bits for ids below 127 (derived); a discard is 2 bits + the id's EG-0.
+- **Encode once.** One key per seal, not per viewer: a seal's chunk and its reveal are identical for every recipient,
+  so they are shared chunks and stay eligible for `FireAllClients` (`v5.md` §4.2). Per-player values are separate
+  fires.
+- **Schema hash:** `sealed` joins `v5.md` §4.7's option list after `reliableRate` (presence u8, then `outstanding`
+  `num` and `hideLength` u8); the wire unit owns the serialization numbering (§9). Golden frames at seed 0 without
+  `sealed` don't change.
+
+### 8.4 Keys
+
+- **Server secret S** (64 bits): two `NextInteger(0, 2^32 − 1)` draws from a `Random.new()` instance created without
+  a seed (internal entropy source, documented, creator-docs `datatypes/Random.yaml`), used for nothing else, drawn at
+  the server's first sealed send and never sent. Roblox does not document `Random` as cryptographic (unverified,
+  §10); S is never sent, and a revealed key is one PRF output under it, not generator state.
+- **Seal key** K_i = HalfSipHash-2-4/64 under S over (d as u32le, i as u64le), with d the server's number for the
+  definition (sealed definitions numbered from 0 in order of first sealed send) and i the definition's seal counter
+  from 0 on this server, which is also the wire `seal` id. Keys are computed at the reveal, so the server stores no
+  key.
+
+### 8.5 Recipients and `outstanding`
+
+- **Recipients** are the seal's target resolved at the flush that encodes it (`v5.md` §3.5); a player in the join
+  hold receives it from the hold, as any send (`v5.md` §5.3). A player who joins later doesn't receive it.
+- **Outstanding** counts, per (player, definition), seals queued to that player and not yet revealed or discarded.
+  A recipient already at `outstanding` is skipped for that seal, which never reaches them, and the server records
+  the local fact `sendDropped` with `cause` 5.
+- **`reveal()` and `discard()`** queue the reveal or discard message, in call order, to the seal's recipients still
+  connected; called before the seal's own flush, both leave in the same flush after it. Each decrements the
+  recipients' counts. A leaving player's counts are freed.
+
+### 8.6 Client decode
+
+- The client holds, per sealed definition, at most `outstanding` seals (id → ciphertext).
+- **Refused with a §4.8 rule:** `kind` 3 (rule 2); a seal while `outstanding` are held, or `blocks` above ⌈W/8⌉
+  (rule 2); with `hideLength`, `blocks` other than ⌈W/8⌉ (rule 3); a seal id already held, or a reveal or discard
+  naming no held seal (rule 7).
+- **At the reveal** it decrypts and decodes the plaintext under §4.8 (padding bytes past the encoding must be zero,
+  rule 4); a violation refuses the frame holding the reveal. Refusals are counted in `refusedFrames` and sent in
+  `REPORT`, as for any downstream frame (`v5-integrity.md` §5). The value is then delivered to `connect` handlers
+  at the reveal's place in run order, and the ciphertext is freed; a discard frees it.
+
+### 8.7 Fact, options and cost
+
+| Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
+|---|---|---|---|---|
+| `sendDropped`, `cause` 5 | local: a sealed send to a recipient already holding `sealed.outstanding` unrevealed seals of that definition | the send to that recipient is dropped | `cause`, `bytes` | game code sealing faster than it reveals or discards, or dropping a `Seal` without calling either |
+
+Nothing sealed flows upstream, so there is no other server fact.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `sealed.outstanding` | integer | unrevealed seals per player per definition | 1–256 | 1 (chosen: one pending reveal, such as the next round; a game pre-sending several reveals raises it) | client: up to `outstanding` × 8 × ⌈W/8⌉ B per sealed definition; server: one recipient set per outstanding seal |
+| `sealed.hideLength` | boolean | — | — | true (below) | true: every seal is ⌈W/8⌉ blocks, up to W − B + 7 B more per seal and the decrypt of the padded size at the reveal |
+
+**Decision: `hideLength` defaults to true.** Problem: the ciphertext's length is plaintext information disclosed
+before the reveal (a layout's size, an answer's length), and sealing exists to disclose nothing before it. Options:
+false (research's choice; padding to 8 B, length visible to 8 B) or true (padding to the worst case). Choice: true,
+since security comes first and its cost is bytes and decrypt time this table states. For a codec of fixed size the
+two are equal; a developer sets false where the length carries nothing.
+
+**Cost** (`refusals-rejudged/r34_seal.out`, 3 runs per mode, at 1, 16 and 64 KB): 210.2–230.9 ns/B interpreted,
+22.3–27.9 ns/B native, the same to seal and to open. A 16 KB seal: 3.4–3.8 ms on the client at the reveal,
+0.37–0.46 ms on the server once per seal whatever the recipient count. A seal key: one HalfSipHash over 12 B on the
+server at the reveal, 0.18–0.22 µs native for 8 B (12 B unmeasured).
+
+### 8.8 What stays out
+
+- **Commit–reveal for provably fair outcomes** (gacha, shuffles: H(seed) before the player acts, the seed after)
+  guards against the server, not a client, and needs nothing from Lync: a docs recipe over two server-sent
+  definitions and `EncodingService:ComputeStringHash(…, Enum.HashAlgorithm.Sha256)`, callable on both sides
+  (security None, verified in the API dump) `[refusals-rejudged-1 R34 (b)]`.
+- **Cryptographic state sharing between peers** stays refused: Roblox clients hold no state another peer must be
+  denied; the server holds all state and chooses what each viewer receives (`interest`) `[refusals-rejudged-1 R34
+  (c)]`.
+
+## 9. Codes, counters and options added here
+
+Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units list them in `v5.md` §7.
+- **Fact:** `constraint` (§1.5); `sendDropped` gains `cause` 5 (§8.7).
+- **Fault:** `claimUnverified` (§6.3).
+- **Declaration:** `rolePlacement` (§6.1), `sealedPlacement`, `sealedInstance` (§8.2).
+- **Caller:**
+  - `fieldKind`: the codec at a check's or telemetry call's `path` isn't one that call takes;
+  - `checkPool`: two `maxTotal` checks in one pool with different `cap` or `seconds`;
+  - `viewPlacement`: a check or telemetry call on a definition outside its scope (§1.2, §7.1);
+  - `telemetryTwice`: a second `:aim` or `:series`, or a second `:atom`, on one definition;
+  - `seriesMissing`: an atom's `series` names a definition with neither `:aim` nor `:series`;
+  - `sealSettled`: `reveal()` or `discard()` on a seal already revealed or discarded;
+  - `unknownViewOption`, `missingViewOption`, `viewOptionRange`: in the options table of a server-view call, a key
+    the call doesn't take; a required option absent; a value outside its range, of the wrong type, or a fraction for
+    an integer option. Three codes because the three fixes differ (rule C); one set for every server-view call, by
+    principle 4;
+  - `unknownField` (exists) for a path naming no field.
+- **Build:** `freeFormField` (`v5-tooling.md` §3.4).
+- **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
+  `claimsUnverified` (§6.3), `atomsDelivered`, `atomsSkipped` (§7.5).
+- **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§7.10).
+- **Runtime constant:** `maxTotal` buckets, 16 (§4.1).
+- **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§6.1); the `sealed` option (§8.3).
+
+## 10. Pending measurements and proofs
+
+Each has a default or a rule the design uses; none blocks the milestone.
+- Roblox's server build for checks and telemetry, and whether a Roblox server runs Lync's modules native; state
+  lookup by `Player` against the probes' slot index.
+- `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §8.4).
+- The engine's downstream rate per player (sealing against withholding, §8.1); HalfSipHash over 12 B (§8.7).
+- The engine's replication delay for client-owned physics (`within` cause 1).
+- Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
+  (`monotonic` cause 4).
+- Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).
+- `Workspace:Raycast` cost inside a `fn` (`oneIn`'s use).
+- Telemetry: the value-series cost, the record-form aim cost and the widened layout (§7.10); real frame-delta
+  noise at a 60 FPS cap; the server-load timing burst (cause 10); the HTTP request body limit (§7.8); the three
+  terms sources of §7.11.
+- Typing proofs for milestone 3: old-solver overload selection by literal path (§1.2, §5.4); the runtime-path type
+  of a sealed `fire` (§8.2).
+- Whether clients may compute claims from values as they decode (a codec `:round`), the core-api unit's decision
+  (`derive` cause 3).

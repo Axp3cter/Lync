@@ -34,6 +34,7 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a0ea34d7fc5c8bfc1` | researcher | diagnostics: Luau/Roblox error mechanics, error codes (rustc, TS, Node, SQLSTATE, gRPC, RFC 9457), message design, failure taxonomy and channels, observer events, metrics, CLI/SARIF/LSP output, competitors, abuse, hot-path cost | `research/diagnostics.md`, `probes/diagnostics/` | done; **first choice for errors, codes and reporting** (Mirror, FishNet, Photon not covered) |
 | `a36e8d96b67387fd7` | builder | milestone 1 unit A: scaffolding, `src/wire` (bits, ints, quantizers, column coder), HalfSipHash, test runner and helpers, benchmarks | `src/wire/`, `test/wire/`, `test/support/`, `bench/`, config files | done (48 tests; k search ≤ 2.44× k = 0 encode); reusable for wire fixes |
 | `a0c447a56e69a6bc0` | builder | milestone 1 unit B: schema DSL, planner, IR, schema hash, diagnostics registry and code pages, typing proofs | `src/init.luau`, `src/types.luau`, `src/plan/`, `src/diag/`, `docs/codes/`, `test/{plan,diag,types}/` | done (127 tests incl. A; G6 exact; typing proofs pass); **running**: three ruling fixes |
+| `afa262a830e0db8b1` | builder | milestone 1 unit C: runtime interpreter, column integration, golden set G2–G8, `columnMinRows` | `src/codec/`, `test/codec/`, `test/golden/`, `test/support/{gen,frame}.luau` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

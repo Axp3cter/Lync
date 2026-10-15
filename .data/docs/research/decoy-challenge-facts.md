@@ -26,7 +26,7 @@ Xeon: timings show scale only.
 
 ## Checklist
 
-- [ ] 0. What exists today, and the gaps U11 and U14 fill
+- [x] 0. What exists today, and the gaps U11 and U14 fill
 - [ ] 1. U11a: decoys under `rewind` (rings, `held`, what `rewound` returns)
 - [ ] 2. U11b: `reportInteraction` and the fact `decoyInteraction`
 - [ ] 3. U11c: the build lint `decoyRef`
@@ -37,3 +37,37 @@ Xeon: timings show scale only.
 - [ ] 8. U14: what it protects, cost, options
 - [ ] 9. Probes and measurements
 - [ ] Implications
+
+---
+
+## 0. What exists today, and the gaps
+
+**Decoys** (`v5-integrity.md` §8, verified by reading). `Net.c:decoys(behaviour, { maxPerViewer })` on the server
+view; the behaviour returns per viewer `{ [Key]: Record }` each state tick; decoys take slots from a shared pool and
+ride in per-viewer copies of changed chunks. M15b adds `Net.c:decoyFrom(sourceKey, overrides)` (values cloned from a
+live record). IR §6.1 adds the rule that a decoy must pass the viewer's interest test (`decoyOutsideInterest`, a
+caller error in the behaviour's thread).
+
+**The one decoy fact today**, `decoyReferenced`: "a delivered message whose `refers` field holds a key of a decoy
+sent to that player", evidence `sentAgo`, action delivered (`v5-integrity.md` §10). It needs
+`Net.d:refers(field, collection)`; unknown fields throw `unknownField`.
+
+**Rewind** (IR §11). `Net.c:perceived(player)` (only inside a handler's synchronous part), `Net.c:rewound(seen, key)`
+→ `{ ok, value } | { ok = false, error = "expired" | "notHeld" | "unknownKey" }`, `rewoundSpan`, `at(tick, key)`.
+IR §11.6 states the rule this unit keeps: **no `Lync.observe` fact from rewind, because Lync can't know a message is
+a hit claim**; the game decides hits (R36 refuses a built-in verifier).
+
+**Requests** (`v5.md` §5.2). A server `invoke(player, data)` already yields until the client's `handle` returns,
+with `timeout` 0.1–300 s and the `earlyAnswer` fact. A client handler may yield (it runs in a pooled thread).
+
+**Gaps.**
+1. A rewound shot that names no target (origin and direction only) can land on a decoy only inside the game's own
+   hit test, and that test never sees decoys: the game iterates its own records, and `rewound` holds no decoy
+   rings. So "a rewound hit on a decoy" has no path at all today.
+2. Interactions the server resolves from something other than a declared key field (a ray, "nearest pickup", a key
+   nested in an array of records, a key sent on a non-Lync remote) are never matched against decoys.
+3. Nothing tells the developer that a client-sent field could carry a decoy key without a `refers` declaration, so
+   `decoyReferenced` silently never fires for it.
+4. There is no server-issued challenge. A server request carries a UI answer, but its shape is the same in every
+   Lync game: a dedicated ask, answered by the client's `handle`. Anything identical across Lync games gets one
+   universal bypass, published once (CS §1.4, "Economics of a shared library").

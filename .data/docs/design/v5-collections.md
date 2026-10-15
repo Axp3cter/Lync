@@ -348,8 +348,7 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
   - *With `weight`*, w changes per pair every tick, which a FIFO can't hold: each viewer's pending records of such
     collections sit in 40 buckets by c, oldest first within a bucket. 20–60 ns native per (viewer, pending record)
     per tick for the pass, a comparator sort costing 3.5–7x as much `[state-sync §3.5]`, plus one `weight` call per
-    (viewer, pending record) per tick (§8.7's thread, 119 ns interpreted on the CLI before the function's own work,
-    `probes/collections-3.6/callback_thread.out`). Each step compares the FIFO heads' classes with the highest
+    (viewer, pending record) per tick (one runner resume each, `v5.md` §6.1's callback rule, §8.7). Each step compares the FIFO heads' classes with the highest
     non-empty bucket's.
 - **Over budget** Lync defers rows (counter `rowsDeferred`) and never lowers precision. Pending is a flag, so the
   backlog is bounded by the record count `[state-sync §3.9]`.

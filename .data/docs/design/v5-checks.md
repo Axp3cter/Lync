@@ -106,9 +106,9 @@ Names follow `reviews/v5-3.6-naming.md`.
      messages.
   Messages of one frame are handled in order, each committing before the next is evaluated.
 - **Step 6b, sample** (§8.3), then **step 7, delivery**.
-- **Streams** (`v5-collections.md` §15.4): steps 5–7 run per index at its playout, in index order (`limit` doesn't
-  apply to streams), and a drop drops that index. The frame key of `monotonic` and `maxRate` is the index (§3.1), and `maxRate`'s t is the
-  index's playout time (§6.2).
+- **Streams** (`v5-collections.md` §15.4): steps 5–7 run per index at its playout, in index order (`limit` doesn't apply
+  to streams), and a drop drops that index. The frame key of `monotonic` and `maxRate` is the index (§3.1), and
+  `maxRate`'s t is the index's playout time (§6.2).
 
 Checks run before the validator, so a validator sees only messages that passed every `"drop"` check. Report-only
 checks of milestone 5 stay in step 5, so they see messages a check or a validator later drops, as they already see
@@ -348,11 +348,11 @@ per check; wire 0 B.
 ### 4.1 Semantics and the window
 
 `Net.collect.fields.coins:maxTotal({ total = 5000, windowSeconds = 600, policy = "drop" })` `[checks-telemetry C3]`
-bounds the running sum of a field per player over a window timed by server arrival on `os.clock()`, never by client time (R20,
-R21).
+bounds the running sum of a field per player over a window timed by server arrival on `os.clock()`, never by client time
+(R20, R21).
 
-**Decision: the window mechanism** (`checks-telemetry/maxtotal_bounds.out`, `total` 1000, `windowSeconds` 60, a message every 0.05 s
-for 600 s):
+**Decision: the window mechanism** (`checks-telemetry/maxtotal_bounds.out`, `total` 1000, `windowSeconds` 60, a message
+every 0.05 s for 600 s):
 
 | Mechanism | Largest accepted sum, greedy sender | State per player | Cost, native (net) |
 |---|---|---|---|
@@ -360,8 +360,8 @@ for 600 s):
 | (b) token bucket (capacity `total`, refill `total`/`windowSeconds`) | any 56.25 s: 1.94 × `total`; any 60 s: 2.00 × `total` | 16 B | 65–66 ns |
 | (c) exact window, a ring of every committed (time, amount) | any 60 s: `total` (derived) | 16 B per message in the window, 48 KB per player per check at 5 messages/s over 600 s (derived), and a `limit` to bound it | not measured |
 
-- **Choice: (a).** A rule written per window ("5000 coins per 10 minutes") means a sum over the window; (a) bounds
-  any span of up to 15/16 × `windowSeconds` to `total` exactly, in constant memory and without requiring a `limit`. (b) lets
+- **Choice: (a).** A rule written per window ("5000 coins per 10 minutes") means a sum over the window; (a) bounds any
+  span of up to 15/16 × `windowSeconds` to `total` exactly, in constant memory and without requiring a `limit`. (b) lets
   a sender take 1.94 × `total` within 15/16 of the window. (c) is exact for 330× (a)'s memory at the example rate.
 - **The bucket count, 16,** is a runtime constant (chosen: it sets the guarantee at 15/16 of the window for 144 B;
   32 buckets would give 31/32 for 272 B. A game rule that needs the full window would change it).
@@ -370,22 +370,23 @@ for 600 s):
 
 Let w = `windowSeconds`/16, k = ⌊`os.clock()`/w⌋ at evaluation, and S the sum of amounts committed for (player, check or
 pool) in buckets k − 15 … k. The check fails when S + v > `total`. **Commit** (§1.4) adds v to bucket k.
-- **Exact arithmetic** (review m1, checked by the reviewer: in f64, 0.1 + 0.1 + 0.1 > 0.3, so a third 0.1 would
-  fail a 0.3 `total`). Amounts are summed as integers: for `t.int`, the value; for `t.number(min, max, step)`, the value
-  in units of `step`, (v − min)/step + min/step, which is an integer because the decoder gives min + q · step and
-  `min` must be a multiple of `step` (within `v5.md` §3.3's 1e-9 rule; otherwise `fieldCodecUnsupported`). `total` is
-  converted once, at declaration, to ⌊total/step⌋ units by the same 1e-9 rule. S is recomputed from the 16 bucket sums at each
-  evaluation, never kept by adding and subtracting, and every sum is an integer below 2^53 (`total` ≤ 2^53 units).
+- **Exact arithmetic** (review m1, checked by the reviewer: in f64, 0.1 + 0.1 + 0.1 > 0.3, so a third 0.1 would fail a
+  0.3 `total`). Amounts are summed as integers: for `t.int`, the value; for `t.number(min, max, step)`, the value in
+  units of `step`, (v − min)/step + min/step, which is an integer because the decoder gives min + q · step and `min`
+  must be a multiple of `step` (within `v5.md` §3.3's 1e-9 rule; otherwise `fieldCodecUnsupported`). `total` is
+  converted once, at declaration, to ⌊total/step⌋ units by the same 1e-9 rule. S is recomputed from the 16 bucket sums
+  at each evaluation, never kept by adding and subtracting, and every sum is an integer below 2^53 (`total` ≤ 2^53
+  units).
 
-**Guarantee** (derived, and measured above): any span of 15/16 × `windowSeconds` or less holds at most `total` of committed
-amounts while every failing message is dropped; any span of `windowSeconds`, at most 2 × `total`; the long-run rate is at
-most `total`/`windowSeconds`. Under `"deliver"`, failing amounts are committed too (§1.4), so S is the sum game code
-received and `observed` reports how far it went past `total`.
+**Guarantee** (derived, and measured above): any span of 15/16 × `windowSeconds` or less holds at most `total` of
+committed amounts while every failing message is dropped; any span of `windowSeconds`, at most 2 × `total`; the long-run
+rate is at most `total`/`windowSeconds`. Under `"deliver"`, failing amounts are committed too (§1.4), so S is the sum
+game code received and `observed` reports how far it went past `total`.
 
 - **Codecs:** `t.int(min, max)` and `t.number(min, max, step)` with min ≥ 0. `t.int()`, `t.f32`, `t.f64` and any
   codec with negative values are `fieldCodecUnsupported`: a negative amount would refund the window.
-- **`pool`:** checks with the same pool name, on any definitions of the namespace, share one window per player
-  (coins from `collect`, `sell` and `quest`). They must declare equal `total` and `windowSeconds`, and fields of equal unit
+- **`pool`:** checks with the same pool name, on any definitions of the namespace, share one window per player (coins
+  from `collect`, `sell` and `quest`). They must declare equal `total` and `windowSeconds`, and fields of equal unit
   (equal `step` for `t.number`), else `checkPoolMismatch`. A pool whose checks mix `"drop"` and `"deliver"` commits the
   `"deliver"` checks' failing amounts too, so the guarantee above holds only for pools whose every check drops.
 
@@ -401,11 +402,11 @@ received and `observed` reports how far it went past `total`.
 
 `checks-telemetry/maxtotal_bounds.out`:
 1. **A `total` below what play produces** within 15/16 × `windowSeconds`: a bonus event, a purchase that doubles rates.
-2. **A stream at exactly `total`/`windowSeconds`** fails at bucket edges: 10 of 12,000 amounts with no stall, 84 with one 5 s
-   reliable stall.
+2. **A stream at exactly `total`/`windowSeconds`** fails at bucket edges: 10 of 12,000 amounts with no stall, 84 with
+   one 5 s reliable stall.
 
-Not causes: stalls with headroom (at 90% of `total`/`windowSeconds`, no failure with one stall of 0, 0.85, 2 or 5 s); lost
-messages (never charged); messages `validate` refuses (never committed). The docs recommend 10% headroom, from this
+Not causes: stalls with headroom (at 90% of `total`/`windowSeconds`, no failure with one stall of 0, 0.85, 2 or 5 s);
+lost messages (never charged); messages `validate` refuses (never committed). The docs recommend 10% headroom, from this
 measurement.
 
 ### 4.5 Options and cost

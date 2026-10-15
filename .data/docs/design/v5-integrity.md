@@ -270,7 +270,7 @@ rule). A trapped definition reports `trapMessageReceived` only.
   namespace values and turn inference off more often. The predicate is computed once per build and read by
   inference, the caller probe's source lists (§4) and weave closure (`v5-tooling.md` §5.4); `check.dynamicAccessFound`
   sets only the diagnostic's severity `[build-checks §2.7]`.
-- **Declared trap** (`basis` 1, both paths). The developer adds an ordinary client-sent event or request to the
+- **Declared trap** (`trapMessageReceived`, both paths). The developer adds an ordinary client-sent event or request to the
   schema, under a name, kind, lane and codec of their choosing, and calls `Net.x:trap()` on its server view. Lync's
   outputs (schema module, client shard, types, manifest, ids, wire) treat it as any definition, by the same emitter
   (`v5-tooling.md` §1.1). A trap has no handler: `connect`, `handle` or `validate` on it, or `:trap()` on a
@@ -282,14 +282,16 @@ rule). A trapped definition reports `trapMessageReceived` only.
     constant of its bytecode (`GETTABLEKS … ['buyItem']`), so a driver that fires only names found in client
     bytecode skips a trap no client script names. Naming the trap in client code that never runs (a field access or
     string literal) defeats that test.
-- **No scanned reference** (`basis` 0, generated path, definitions opted in by `check.inferReachability`). For each
+- **No scanned reference** (`unreferencedMessageReceived`, generated path, definitions opted in by
+  `check.inferReachability`). For each
   complete namespace the build writes the exact list of its client-sent definitions with no `.name`, `:name` or
-  `"name"` token in the client scan set, with that set, to the manifest and the report (`v5-tooling.md` §1.2). It
+  `"name"` token in the client scan set, with that set, to the manifest's `unreferenced` and `report.md`
+  (`v5-tooling.md` §1.2). It
   is exact about the scan set and nothing more: a `ModuleScript` outside it (inside a `Tool` in `ServerStorage` that
   game code clones into a `Backpack`, an asset inserted at run time) can fire such a definition. Only the developer
   knows whether their game has such code, so only definitions they opt in are reported at run time: a message of an
   opted-in listed definition is delivered and reported.
-- **Generic ids of closed definitions** (`basis` 2, woven builds with `weave.ids` `"site"` or `"definition"`,
+- **Generic ids of closed definitions** (`genericIdMessageReceived`, woven builds with `weave.ids` `"site"` or `"definition"`,
   definitions opted in by `check.inferReachability`). A closed definition (closure as `v5-tooling.md` §5.4 defines it,
   computed from the sites that passed the weave gate) has every unmodified call from the scan set on a site id
   (§5.5 there), so a message on its generic id is delivered and reported. Closure is exact relative to the scan set
@@ -320,9 +322,9 @@ rule). A trapped definition reports `trapMessageReceived` only.
     `[review v5-3.6-tooling B4]`. A declared trap is in the schema, so that difference finds nothing; R13 stays
     refused for the generated form.
 - Execution coverage (`ScriptContext:EnableCoverage`) in play tests is not a second reachability check: in a play
-  test the server's `unreachable` already reports each message of an opted-in listed definition
+  test the server's `unreferencedMessageReceived` already reports each message of an opted-in listed definition
   (`v5-tooling.md` §4.2).
-- A Studio-only line naming a fired trap (R40) is not added: the console line for `unreachable` (`v5.md` §7.4)
+- A Studio-only line naming a fired trap (R40) is not added: the console line for `trapMessageReceived` (`v5.md` §7.4)
   carries the fact's `definition` (§10) in its context at the first occurrence in each window, in Studio and live.
 
 ## 4. Caller probe and `REPORT`

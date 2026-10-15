@@ -38,6 +38,7 @@ const JUDGEMENT_WORDS = { "suspicious", "illegal", "invalid", "bad", "exploit", 
 const LYNC_PACKAGE = table.freeze({
 	wire = table.freeze({ bits = "wire/bits" }),
 	codec = table.freeze({ rows = "codec/rows" }),
+	diag = table.freeze({ fail = "diag/fail" }),
 })
 
 -- Private -----------------------------------------------------------------------------------------

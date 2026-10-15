@@ -354,33 +354,34 @@ local function readRotation(
 		return nil, 4
 	end
 
+	local index, a, b, c = 0, 0, 0, 0
 	if flag == 1 then
-		local index = Bits.read(r, AXIS_INDEX_BITS)
-		if index == nil then
+		local axisIndex = Bits.read(r, AXIS_INDEX_BITS)
+		if axisIndex == nil then
 			return nil, 4
 		end
 
-		if index >= AXIS_COUNT then
+		if axisIndex >= AXIS_COUNT then
 			return nil, 2
 		end
-
-		return Leaves.rotationOf(1, index, 0, 0, 0, bits, x, y, z), 0
+		index = axisIndex
+	else
+		local dropped = Bits.read(r, DROPPED_BITS)
+		local aCode = Bits.read(r, bits)
+		local bCode = Bits.read(r, bits)
+		local cCode = Bits.read(r, bits)
+		if dropped == nil or aCode == nil or bCode == nil or cCode == nil then
+			return nil, 4
+		end
+		index, a, b, c = dropped, aCode, bCode, cCode
 	end
 
-	local dropped = Bits.read(r, DROPPED_BITS)
-	local a = Bits.read(r, bits)
-	local b = Bits.read(r, bits)
-	local c = Bits.read(r, bits)
-	if dropped == nil or a == nil or b == nil or c == nil then
-		return nil, 4
-	end
-
-	local rotation = Leaves.rotationOf(0, dropped, a, b, c, bits, x, y, z)
-	if rotation == nil then
+	if not Leaves.canonicalRotation(flag, index, a, b, c, bits) then
 		return nil, 6
 	end
 
-	return rotation, 0
+	-- Cast: canonical codes decode.
+	return Leaves.rotationOf(flag, index, a, b, c, bits, x, y, z) :: CFrame, 0
 end
 
 local function read(r: Bits.Reader, codec: Ir.Codec, instances: { Instance? }): (any, number)

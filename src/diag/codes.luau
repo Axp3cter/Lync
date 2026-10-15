@@ -47,6 +47,7 @@ export type Code =
 	| "messageTooLarge"
 	| "unreliableTooLarge"
 	| "valueRefused"
+	| "internal"
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -71,6 +72,8 @@ const FAMILY: { [Code]: Family } = {
 	unreliableTooLarge = "declaration",
 
 	valueRefused = "caller",
+
+	internal = "internal",
 }
 table.freeze(FAMILY)
 

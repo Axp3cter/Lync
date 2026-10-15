@@ -56,6 +56,15 @@ const MAX_NAMES_BYTES = 200
 
 const MAX_F32 = 3.4028234663852886e38
 const F32_MANTISSA_BITS = 23
+
+--- How many re-encodings the rotation encoder takes to reach a canonical code (v5.md §3.3).
+const MAX_ROTATION_STEPS = 4
+
+--- Rotation codes packed into one integer whose order is that of (flag, index, a, b, c).
+const FLAG_SCALE = 2 ^ 50
+const INDEX_SCALE = 2 ^ 45
+const A_SCALE = 2 ^ 30
+const B_SCALE = 2 ^ 15
 const MIN_VARINT = -2 ^ 52
 const MAX_VARINT = 2 ^ 52 - 1
 
@@ -156,6 +165,31 @@ local function isFinite(value: number): boolean
 	return value - value == 0
 end
 
+local function packedRotation(flag: number, index: number, a: number, b: number, c: number): number
+	return flag * FLAG_SCALE + index * INDEX_SCALE + a * A_SCALE + b * B_SCALE + c
+end
+
+local function unpackedRotation(key: number): (number, number, number, number, number)
+	return key // FLAG_SCALE,
+		key // INDEX_SCALE % 32,
+		key // A_SCALE % B_SCALE,
+		key // B_SCALE % B_SCALE,
+		key % B_SCALE
+end
+
+-- E(q) of v5.md §3.3: the packed codes of the f32 CFrame that packed codes decode to, or nil when
+-- they do not decode.
+local function reencodedRotation(key: number, bits: number): number?
+	local flag, index, a, b, c = unpackedRotation(key)
+	local decoded = Leaves.rotationOf(flag, index, a, b, c, bits, 0, 0, 0)
+	if decoded == nil then
+		return nil
+	end
+
+	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = decoded:GetComponents()
+	return packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
+end
+
 -- Returns the f32 spacing at a bound, 2^(floor(log2 |bound|) - 23); 0 at 0.
 local function f32SpacingAt(bound: number): number
 	if bound == 0 then
@@ -228,6 +262,35 @@ function Leaves.beginInstances(list: { Instance? }): number
 	table.clear(seenInstances)
 
 	return rule
+end
+
+--[=[
+	Returns whether a rotation's codes are canonical (v5.md §3.3): with E(q) the codes of the f32
+	CFrame that q decodes to, E(q) = q, or E(E(q)) = q and q is the lower of the 2-cycle.
+
+	@param  flag  1 for an axis-aligned rotation, else 0
+	@param  index the axis index, below 24 (flag 1), or the dropped component (flag 0)
+	@param  a     the first kept component's code; 0 for flag 1
+	@param  b     the second kept component's code; 0 for flag 1
+	@param  c     the third kept component's code; 0 for flag 1
+	@param  bits  the codec's bits per component
+	@return false when the codes do not decode or are not canonical (rule 6)
+]=]
+function Leaves.canonicalRotation(
+	flag: number,
+	index: number,
+	a: number,
+	b: number,
+	c: number,
+	bits: number
+): boolean
+	local key = packedRotation(flag, index, a, b, c)
+	local reencoded = reencodedRotation(key, bits)
+	if reencoded == nil or reencoded < key then
+		return false
+	end
+
+	return reencoded == key or reencodedRotation(reencoded, bits) == key
 end
 
 --[=[
@@ -614,7 +677,11 @@ function Leaves.robloxEnumCode(value: any, byValue: { [number]: EnumItem }): num
 end
 
 --[=[
-	Returns the smallest-three or axis codes of a CFrame's rotation, ignoring its position.
+	Returns the canonical smallest-three or axis codes of a CFrame's rotation, ignoring its
+	position (v5.md §3.3).
+
+	From the first encoding q, it takes q <- E(q), E(q) the codes of the f32 CFrame q decodes to,
+	until q is a fixed point or the codes enter a 2-cycle, whose lower member it returns.
 
 	@param  value a CFrame
 	@param  bits  the codec's bits per component
@@ -623,6 +690,7 @@ end
 	@return the first kept component's code
 	@return the second kept component's code
 	@return the third kept component's code
+	@error  internal, when no canonical code is reached within 4 re-encodings
 ]=]
 function Leaves.rotationCodes(
 	value: CFrame,
@@ -633,7 +701,28 @@ function Leaves.rotationCodes(
 		return nil, 0, 0, 0, 0
 	end
 
-	return Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits)
+	local previous = -1
+	local current =
+		packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
+	for _ = 1, MAX_ROTATION_STEPS do
+		-- Cast: an encoding keeps the three smallest components, whose squares sum to at most
+		-- 3/4, so it always decodes.
+		local reencoded = reencodedRotation(current, bits) :: number
+		if reencoded == current then
+			return unpackedRotation(current)
+		end
+
+		if reencoded == previous then
+			return unpackedRotation(math.min(previous, current))
+		end
+
+		previous, current = current, reencoded
+	end
+
+	return error(
+		`[Lync] internal: t.rotation({bits}) codes must be canonical within {MAX_ROTATION_STEPS} re-encodings`,
+		0
+	)
 end
 
 --[=[

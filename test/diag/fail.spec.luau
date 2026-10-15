@@ -51,6 +51,13 @@ return {
 		end, { code = "valueRefused", at = at(line + 2), subject = "a.chat:fire", path = "data" })
 	end,
 
+	["internal: an invariant broken inside Lync, positioned at the caller"] = function()
+		local line = debug.info(1, "l")
+		Check.expectThrow(function()
+			Fail.caller("internal", "t.rotation encode", "reach a fixed point", nil, "report a bug")
+		end, { code = "internal", at = at(line + 2), subject = "t.rotation" })
+	end,
+
 	["a declaration error is positioned where it was recorded"] = function()
 		Check.expectThrow(function()
 			Fail.declaration(

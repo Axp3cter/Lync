@@ -253,7 +253,7 @@ over a play session, then choose `"drop"` or keep `"deliver"`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `reference` | `(Player, Data) -> (R?, number?)`; R is `number` for scalars and `t.angle`, `Vector3` for vectors and `t.direction` | — | — | required | the game's own, once per message, in its own `xpcall` (§1.7) |
+| `reference` | `(Player, Data) -> (R?, number?)`; R is `number` for scalars and `t.angle`, `Vector3` for vectors and `t.direction` | — | — | required | the game's own, once per message, in its own runner thread (§1.7), about 101.5 ns interpreted per call |
 | `maxDistance` | number (real) | the field's unit: studs, radians for `t.angle` and `t.direction`, the integer's unit | ≥ 0, finite | required | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
@@ -497,7 +497,7 @@ moving server state.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `fn` | `(Player, Data) -> T?`, T the field's decoded type | — | — | required | the game's own, per evaluated message, in its own `xpcall` (§1.7) |
+| `fn` | `(Player, Data) -> T?`, T the field's decoded type | — | — | required | the game's own, per evaluated message, in its own runner thread (§1.7) |
 | `tolerance` | number (real) | the field's unit | 0–2^31, finite; only 0 for `t.enum` and `t.bool` | required | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 | `oneIn` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that for `fn`'s cost) | above 1: one draw per message, 24–32 ns in the CLI (`v5-integrity.md` §4's figure; `Random:NextInteger` on Roblox servers unmeasured, §11) and `fn` on 1/`oneIn` of messages on average; a message not drawn passes unchecked, under `"drop"` too |
@@ -507,7 +507,7 @@ moving server state.
   the field's (`v5.md` §3.4's field handles; roblox-ts the same, `this: void`).
 - **Measured** (`server-facts/server_facts_cost.out`): Lync's share for a vector field is 6–12 ns native and
   32–36 ns interpreted per message; with an exact compare (`t.enum`) the whole runner is 7.2–8.5 ns native. Add the
-  protected call (§1.7) and 20.5 ns per failure. State 0 B; wire 0 B.
+  runner thread (§1.7) and 20.5 ns per failure. State 0 B; wire 0 B.
 
 ## 6. `maxRate`
 

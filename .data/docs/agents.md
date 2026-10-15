@@ -30,9 +30,10 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | `research/interest-rewind.md` §11–§13, `probes/interest-rewind/` | done on Opus 5.5, nothing unwritten; rewind 24 B per record per tick, perceived tick from acks plus ping, server-chosen interpolation delay in `RATE`; staged release via `Lync.release`; variant timing rule; retired |
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
-| `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | append to `research/generation-methods.md`, `probes/generation-methods/run4.sh` | running |
+| `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | `research/generation-methods.md` M15–M16, `probes/generation-methods/run4.sh` | done on Opus 5.5: `build.traps` 0–8 (reopens R13), `decoyFrom`, `canary.perViewer`; weaving composition table and `weaveHash` coverage; retired |
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | running |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | running |
+| `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -58,11 +59,10 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   5. `build checks`: U5, U6 → `research/build-checks.md` (on `aeb8a1de57c0b9d73`).
   6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through
       tables → append to `research/generation-methods.md`.
-  6b. `methods, part 2b` (Opus, on `a90ea3732751c0bdf`): per-build generated traps, decoys and canaries; composition with
-      `codecs-in-scripts.md` (site-bound ids) → append to `research/generation-methods.md`.
+  6b. ~~`methods, part 2b`~~ done.
   7. `server facts A`: U9, U10 → `research/server-facts.md` (on `a37cd6952a2f7bad9`).
-  8. `server facts B`: U11 decoy-adjacent facts, U14 server-issued challenges → append to `research/server-facts.md`.
-  9. `clock and timing`: U3 beacon window rules, U4 `roundTrip`/`ping` → append to `research/server-facts.md`.
+  8. `server facts B`: U11, U14 → `research/decoy-challenge-facts.md` (on `a3a196cb42882d70c`).
+  9. `clock and timing`: U3 beacon window rules, U4 `roundTrip`/`ping` → `research/clock-facts.md`.
   10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
       tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and
       the `v5-changes.md` section.

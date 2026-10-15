@@ -9,9 +9,12 @@
 --   Io  patched Rows on a per-session clone with permuted order and code offsets
 --   C   a closure tree built from the IR at plan time (table-driven, no kind dispatch per value)
 --   Co  the closure tree built per session with permuted order and offsets as upvalues
+--   Cf  closures with bit positions fixed at plan time and one growth check per row (fixed-width rows only)
+--   Cfo Cf built per session with permuted order and offsets
 --   G1  straight-line generated encoder on the same Bits writer, seed 0 (what a shard would emit)
 --   G1o G1 with order and offsets folded in as constants (the generated path's per-build form)
 --   G2  straight-line generated encoder with inline buffer.writebits at constant offsets (fixed-width rows only)
+--   nop the harness alone (writer reset and one call), included in every other figure
 -- Run (from WORK_DIR): luau -O2 runtime_path.luau   and   luau -O2 --codegen runtime_path.luau
 
 local Lync = require("./src")
@@ -85,13 +88,14 @@ local function compile(codec: any): (Enc, Dec)
 	if kind == "record" then
 		local count = #codec.fields
 		local names, encs, decs = table.create(count), table.create(count), table.create(count)
-		for i, f in codec.fields do names[i] = f.name; encs[i], decs[i] = compile(f.codec) end
+		local template = {}
+		for i, f in codec.fields do names[i] = f.name; encs[i], decs[i] = compile(f.codec); template[f.name] = false end
 		return function(w, v)
 			if type(v) ~= "table" then return false end
 			for i = 1, count do if not encs[i](w, v[names[i]]) then return false end end
 			return true
 		end, function(r)
-			local rec = {}
+			local rec = table.clone(template)
 			for i = 1, count do
 				local x, rule = decs[i](r)
 				if rule ~= 0 then return nil, rule end
@@ -174,6 +178,84 @@ local function compile(codec: any): (Enc, Dec)
 		end
 	end
 	error("probe: unsupported kind " .. kind)
+end
+
+-- closure tree for fixed-width records of int, bool and enum fields: bit positions computed at plan time,
+-- one growth check per row, each field a closure writing at its constant position (table-driven, no loadstring)
+local wbits, rbits = buffer.writebits, buffer.readbits
+local function compileFixed(codec: any): (Enc, Dec)
+	local count = #codec.fields
+	local names, fes, fds = table.create(count), table.create(count), table.create(count)
+	local template = {}
+	local at = 0
+	for i, f in codec.fields do
+		local c = f.codec
+		names[i] = f.name; template[f.name] = false
+		local pos = at
+		if c.kind == "int" then
+			local min, max, width = c.min, c.max, c.width
+			local off, n = c.offset or 0, c.n or (c.max - c.min + 1)
+			local k = n - off
+			fes[i] = function(b: buffer, bit: number, v: any): boolean
+				if type(v) ~= "number" or not (v >= min and v <= max) or floor(v) ~= v then return false end
+				local q = v - min
+				wbits(b, bit + pos, width, if q >= k then q - k else q + off); return true
+			end
+			fds[i] = function(b: buffer, bit: number): (any, number)
+				local q = rbits(b, bit + pos, width)
+				if q >= n then return nil, 3 end
+				return (if q < off then q + k else q - off) + min, 0
+			end
+			at += width
+		elseif c.kind == "bool" then
+			local flip = c.offset or 0
+			fes[i] = function(b: buffer, bit: number, v: any): boolean
+				if v == true then wbits(b, bit + pos, 1, bit32.bxor(1, flip)) elseif v == false then wbits(b, bit + pos, 1, flip) else return false end
+				return true
+			end
+			fds[i] = function(b: buffer, bit: number): (any, number) return rbits(b, bit + pos, 1) ~= flip, 0 end
+			at += 1
+		elseif c.kind == "enum" then
+			local index, items, width = c.index, c.items, c.width
+			local off, n = c.offset or 0, #c.items
+			local k = n - off
+			fes[i] = function(b: buffer, bit: number, v: any): boolean
+				local q = index[v]
+				if q == nil then return false end
+				wbits(b, bit + pos, width, if q >= k then q - k else q + off); return true
+			end
+			fds[i] = function(b: buffer, bit: number): (any, number)
+				local q = rbits(b, bit + pos, width)
+				if q >= n then return nil, 2 end
+				return items[(if q < off then q + k else q - off) + 1], 0
+			end
+			at += width
+		else
+			error("probe: not fixed width")
+		end
+	end
+	local total = at
+	return function(w: Bits.Writer, v: any): boolean
+		if type(v) ~= "table" then return false end
+		local bit = w.bit
+		if (bit + total) // 8 + 4 > buffer.len(w.buf) then write(w, 0, 0) end
+		local b = w.buf
+		for i = 1, count do if not fes[i](b, bit, v[names[i]]) then return false end end
+		w.bit = bit + total
+		return true
+	end, function(r: Bits.Reader): (any, number)
+		local bit = r.bit
+		if bit + total > r.stop * 8 then return nil, 4 end
+		local b = r.buf
+		local rec = table.clone(template)
+		for i = 1, count do
+			local x, rule = fds[i](b, bit)
+			if rule ~= 0 then return nil, rule end
+			rec[names[i]] = x
+		end
+		r.bit = bit + total
+		return rec, 0
+	end
 end
 
 -- generated forms (what lync build would emit), on the same Bits writer
@@ -345,7 +427,7 @@ local function g1decm(r: Bits.Reader): (any, number)
 end
 
 -- harness -----------------------------------------------------------------------------------------
-local N = 400_000
+local N = 200_000
 local ROUNDS = 7
 local w = Bits.writer()
 local inst = { list = {}, count = 0 } :: any
@@ -416,12 +498,19 @@ for _, name in { "s3", "s8", "sm" } do
 	local ce, cd = compile(codec)
 	local coe, cod = compile(sessionIr)
 	local forms: { { any } } = {
+		{ "nop", function(_wr: Bits.Writer, _v: any) return true end, nil },
 		{ "I", rowsEnc(codec), rowsDec(codec) },
 		{ "Ip", rowsEnc(permIr), rowsDec(permIr) },
 		{ "Io", rowsOEnc(sessionIr), rowsODec(sessionIr) },
 		{ "C", ce, cd },
 		{ "Co", coe, cod },
 	}
+	if name ~= "sm" then
+		local fe, fd = compileFixed(codec)
+		local foe, fod = compileFixed(sessionIr)
+		table.insert(forms, { "Cf", fe, fd })
+		table.insert(forms, { "Cfo", foe, fod })
+	end
 	for _, g in GEN[name] do table.insert(forms, g) end
 	for _, f in forms do
 		local enc, dec = f[2], f[3]

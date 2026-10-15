@@ -1,0 +1,6 @@
+mean bytes of :newest() state per frame, one viewer; see docstring
+shooter20      rows= 29 dirty=100.0% ages acked/shared=2/5  abs_row_byte=  350.0  abs_row_bits=  331.0  abs_col_for=  281.9  pred_acked=  126.6  pred_shared=  163.9  pred_age1=  103.9
+shooter60      rows= 29 dirty=100.0% ages acked/shared=6/15  abs_row_byte=  350.0  abs_row_bits=  331.0  abs_col_for=  282.3  pred_acked=  119.6  pred_shared=  158.1  pred_age1=   68.2
+shooter100p20  rows= 99 dirty=100.0% ages acked/shared=2/5  abs_row_byte= 1190.0  abs_row_bits= 1152.5  abs_col_for=  939.2  pred_acked=  419.5  pred_shared=  543.2  pred_age1=  343.8
+racing60       rows= 11 dirty=100.0% ages acked/shared=6/15  abs_row_byte=  243.0  abs_row_bits=  241.5  abs_col_for=  227.0  pred_acked=  151.5  pred_shared=  172.5  pred_age1=  121.8
+mmo20          rows= 68 dirty=33.9% ages acked/shared=2/5  abs_row_byte=  248.7  abs_row_bits=  230.0  abs_col_for=  172.1  pred_acked=   57.3  pred_shared=   83.0  pred_age1=   45.9

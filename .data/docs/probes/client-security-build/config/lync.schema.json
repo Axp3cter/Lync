@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lync.toml",
+  "description": "Build-time configuration for Lync's generator. Integers are bounded to 2^32-1 and dates are not allowed, so every TOML parser Lync uses reads the same values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format"
+  ],
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourcemap": {
+          "type": "string",
+          "default": "sourcemap.json"
+        },
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^.]+(\\.[^.]+)*$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "sharedOutput": {
+          "type": "string"
+        },
+        "serverOutput": {
+          "type": "string"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seed": {
+          "oneOf": [
+            {
+              "const": "release"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          ],
+          "default": 0
+        }
+      }
+    },
+    "generate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shardBy": {
+          "enum": [
+            "namespace",
+            "group"
+          ],
+          "default": "namespace"
+        },
+        "maxShardBytes": {
+          "type": "integer",
+          "minimum": 8192,
+          "maximum": 1048576,
+          "default": 65536
+        },
+        "native": {
+          "enum": [
+            "off",
+            "server",
+            "both"
+          ],
+          "default": "server"
+        },
+        "schemaLocations": {
+          "type": "boolean",
+          "default": true
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "luau",
+              "dts"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "luau"
+          ]
+        }
+      }
+    },
+    "rotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldOrder": {
+          "type": "boolean",
+          "default": true
+        },
+        "tagConstants": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rawRemotes": {
+          "enum": [
+            "off",
+            "warn",
+            "error"
+          ],
+          "default": "warn"
+        },
+        "foreignRemotes": {
+          "enum": [
+            "off",
+            "warn",
+            "error"
+          ],
+          "default": "warn"
+        },
+        "unreliableSize": {
+          "enum": [
+            "off",
+            "warn",
+            "error"
+          ],
+          "default": "error"
+        },
+        "dynamicAccess": {
+          "enum": [
+            "off",
+            "warn",
+            "error"
+          ],
+          "default": "warn"
+        },
+        "reachability": {
+          "enum": [
+            "off",
+            "report",
+            "enforce"
+          ],
+          "default": "report"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "report": {
+          "type": "string",
+          "default": "lync-build/report"
+        },
+        "debugMap": {
+          "type": "string",
+          "default": "lync-build/debug.json"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+== interpreted (luau 0.740 -O2)
+d1         median    86.2 ns  (min    83.3, max   151.2)
+d2         median   125.4 ns  (min   116.5, max   128.6)
+refers     median    36.0 ns  (min    30.1, max    36.6)
+canaryS    median    32.9 ns  (min    32.8, max    33.1)
+canaryB    median    97.1 ns  (min    94.1, max    98.1)
+canaryBL   median    37.0 ns  (min    36.9, max    37.4)
+replay     median   110.1 ns  (min   109.8, max   110.3)
+rngProbe   median    31.8 ns  (min    25.6, max    32.5)
+cntProbe   median    19.0 ns  (min    18.8, max    20.1)
+failPcall  median  2547.7 ns  (min  2230.8, max  2928.9)
+permBuild  median 18267.3 ns  (min 16657.9, max 20382.8)
+permBuild figure is per namespace of 200 ids; divide by 200 for per id
+sink	735356
+== native (luau 0.740 -O2 --codegen)
+d1         median    23.0 ns  (min    22.3, max    27.1)
+d2         median    39.3 ns  (min    30.3, max    44.9)
+refers     median    22.6 ns  (min    22.3, max    25.1)
+canaryS    median    13.1 ns  (min    12.1, max    13.8)
+canaryB    median    79.6 ns  (min    65.7, max    93.6)
+canaryBL   median    13.2 ns  (min    12.8, max    13.8)
+replay     median    24.0 ns  (min    23.4, max    25.9)
+rngProbe   median    24.0 ns  (min    18.8, max    26.1)
+cntProbe   median    15.4 ns  (min    15.1, max    15.6)
+failPcall  median  2230.9 ns  (min  1961.1, max  2673.3)
+permBuild  median  4265.9 ns  (min  4211.2, max  4317.8)
+permBuild figure is per namespace of 200 ids; divide by 200 for per id
+sink	736178

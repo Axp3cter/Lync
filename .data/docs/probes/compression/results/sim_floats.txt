@@ -1,0 +1,52 @@
+1. step size (studs) at magnitude; max error is half the step
+ magnitude          f32        f16       bf16
+         1     1.19e-07     0.0010      0.008
+        10     9.54e-07     0.0078      0.062
+       100     7.63e-06     0.0625      0.500
+      1000     6.10e-05     0.5000      4.000
+      4000     2.44e-04     2.0000     16.000
+     10000     9.77e-04     8.0000     64.000
+     60000     3.91e-03    32.0000    256.000
+fixed point: bits = ceil(log2(range/step)); e.g. +-1024 studs at 1/32 = 16 bits, +-4096 at 1/64 = 19 bits, +-16384 at 1/16 = 19 bits
+
+2. lossless float coders vs quantise + predict + EG (shooter, x/y/z per entity over time)
+  60 Hz: Gorilla  18.0 b/val, Chimp  15.3 b/val, ALP  27.3 b/val (median exponent 5.0); 1/32-stud quantised + guarded linear prediction + EG-0: 2.02 b/val
+  20 Hz: Gorilla  18.2 b/val, Chimp  16.0 b/val, ALP  28.6 b/val (median exponent 5.0); 1/32-stud quantised + guarded linear prediction + EG-0: 3.34 b/val
+
+3. predictors: mean EG bits per position component (best k), by rate and baseline age
+  model       Hz  age  delta  linear  guarded   quad
+  shooter     60    1   4.79    2.02     2.07   2.59
+  shooter     60    6   7.29    4.94     5.00   5.29
+  shooter     30    1   5.53    2.74     2.77   3.21
+  shooter     30    3   7.03    4.94     5.00   5.31
+  shooter     20    1   6.08    3.52     3.58   3.98
+  shooter     20    2   7.04    4.96     5.03   5.43
+  racing      60    1   9.73    4.91     4.94   5.54
+  racing      60    6  12.27    8.24     8.24   7.33
+  mmo         20    1   2.41    1.44     1.39   1.77
+  mmo         20    2   2.86    1.63     1.57   1.95
+
+4a. rotations: angular error in degrees (max / mean over 20k random rotations)
+  scheme                        bits     max    mean
+  smallest-three 7 b/comp         23   1.775   0.681
+  smallest-three 8 b/comp         26   0.896   0.339
+  smallest-three 9 b/comp         29   0.449   0.169
+  smallest-three 10 b/comp        32   0.218   0.085
+  smallest-three 11 b/comp        35   0.111   0.042
+  smallest-three 12 b/comp        38   0.050   0.021
+  smallest-three 15 b/comp        47   0.006   0.003
+  naive 4 x 8 bits                32   0.837   0.427
+  naive 4 x 10 bits               40   0.209   0.107
+  yaw only 8 bits                  8   0.703   0.352
+  yaw only 10 bits                10   0.176   0.088
+  yaw only 12 bits                12   0.044   0.022
+  yaw only 16 bits                16   0.003   0.001
+  axis-aligned (24 rotations)      5   0.000   0.000
+
+4b. directions (octahedral): angular error in degrees (max / mean over 20k)
+  oct 8 b/axis                    16   0.928   0.336
+  oct 10 b/axis                   20   0.232   0.083
+  oct 12 b/axis                   24   0.057   0.021
+  oct 16 b/axis                   32   0.004   0.001
+
+4c. Color3: 3 x u8 (Roblox's own Color3uint8) max error 0.5/255 = 0.20% per channel; RGB565 max error 1.6% (R,B) / 0.8% (G)

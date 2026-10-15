@@ -1,5 +1,6 @@
-/.data/
-/.claude/
+/.data/projects/
+__pycache__/
+*.pyc
 /build/
 /dist/
 /node_modules/

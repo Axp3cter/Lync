@@ -1,0 +1,3 @@
+run: luau 0.740, CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+declared: team name health position look title
+iterated: name position team look title health

@@ -1,0 +1,3 @@
+xpcall(f, debug.traceback), table with __tostring:	false	error in error handling
+pcall then tostring:	false	Failed: timeout
+string concat in handler:	false	caught: Failed: timeout

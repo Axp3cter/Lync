@@ -1,0 +1,82 @@
+# luau 0.740 -O2 (interpreted)
+small: N=1024, mean=1.40234375, max=90, EG k=0, Rice k=0, FOR width=7
+  sizes (bytes): LEB 1024  Prefix 1024  vu128 1024  Group 1280  SVB 1280  EG 311  Rice 308  FOR 896  Class 630  Unity 377
+  readu8 (baseline, clamped)            10.8 ns/value
+  readu16 (baseline)                    10.9 ns/value
+  LEB128                                16.0 ns/value
+  PrefixVarint                          33.0 ns/value
+  vu128                                 16.4 ns/value
+  GroupVarint                           36.9 ns/value
+  StreamVByte                           36.9 ns/value
+  Exp-Golomb k=0 (countrz)              72.8 ns/value
+  Exp-Golomb k=0 (12-bit LUT)           45.3 ns/value
+  Exp-Golomb k=0 (arith ops)            79.8 ns/value
+  Rice k=0 (countrz)                    58.4 ns/value
+  FOR 7-bit (readu32 window)            29.9 ns/value
+  FOR 7-bit (buffer.readbits)           36.7 ns/value
+  ClassCode (v5 attempt)                73.8 ns/value
+  Unity bucket Huffman                  73.7 ns/value
+  encode Exp-Golomb k=0                162.2 ns/value
+  encode Exp-Golomb k=0 (inlined)       77.7 ns/value
+  encode LEB128                         17.0 ns/value
+medium: N=1024, mean=20.6396484375, max=168, EG k=4, Rice k=4, FOR width=8
+  sizes (bytes): LEB 1027  Prefix 1027  vu128 1024  Group 1280  SVB 1280  EG 785  Rice 754  FOR 1024  Class 1035  Unity 883
+  readu8 (baseline, clamped)            12.5 ns/value
+  readu16 (baseline)                    11.1 ns/value
+  LEB128                                17.7 ns/value
+  PrefixVarint                          19.2 ns/value
+  vu128                                 12.0 ns/value
+  GroupVarint                           28.9 ns/value
+  StreamVByte                           29.0 ns/value
+  Exp-Golomb k=4 (countrz)              59.8 ns/value
+  Exp-Golomb k=4 (12-bit LUT)           43.4 ns/value
+  Exp-Golomb k=4 (arith ops)            75.4 ns/value
+  Rice k=4 (countrz)                    60.0 ns/value
+  FOR 8-bit (readu32 window)            30.9 ns/value
+  FOR 8-bit (buffer.readbits)           37.0 ns/value
+  ClassCode (v5 attempt)                79.3 ns/value
+  Unity bucket Huffman                  86.0 ns/value
+  encode Exp-Golomb k=4                333.2 ns/value
+  encode Exp-Golomb k=4 (inlined)      136.4 ns/value
+  encode LEB128                         17.3 ns/value
+# luau 0.740 -O2 --codegen (native)
+small: N=1024, mean=1.40234375, max=90, EG k=0, Rice k=0, FOR width=7
+  sizes (bytes): LEB 1024  Prefix 1024  vu128 1024  Group 1280  SVB 1280  EG 311  Rice 308  FOR 896  Class 630  Unity 377
+  readu8 (baseline, clamped)             2.6 ns/value
+  readu16 (baseline)                     2.6 ns/value
+  LEB128                                 3.1 ns/value
+  PrefixVarint                           3.7 ns/value
+  vu128                                  2.9 ns/value
+  GroupVarint                            9.3 ns/value
+  StreamVByte                            8.4 ns/value
+  Exp-Golomb k=0 (countrz)              14.8 ns/value
+  Exp-Golomb k=0 (12-bit LUT)           13.5 ns/value
+  Exp-Golomb k=0 (arith ops)            38.6 ns/value
+  Rice k=0 (countrz)                    13.0 ns/value
+  FOR 7-bit (readu32 window)             3.1 ns/value
+  FOR 7-bit (buffer.readbits)           29.5 ns/value
+  ClassCode (v5 attempt)                13.4 ns/value
+  Unity bucket Huffman                  13.4 ns/value
+  encode Exp-Golomb k=0                 65.9 ns/value
+  encode Exp-Golomb k=0 (inlined)       14.3 ns/value
+  encode LEB128                          4.4 ns/value
+medium: N=1024, mean=20.6396484375, max=168, EG k=4, Rice k=4, FOR width=8
+  sizes (bytes): LEB 1027  Prefix 1027  vu128 1024  Group 1280  SVB 1280  EG 785  Rice 754  FOR 1024  Class 1035  Unity 883
+  readu8 (baseline, clamped)             2.7 ns/value
+  readu16 (baseline)                     2.6 ns/value
+  LEB128                                 3.2 ns/value
+  PrefixVarint                           3.9 ns/value
+  vu128                                  3.3 ns/value
+  GroupVarint                            9.1 ns/value
+  StreamVByte                            8.4 ns/value
+  Exp-Golomb k=4 (countrz)              10.8 ns/value
+  Exp-Golomb k=4 (12-bit LUT)           10.0 ns/value
+  Exp-Golomb k=4 (arith ops)            33.4 ns/value
+  Rice k=4 (countrz)                    11.4 ns/value
+  FOR 8-bit (readu32 window)             2.5 ns/value
+  FOR 8-bit (buffer.readbits)           23.6 ns/value
+  ClassCode (v5 attempt)                10.7 ns/value
+  Unity bucket Huffman                  13.4 ns/value
+  encode Exp-Golomb k=4                 66.2 ns/value
+  encode Exp-Golomb k=4 (inlined)       12.5 ns/value
+  encode LEB128                          3.5 ns/value

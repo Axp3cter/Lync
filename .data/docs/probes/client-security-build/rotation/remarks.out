@@ -1,0 +1,62 @@
+remarks: luau-compile 0.740 -O2 unless the file's --!optimize/--!native says otherwise; CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+    9  builtin bit32.bxor/2
+   10  builtin bit32.bxor/2
+   11  builtin bit32.bxor/2
+   12  builtin bit32.bxor/2
+   13  builtin bit32.band/2
+   14  builtin bit32.bxor/2; builtin bit32.lrotate/2
+   15  builtin bit32.lrotate/2
+   16  builtin bit32.band/2
+   17  builtin bit32.bxor/2; builtin bit32.lrotate/2
+   18  builtin bit32.bxor/2
+   22  builtin buffer.writeu16/3
+   23  builtin buffer.writeu16/3
+   24  builtin buffer.writeu8/3
+   30  builtin buffer.readu16/2
+   32  builtin buffer.readu8/2
+   39  allocation: table template 3
+bytecode: luau-compile 0.740 -O2 unless the file's --!optimize/--!native says otherwise; CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+Function 0 (tagWord):
+R0: number [argument]
+R1: number [argument]
+R2: number [argument]
+REMARK builtin bit32.bxor/2
+    9: 	local v0 = bit32.bxor(k0, C0)
+FASTCALL2K 32 R0 K0 L0 [1390851128]
+MOVE R4 R0
+LOADK R5 K0 [1390851128]
+GETIMPORT R3 3 [bit32.bxor]
+CALL R3 2 1
+REMARK builtin bit32.bxor/2
+   10: 	local v1 = bit32.bxor(k1, C1)
+L0: FASTCALL2K 32 R1 K4 L1 [4071050724]
+MOVE R5 R1
+LOADK R6 K4 [4071050724]
+GETIMPORT R4 3 [bit32.bxor]
+CALL R4 2 1
+REMARK builtin bit32.bxor/2
+   11: 	local v2 = bit32.bxor(k0, C2)
+L1: FASTCALL2K 32 R0 K5 L2 [647892279]
+MOVE R6 R0
+LOADK R7 K5 [647892279]
+--- runtime.luau tagWord
+bytecode: luau-compile 0.740 -O2 unless the file's --!optimize/--!native says otherwise; CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+Function 0 (tagWord):
+R0: number [argument]
+R1: number [argument]
+R2: number [argument]
+REMARK builtin bit32.bxor/2
+    9: 	local v0 = bit32.bxor(k0, C[1])
+GETUPVAL R6 U0
+GETTABLEN R5 R6 1
+FASTCALL2 32 R0 R5 L0
+MOVE R4 R0
+GETIMPORT R3 2 [bit32.bxor]
+CALL R3 2 1
+REMARK builtin bit32.bxor/2
+   10: 	local v1 = bit32.bxor(k1, C[2])
+L0: GETUPVAL R7 U0
+GETTABLEN R6 R7 2
+FASTCALL2 32 R1 R6 L1
+MOVE R5 R1
+GETIMPORT R4 2 [bit32.bxor]

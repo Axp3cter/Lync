@@ -1,0 +1,36 @@
+== native
+chunk 12 B, median of 5 x 30 ticks; ms/tick covers accumulate + select + copy for all viewers
+viewers	K	dirty	budgetB	mode	ms/tick	sent/viewer/tick	maxWaitTicks
+100	300	0.3	600	rr	0.879	50.0	6
+100	300	0.3	600	bucket	1.758	50.0	80
+100	300	0.3	600	sort	9.115	50.0	65
+100	300	0.3	2400	rr	0.915	91.8	1
+100	300	0.3	2400	bucket	1.315	91.8	1
+100	300	0.3	2400	sort	4.543	91.8	1
+200	300	0.3	600	rr	2.435	50.0	6
+200	300	0.3	600	bucket	3.603	50.0	80
+200	300	0.3	600	sort	12.919	50.0	65
+100	1000	0.3	600	rr	3.193	50.0	20
+100	1000	0.3	600	bucket	5.245	50.0	150
+100	1000	0.3	600	sort	35.517	50.0	150
+200	1000	0.1	1000	rr	3.552	83.0	6
+200	1000	0.1	1000	bucket	4.397	83.0	72
+200	1000	0.1	1000	sort	19.446	83.0	47
+== interpreted
+chunk 12 B, median of 5 x 30 ticks; ms/tick covers accumulate + select + copy for all viewers
+viewers	K	dirty	budgetB	mode	ms/tick	sent/viewer/tick	maxWaitTicks
+100	300	0.3	600	rr	1.677	50.0	6
+100	300	0.3	600	bucket	2.315	50.0	80
+100	300	0.3	600	sort	7.445	50.0	65
+100	300	0.3	2400	rr	2.665	91.8	1
+100	300	0.3	2400	bucket	1.970	91.8	1
+100	300	0.3	2400	sort	4.079	91.8	1
+200	300	0.3	600	rr	3.796	50.0	6
+200	300	0.3	600	bucket	8.101	50.0	80
+200	300	0.3	600	sort	15.952	50.0	65
+100	1000	0.3	600	rr	5.954	50.0	20
+100	1000	0.3	600	bucket	11.995	50.0	150
+100	1000	0.3	600	sort	51.208	50.0	150
+200	1000	0.1	1000	rr	9.497	83.0	6
+200	1000	0.1	1000	bucket	11.042	83.0	72
+200	1000	0.1	1000	sort	25.791	83.0	47

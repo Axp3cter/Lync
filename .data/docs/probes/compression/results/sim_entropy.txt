@@ -1,0 +1,6 @@
+case              colbits bucketHuff bucketANS  adaptAC  symANS  ctxANS  bytes  +zstd3 byteHuff  bHuff+z   (mean bytes/frame)
+shooter60           101.4       99.8      99.4    100.0    96.6    96.7  276.5   168.7    139.9    139.9
+racing60            123.6      116.9     119.7    120.2   135.5   136.0  209.8   201.3    160.7    160.7
+mmo20                50.3       60.1      47.5     47.6    47.2    45.1  363.9   120.4     75.5     75.5
+shooter100p20       560.3      572.8     546.8    550.2   582.6   582.9 1127.0   744.0    722.6    722.0
+shooter60-unrel     149.7      150.4     147.3    148.2   162.9   163.3  301.2   227.8    193.8    193.8

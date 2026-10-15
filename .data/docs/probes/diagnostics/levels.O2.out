@@ -1,0 +1,14 @@
+direct -> UserScript:7: [Lync] direct level 2
+viaHelper -> UserScript:8: [Lync] helper level 2
+walked -> UserScript:9: [Lync] walked
+level0 -> [Lync] level 0
+table -> table: 0x0000556f862b72b0
+tableTostring -> [Lync] LYNC1001 tostring
+pcallDirect -> [Lync] direct level 2
+pcallWalked -> UserScript:16: [Lync] walked
+table thrown:	false	table	LYNC1001
+traceback(table):	false	invalid argument #1 to 'traceback' (string expected, got table)
+xpcall(f, debug.traceback) on table:	false	error in error handling
+xpcall handler got:	table	LYNC1002
+coroutine:	false	./levels.luau:92: [Lync] in coroutine
+traceback(co):	./levels.luau:92 | 

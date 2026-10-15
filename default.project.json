@@ -1,0 +1,4 @@
+{
+	"name": "lync",
+	"tree": { "$path": "src" }
+}

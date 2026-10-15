@@ -1,0 +1,442 @@
+[
+	{
+		"id": "G1",
+		"file": null,
+		"bits": "101001100100000100001010",
+		"milestone": 1,
+		"what": "EG-0 of 0, 1, 2, 3 and 7, then EG-2 of 5, written one after another",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G9a",
+		"file": "G9a.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "t.int() single row of -2^52: EG-0 of zigzag 2^53 - 1, 107 bits, bit section alone",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G9b",
+		"file": "G9b.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "t.int() single row of 2^52 - 1: EG-0 of zigzag 2^53 - 2, 105 bits, bit section alone",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "Q-number-min",
+		"file": null,
+		"bits": "0000000000000000",
+		"milestone": 1,
+		"what": "t.number(-2048, 2048, 0.1) of -2048, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-number-max",
+		"file": null,
+		"bits": "0000000000000101",
+		"milestone": 1,
+		"what": "t.number(-2048, 2048, 0.1) of 2048, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-number-half",
+		"file": null,
+		"bits": "1000000000001010",
+		"milestone": 1,
+		"what": "t.number(-2048, 2048, 0.1) of 0.05, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-number-tolerance",
+		"file": null,
+		"bits": "11",
+		"milestone": 1,
+		"what": "t.number(0, 0.3, 0.1) of 0.3 (n = 3 within 1e-9), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-number-third",
+		"file": null,
+		"bits": "01",
+		"milestone": 1,
+		"what": "t.number(0, 1, 1/3) of 0.5, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-number-fine",
+		"file": null,
+		"bits": "00010111110",
+		"milestone": 1,
+		"what": "t.number(-1, 1, 0.001) of 0.0005, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-angle-zero",
+		"file": null,
+		"bits": "000000000",
+		"milestone": 1,
+		"what": "t.angle(math.rad(1)) of 0, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-angle-below-zero",
+		"file": null,
+		"bits": "000000000",
+		"milestone": 1,
+		"what": "t.angle(math.rad(1)) of -1e-9, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-angle-wrap",
+		"file": null,
+		"bits": "000000000",
+		"milestone": 1,
+		"what": "t.angle(math.rad(1)) of math.rad(359.5), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-angle-half",
+		"file": null,
+		"bits": "001011010",
+		"milestone": 1,
+		"what": "t.angle(math.rad(1)) of pi, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-angle-negative",
+		"file": null,
+		"bits": "0111011101",
+		"milestone": 1,
+		"what": "t.angle(2pi/1000) of -pi/2 (n = 1000), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-up",
+		"file": null,
+		"bits": "00000000010000000001",
+		"milestone": 1,
+		"what": "t.direction(10) of (0, 0, 1), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-down",
+		"file": null,
+		"bits": "11111111111111111111",
+		"milestone": 1,
+		"what": "t.direction(10) of (0, 0, -1), sgn(0) = +1, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-x",
+		"file": null,
+		"bits": "11111111110000000001",
+		"milestone": 1,
+		"what": "t.direction(10) of (1, 0, 0), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-minus-x",
+		"file": null,
+		"bits": "00000000000000000001",
+		"milestone": 1,
+		"what": "t.direction(10) of (-1, 0, 0), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-y",
+		"file": null,
+		"bits": "00000000011111111111",
+		"milestone": 1,
+		"what": "t.direction(10) of (0, 1, 0), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-minus-y",
+		"file": null,
+		"bits": "00000000010000000000",
+		"milestone": 1,
+		"what": "t.direction(10) of (0, -1, 0), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-diagonal",
+		"file": null,
+		"bits": "010101010101010101010101",
+		"milestone": 1,
+		"what": "t.direction(12) of (1, 1, 1), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-fold",
+		"file": null,
+		"bits": "10101010111010101000",
+		"milestone": 1,
+		"what": "t.direction(10) of (1, -2, -3), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-fold-zero",
+		"file": null,
+		"bits": "0000000000010011",
+		"milestone": 1,
+		"what": "t.direction(8) of (-0.6, 0, -0.8), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-direction-wide",
+		"file": null,
+		"bits": "11111111111110011010101010101010",
+		"milestone": 1,
+		"what": "t.direction(16) of (0.3, -0.4, 0.5), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-trace",
+		"file": null,
+		"bits": "011001001001000100101001101101",
+		"milestone": 1,
+		"what": "t.rotation(9) of quaternion (0.1, 0.2, 0.3, sqrt 0.86): trace branch, drops w, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-r00",
+		"file": null,
+		"bits": "000001001001111011010001101101",
+		"milestone": 1,
+		"what": "t.rotation(9) of quaternion (sqrt 0.86, 0.1, -0.2, 0.3): R00 branch, drops x, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-r11",
+		"file": null,
+		"bits": "010110110110111011010110010010",
+		"milestone": 1,
+		"what": "t.rotation(9) of quaternion (0.1, -sqrt 0.86, 0.2, 0.3): R11 branch, drops y, negated, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-r22",
+		"file": null,
+		"bits": "001011001001101101100110000100101110011110110110",
+		"milestone": 1,
+		"what": "t.rotation(15) of quaternion (0.3, 0.2, sqrt 0.86, -0.1): R22 branch, drops z, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-narrow",
+		"file": null,
+		"bits": "011110010000110110001001",
+		"milestone": 1,
+		"what": "t.rotation(7) of quaternion (-0.5, 0.5, 0.1, sqrt 0.49): trace branch, drops w, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-color-edges",
+		"file": null,
+		"bits": "000000000000000111111111",
+		"milestone": 1,
+		"what": "t.color3() of (0, 0.5, 1), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-color-steps",
+		"file": null,
+		"bits": "110011000110011010000000",
+		"milestone": 1,
+		"what": "t.color3() of (0.2, 0.4, 0.5/255), single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-00",
+		"file": null,
+		"bits": "100000",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {-1, 0, 0, 0, -1, 0, 0, 0, 1}, index 0, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-01",
+		"file": null,
+		"bits": "110000",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {-1, 0, 0, 0, 0, -1, 0, -1, 0}, index 1, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-02",
+		"file": null,
+		"bits": "101000",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {-1, 0, 0, 0, 0, 1, 0, 1, 0}, index 2, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-03",
+		"file": null,
+		"bits": "111000",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {-1, 0, 0, 0, 1, 0, 0, 0, -1}, index 3, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-04",
+		"file": null,
+		"bits": "100100",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, -1, 0, -1, 0, 0, 0, 0, -1}, index 4, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-05",
+		"file": null,
+		"bits": "110100",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, -1, 0, 0, 0, -1, 1, 0, 0}, index 5, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-06",
+		"file": null,
+		"bits": "101100",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, -1, 0, 0, 0, 1, -1, 0, 0}, index 6, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-07",
+		"file": null,
+		"bits": "111100",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, -1, 0, 1, 0, 0, 0, 0, 1}, index 7, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-08",
+		"file": null,
+		"bits": "100010",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, -1, -1, 0, 0, 0, 1, 0}, index 8, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-09",
+		"file": null,
+		"bits": "110010",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, -1, 0, -1, 0, -1, 0, 0}, index 9, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-10",
+		"file": null,
+		"bits": "101010",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, -1, 0, 1, 0, 1, 0, 0}, index 10, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-11",
+		"file": null,
+		"bits": "111010",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, -1, 1, 0, 0, 0, -1, 0}, index 11, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-12",
+		"file": null,
+		"bits": "100110",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, 1, -1, 0, 0, 0, -1, 0}, index 12, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-13",
+		"file": null,
+		"bits": "110110",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, 1, 0, -1, 0, 1, 0, 0}, index 13, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-14",
+		"file": null,
+		"bits": "101110",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, 1, 0, 1, 0, -1, 0, 0}, index 14, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-15",
+		"file": null,
+		"bits": "111110",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 0, 1, 1, 0, 0, 0, 1, 0}, index 15, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-16",
+		"file": null,
+		"bits": "100001",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 1, 0, -1, 0, 0, 0, 0, 1}, index 16, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-17",
+		"file": null,
+		"bits": "110001",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 1, 0, 0, 0, -1, -1, 0, 0}, index 17, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-18",
+		"file": null,
+		"bits": "101001",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 1, 0, 0, 0, 1, 1, 0, 0}, index 18, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-19",
+		"file": null,
+		"bits": "111001",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {0, 1, 0, 1, 0, 0, 0, 0, -1}, index 19, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-20",
+		"file": null,
+		"bits": "100101",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {1, 0, 0, 0, -1, 0, 0, 0, -1}, index 20, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-21",
+		"file": null,
+		"bits": "110101",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {1, 0, 0, 0, 0, -1, 0, 1, 0}, index 21, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-22",
+		"file": null,
+		"bits": "101101",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {1, 0, 0, 0, 0, 1, 0, -1, 0}, index 22, single-row encoding",
+		"design": "v5.md §3.3"
+	},
+	{
+		"id": "Q-rotation-axis-23",
+		"file": null,
+		"bits": "111101",
+		"milestone": 1,
+		"what": "t.rotation(9) of the axis-aligned matrix {1, 0, 0, 0, 1, 0, 0, 0, 1}, index 23, single-row encoding",
+		"design": "v5.md §3.3"
+	}
+]

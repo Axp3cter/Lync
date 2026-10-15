@@ -515,3 +515,11 @@ Builders stop at the payload. The following belong to later milestones, and none
   validates collection declarations and `:newest()` placement, and gives collections their ids;
 - build seeds and rotation, traps, decoys and every other `v5-integrity.md` measure (milestone 5);
 - extensions (milestone 7). `t.custom` and `t.convert` are codecs and are in scope.
+
+## 6. Lead notes during the build
+
+- `test/golden/index.json` was created by unit A (G1, G9a, G9b and the `Q-*` quantizer vectors); unit C owns it from
+  here and adds its entries.
+- selene's `roblox` std can't be generated in this environment (its API-dump fetch bypasses the proxy); `std = "luau"`
+  is used until CI.
+- `v5.md` §3.3 error figures corrected to the searched worst cases reported by unit A.

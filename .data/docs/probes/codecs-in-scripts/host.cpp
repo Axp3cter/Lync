@@ -46,6 +46,7 @@ static std::string compile(const std::string& src, int opt, int debug)
     lua_CompileOptions o = {};
     o.optimizationLevel = opt;
     o.debugLevel = debug;
+    o.typeInfoLevel = 1;
     size_t n = 0;
     char* bc = luau_compile(src.data(), src.size(), &o, &n);
     std::string out(bc, n);
@@ -61,9 +62,13 @@ static double now()
 static lua_State* newState()
 {
     lua_State* L = luaL_newstate();
+    if (!luau_codegen_supported())
+    {
+        fprintf(stderr, "native codegen not supported\n");
+        exit(2);
+    }
+    luau_codegen_create(L);
     luaL_openlibs(L);
-    if (luau_codegen_supported())
-        luau_codegen_create(L);
     return L;
 }
 
@@ -76,14 +81,15 @@ static int runChunk(lua_State* L, const std::string& path, int mode, int opt)
         fprintf(stderr, "load %s: %s\n", path.c_str(), lua_tostring(L, -1));
         exit(1);
     }
-    if (mode == 1)
-        luau_codegen_compile(L, -1);
-    else if (mode == 2)
+    if (mode != 0)
     {
-        // as on a Roblox server: only --!native modules and @native functions
+        // mode 2 as on a Roblox server: only --!native modules and @native functions
         Luau::CodeGen::CompilationOptions co;
-        co.flags = Luau::CodeGen::CodeGen_OnlyNativeModules;
-        Luau::CodeGen::compile(L, -1, co);
+        if (mode == 2)
+            co.flags = Luau::CodeGen::CodeGen_OnlyNativeModules;
+        Luau::CodeGen::CompilationResult r = Luau::CodeGen::compile(L, -1, co);
+        if (getenv("HOST_DEBUG"))
+            fprintf(stderr, "%s: codegen %s, %zu functions failed\n", path.c_str(), Luau::CodeGen::toString(r.result).c_str(), r.protoFailures.size());
     }
     if (lua_pcall(L, 0, 1, 0) != 0)
     {
@@ -103,7 +109,12 @@ int main(int argc, char** argv)
     int opt = getenv("LUAU_O") ? atoi(getenv("LUAU_O")) : 2;
     if (strcmp(argv[1], "run") == 0)
     {
-        lua_State* L = newState();
+        // as Roblox and the luau CLI: sandboxed globals, scripts on a sandboxed thread (safe env: imports
+        // and builtin fast calls resolve)
+        lua_State* GL = newState();
+        luaL_sandbox(GL);
+        lua_State* L = lua_newthread(GL);
+        luaL_sandboxthread(L);
         for (int i = 2; i < argc; i++)
         {
             std::string spec = argv[i];
@@ -124,7 +135,7 @@ int main(int argc, char** argv)
             else
                 lua_pop(L, 1);
         }
-        lua_close(L);
+        lua_close(GL);
         return 0;
     }
     if (strcmp(argv[1], "load") == 0)

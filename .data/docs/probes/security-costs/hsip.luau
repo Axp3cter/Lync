@@ -183,7 +183,7 @@ function M.tagcd(k0: number, k1: number, b: buffer, len: number, cover: number, 
 	return lo, bxor(v1, v3)
 end
 
--- tag13 with the word loop unrolled by 4 (a generated variant); same output
+-- tag13 with the word loop unrolled by 4 and each rotate nested in its xor (a generated variant); same output
 function M.tag13u4(k0: number, k1: number, b: buffer, len: number, cover: number, count: number, lane: number, inst: number): number
 	local n = if len < cover then len else cover
 	local mlen = 11 + n
@@ -194,10 +194,10 @@ function M.tag13u4(k0: number, k1: number, b: buffer, len: number, cover: number
 	while j < nw and j < 3 do
 		m = if j == 0 then count elseif j == 1 then bor(lane, lshift(band(len, 0xffffff), 8)) else bor(rshift(len, 24), lshift(inst, 8), lshift(readu8(b, 0), 24))
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		j += 1
 	end
@@ -206,31 +206,31 @@ function M.tag13u4(k0: number, k1: number, b: buffer, len: number, cover: number
 	while o <= stop4 do
 		m = readu32(b, o)
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		m = readu32(b, o + 4)
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		m = readu32(b, o + 8)
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		m = readu32(b, o + 12)
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		o += 16
 	end
@@ -238,10 +238,10 @@ function M.tag13u4(k0: number, k1: number, b: buffer, len: number, cover: number
 	while o <= last do
 		m = readu32(b, o)
 		v3 = bxor(v3, m)
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 		v0 = bxor(v0, m)
 		o += 4
 	end
@@ -250,17 +250,17 @@ function M.tag13u4(k0: number, k1: number, b: buffer, len: number, cover: number
 		m = bor(m, lshift(msgbyte(b, i, count, lane, len, inst), 8 * (i % 4)))
 	end
 	v3 = bxor(v3, m)
-	v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-	v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-	v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-	v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+	v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+	v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+	v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+	v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 	v0 = bxor(v0, m)
 	v2 = bxor(v2, 0xff)
 	for _ = 1, 3 do
-		v0 += v1; v1 = lrot(v1, 5); v1 = bxor(v1, v0); v0 = lrot(v0, 16)
-		v2 += v3; v3 = lrot(v3, 8); v3 = bxor(v3, v2)
-		v0 += v3; v3 = lrot(v3, 7); v3 = bxor(v3, v0)
-		v2 += v1; v1 = lrot(v1, 13); v1 = bxor(v1, v2); v2 = lrot(v2, 16)
+		v0 += v1; v1 = bxor(lrot(v1, 5), v0); v0 = lrot(v0, 16)
+		v2 += v3; v3 = bxor(lrot(v3, 8), v2)
+		v0 += v3; v3 = bxor(lrot(v3, 7), v0)
+		v2 += v1; v1 = bxor(lrot(v1, 13), v2); v2 = lrot(v2, 16)
 	end
 	return bxor(v1, v3)
 end

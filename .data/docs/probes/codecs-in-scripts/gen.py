@@ -6,8 +6,6 @@ Usage: python3 -I gen.py OUTDIR
 """
 import math, os, sys
 
-OUT = sys.argv[1]
-os.makedirs(OUT, exist_ok=True)
 
 def bits_for(n):  # u(ceil(log2 n)) for n codes
     return 0 if n <= 1 else math.ceil(math.log2(n))
@@ -345,11 +343,85 @@ return nil
 """
     return "\n".join(head) + "\n" + loop
 
-with open(os.path.join(OUT, "rt.luau"), "w") as f: f.write(RT)
-with open(os.path.join(OUT, "shard.luau"), "w") as f: f.write(shard())
-for name in DEFS:
+def main_bench(OUT):
+  os.makedirs(OUT, exist_ok=True)
+  with open(os.path.join(OUT, "rt.luau"), "w") as f: f.write(RT)
+  with open(os.path.join(OUT, "shard.luau"), "w") as f: f.write(shard())
+  for name in DEFS:
     for form in ("S0", "S1", "W1", "W1n", "W1t", "W2", "W3"):
         src = bench_script(name, form)
         if src:
             with open(os.path.join(OUT, f"bench_{name}_{form}.luau"), "w") as f: f.write(src)
-print("ok", OUT)
+  print("ok", OUT)
+
+# --- server-side decode: payload table to the handler (D0) against fields as arguments (D1) ---
+DEC_SHARD = r"""--!optimize 2
+-- server shard model: move6 decode with v5's range checks (rule 3), then delivery to each connected handler
+local E_x_y_z = { "x", "y", "z" }
+local Dec = {}
+local function read(b: buffer, p: number)
+	local a = buffer.readbits(b, p, 10) local bb = buffer.readbits(b, p + 10, 10)
+	local c = buffer.readbits(b, p + 20, 1) local q = buffer.readbits(b, p + 21, 11)
+	local e = buffer.readbits(b, p + 32, 2) local f = buffer.readbits(b, p + 34, 8)
+	if a > 1000 or bb > 1000 or q > 1024 or e > 2 then return nil end
+	return a, bb, c == 1, math.min(q * (1 / 1024), 1), E_x_y_z[e + 1], f
+end
+-- D0: one table per message, handlers receive (player, value)
+function Dec.deliverTable(b: buffer, p: number, player: any, handlers: { any })
+	local a, bb, c, d, e, f = read(b, p)
+	if a == nil then return 3 end
+	local v = { a = a, b = bb, c = c, d = d, e = e, f = f }
+	for i = 1, #handlers do handlers[i](player, v) end
+	return 0
+end
+-- D1: woven handler, fields as arguments, no table
+function Dec.deliverFields(b: buffer, p: number, player: any, handlers: { any })
+	local a, bb, c, d, e, f = read(b, p)
+	if a == nil then return 3 end
+	for i = 1, #handlers do handlers[i](player, a, bb, c, d, e, f) end
+	return 0
+end
+return Dec
+"""
+
+def dec_bench(form):
+    if form == "D0":
+        handler = "function(player, v) sink += v.a + v.b + (if v.c then 1 else 0) + v.d + #v.e + v.f end"
+        call = "Dec.deliverTable(b, (i % 64) * 42, player, handlers)"
+    else:
+        handler = "function(player, a, b, c, d, e, f) sink += a + b + (if c then 1 else 0) + d + #e + f end"
+        call = "Dec.deliverFields(b, (i % 64) * 42, player, handlers)"
+    return f"""--!optimize 2
+local Dec = Dec
+local sink = 0
+local handlers = {{ {handler} }}
+local player = {{}}
+local b = buffer.create(4096)
+for k = 0, 63 do
+	local p = k * 42
+	buffer.writebits(b, p, 10, (k * 13) % 1001) buffer.writebits(b, p + 10, 10, (k * 7) % 1001)
+	buffer.writebits(b, p + 20, 1, k % 2) buffer.writebits(b, p + 21, 11, (k * 16) % 1025)
+	buffer.writebits(b, p + 32, 2, k % 3) buffer.writebits(b, p + 34, 8, k)
+end
+local N = 400000
+local samples = {{}}
+for rep = 1, 11 do
+	local t0 = os.clock()
+	for i = 1, N do
+		{call}
+	end
+	samples[rep] = (os.clock() - t0) / N * 1e9
+end
+table.sort(samples)
+print(string.format('{{"def":"move6","form":"{form}","ns":%.1f,"min":%.1f,"max":%.1f}}', samples[6], samples[1], samples[11]))
+return nil
+"""
+
+def main_dec(OUT):
+    with open(os.path.join(OUT, "dec_shard.luau"), "w") as f: f.write(DEC_SHARD)
+    for form in ("D0", "D1"):
+        with open(os.path.join(OUT, f"dec_move6_{form}.luau"), "w") as f: f.write(dec_bench(form))
+
+if __name__ == "__main__":
+    main_bench(sys.argv[1])
+    main_dec(sys.argv[1])

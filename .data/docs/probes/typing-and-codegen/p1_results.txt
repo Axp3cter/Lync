@@ -1,0 +1,20 @@
+== rep 1 interpreted -O2
+a closures                   median  1125.7 ns/op  min   965.1  max  1701.5
+b straight-line bit32        median   347.7 ns/op  min   257.9  max   462.2
+c straight-line writebits    median   470.4 ns/op  min   351.6  max   682.1
+ratio a/b 3.24   c/b 1.35   a/c 2.39
+== rep 1 native --codegen -O2
+a closures                   median   611.7 ns/op  min   470.6  max   672.5
+b straight-line bit32        median   144.2 ns/op  min   110.2  max   163.5
+c straight-line writebits    median   300.6 ns/op  min   234.7  max   349.4
+ratio a/b 4.24   c/b 2.09   a/c 2.03
+== rep 2 interpreted -O2
+a closures                   median  1307.8 ns/op  min  1012.0  max  1697.5
+b straight-line bit32        median   283.3 ns/op  min   227.9  max   429.2
+c straight-line writebits    median   408.0 ns/op  min   316.1  max   509.7
+ratio a/b 4.62   c/b 1.44   a/c 3.21
+== rep 2 native --codegen -O2
+a closures                   median   582.8 ns/op  min   467.9  max   798.4
+b straight-line bit32        median   138.1 ns/op  min   108.8  max   159.7
+c straight-line writebits    median   288.2 ns/op  min   230.2  max   321.5
+ratio a/b 4.22   c/b 2.09   a/c 2.02

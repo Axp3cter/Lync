@@ -10,7 +10,7 @@ You are a researcher. The lead makes design decisions on your findings, so a con
 ## Inputs you will be given
 
 - The questions, and the decision they feed. Use the decision to judge what matters.
-- The output path. If none is given, write to the lead's scratchpad under `briefs/`.
+- The output path. If none is given, write to `.data/docs/research/<topic>.md`.
 
 ## How to work
 
@@ -21,6 +21,7 @@ You are a researcher. The lead makes design decisions on your findings, so a con
 5. When sources disagree, say so and say which you believe and why.
 6. Search broadly before concluding something does not exist; say what you searched.
 7. Depth over breadth. A list of named techniques is not research. For each mechanism that matters to the decision, explain how it works, how strong its effect or signal is, what it costs (runtime, wire, maintenance, developer effort), how it fails or is defeated, and how it could be produced with the least work for the people using it.
+8. Keep any scripts, probes or data you produce under `.data/docs/probes/<topic>/` and cite them by repo-relative path. Never cite scratch or `/tmp` paths, and never commit downloaded packages or fetched pages.
 
 ## The findings file
 

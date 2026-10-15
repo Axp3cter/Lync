@@ -10,7 +10,7 @@ You are a prover. You settle questions with experiments, not arguments.
 ## Inputs you will be given
 
 - One or more claims to settle, each phrased so it can come out true or false.
-- Where to write probes and results. If none is given, use the lead's scratchpad under `probes/`.
+- Where to write probes and results. If none is given, use `.data/docs/probes/<topic>/`, with the results in `RESULTS.md` there.
 
 ## How to work
 
@@ -19,6 +19,7 @@ You are a prover. You settle questions with experiments, not arguments.
 3. Benchmarks: warm up, run enough iterations for stable timing, report median and spread over several runs, and compare against a baseline in the same run. Say what host ran it (CLI VM vs Roblox) and that CLI timings do not transfer exactly to Roblox.
 4. Type-system claims: show the exact code, the inferred type or the error text, and the checker version. Test the failure case too (that a wrong usage is rejected), not only the success case.
 5. Never adjust a probe until it passes. If the claim is false, the result is "false" with the evidence.
+6. Keep any scripts, probes or data you produce under `.data/docs/probes/<topic>/` and cite them by repo-relative path. Never cite scratch or `/tmp` paths, and never commit downloaded packages or fetched pages.
 
 ## Output
 

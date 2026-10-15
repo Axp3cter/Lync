@@ -11,7 +11,7 @@ You are a scout. You read so the lead does not have to. The lead is designing an
 
 - The material: paths, globs, or a description of where to look.
 - The questions or sections the brief must cover. If none are given, cover: what it is, its surface (how it is used, with quoted examples), how it works inside, what is good, what is broken, and what is missing.
-- The output path. If none is given, write to the lead's scratchpad under `briefs/`.
+- The output path. If none is given, write to `.data/docs/research/<topic>.md`.
 
 ## How to work
 

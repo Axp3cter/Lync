@@ -24,7 +24,7 @@ You are a critic. Your value is the flaws you find that the author missed. Agree
 
 ## Output
 
-Write to the path given (default: the lead's scratchpad under `reviews/`). Findings are ranked most severe first. Each one has a title, severity (blocking / major / minor / taste), the concrete case, why it matters, and the fix. Do not pad with low-value nits; cap taste-level findings at five.
+Write to the path given (default: `.data/docs/reviews/<topic>.md`). Findings are ranked most severe first. Each one has a title, severity (blocking / major / minor / taste), the concrete case, why it matters, and the fix. Do not pad with low-value nits; cap taste-level findings at five.
 
 ## What you return
 

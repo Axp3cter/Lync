@@ -1,0 +1,24 @@
+== rep 1 interpreted -O2
+literal constructor              median   45.8 ns/op  min   37.7  max   67.5  x1.00 vs literal
+table.clone + 6 writes           median   98.7 ns/op  min   75.5  max  154.1  x2.15 vs literal
+{} + 6 constant-key writes       median  104.5 ns/op  min   88.9  max  170.2  x2.28 vs literal
+{} + 6 dynamic-key writes        median  249.1 ns/op  min  189.1  max  402.3  x5.44 vs literal
+table.clone + 6 dynamic writes   median  134.8 ns/op  min  100.1  max  193.1  x2.94 vs literal
+== rep 1 native --codegen -O2
+literal constructor              median   46.7 ns/op  min   36.9  max   53.5  x1.00 vs literal
+table.clone + 6 writes           median   74.9 ns/op  min   57.8  max   89.1  x1.61 vs literal
+{} + 6 constant-key writes       median  115.7 ns/op  min   89.8  max  127.2  x2.48 vs literal
+{} + 6 dynamic-key writes        median  232.4 ns/op  min  177.7  max  333.1  x4.98 vs literal
+table.clone + 6 dynamic writes   median  116.1 ns/op  min   89.5  max  140.4  x2.49 vs literal
+== rep 2 interpreted -O2
+literal constructor              median   50.3 ns/op  min   38.7  max   75.1  x1.00 vs literal
+table.clone + 6 writes           median  103.7 ns/op  min   81.7  max  167.1  x2.06 vs literal
+{} + 6 constant-key writes       median  118.5 ns/op  min   88.9  max  186.6  x2.36 vs literal
+{} + 6 dynamic-key writes        median  266.0 ns/op  min  193.7  max  312.8  x5.29 vs literal
+table.clone + 6 dynamic writes   median  131.7 ns/op  min  102.1  max  199.6  x2.62 vs literal
+== rep 2 native --codegen -O2
+literal constructor              median   47.5 ns/op  min   36.4  max   67.6  x1.00 vs literal
+table.clone + 6 writes           median   74.3 ns/op  min   59.5  max   90.7  x1.57 vs literal
+{} + 6 constant-key writes       median  118.6 ns/op  min  102.5  max  138.3  x2.50 vs literal
+{} + 6 dynamic-key writes        median  233.5 ns/op  min  208.5  max  287.5  x4.92 vs literal
+table.clone + 6 dynamic writes   median  114.8 ns/op  min   92.8  max  181.1  x2.42 vs literal

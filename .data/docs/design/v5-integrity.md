@@ -9,13 +9,16 @@ measures, re-judged, are in `v5-changes.md`. "Unmodified client" is defined in `
 ## 1. How measures are judged
 
 An executor reads and rewrites every Lync table, upvalue and constant on its client and can call Lync's own API
-`[client-security §1.2]`. Client-side measures cannot make a forged message impossible. Each is judged by the
-recurring work it imposes on a modified client against its runtime, wire, size and developer cost, and by `v5.md`
-principle 2 that cost is weighed, never a veto by itself: where it matters, an option controls it. "A modified
-client with full memory access can defeat it" and "a universal counter exists" are not reasons on their own: Lync
-varies what a counter depends on per build (§2), per server (permutation), per session (the key) and per player
-(§2.4), so a counter written against one has to be rebuilt or re-run against the next. Every measure is judged
-against the capability classes below `[security-tooling §9]` `[generation-methods §0]`.
+`[client-security §1.2]`. Client-side measures cannot make a forged message impossible. A measure is adopted when
+its fact is exact (an exact trigger, and every cause on an unmodified client listed, or "none" with the argument)
+and its runtime, wire, size and developer cost is stated; by `v5.md` principle 2 cost is weighed, never a veto by
+itself, and where it matters an option controls it. What a measure can't do is stated in its section, never used
+as the reason against it: each section carries one line, **Universal counter:** yes or no, naming the one change
+that defeats the measure in every Lync game and build where one exists. Whether a fact with a universal counter
+informs anything is the developer's call, and where such a measure has a cost, an option turns it off. Only the
+values of §2 and `v5.md` §4.5 (key, permutation) vary per build, server, session or player, so only for them does
+a counter have to be rebuilt or re-run against the next. Every measure is judged against the capability classes
+below `[security-tooling §9]` `[generation-methods §0]`.
 
 | Capability class | What a modified client does with it | Measures that price it |
 |---|---|---|
@@ -41,7 +44,11 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
   unpatched: executor code calling Lync's API and injectors of inbound frames. "A patched Lync suppresses it" is
   true of every client-stated count and is no reason about one `[refusals-rejudged-2 Impl2]`.
 - **Facts, never consequences.** Lync drops only what it cannot deliver (malformed input, budgets, a trap's
-  messages, which have no handler) and reports facts. It has no quiet mitigation hooks (R22), no suspicion
+  messages, which have no handler) and reports facts. Whatever it would have to guess, name, place or weigh is the
+  developer's: trap names (§3), decoy placement and keys (§8), canary text (§9), thresholds that encode a judgement
+  (§7). Every game callback Lync runs (decoy behaviours, canary formats) runs as `v5-collections.md` §8.7 states:
+  on a pooled thread per call site, a throw or a yield detected at the call, reported natively, and the stated
+  fallback applied. It has no quiet mitigation hooks (R22), no suspicion
   weights or scores (R23) and no automatic kick, ban, throttle or client-visible rejection (R24): each would be
   Lync deciding policy, which is the game's code (`v5.md` §0).
 

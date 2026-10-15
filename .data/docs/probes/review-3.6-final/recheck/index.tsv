@@ -1,0 +1,1414 @@
+.bin		2	core§4.10, core§9
+.C		2	tool§3.4
+.d.ts		11	core§0, core§10, core§3.3, core§3.6, core§8, tool§1, tool§2, tool§4.1
+.Manifest		1	tool§8
+.name		3	integ§3, tool§1.2, tool§5.4
+.Name		2	tool§3.4, tool§5.3
+.net		1	integ§3
+.Parent		1	tool§5.3
+.rbxl		1	tool§2
+.rbxm		1	tool§5.1
+.styluaignore		1	tool§3.4
+:claim()		11	checks§0, checks§1.1, checks§7.1, checks§7.4, coll§15.2, core§3.3, core§4.7, tool§3.4
+:claim(Lync.derive(fn, tolerance))		1	checks§5.1
+:decoys		1	tool§1.2
+:FindFirstChild		1	tool§5.3
+:FindFirstChild("Name")		1	tool§3.4
+:gated()		5	coll§3, coll§9, core§3.3, core§4.7
+:input()		16	checks§0, checks§7.1, checks§7.3, checks§7.4, coll§15.2, core§3.3, core§4.7, tool§3.4
+:intern		5	core§3.3, core§4.11, integ§9
+:intern(names)		1	core§4.11
+:intern(table)		1	core§3.3
+:intern(x)		1	core§3.3
+:name		3	integ§3, tool§1.2, tool§5.4
+:newest()		38	coll§1, coll§11, coll§11.1, coll§11.2, coll§11.4, coll§12.2, coll§12.3, coll§14, coll§15.5, coll§2, coll§5, coll§5.1, coll§8.6, coll§9, core§3.3, core§3.4, core§4.4, core§5.1, core§5.5, core§7.2, core§7.4, core§7.5
+:owner()		6	coll§3, coll§8.4, coll§9, core§3.3, core§4.7
+:refers()		1	core§4.7
+:seen()		1	coll§9
+:team()		6	coll§3, coll§9, core§3.3, core§4.7
+:trap()		6	checks§1.1, core§4.7, integ§10, integ§3, tool§1.1
+:WaitForChild		1	tool§5.3
+:WaitForChild("Name")		1	tool§3.4
+__lync_		1	tool§3.4
+__namecall		1	core§4.1
+_value		2	core§3.2
+about		5	coll§10, coll§14, core§3.3, core§3.4, tool§3.4
+about(collection)		1	core§3.4
+aboutMissing	code?	5	coll§10, core§3.3, tool§3.4
+acked		24	coll§1, coll§14, coll§16, coll§3, coll§5.1, coll§7, core§0, core§3.4, core§4.1, core§4.10, core§4.7, core§4.9, core§5.5
+ackedNewestMissing	code?	4	coll§14, coll§5.1, core§3.4, core§7.1
+ackEveryFrame		18	checks§9.3, coll§12.3, coll§12.8, coll§15.3, core§3.4, core§4.1, core§4.10, core§4.7, core§4.8, core§4.9
+ackExact		5	coll§12.3, coll§12.5, coll§15.3, core§3.4
+ackHeldMaxSeconds		5	coll§12.3, coll§12.5, coll§12.9
+ackHeldSeconds		3	coll§12.3, coll§12.5, coll§12.9
+ackHeldUnclampedSeconds		5	coll§12.3, coll§12.5, coll§12.9
+ackMissing	code?	1	core§7.1
+ackRoundTripSeconds		1	coll§12.5
+ackSeq		3	coll§12.3, coll§12.5
+ackSeqUnknown	code?	2	core§6.1, core§7.3
+ackTick		2	coll§12.5, coll§12.9
+add		1	core§3.5
+added		1	core§3.5
+added(key, record)		1	coll§2
+afterSeconds		10	checks§8.10, checks§8.4, checks§8.9
+aim		10	checks§0, checks§10, checks§8.10, checks§8.2, checks§8.6, core§3.4
+aim()		1	core§3.4
+alias:verb(…)		1	tool§5.3
+align		3	coll§0, core§4.1
+announce		3	core§4.10, core§4.3, integ§2.2
+announce:fire(Lync.all, { kind = "round", number = 3 })		1	core§4.10
+answered		8	core§7.1, integ§10, integ§7.4
+answerPingSeconds		2	core§3.5, core§5.2
+answersTimedOut		3	core§5.2, core§7.4
+answerTiming.pingFraction		9	core§5.2, core§7.5, integ§10, integ§7.1, integ§7.2, integ§7.4
+any		1	core§1
+api		1	core§2
+appliedTick		2	coll§12.3, coll§12.5
+arena		5	checks§7.4, core§4.10
+arena.strike.data.target		1	integ§2.2
+argumentOutOfRange	code?	4	core§7.1, integ§7.4, integ§8
+arrivalClock		1	coll§12.5
+asDecoded		4	core§10, core§3.5, tool§5.4
+asDecoded(data)		1	core§3.5
+assignedVariant		1	integ§10
+at		2	core§3.4, integ§8
+at(tick, key)		1	coll§12.6
+atom		10	checks§0, checks§10, checks§8.1, checks§8.10, checks§8.6, core§3.4
+atom({ … })		1	core§3.4
+atomsDelivered		3	checks§10, checks§8.5, core§7.4
+atomSeriesMissing	code?	3	checks§10, checks§8.6, core§7.1
+atomsPerBatch		1	checks§8.10
+atomsSkipped		4	checks§10, checks§8.4, checks§8.5, core§7.4
+attempts		1	integ§7.4
+attemptsExceeded	code?	5	core§7.1, integ§10, integ§7.4
+audience		4	coll§9, core§3.5, core§7.1
+audience(key, target)		1	coll§2
+b_consumer_128		2	core§3.2, core§3.4
+b_table_N		2	core§10, core§3.4
+back		3	coll§15.6, core§4.1, core§4.8
+Backpack		3	core§10, integ§3, integ§4
+bad		1	core§7.1
+Base64Decode		1	coll§8.2
+BasePart		1	coll§8.3
+BEACON		17	core§10, core§4.6, core§4.8, core§4.9, core§5.1, core§9, integ§2.4, integ§6
+beacon_sim.out		1	core§5.1
+beaconSeconds		1	core§7.5
+beforeSeconds		8	checks§8.10, checks§8.4, checks§8.9
+behavior		1	core§7.1
+behavior(viewer, tick)		1	integ§8
+behindNewest		1	core§7.3
+BindableEvent		1	tool§3.4
+BindableFunction		1	tool§3.4
+bindableInstanceFound	code?	4	tool§3.2, tool§3.4, tool§4.2
+binding		1	tool§3.4
+binding.def		1	tool§5.3
+binding.def:verb(…)		1	tool§5.3
+bindingRaised	code?	4	coll§14, coll§8.7, coll§9, core§7.1
+bindingYielded	code?	4	coll§14, coll§8.7, coll§9, core§7.1
+BindToClose		5	checks§8.5, core§3.5, core§5.1, core§5.2, integ§7.4
+blocks		6	checks§9.3, checks§9.6, checks§9.7
+Body		1	checks§8.8
+boolean		1	core§3.3
+bound		5	checks§1.5
+broadcast(lane, frame, instances)		1	core§8
+bucketBytes		1	core§7.3
+bucketDecodeUnits		1	core§7.3
+bucketFrames		1	core§7.3
+buffer		9	coll§8.2, coll§8.5, core§3.3, tool§2, tool§3.4
+buffer.copy		3	checks§8.2, coll§8.4, core§4.1
+buffer.len		4	core§6.1, core§7.3, core§7.5
+buffer.tostring(…)		1	checks§8.8
+buffer.writebits		1	core§4.1
+build		1	core§7.1
+build.playerVariantCount		10	core§10, integ§10, integ§12, integ§2.4, integ§2.5, tool§1, tool§1.1, tool§2
+build.rotationSeed		4	integ§2.5, tool§1.2, tool§2, tool§5.5
+build.varyOffsets		4	integ§2.2, integ§2.5, tool§2
+buildId		45	core§3.2, core§4.10, core§4.5, core§4.6, core§4.9, core§7.3, integ§2.1, integ§2.2, integ§2.5, tool§1, tool§1.1, tool§1.2, tool§3.4, tool§4.1, tool§4.2, tool§4.3, tool§5.5
+buildIdMismatch	code?	4	core§3.2, core§7.3, tool§4.3
+buildMismatch	code?	8	core§3.2, core§4.6, core§7.2, core§7.3, tool§4.3, tool§5.5
+burst		15	core§3.4, core§5.4, core§7.3
+burstLoss		1	core§9
+buy		4	core§4.10, integ§2.2
+buy({ item = "sword" })		1	core§4.10
+byReceipt		3	core§4.1, integ§10
+byRegeneration		8	tool§3.2, tool§3.4, tool§4.2, tool§5.2
+Bytes		1	core§7.1
+bytes		9	checks§9.7, core§7.3, tool§3.4
+bytesPerSecond		1	core§7.5
+bytesReceived	code?	1	core§7.4
+bytesSent		1	core§7.4
+c		5	integ§10, integ§8
+c91960e.json		1	core§4.3
+CALL		1	core§4.1
+caller		15	core§4.1, core§4.10, core§4.5, core§4.8, core§7.1, integ§10, integ§4
+callerProbe		2	core§10, core§7.5
+callerProbe.callsPerProbe		4	core§10, core§4.6, integ§4
+callerProbe.maxProbesPerSecond		3	core§4.6, integ§4
+callerProbe.splitFrames		1	integ§4
+callerSources		1	tool§1.2
+callOptionMalformed	code?	6	coll§14, coll§8.2, coll§8.5, core§7.1, tool§2
+callOptionMismatch	code?	5	core§3.2, core§7.1, core§7.5
+callOptionMissing	code?	7	checks§10, coll§14, coll§8.2, core§3.4, core§7.1, integ§7.4
+callOptionOutOfRange	code?	12	checks§10, checks§6.5, coll§14, coll§8.2, coll§8.5, core§3.4, core§7.1, core§7.5, integ§7.3, integ§7.4
+callOptionUnknown	code?	9	checks§10, coll§14, coll§8.2, core§3.4, core§7.1, core§7.5, integ§7.3, integ§7.4
+callOptionWrongType	code?	10	checks§10, coll§14, coll§8.2, core§3.4, core§7.1, core§7.5, integ§7.3, integ§7.4
+callsPerProbe		8	core§4.6, core§7.5, integ§12, integ§4
+canary		2	core§7.5, integ§9
+canary()		1	checks§1.1
+canary({ format })		1	core§3.4
+canary.maxScanBytes		4	integ§10, integ§9
+canary.varyPerViewer		5	core§4.2, integ§10, integ§12, integ§9
+canaryFormatRaised	code?	2	core§7.1, integ§9
+canaryFormatResultRefused	code?	2	core§7.1, integ§9
+canaryFormatYielded	code?	2	core§7.1, integ§9
+canaryInternMisplaced	code?	2	core§7.1, integ§9
+canaryReceived	code?	5	core§6.1, core§7.1, core§7.3, integ§10, integ§9
+canaryWriteRefused	code?	2	core§7.1, integ§9
+cancel()		1	integ§7.4
+cancelled		2	core§7.1, integ§10
+candidateOffset		1	integ§10
+captureBuild		1	tool§3.4
+captureBuildMismatch	code?	2	tool§3.4, tool§4.1
+case		7	core§7.3, integ§3, tool§3.2, tool§3.4
+cellSize		20	coll§8.2, coll§8.5, tool§2
+cf.Rotation		1	core§3.3
+CFrame		12	coll§12.7, coll§16, core§10, core§3.3, core§4.9
+challengeAnswer		2	checks§7.2, core§3.3
+challengeAnswer()		1	core§3.4
+challengeAnswerBelowPing	code?	8	core§10, core§4.9, core§7.1, core§7.3, integ§10, integ§7.4
+challengeAnswerUnmatched	code?	6	core§6.1, core§7.1, core§7.3, integ§10, integ§7.4
+challengeDuplicate	code?	3	core§4.9, core§7.1, integ§7.4
+change		2	tool§3.4
+changed		5	coll§1, coll§11.4, coll§2, coll§9, core§3.5
+ChangeHistoryService		1	tool§4.2
+chat		5	core§4.10, core§5.3, tool§5.7
+Chat		1	tool§3.3
+chat:fire("gg")		1	core§4.10
+check.callerSources		5	integ§10, integ§4, tool§1.2, tool§2
+check.clientRoots		6	integ§10, integ§3, tool§2, tool§3.3
+check.dynamicAccessFound		1	integ§3
+check.inferReachability		9	integ§10, integ§3, integ§4, tool§1.2, tool§2, tool§5.4
+check.knownRemotes		2	tool§2, tool§3.4
+check.minFreeFormCodes		6	checks§10, checks§7.4, tool§2, tool§3.4
+check.minStagedNameBytes		2	tool§2, tool§3.4
+checkFunctionRaised	code?	5	checks§1.7, checks§10, core§6.1, core§7.1, core§7.2
+checkFunctionsRaised	code?	5	checks§1.7, checks§10, core§6.1, core§7.2, core§7.4
+checkFunctionsYielded	code?	5	checks§1.7, checks§10, core§6.1, core§7.2, core§7.4
+checkFunctionYielded	code?	5	checks§1.7, checks§10, core§6.1, core§7.1, core§7.2
+checkIndex		7	checks§1.5, checks§1.6, core§7.3
+checkListenerCaller		1	core§7.5
+checkPoolMismatch	code?	3	checks§10, checks§4.2, core§7.1
+checks		1	checks§0
+checksExempted		4	checks§1.6, checks§10, checks§7.3, core§7.4
+checksSkipped		5	checks§1.7, checks§10, checks§7.3, core§3.3, core§7.4
+checksUndrawn		4	checks§10, checks§5.2, checks§7.3, core§7.4
+ChildAdded		1	integ§12
+cl_extrapolate_amount		2	coll§11.2, coll§14
+cl_interp		1	coll§11.1
+claimUnverified	code?	6	checks§10, checks§7.3, coll§15.4, core§3.3, core§7.1
+clamp		2	checks§1.3, checks§8.4
+class		3	tool§3.4
+classLiteral		7	tool§3.4
+ClickDetector		1	tool§1.3
+client		6	core§7.1, integ§10, tool§2, tool§3.3, tool§3.4
+clientBuild		1	tool§3.4
+clientCallSourceUnknown	code?	5	core§10, core§7.1, core§7.3, integ§10, integ§4
+clientCase		1	integ§10
+clientCount		5	integ§10
+clientFramesMalformed	code?	5	core§7.1, core§7.3, core§8, integ§10, integ§4
+clientIdentityMismatch	code?	5	core§7.1, core§7.3, integ§10, integ§12, integ§4
+clientItem		1	integ§10
+clientListenerCallerMismatch	code?	4	core§7.1, core§7.3, integ§10, integ§4
+clientOuterFrameMissing	code?	4	core§7.1, core§7.3, integ§10, integ§4
+clientProbes		2	integ§10
+clientProtocolVersion		1	core§7.3
+clientSchemaHashHigh		1	core§7.3
+clientSchemaHashLow		1	core§7.3
+clientSelfCheckMismatch	code?	4	core§7.1, core§7.3, integ§10, integ§4
+clock		2	core§7.5, core§8
+clock.beaconSeconds		10	core§4.6, core§4.9, core§5.1, integ§6
+clock.minFits		4	core§10, integ§10, integ§6
+clock.minSlope		6	core§10, core§4.9, integ§10, integ§6
+clockEstimatesRestarted		3	core§7.4, integ§6
+clockFitsCompleted		2	core§7.4, integ§6
+clockMilliseconds		13	checks§8.2, checks§8.3, checks§8.4, checks§8.5, core§7.1
+clockSlope		2	core§7.4, integ§6
+clockSlopeExceeded	code?	4	core§7.1, core§7.3, integ§10, integ§6
+clockSlopeMedian		2	core§7.4, integ§6
+clockSlopeMedianFits		2	core§7.4, integ§6
+closed		2	tool§1.2
+closedOutcome		3	integ§10
+closeElapsedSeconds		6	core§7.3, integ§10, integ§7.4
+cloudRequestFailed	code?	1	tool§3.4
+cloudTaskFailed	code?	1	tool§3.4
+code		8	checks§1.5, core§7.1, core§7.3, tool§1.1, tool§1.2, tool§3.1, tool§4.2
+codec		1	core§2
+codec:asDecoded(value)		1	core§3.5
+codecArgumentOutOfRange	code?	5	core§3.3, core§7.1
+codecWrongType	code?	2	core§3.3, core§7.1
+codeDescription.href		1	tool§3.1
+CodegenHeuristicsInstructionLimit		1	tool§1.1
+collect		1	checks§4.2
+collect.coins		1	checks§7.4
+collection		1	coll§5
+collectionKeyCodecUnsupported	code?	2	core§3.4, core§7.1
+Color3		2	core§10, core§3.3
+column		1	tool§3.4
+columnMinRows		9	coll§3, core§10, core§4.10, core§4.3, core§4.9
+columns		4	coll§8.2, tool§2
+COMPLETE		1	tool§3.4
+compress		1	checks§8.8
+COND_OwnerOnly		1	coll§9
+configKeyMissing	code?	1	tool§3.4
+configKeyUnknown	code?	2	core§7.1, tool§3.4
+configMalformed	code?	2	core§7.1, tool§3.4
+configMissing	code?	2	core§7.1, tool§3.4
+ConfigService		1	core§7.5
+configValueOutOfRange	code?	3	core§7.1, tool§2, tool§3.4
+configValueWrongType	code?	2	core§7.1, tool§3.4
+connect		27	checks§10, checks§7.1, checks§7.3, checks§9.2, checks§9.6, coll§14, coll§15.2, coll§15.4, core§10, core§3.3, core§3.5, core§6.1, core§7.1, core§7.2, integ§3, tool§5.8
+connect(function(player, input, index) … end)		1	core§3.4
+Connect(Lync.flush)		1	core§5.1
+consecutiveFits		1	integ§10
+const		1	tool§2
+cooldown		2	checks§1.2, checks§6.5
+coreDigest		4	tool§1, tool§1.2, tool§3.4, tool§5.2
+coroutine.status		1	core§5.2
+coroutine.wrap(view.fire)(view, v)		1	integ§10
+count		5	core§4.1, core§4.11, core§7.3
+count:EG0		1	core§4.9
+cut		2	coll§8.3, core§3.5
+cut(key)		2	coll§2, core§4.1
+data		41	checks§1.2, checks§1.4, checks§7.1, checks§7.2, checks§7.3, checks§8.1, checks§9.2, coll§14, coll§15.2, coll§15.4, core§3.3, core§3.4, core§3.5, core§4.1, core§4.11, core§4.7, core§7.5, tool§3.1, tool§3.4
+data.instance		1	tool§3.1
+DataStore		3	coll§8.2, coll§8.5, core§6.1
+DateTime.now()		1	checks§3.4
+deadlineSeconds		7	integ§10, integ§7.4
+deadlineTime		3	core§7.3, integ§7.1, integ§7.4
+debug.info		6	core§7.1, integ§12, integ§4, integ§5, tool§5.3
+debug.info(1, "s")		3	integ§10, integ§12, integ§5
+debug.info(2, "f")		3	integ§12, integ§5
+debug.info(2, "sl")		1	core§7.1
+debug.info(f, "l")		2	integ§5
+debug.info(f, "s")		3	integ§10, integ§12, integ§5
+debug.setinfo		1	integ§5
+debug.traceback(thread, message)		1	checks§1.7
+declarable		1	tool§3.4
+declaration		1	core§7.1
+declarationMisplaced	code?	6	checks§1.2, checks§10, checks§8.1, checks§8.6, core§3.4, core§7.1
+decoderRaised	code?	6	core§4.8, core§7.1, core§7.2, core§7.3
+decodeUnits		2	core§7.3
+decodeUnitsReceived	code?	1	core§7.4
+decoyBehaviorRaised	code?	2	core§7.1, integ§8
+decoyBehaviorResultRefused	code?	2	core§7.1, integ§8
+decoyBehaviorYielded	code?	2	core§7.1, integ§8
+decoyFrom		3	coll§8.6, core§3.4, integ§8
+decoyInteractionReported	code?	6	core§7.1, core§7.3, integ§10, integ§8
+decoyKeyDuplicate	code?	5	coll§14, coll§8.6, core§7.1, integ§8
+decoyKeyReceived	code?	8	core§6.1, core§7.1, core§7.3, integ§10, integ§8
+decoyMisplaced	code?	4	coll§14, coll§8.6, core§7.1, integ§8
+decoyReview		2	tool§1.2, tool§1.3
+decoys		1	coll§2
+decoys(behavior, { maxPerViewer, maxSlots })		1	core§3.4
+decoysUnplaced		4	coll§14, coll§2, core§7.4, integ§8
+definition		17	integ§10, integ§3, integ§7.4
+definitionCodeBytesExceeded	code?	3	tool§1.1, tool§3.2, tool§3.4
+definitionOptionMisplaced	code?	5	checks§10, checks§9.2, core§3.4, core§7.1
+definitionOptionMissing	code?	4	core§3.4, core§7.1
+definitionOptionOutOfRange	code?	4	core§3.4, core§7.1
+definitionOptionUnknown	code?	5	core§3.1, core§3.4, core§7.1
+definitionOptionWrongType	code?	4	core§3.4, core§7.1
+definitionWrongType	code?	2	core§3.4, core§7.1
+delay		9	coll§12.3, core§4.10, core§4.6, core§4.9
+DEPTH		9	coll§14, coll§15.2, coll§15.7, core§4.6, core§4.9
+depthTicks		2	coll§14, coll§15.2
+derive		22	checks§0, checks§1.2, checks§1.4, checks§1.5, checks§1.6, checks§1.7, checks§11, checks§5, checks§5.1, checks§5.4, checks§7.2, coll§12.5, core§0, core§10, core§3.3, core§3.4, core§6.2, core§8
+deriveMismatch	code?	6	checks§1.5, checks§10, core§6.1, core§7.1, core§7.3
+destroy		1	core§3.5
+Diagnostic		1	tool§3.1
+diagnostics		2	tool§1.2, tool§1.3
+diff		2	core§10, tool§0
+digest		3	tool§3.4
+Disabled		1	core§7.1
+discard()		4	checks§10, checks§9.2, checks§9.5, core§3.5
+disconnect()		1	core§3.5
+distance		2	coll§7, coll§8.3
+driftSeconds		3	integ§10, integ§6
+Duplicate		1	core§7.1
+duplicateFraction		1	core§9
+dynamicAccessFound	code?	8	integ§3, tool§1.2, tool§1.3, tool§3.2, tool§3.3, tool§3.4
+E		1	core§3.5
+elapsedSeconds		2	integ§10
+elementEmpty	code?	3	core§3.4, core§4.8, core§7.1
+elementsReceived	code?	1	core§7.4
+elementsSent		2	core§4.8, core§7.4
+else		1	core§3.5
+Empty		1	core§7.1
+Enabled		1	integ§2.4
+EncodingService		2	checks§8.8, core§10
+EncodingService:Base64Decode		2	coll§16, coll§8.5
+EncodingService:ComputeStringHash		2	tool§4.3, tool§8
+EncodingService:ComputeStringHash(source, Enum.HashAlgorithm.Sha256)		1	tool§4.2
+EncodingService:ComputeStringHash(…, Enum.HashAlgorithm.Sha256)		1	checks§9.8
+endpoint		1	tool§3.4
+engineDelaySeconds		9	coll§12.7, coll§16, core§10
+engineSpreadSeconds		6	coll§12.7
+entropy		1	tool§1.2
+entry		1	core§4.11
+entry:u1		4	core§3.3, core§4.11, core§4.9
+entryCount		2	checks§8.4, checks§8.9
+Enum		2	tool§3.4
+Enum.Material		1	core§3.3
+EnumItem		1	core§10
+enumItemCountOutOfRange	code?	2	core§3.3, core§7.1
+enumItemDuplicate	code?	2	core§3.4, core§7.1
+enumValue		1	core§7.3
+enumValueUnresolved	code?	7	checks§1.4, core§3.3, core§5.2, core§6.1, core§7.3
+equalsLastToken		3	integ§10
+error		4	core§3.5, core§3.6, core§7.1, tool§3.2
+error()		2	core§3.2
+error(msg, 2)		1	core§7.1
+evidence		3	core§7.1, core§7.3
+example		6	core§7.1, core§9
+Exceeded		1	core§7.1
+exempt		1	checks§1.2
+exemptSeconds		5	checks§1.2, checks§1.6, checks§6.4
+expectedBuild		1	tool§3.4
+expectedCount		1	core§7.3
+expectFact(world, { code, player, count, evidence })		1	core§9
+expectThrow(fn, { code, at, subject, path })		1	core§9
+extend		1	integ§7.4
+extend(seconds)		2	core§7.1, integ§7.4
+f		1	tool§5.8
+f1fbfd7		4	core§0, core§3.3, core§7.5
+fact		1	core§7.1
+Fact		1	core§7.3
+Facts.record		1	core§7.1
+factsRecorded		1	core§7.4
+factsRecorded.limitExceeded		1	core§7.4
+fail		1	tool§5.3
+fail()		2	core§7.1
+Failed		1	core§7.1
+failedReference		2	checks§1.5
+false		28	checks§0, checks§1.4, coll§15.4, coll§5.1, coll§8.5, core§3.2, core§3.4, core§3.5, core§4.8, core§5.2, core§6.1, core§7.2, core§7.4, core§7.5, integ§3, integ§5, integ§9, tool§2, tool§5.7
+family		2	core§7.1
+fault		1	core§7.1
+feed		2	core§4.10
+field(path)		1	core§3.4
+field_kind		1	core§3.4
+field_kind_fixed		2	core§3.4, core§3.6
+fieldCodecUnsupported	code?	20	checks§1.2, checks§10, checks§2.1, checks§3.1, checks§4.2, checks§5.1, checks§6.1, checks§8.1, checks§8.6, coll§12.2, coll§14, coll§8.2, core§3.4, core§7.1, integ§7.4, integ§9
+fieldIndex		2	coll§15.6, integ§10
+fieldPathUnknown	code?	14	checks§1.2, checks§10, checks§8.1, checks§8.6, coll§10, coll§12.2, coll§14, coll§8.2, core§3.4, core§7.1, integ§8
+fields		26	checks§1.2, checks§10, checks§8.1, checks§8.10, checks§8.11, checks§8.4, checks§8.6, checks§8.7, coll§10, coll§12.2, coll§14, core§10, core§3.4, core§3.5, core§3.6, tool§5.8
+fighters		3	checks§8.7, core§3.4, core§4.3
+fire		21	checks§9.2, core§10, core§3.4, core§3.5, core§5.1, core§5.3, core§7.1, integ§10, integ§2.2, integ§2.4, integ§4, tool§5.3
+fire(Lync.all, …)		2	core§5.3, core§7.3
+FireAllClients		19	checks§9.3, coll§10, coll§8.6, core§10, core§4.1, core§4.11, core§4.2, core§4.4, core§4.5, core§5.3, core§7.4, core§8, integ§12, integ§2.2, integ§5, integ§9
+FireClient		2	core§5.2, integ§12
+FireServer		17	core§10, core§4.1, core§4.5, core§4.9, core§5.1, core§6.2, core§7.3, integ§6
+firesignal		1	integ§5
+first		6	coll§14, coll§15.4, coll§15.7, coll§7, core§4.1, core§4.9
+firstElapsedSeconds		1	integ§7.4
+firstHalfSlope		4	integ§10, integ§6
+firstSeq		1	coll§15.6
+firstTime		3	core§7.3
+flagged		1	core§7.1
+flags		1	checks§8.4
+flush()		1	core§5.1
+flushMissing	code?	5	core§4.9, core§5.1, core§7.3, core§9
+fn		18	checks§1.2, checks§1.4, checks§1.7, checks§10, checks§11, checks§5.1, checks§5.3, checks§5.4, coll§12.5, core§3.4, core§7.2, core§7.4
+fn(player, data)		1	checks§5.1
+focus		9	coll§14, coll§8.2, coll§8.3, coll§8.7, core§6.1, core§7.2
+focus(player)		1	coll§8.3
+focusRaised	code?	4	coll§14, coll§8.3, coll§8.7, core§7.1
+focusYielded	code?	4	coll§14, coll§8.3, coll§8.7, core§7.1
+folder		3	coll§13.2, coll§14
+Folder		5	coll§13.2, coll§14
+format		11	core§6.1, core§7.2, integ§9, tool§1.2, tool§2, tool§3.4
+format(token)		1	integ§9
+Found		1	core§7.1
+foundAtRunTime		4	tool§3.4, tool§4.2
+foundBuild		1	tool§3.4
+frameKey		6	checks§8.2, checks§8.3, checks§8.4, checks§8.9
+frameMalformed	code?	6	core§4.8, core§6.1, core§7.3, core§8, integ§3
+frameNoiseFraction		1	core§9
+framesBehindClientReceipt		1	integ§10
+framesMalformed	code?	13	checks§9.6, coll§5.1, core§4.6, core§4.8, core§7.4, core§8, integ§10, integ§4, integ§5
+framesPerSecond		2	core§9
+framesReceived	code?	2	core§6.1, core§7.4
+framesReceived.reliable		1	core§7.4
+framesSent		1	core§7.4
+freeFormRoleMissing	code?	10	checks§0, checks§10, checks§7.1, checks§7.4, core§3.3, tool§2, tool§3.4
+from		7	coll§15.2, core§3.1, core§3.2, core§3.4, core§4.7
+fromTick		1	coll§12.9
+game.DescendantAdded		1	tool§4.2
+game.rbxl		1	tool§4.3
+game.X		1	tool§3.4
+game:GetDescendants()		2	tool§3.3, tool§4.2
+game:GetService		1	tool§5.3
+game:GetService("X")		1	tool§3.4
+gameKind		4	core§7.1, integ§10, integ§8
+gate		2	coll§14, coll§8.7
+gate(fn)		1	coll§2
+gate(fn, options)		1	core§3.4
+gate.luau		1	core§9
+gate.out		1	core§7.5
+gateBindingMissing	code?	3	coll§14, coll§9, core§7.1
+gen		12	coll§2, coll§3, coll§5, coll§5.1, core§4.1
+gen:u2		1	coll§14
+generator		1	tool§1.2
+generatorMismatch	code?	2	tool§3.4, tool§5.2
+generatorVersionMismatch	code?	1	tool§3.4
+genericIdMessageReceived	code?	8	checks§1.4, core§6.1, core§7.1, core§7.3, integ§10, integ§3, tool§5.5
+get		7	coll§11.2, coll§11.4, coll§2, core§3.5
+get(key)		2	coll§10, coll§2
+GetComponents()		1	core§3.3
+getconnections		1	integ§5
+GetDescendants		3	core§10, tool§1, tool§8
+getfenv		1	integ§4
+getfunctionhash		1	core§10
+GetNetworkPing		11	checks§1.6, core§10, core§3.5, core§4.9, core§5.2, integ§10, integ§12, integ§7.1, integ§7.2, integ§7.4
+getrandom		2	integ§2.1, tool§4.1
+GetServerTimeNow()		27	checks§11, checks§2.3, checks§3.3, checks§3.4, checks§8.4, checks§8.5, coll§1, coll§11.1, coll§15.1, coll§2, core§10, core§4.1, core§4.6, core§4.9, core§5.1, core§7.3, integ§6, integ§7.1, integ§7.4
+GETUPVAL		1	integ§2.2
+GhostDeltaPredictor		1	coll§5.1
+github		2	tool§3.1
+golden_wire.out		1	core§4.10
+handle		20	checks§10, checks§7.3, core§10, core§3.3, core§3.5, core§5.2, core§6.1, core§7.1, core§7.2, integ§3, tool§5.8
+handleResultRefused	code?	3	core§5.2, core§7.1, core§7.2
+has		1	core§3.5
+heldInPerceivedWindow		2	integ§10, integ§8
+heldKeys		3	coll§12.6, core§3.4, integ§8
+heldKeys(perception)		2	coll§12.6, integ§8
+HELLO		61	coll§13.2, core§10, core§3.2, core§4.10, core§4.5, core§4.6, core§4.8, core§4.9, core§5.3, core§6.1, core§7.2, core§7.3, core§7.5, core§9, integ§2.1, integ§2.2, integ§2.4, integ§2.5, tool§1.2, tool§3.4, tool§4.1, tool§5.5
+helloDuplicate	code?	1	core§7.3
+helloNamespaceUnknown	code?	4	core§4.6, core§7.2, core§7.3
+hideLength		6	checks§9.1, checks§9.3, checks§9.6, checks§9.7
+hit.damage		1	checks§7.4
+hit.origin		1	checks§7.4
+hit.part		1	checks§7.4
+hookfunction		1	core§4.1
+hostile		1	core§7.1
+hp		1	tool§2
+href		1	tool§4.2
+HttpService		1	checks§8.11
+HttpService.yaml		3	checks§8.8, checks§9.4
+HttpService:GenerateGUID		1	checks§11
+HttpService:GenerateGUID()		3	integ§12, integ§2.1, tool§8
+HttpService:GenerateGUID(false)		2	checks§9.4, tool§4.2
+HttpService:RequestAsync		1	checks§8.8
+human		1	tool§3.1
+id		2	core§4.11, tool§2
+id:u(w)		1	core§4.11
+id:u(w_t)		1	core§4.11
+identityMismatches		8	core§4.6, integ§10, integ§12, integ§4
+ids		1	tool§1.2
+idTableHash		12	core§4.10, core§4.6, core§7.3, tool§1.2, tool§3.4, tool§4.1, tool§5.5, tool§5.6
+idTableHashMismatch	code?	4	core§7.3, tool§3.4, tool§5.5
+illegal		1	core§7.1
+ImprovedPhysicsReplication		3	coll§12.7, coll§16, core§10
+in		8	coll§14, coll§15.5, coll§15.7, core§4.1, core§4.9
+inbound.decodeUnits		13	coll§15.4, coll§15.7, core§4.6, core§4.8, core§5.3, core§6.1, core§7.3, core§7.4, core§7.5, tool§5.5
+inbound.decodeUnits.perSecond		2	core§4.8, core§7.5
+inbound.reliable.bytes		3	core§7.1, core§7.5
+inbound.reliable.frames		6	core§4.5, core§5.1, core§7.5, integ§4, integ§7.3
+inbound.unreliable.bytes		3	coll§15.7, core§7.5
+inbound.unreliable.frames		5	coll§15.7, core§7.5, tool§1.3
+inboundBytesExceeded	code?	2	core§6.1, core§7.3
+inboundDecodeUnitsExceeded	code?	3	core§4.8, core§6.1, core§7.3
+inboundFramesExceeded	code?	4	core§6.1, core§7.3, integ§4
+index		4	coll§15.2, coll§15.4, coll§15.6, core§3.4
+index.json		1	core§4.10
+Indivisible		1	core§7.1
+input		1	tool§3.4
+InputActions		2	coll§15.7, core§5.1
+inputCopiesParsed		3	coll§14, coll§15.6, core§7.4
+inputCopyMismatch	code?	4	coll§14, coll§15.6, core§7.1, core§7.3
+inputs		2	tool§1.2, tool§3.4
+inputsDiscarded		4	coll§14, coll§15.4, coll§15.6, core§7.4
+inputsSkipped		3	coll§14, coll§15.6, core§7.4
+inputsSkipped.arena.move		1	core§7.4
+Instance		5	core§10, core§3.3, core§4.8, core§6.1
+instance		2	tool§3.4
+Instance(ClassName)		1	core§7.1
+Instance.new(className)		1	tool§3.4
+instanceClassMismatch	code?	5	checks§1.4, core§3.5, core§5.2, core§6.1, core§7.3
+instanceIndex		2	core§7.3
+instances		6	coll§15.2, core§4.1, core§4.2, core§7.3
+instanceUnresolved	code?	5	checks§1.4, core§3.5, core§5.2, core§6.1, core§7.3
+intBoundOutOfRange	code?	2	core§3.3, core§7.1
+intBoundsOutOfOrder	code?	2	core§3.3, core§7.1
+interest		15	checks§9.8, coll§14, coll§2, coll§7, coll§8.5, core§3.4, core§7.1, integ§8, tool§2, tool§3.4
+interestPairsNarrowed		2	coll§14, core§7.4
+interestPairTicks		2	coll§14, core§7.4
+interestRecordsEntered		3	coll§14, coll§8.3, core§7.4
+interestRecordsEntered.arena.fighters		1	core§7.4
+interestRecordsLeft		2	coll§14, core§7.4
+internal		16	checks§5.1, core§3.3, core§4.10, core§4.2, core§7.1, core§7.2, tool§1.1, tool§3.5, tool§5.4
+internMisplaced	code?	5	core§3.3, core§4.11, core§7.1
+internTableUnknown	code?	3	core§3.3, core§7.1
+interpolated		2	coll§16, core§3.5
+interpolated(key)		1	coll§2
+interpolation.jitterFraction		4	coll§11.1, coll§14, core§7.5
+interpolation.minDelaySeconds		6	coll§11.1, coll§14, core§4.6, core§7.5
+interpolationDelaySeconds		7	coll§11.2, coll§11.4, coll§12.2, coll§12.3, coll§12.4, coll§12.5, coll§12.9
+invoke		19	checks§1.2, coll§10, core§3.3, core§3.5, core§5.2, core§5.4, core§7.1, integ§4, integ§7.2, integ§7.4, tool§5.3
+invoke(player, data)		1	core§3.5
+invoke(player, …)		2	core§5.2, core§5.3
+InvokeClient		1	core§5.2
+ipairs		2	integ§3, tool§3.4
+IsA		2	core§3.3, core§7.3
+item		1	core§4.10
+jitterSeconds		2	coll§12.5, core§9
+joinHoldBytes		3	core§7.3, core§7.4
+joinHoldBytesExceeded	code?	5	checks§9.5, core§5.3, core§7.3, integ§2.4
+joinHoldDecodeUnits		2	core§7.3, core§7.4
+joinHoldDecodeUnitsExceeded	code?	3	core§5.3, core§7.3, integ§2.4
+joinHoldLiteralsEncoded		1	core§7.4
+json		1	tool§3.1
+k:u4		1	core§4.3
+key		11	coll§1, coll§10, coll§9, core§3.4, core§4.7, integ§10, integ§8, tool§3.4
+keyCodecMismatch	code?	7	coll§10, coll§14, core§3.4, core§7.1, integ§7.3, integ§8
+keyPath		1	integ§7.3
+keyUnknown	code?	1	core§7.1
+kill		3	core§4.10
+kill:fire(Lync.all, { killer = "Builderman", victim = "Zippy" })		1	core§4.10
+killer		1	core§4.10
+kind		3	checks§9.6, core§3.3
+kind:u1		3	coll§14, core§4.1, core§4.9
+kMaxClosureCount		1	tool§1.1
+labelProfiler		2	core§10, core§7.5
+lane		11	core§3.4, core§7.3, integ§10
+lastTime		3	core§7.3
+latencySeconds		1	core§9
+lateness(player)		1	core§3.4
+layout		18	core§2, core§3.2, core§4.10, core§4.3, core§4.5, core§4.6, core§4.9, core§7.5, tool§5.5
+layout.vary		12	core§3.2, core§4.5, core§4.6, core§7.1, core§7.3, core§7.5, integ§2.2
+layoutHash		1	tool§5.5
+layoutMismatch	code?	6	core§3.2, core§4.5, core§4.6, core§7.2, core§7.3
+Lighting		1	tool§3.3
+limit		44	checks§0, checks§1.2, checks§1.3, checks§1.4, checks§4.1, checks§5.3, coll§15.4, core§10, core§3.4, core§3.5, core§4.11, core§4.7, core§5.2, core§5.4, core§6.1, core§7.3, integ§10, integ§3, integ§7.3, integ§7.4, integ§8, tool§5.3, tool§5.5
+limit.burst		2	core§3.4, core§4.7
+limit.perSecond		5	core§3.4, core§4.7
+limit.slackSeconds		9	checks§1.6, checks§11, checks§6.2, checks§6.5, core§10, core§3.4, core§5.4, core§7.3
+limited		9	core§4.8, core§5.2, core§6.1, core§7.1, core§7.3, integ§3
+limitExceeded	code?	7	checks§1.4, checks§8.3, core§3.4, core§5.2, core§5.4, core§6.1, core§7.3
+limitQueueExceeded	code?	2	core§5.4, core§7.3
+line		1	tool§3.4
+listenerCallerMismatches		9	core§4.6, core§7.4, core§8, integ§10, integ§4, integ§5
+LOADN		2	core§7.1, tool§5.3
+LocalScript		3	checks§3.4, integ§3, tool§3.3
+LocalUserSecurity		1	integ§11
+LogService:Warn		4	core§10, core§7.4, core§7.5
+LogService:Warn(template, context)		1	core§7.4
+lookAheadSeconds		5	coll§16, coll§8.2, coll§8.3
+LookVector		1	checks§8.2
+lossFraction		1	core§9
+LowMemory		1	coll§13.1
+LuaTuple		1	core§3.6
+LuauNormalizerInitialFuel		1	core§3.2
+lync		3	core§2, tool§1.2
+Lync		2	core§3.5, integ§2.4
+Lync.all		3	coll§10, coll§4, core§3.5
+Lync.challenge		9	core§3.4, core§4.9, core§7.1, core§7.3, integ§7.1, integ§7.4
+Lync.challenge(player, { deadlineSeconds, tokenValues, maxAttempts })		1	integ§7.4
+Lync.client(schema)		2	core§3.2, core§3.5
+Lync.collection		1	core§3.4
+Lync.configure		11	checks§10, checks§8.10, coll§11.1, coll§12.3, coll§14, core§3.2, core§7.1, core§7.5
+Lync.counters		1	coll§14
+Lync.counters()		1	tool§6
+Lync.counters(player?)		1	core§7.4
+Lync.event		1	core§3.4
+Lync.except(target)		1	core§3.5
+Lync.flush()		6	core§5.1, core§7.3, core§9
+Lync.group()		1	core§3.5
+Lync.group(players?)		1	core§3.5
+Lync.observe		2	coll§12.1, core§7.5
+Lync.observe(fn)		1	core§7.3
+Lync.perception		6	checks§10, coll§12.3, coll§12.5, core§3.4, integ§10
+Lync.perception(player)		7	checks§1.7, coll§12.5, coll§14, coll§15.4, core§3.4, integ§10
+Lync.release		3	coll§14, tool§2
+Lync.release(view, folder)		3	coll§13.2, core§3.5, core§4.6
+Lync.request		2	core§10, core§3.4
+Lync.rewindParts		3	core§10, core§3.4, core§7.1
+Lync.scheduler("manual")		1	core§5.1
+Lync.server(schema)		2	core§3.2, core§3.5
+Lync.stream		5	checks§1.2, checks§7.1, core§3.4, core§4.1, core§5.5
+Lync.strings		7	core§10, core§3.3, core§3.4, core§4.11, core§4.7
+Lync.strings({ … })		1	core§3.4
+Lync.telemetry.observeAtoms		2	checks§8.4, checks§8.8
+Lync.telemetry.read(player, Net.look)		1	checks§8.5
+Lync.tick()		4	checks§2.3, checks§5.3, coll§11.4, core§5.1
+lync.toml		26	coll§13.2, core§3.2, core§7.5, core§8, integ§2.5, integ§3, integ§4, tool§1, tool§1.2, tool§2, tool§3.4, tool§4.1, tool§4.2, tool§4.3
+Lync.variantOf(player)		2	core§3.4, integ§2.4
+LYNC_OPEN_CLOUD_KEY		1	tool§4.3
+lyncPackageDigestMismatch	code?	3	tool§3.2, tool§3.3, tool§3.4
+LyncVariant		2	integ§2.4
+Malformed		1	core§7.1
+malicious		1	core§7.1
+manifest.json		5	core§4.5, core§8, integ§10, integ§5, tool§1
+manifestBuild		1	tool§3.4
+manifestCoreDigest		1	tool§3.4
+manifestShardMismatch	code?	4	tool§1.1, tool§3.2, tool§3.4, tool§4.1
+mapKeyCodecUnsupported	code?	2	core§3.3, core§7.1
+matchedVariant		1	integ§10
+math		1	tool§3.4
+math.fmod		1	core§4.3
+math.lerp		1	checks§5.3
+math.random		2	integ§7.4, tool§4.1
+maxAttempts		4	integ§7.4
+maxBytes		13	core§3.4, core§4.10, core§4.11, core§4.7, core§4.8, integ§9
+maxDistance		6	checks§2.1, checks§2.2, checks§2.4, checks§2.5, checks§5.3, checks§6.2
+maxEntries		30	checks§8.10, checks§8.2, checks§8.4, checks§8.5, checks§8.9, core§3.4, core§4.11, core§4.3, core§4.7, core§4.8, core§4.9
+maxFactsPerPlayer		1	core§7.3
+maxOutstanding		10	checks§9.3, checks§9.5, checks§9.6, checks§9.7, core§3.4
+maxPending		1	checks§8.10
+maxPerViewer		6	coll§12.6, coll§2, integ§8
+maxProbesPerSecond		5	core§4.6, core§7.5, integ§4
+maxRate		16	checks§0, checks§1.2, checks§1.4, checks§1.5, checks§1.6, checks§6, checks§6.3, coll§15.4, core§3.3, core§3.4, core§6.2
+maxRateExceeded	code?	6	checks§1.5, checks§10, core§6.1, core§7.1, core§7.3
+maxRecords		11	coll§2, core§3.4, core§4.7, integ§8
+maxRewindSeconds		16	coll§12.2, coll§12.6, coll§12.7, coll§12.8, coll§12.9, coll§14, coll§16, core§4.9, integ§8
+maxScanBytes		2	core§7.5, integ§9
+maxSlots		8	coll§14, coll§2, integ§8
+maxStimuli		5	integ§10, integ§7.3
+maxTotal		19	checks§0, checks§1.2, checks§1.3, checks§1.4, checks§1.5, checks§1.6, checks§10, checks§11, checks§4, checks§7.2, core§10, core§3.3, core§3.4, core§4.9, core§6.2
+maxTotalExceeded	code?	6	checks§1.5, checks§10, core§6.1, core§7.1, core§7.3
+maxUnreliableBytes		1	core§9
+MeshPart		2	core§10, tool§8
+message		1	tool§3.1
+messageBytesExceeded	code?	4	checks§9.3, core§3.4, core§4.9, core§7.1
+messageElementsExceeded	code?	4	core§3.4, core§4.8, core§4.9, core§7.1
+messages		2	integ§10
+messagesPerCheck		9	checks§10, checks§11, checks§5.2, checks§5.4, checks§7.3, core§3.3
+messagesReceived	code?	1	core§7.4
+messagesSent		1	core§7.4
+messagesSent.arena.chat		1	core§7.4
+messagesUnhandled		7	checks§1.4, checks§7.3, checks§8.3, core§3.5, core§5.1, core§6.1, core§7.4
+messagesUnresolved	code?	2	core§7.3, core§7.4
+method		1	tool§3.4
+methodSideMismatch	code?	5	coll§13.2, core§3.4, core§3.5, core§7.1
+min		2	checks§4.2, core§3.3
+minDelaySeconds		2	core§4.6
+minFits		4	core§7.5, integ§10, integ§6
+minPingSeconds		13	core§3.5, core§5.2, integ§10, integ§7.2, integ§7.4
+minReactionSeconds		7	integ§10, integ§7.3
+minSlope		6	core§7.5, integ§10, integ§6
+MISMATCH		22	checks§7.1, core§3.2, core§4.10, core§4.5, core§4.6, core§4.9, core§7.2, core§7.3, integ§2.1, integ§2.5
+Mismatch		1	core§7.1
+mismatchReceived	code?	4	core§4.6, core§7.1, core§7.2, core§7.3
+Misplaced		1	core§7.1
+Missing		1	core§7.1
+missingFrames		1	core§7.3
+mode		1	coll§12.2
+mode:u2		1	core§4.3
+Model		1	coll§8.3
+Model.PrimaryPart		1	coll§8.3
+ModelStreamingBehavior		1	tool§1.2
+ModuleScript		7	integ§10, integ§2.4, integ§3, tool§3.3, tool§3.4
+monotonic		16	checks§0, checks§1.2, checks§1.4, checks§1.5, checks§1.6, checks§11, checks§3, checks§7.2, coll§15.4, core§10, core§3.3, core§3.4, core§6.2, core§9
+monotonic_reorder.out		1	core§9
+monotonicOutOfOrder	code?	6	checks§1.5, checks§10, core§6.1, core§7.1, core§7.3
+move6		5	coll§15.7, core§7.5, tool§5.7
+n		1	core§4.8
+naive		1	core§7.1
+NAMECALL		1	core§4.1
+NAMECALLUDATA		1	core§10
+nameLengthOutOfRange	code?	2	core§3.4, core§7.1
+namespace		1	tool§3.4
+namespace.client		1	tool§2
+namespace.dts		1	tool§2
+namespace.schema		1	tool§2
+namespace.server		1	tool§2
+namespace.staged		1	tool§2
+Net.answer.fields.id:reactsTo(Net.prompt.fields.id, { minReactionSeconds = 0.15 })		1	integ§7.3
+Net.buy:invoke({ item = "sword" })		1	core§4.10
+Net.c:cut(key)		1	coll§11.3
+Net.c:decoyFrom(sourceKey, overrides)		1	integ§8
+Net.c:heldKeys(perception)		1	coll§12.5
+Net.c:interpolated(key)		1	coll§11.4
+Net.c:owner(fn(key, record) -> Player?, { onError })		1	coll§9
+Net.c:rebind(key)		1	coll§9
+Net.c:reportInteraction(player, key, gameKind)		2	integ§10, integ§8
+Net.c:rewound(Lync.perception(player), key)		1	checks§2.4
+Net.c:rewound(perception, key)		1	coll§12.5
+Net.c:rewoundSpan(perception, key)		1	coll§12.5
+Net.c:team(fn(key, record) -> Target, { onError })		1	coll§9
+Net.chat:fire(text)		1	core§4.10
+Net.coins		1	integ§7.3
+Net.collect.fields.coin:reactsTo(Net.coins, { minReactionSeconds = 0.12 })		1	integ§7.3
+Net.collect.fields.coins:maxTotal({ total = 5000, windowSeconds = 600, policy = "drop" })		1	checks§4.1
+Net.DEFAULT		1	core§9
+Net.fighters:decoys(behavior, { maxPerViewer, maxSlots })		1	integ§8
+Net.fighters:interest({ … })		1	coll§8.2
+Net.fighters:rewind({ … })		1	coll§12.2
+Net.fighters:rewound(Lync.perception(player), key)		1	checks§1.7
+Net.hit.fields.target:about(Net.fighters)		1	coll§10
+Net.input.fields.seq:monotonic({ order = "increasing", policy = "drop" })		1	checks§3.1
+Net.move:connect(function(player, input, index) … end)		1	coll§15.2
+Net.move:lateness(player)		1	coll§15.6
+Net.move:playout({ depthTicks = J })		1	coll§15.2
+Net.move:playout({ depthTicks = J, player = p })		1	coll§15.2
+Net.move:set(value)		1	coll§15.2
+Net.move:stop()		1	coll§15.2
+Net.nextRound:fire(player, layout):reveal()		1	checks§9.5
+Net.prompt.fields.id		1	integ§7.3
+Net.shot.fields.landing		1	checks§5.4
+Net.shot.fields.landing:derive({ fn = landingOf, tolerance = 0.25, policy = "deliver" })		1	checks§5.1
+Net.shot:derive("landing", { … })		1	core§3.4
+Net.strike		3	integ§4, tool§3.3
+Net.strike.fields.origin		1	core§3.4
+Net.strike.fields.origin:within({ reference = rootOf, maxDistance = 6, policy = "drop" })		1	checks§2.1
+Net.strike.fields.origin:within({ … })		1	checks§1.2
+Net.x:trap()		1	integ§3
+new		1	tool§3.4
+newcclosure		2	integ§4, integ§5
+newest		2	coll§9, core§4.7
+newestCodecUnsupported	code?	3	core§3.3, core§7.1
+newestMinFraction		1	core§7.5
+newestMisplaced	code?	2	core§3.3, core§7.1
+next		3	integ§3, tool§3.4, tool§5.8
+NextInteger(0, 2^32 − 1)		1	checks§9.4
+nil		3	core§4.8, core§6.1, core§7.3
+NotReplicated		2	integ§3, tool§3.3
+NotScriptable		3	coll§13.1, core§3.2, tool§3.4
+ns		3	core§4.1, core§4.11, core§4.8
+num		10	checks§9.3, core§4.7
+number		9	checks§2.5, core§3.3, core§3.4, core§3.5, core§5.2
+number_steps		1	core§3.3
+numberIntegerGridUnsupported	code?	2	core§3.3, core§7.1
+numberStepIndivisible	code?	3	core§3.3, core§7.1
+observe.maxFacts		4	checks§1.5, core§7.3, core§7.5
+observe.maxFactsPerPlayer		4	checks§1.5, core§7.3, core§7.5
+observe.windowSeconds		8	checks§1.7, checks§8.10, core§4.9, core§6.1, core§7.2, core§7.3, core§7.4, core§7.5
+observeCapExceeded	code?	2	core§7.3
+observed		10	checks§1.5, checks§1.6, checks§2.4, checks§4.2, checks§5.1
+od		1	tool§8
+ok		2	core§3.5, core§3.6
+olderFrame		6	checks§1.5, checks§3.2, checks§6.2
+onError		3	coll§8.7, coll§9, core§6.1
+OnServerEvent		1	core§3.5
+optionalMisplaced	code?	2	core§3.3, core§7.1
+order		1	checks§3.5
+order:arena.fighters.data		1	integ§2.2
+ordinal		1	tool§1
+origin		2	checks§8.4, tool§1.2
+originX		4	coll§8.2, coll§8.5, tool§2
+originZ		4	coll§8.2, coll§8.5, tool§2
+os.clock		1	integ§6
+os.clock()		34	checks§4.1, checks§4.2, checks§6.2, checks§8.2, checks§8.4, checks§8.5, coll§11.1, coll§11.2, coll§12.3, coll§12.5, coll§15.4, core§4.9, core§5.1, core§5.2, core§5.4, core§7.1, core§7.3, core§7.4, integ§12, integ§2.1, integ§6, integ§7.1, integ§7.4, tool§4.1
+os.time()		3	checks§3.4, integ§2.1, tool§4.1
+otherPlayers		4	integ§10, integ§6
+otherPlayersSlope		6	integ§10, integ§6
+outcome		2	core§7.1, integ§7.4
+outerFramesMissing	code?	6	core§4.6, integ§10, integ§4
+OutOfOrder		1	core§7.1
+OutOfRange		1	core§7.1
+output		1	tool§2
+output.manifest		6	tool§1.2, tool§1.3, tool§2, tool§3.4, tool§4.1
+output.report		3	tool§1.3, tool§2, tool§3.4
+outputPathMisplaced	code?	5	tool§1.2, tool§2, tool§3.4
+overBudget		1	core§7.1
+overloads_options		1	core§3.2
+overrides		2	integ§8
+own		1	coll§5.1
+owner		4	coll§14, coll§8.7, coll§9
+owner(fn)		1	coll§2
+owner(fn, options)		1	core§3.4
+ownerBindingMissing	code?	3	coll§14, coll§9, core§7.1
+p:GetNetworkPing()		1	coll§12.3
+pairs		2	integ§3, tool§3.4
+param.f		2	tool§5.8
+part		7	tool§3.4
+Part1		2	tool§1.1, tool§1.2
+PartN		1	tool§1.1
+parts:rewound(perception, part)		1	coll§12.7
+parts:track(part)		1	coll§12.7
+parts:untrack(part)		1	coll§12.7
+patch		3	core§3.2, core§3.5, integ§9
+patch(key, partial)		1	coll§2
+patchKeyUnknown	code?	4	coll§2, core§3.2, core§7.1
+path		13	core§3.2, core§4.10, core§4.6, core§7.3, integ§7.4, tool§3.4
+pcall		11	core§10, core§4.2, core§4.8, core§6.1, core§7.3, integ§4
+peakBound		3	checks§1.5, core§7.3
+peakObserved		3	checks§1.5, core§7.3
+perceptionMisplaced	code?	6	checks§1.7, checks§10, coll§12.5, coll§14, core§7.1, integ§10
+perSecond		32	checks§1.5, checks§6.1, checks§6.2, checks§6.3, checks§6.4, checks§6.5, core§3.4, core§4.5, core§5.2, core§5.4, core§7.3
+pingFraction		6	integ§12, integ§7.1, integ§7.3
+pingSeconds		2	coll§12.5, coll§12.9
+pitch		1	checks§8.2
+place		2	coll§8.5, tool§2
+plan		1	core§2
+planar		2	checks§1.2, checks§6.3
+plane		3	checks§1.2, checks§6.3, checks§6.5
+Player		5	checks§11, checks§8.7, coll§15.2, core§10, core§3.5
+player		12	checks§1.7, coll§12.5, coll§14, coll§15.2, core§5.3, core§7.3, core§7.4, integ§10, integ§8
+player.Character.PrimaryPart.Position		1	coll§8.3
+player.ReplicationFocus		1	coll§8.3
+Player.UserId		1	checks§8.11
+Player:AddReplicationFocus		2	coll§8.3
+Player:GetCameraState()		1	checks§8.10
+Player:GetNetworkPing()		5	coll§16, core§5.2, core§7.3, integ§7.1
+Player:Kick()		1	core§5.1
+PlayerAdded		3	checks§9.5, integ§12, integ§2.4
+PlayerGui		11	core§10, integ§10, integ§12, integ§2.4, integ§4
+playerLeft		4	core§5.2, core§7.1, integ§7.4
+PlayerRemoving		2	core§3.5, core§5.2
+players		1	core§3.5
+Players.LocalPlayer.Name		1	integ§4
+Players.MaxPlayers		1	coll§2
+Players.PlayerAdded		1	integ§2.4
+PlayerScripts		2	checks§3.4, integ§4
+playout		2	core§3.4, core§4.7
+playout({ depthTicks, player? })		1	core§3.4
+playoutDepthMissing	code?	4	coll§14, coll§15.2, core§3.4, core§7.1
+PluginOrOpenCloud		3	integ§11, tool§3.4, tool§4.3
+policy		6	checks§1.5, checks§2.5, checks§3.5, checks§4.5, checks§5.4, checks§6.5
+pool		2	checks§4.2, checks§4.5
+position		5	coll§14, coll§8.2, coll§8.3, core§3.4
+Position		1	coll§8.3
+PostAsync		1	checks§8.8
+PostSimulation		9	coll§15.4, core§10, core§4.9, core§5.1, core§5.2, core§7.3, integ§12
+predicate		12	coll§14, coll§8.2, coll§8.3, coll§8.4, coll§8.5, coll§8.6, coll§8.7, core§6.1, core§7.2
+predicate(viewer, key, record)		1	coll§8.5
+predicateOnError		4	coll§14, coll§8.2, coll§8.5, coll§8.7
+predicateRaised	code?	4	coll§14, coll§8.5, coll§8.7, core§7.1
+predicatesPerSecond		3	coll§8.2, coll§8.5
+predicatesRaised	code?	4	coll§14, coll§8.5, core§7.2, core§7.4
+predicatesYielded	code?	4	coll§14, coll§8.5, core§7.2, core§7.4
+predicateYielded	code?	4	coll§14, coll§8.5, coll§8.7, core§7.1
+previous		2	coll§2
+PrimaryPart		1	coll§16
+print		1	core§7.4
+printFacts		2	core§7.4, core§7.5
+priority		4	coll§7, core§3.4, core§4.7
+probe		2	integ§2.2, integ§4
+probes		8	core§4.6, integ§10, integ§4
+process.exec		1	tool§8
+process.exec("od", { "-An", "-N12", "-tx1", "/dev/urandom" })		1	tool§4.1
+profilebegin		2	core§10, core§7.5
+project.sourcemap		3	tool§2, tool§3.3, tool§3.4
+ProximityPrompt		1	tool§1.3
+publishedScriptMismatch	code?	2	tool§3.2, tool§3.4
+publishedShardMismatch	code?	2	tool§3.2, tool§3.4
+publishedShardMissing	code?	2	tool§3.2, tool§3.4
+publishedSourceReadFailed	code?	2	tool§3.4, tool§4.3
+publishedWovenMismatch	code?	2	tool§3.2, tool§3.4
+PVInstance:GetPivot()		1	coll§8.3
+pvs		14	coll§14, coll§8.2, coll§8.3, coll§8.5, coll§8.6, core§7.1, tool§1.2, tool§2
+pvs.cellSize		1	tool§2
+pvs.output		3	tool§2, tool§3.4
+pvs.place		1	tool§2
+pvs.samplesPerAxis		1	tool§2
+quest		1	checks§4.2
+r3_limit.out		1	core§5.4
+r4_maxrate.out		1	checks§6.5
+radius		2	coll§8.2, tool§2
+Raised		1	core§7.1
+raisedText		1	tool§3.4
+Random		8	checks§5.2, coll§2, core§10, core§4.9, integ§2.4, integ§7.4, integ§9
+Random.new()		4	checks§11, checks§9.4, core§10, core§4.5
+Random:NextInteger		4	checks§11, checks§5.4, core§10, integ§12
+Random:NextInteger(0, tokenValues − 1)		1	integ§7.4
+range		1	tool§3.1
+RATE		17	coll§11.1, coll§11.4, coll§12.3, coll§14, coll§15.6, coll§2, core§4.1, core§4.6, core§4.9, core§7.5
+rawequal		1	integ§5
+rawequal(rawget(t, k), f)		1	integ§5
+rawget		1	integ§5
+rawset		1	integ§5
+Raycast		1	coll§8.5
+rbx_binary		1	tool§3.3
+rcv		23	coll§12.3, coll§12.8, core§4.1, core§4.10, core§4.5, core§4.9, core§7.3, integ§7.3
+reachability		1	tool§1.2
+reactionBeforeStimulus	code?	9	core§10, core§4.1, core§4.9, core§6.1, core§7.1, core§7.3, integ§10, integ§7.3
+reactionBelowFloor	code?	8	core§10, core§4.9, core§6.1, core§7.1, core§7.3, integ§10, integ§7.3
+reactionStimulusMissing	code?	5	core§6.1, core§7.1, core§7.3, integ§10, integ§7.3
+reactionsUnmatched	code?	3	core§7.4, integ§7.3
+reactsTo		12	checks§7.2, core§3.3, core§4.7, core§6.2, core§7.4, integ§10, integ§7.1, integ§7.3
+reactsTo(stimulus, options)		1	core§3.4
+read		6	checks§8.6, core§3.2, tool§1.1
+read_consumer		1	core§3.2
+read_modifier		1	core§3.2
+readbits		1	core§4.1
+readonly		3	checks§8.6, core§3.6
+readu32		1	integ§9
+rebind		2	coll§9, core§3.5
+rebind(key)		2	coll§2, coll§9
+receipt		5	core§4.1, core§4.10, core§4.8
+receive		1	core§8
+receive(handler)		1	core§8
+Received		1	core§7.1
+received		2	coll§12.4, coll§12.9
+receivedExact		7	coll§12.3, coll§12.5, coll§12.9, coll§15.3, core§4.1
+receivedReliableFrames		1	coll§12.5
+record		1	coll§9
+record1_1		1	core§7.5
+recordMissing	code?	1	core§7.1
+recordSlotsExceeded	code?	3	coll§2, core§7.1
+ReducedMotionEnabled		1	integ§7.4
+ref		7	coll§14, coll§15.2, coll§15.3, coll§15.7, core§4.1, core§4.8, core§4.9
+reference		7	checks§1.4, checks§1.7, checks§10, checks§2.5, core§7.2, core§7.4
+reference(player, data)		1	checks§2.1
+refers		9	checks§7.2, coll§10, core§3.3, core§3.4, core§3.5, integ§10, tool§1.2, tool§3.4
+refers()		1	checks§1.1
+refers(collection)		1	core§3.4
+refersMissing	code?	3	core§3.3, tool§3.4
+Refused		1	core§7.1
+regenerationInputMismatch	code?	2	tool§3.2, tool§3.4
+rejected		21	checks§1.3, checks§1.4, checks§1.5, checks§1.7, core§5.2, core§6.1, core§7.1, core§7.2, core§7.3, integ§10, integ§3
+REKEY		35	checks§3.1, core§3.2, core§4.1, core§4.11, core§4.5, core§4.6, core§4.9, core§6.2, core§7.3, core§7.5
+rekeyReceived	code?	2	core§7.3
+rekeySent		4	core§4.5, core§7.3
+relatedInformation		1	tool§3.1
+release.rbxl		1	tool§4.3
+releaseFolderMisplaced	code?	3	coll§13.2, coll§14, core§7.1
+releaseFolderWrongType	code?	3	coll§13.2, coll§14, core§7.1
+Reliable		1	core§4.1
+Reliable.OnClientEvent:Connect		1	integ§5
+reliableFramesMissing	code?	7	core§10, core§4.5, core§4.9, core§6.1, core§7.3, integ§1, integ§6
+reliablePerSecond		9	coll§1, core§3.4, core§4.7, core§5.1
+reliableTick		2	coll§12.3, coll§12.5
+remoteCallFound	code?	2	core§7.1, tool§3.4
+remoteCreationFound	code?	2	tool§1.2, tool§3.4
+remoteCreations		2	tool§1.2, tool§1.3
+RemoteEvent		5	core§10, core§3.5, core§4.1, tool§3.4
+RemoteFunction		2	core§5.2, tool§3.4
+remoteInstanceFound	code?	7	tool§1.2, tool§2, tool§3.4, tool§4.2
+remoteInstances		2	tool§1.2, tool§1.3
+remotesMissing	code?	3	core§4.1, core§4.9, core§7.3
+remove		2	core§3.5
+remove(key)		1	coll§2
+removed		1	core§3.5
+replay		2	core§10, tool§0
+ReplicatedFirst		1	integ§12
+ReplicatedStorage		6	coll§13.1, coll§13.2, core§10, tool§3.4
+ReplicatedStorage.Lync		1	core§4.1
+ReplicatedStorage.Lync.Reliable		2	tool§3.4, tool§4.2
+ReplicatedStorage.Lync.Unreliable		1	tool§3.4
+replicates		3	tool§3.4
+ReplicationFocus		1	coll§16
+reply		11	checks§7.1, core§3.3, core§3.4, core§4.1, core§4.7, core§5.2, core§7.1, core§7.5, tool§3.4
+REPORT		43	checks§9.6, core§10, core§4.5, core§4.6, core§4.9, core§5.1, core§9, integ§1, integ§10, integ§2.4, integ§4, integ§5, integ§6, tool§1.2
+report		3	core§4.10, core§4.6, core§7.5
+report.checkListenerCaller		3	core§4.6, integ§5
+report.md		7	coll§13.1, core§7.5, core§8, integ§3, tool§1, tool§1.3
+report.runSelfCheck		3	core§4.6, integ§5
+Reported		1	core§7.1
+reportInteraction		9	coll§12.6, core§3.4, core§6.2, core§7.1, integ§8, tool§3.4
+requestAnswerBelowPing	code?	18	checks§1.4, core§10, core§4.9, core§5.2, core§6.1, core§7.1, core§7.3, integ§10, integ§7, integ§7.2, integ§7.3
+requestSlotMismatch	code?	6	checks§1.4, core§5.2, core§6.1, core§7.3
+require		13	core§3.5, core§7.1, integ§10, integ§2.4, integ§3, integ§5, tool§1.1, tool§3.3, tool§3.4, tool§4.3, tool§5.3
+resetChecks		7	checks§1.2, checks§1.6, checks§10, checks§6.4, checks§7.3, coll§15.6, core§3.3
+resetChecks(player)		1	checks§3.4
+resetChecks(player, options?)		1	core§3.4
+ResetOnSpawn		1	integ§2.4
+restartServers		1	tool§4.3
+result_arms		1	core§3.5
+reveal()		4	checks§10, checks§9.2, checks§9.5, core§3.5
+rewind		15	checks§2.4, checks§5.3, coll§11.2, coll§11.4, coll§12.6, coll§14, coll§2, core§3.4, core§4.9, core§7.1, integ§10, integ§8
+rewind.roundTripSlackSeconds		6	coll§12.3, coll§12.9, coll§14, core§7.5
+rewind_cost.out		1	coll§12.8
+rewound		9	checks§1.7, coll§12.3, coll§12.6, core§3.4, core§7.1, integ§10, integ§8
+rewound(perception, key)		2	coll§12.5, coll§12.6
+rewoundSpan		2	core§3.4, integ§8
+RobloxScriptSecurity		3	integ§4
+role		4	checks§10, checks§7.1, core§3.3
+roleMarkerMisplaced	code?	4	checks§10, checks§7.1, core§3.3, core§7.1
+roster		1	core§8
+rotation		1	tool§1.2
+rotation.entropy		5	integ§2.1, integ§2.5, tool§1.3, tool§4.1, tool§4.2
+rotationSeed		36	core§2, core§3.2, core§4.10, core§4.5, core§4.9, integ§2.1, integ§2.2, integ§2.4, integ§2.5, tool§1, tool§1.2, tool§1.3, tool§4.1, tool§4.2, tool§5.2, tool§5.4, tool§5.5, tool§8
+roundTripSeconds		15	coll§12.5, coll§12.9, core§10, core§3.5, core§5.2, core§7.3, integ§10, integ§7.1, integ§7.2
+rows		3	coll§8.2, tool§2
+Rows.read		1	core§2
+Rows.write		1	core§2
+rowsDeferred		2	coll§7, core§7.4
+rp		4	coll§15.3, coll§15.4, coll§15.6, core§4.1
+rule		2	core§4.8, core§7.3
+run.out		1	core§3.2
+RunContext		1	tool§5.1
+runningCoreDigest		1	tool§3.4
+runSelfCheck		1	core§7.5
+RunService.ClientGitHash		1	integ§4
+RunService.PostSimulation		1	core§5.1
+RunService.PreRender		1	coll§11.2
+runtime_path.out		1	core§2
+runtimePathCallFound	code?	3	core§3.2, core§7.1, tool§3.4
+same		1	coll§15.2
+samplesPerAxis		5	coll§8.5, tool§2
+scan		4	tool§1.2
+scan.source		1	tool§4.1
+sched		1	core§2
+scheduler		2	core§8
+schema		3	tool§2, tool§3.4
+schema.luau		1	core§3.6
+schemaHash		1	tool§1.2
+schemaHashMismatch	code?	2	core§7.3, tool§3.4
+schemaPath		1	tool§1.2
+scopedDeliveriesSkipped		3	coll§10, coll§14, core§7.4
+ScreenGui		4	integ§10, integ§2.4
+Script		2	integ§3, tool§3.3
+script		1	tool§5.3
+Script:GetHash		1	integ§11
+ScriptContext.Error		1	core§7.2
+ScriptContext:EnableCoverage		1	integ§3
+ScriptEditorService:RegisterScriptAnalysisCallback		1	tool§4.2
+Seal		7	checks§9.2, checks§9.7, core§3.4, core§3.5
+seal		1	checks§9.4
+sealed		16	checks§10, checks§9.2, checks§9.3, coll§5.1, core§3.4, core§3.5, core§4.10, core§4.7
+sealed.hideLength		4	checks§9.7, core§3.4, core§4.7
+sealed.maxOutstanding		7	checks§9.7, core§3.4, core§4.7, core§5.3
+sealed_fire		1	core§3.5
+sealed_fire_fixed		1	core§3.5
+sealedInstanceUnsupported	code?	3	checks§10, checks§9.2, core§7.1
+sealSettleDuplicate	code?	3	checks§10, checks§9.2, core§7.1
+sealsOutstandingExceeded	code?	5	checks§10, checks§9.5, checks§9.7, core§7.1, core§7.3
+secondHalfSlope		4	integ§10, integ§6
+Seconds		1	core§7.1
+seg		16	coll§11.2, coll§11.3, coll§12.2, coll§3, coll§5, coll§5.1, core§4.1
+seg:u1		1	coll§14
+self		1	core§4.1
+selfCheckCase		7	core§4.6, integ§10, integ§4, integ§5
+selfCheckItem		8	core§4.6, integ§10, integ§4, integ§5, tool§1.2
+selfCheckItems		1	tool§1.2
+selfCheckMismatches		7	core§4.6, integ§10, integ§4, integ§5
+sell		1	checks§4.2
+send(player, lane, frame, instances)		1	core§8
+sendPingSeconds		2	core§3.5, core§5.2
+sentToSender		3	integ§10
+sentToUserId		1	integ§10
+seq		9	coll§15.1, coll§15.6, core§4.4, core§4.5, core§7.3
+series		13	checks§0, checks§10, checks§8.10, checks§8.2, checks§8.4, checks§8.6
+series()		2	core§3.4
+serverBuild		1	tool§3.4
+serverClosing		4	core§5.2, core§7.1, integ§7.4
+ServerScriptService		5	core§3.5, tool§2, tool§3.3, tool§3.4
+ServerStorage		16	coll§13.2, coll§14, integ§10, integ§2.4, integ§3, tool§1.2, tool§2, tool§3.3, tool§3.4
+ServerStorage.Lync.Config		4	tool§2, tool§3.4, tool§4.2, tool§8
+ServerStorage.Lync.Manifest		2	tool§1.2, tool§4.2
+serverTime		4	checks§8.4, checks§8.5, core§7.3
+session		3	core§2, core§4.10, integ§2.2
+set		11	coll§15.1, coll§15.2, coll§15.6, coll§2, core§3.4, core§3.5, core§5.1, integ§8, integ§9
+set(key, record)		1	coll§2
+set(value)		1	core§3.4
+SetCore		3	integ§10, integ§12, integ§4
+setmemorycategory		1	core§10
+setthreadidentity(2)		1	integ§4
+settings.name		1	checks§7.4
+settings.volume		1	checks§7.4
+severity		1	tool§3.1
+Shadowed		1	core§7.1
+shardDigestMismatch	code?	9	tool§1.1, tool§1.2, tool§3.2, tool§3.4, tool§4.1, tool§4.2, tool§5.2
+shardPairMismatch	code?	5	tool§1.1, tool§3.2, tool§3.4, tool§4.1, tool§4.2
+shardPartMissing	code?	5	tool§1.1, tool§3.2, tool§3.4, tool§4.1, tool§4.2
+shardPartUnknown	code?	5	tool§1.1, tool§3.2, tool§3.4, tool§4.1, tool§4.2
+shards.client		1	tool§1.2
+shards.server		1	tool§1.2
+shardSchemaMismatch	code?	12	core§3.2, core§3.5, core§7.1, core§7.2, tool§1.1, tool§3.2, tool§3.4, tool§4.1, tool§4.2, tool§5.6
+ShotData		1	checks§5.4
+show()		1	core§7.1
+side		5	tool§3.4
+SignalBehavior		1	integ§12
+since		2	core§7.1
+sinceClosedSeconds		2	integ§10
+sincePendingRekeySeconds		1	core§7.3
+sinceRekeySeconds		1	core§7.3
+sinceRemovedSeconds		3	integ§10, integ§8
+sinceSentSeconds		3	integ§10
+sinceTriggerSeconds		1	checks§8.6
+sites		1	tool§1.2
+size		1	core§3.5
+slackSeconds		9	core§3.4, core§5.4, core§7.3
+slope		5	integ§10
+slot		1	core§7.3
+SoundService		1	tool§3.3
+Source		15	core§10, integ§11, integ§12, tool§1.1, tool§1.2, tool§3.4, tool§4.2, tool§4.3, tool§8
+source		1	tool§1.2
+sourceKey		2	integ§8
+sourcemapMissing	code?	2	tool§2, tool§3.4
+spanSeconds		4	checks§1.5, checks§6.4
+staged.loader		1	tool§2
+staged.paths		1	tool§2
+stagedNameFound	code?	3	coll§13.2, tool§2, tool§3.4
+stagedPathMisplaced	code?	3	coll§13.2, tool§2, tool§3.4
+stagedReferenceFound	code?	3	coll§13.2, tool§2, tool§3.4
+stall		1	core§9
+start()		1	core§3.5
+StarterCharacterScripts		2	checks§3.4, integ§4
+StarterGui		1	integ§4
+StarterPack		1	integ§4
+StarterPlayer.StarterPlayerScripts.Chat		1	core§4.10
+StarterPlayer.StarterPlayerScripts.Shop		1	core§4.10
+StarterPlayerScripts		1	integ§4
+state		1	tool§3.4
+state.bytesPerSecond		6	coll§15.5, coll§7, core§7.5
+state.maxPendingSeconds		3	coll§14, coll§7, core§7.5
+state.newestMinFraction		2	coll§7, core§7.5
+state.ticksPerSecond		11	checks§6.2, coll§15.1, coll§15.6, coll§5.1, coll§7, core§4.6, core§4.9, core§7.5, integ§8
+stateRate		54	checks§6.2, coll§11.1, coll§11.2, coll§12.2, coll§12.3, coll§12.7, coll§15.1, coll§15.2, coll§15.3, coll§15.4, coll§15.6, coll§15.7, coll§2, coll§8.2, coll§8.3, core§4.1, core§4.10, core§4.6, core§4.9, core§5.1, core§7.5
+status		1	tool§3.4
+std		1	tool§7
+step		5	checks§4.2, checks§5.1, core§3.3
+stimulus		2	integ§7.3
+stimulusWrongType	code?	2	core§7.1, integ§7.3
+stop		2	coll§15.6, core§3.5
+stop()		1	core§3.4
+str		11	core§4.7
+streamBytesExceeded	code?	5	coll§14, coll§15.2, core§3.4, core§4.7, core§7.1
+streamCodecUnsupported	code?	5	coll§14, coll§15.2, core§3.4, core§4.7, core§7.1
+streaming		2	tool§1.2, tool§1.3
+streamingDisabled	code?	2	coll§13.2, tool§3.4
+StreamingEnabled		2	integ§8, tool§1.2
+StreamingMinRadius		1	tool§1.2
+StreamingTargetRadius		2	coll§13.1, tool§1.2
+StreamOutBehavior		2	coll§13.1, tool§1.2
+strike		7	checks§1.2, core§4.10, core§4.3, tool§5.7
+strike.origin		1	core§3.4
+strike.target		3	checks§8.11, checks§8.7, core§3.4
+string		7	core§3.2, core§3.3, core§3.4, core§4.11
+stringDefinitionsSent		1	core§7.4
+stringEntriesFreed		1	core§7.4
+stringLiteralsCapped		2	core§4.11, core§7.4
+stringReferencesReceived	code?	1	core§7.4
+stringTableBytes		1	core§7.4
+stringTableEntries		2	core§7.4
+stringTableEntries.feed.names		1	core§7.4
+stringTableFieldMissing	code?	2	core§3.3, core§7.1
+StringValue		4	tool§1.2, tool§2, tool§8
+suspended		1	checks§1.7
+syncMode		1	coll§9
+T		4	checks§7.1, core§3.3
+t.angle		19	checks§1.3, checks§2.1, checks§2.4, checks§2.5, checks§3.1, checks§5.1, checks§5.3, checks§6.1, checks§6.2, checks§8.2, coll§11.2, coll§5.1, core§3.3, core§7.5, integ§2.2
+t.angle(step)		2	core§3.3
+t.array		3	core§3.3, integ§8
+t.array(c)		1	core§4.3
+t.array(codec, maxCount)		1	core§3.3
+t.array(t.array({}, 65535), 7996)		1	core§4.8
+t.array(t.bool(), 65535)		3	core§4.8, core§7.5
+t.array(t.int(5, 5), n)		1	core§3.4
+t.array({}, n)		1	core§3.4
+t.bool		11	checks§1.5, checks§5.1, checks§5.4, checks§7.4, checks§8.2, core§4.8, core§7.5, tool§3.4
+t.bool()		2	core§3.3, core§7.5
+t.buffer		5	core§3.3, core§4.3, core§7.5, integ§9, tool§3.4
+t.buffer(maxBytes)		1	core§3.3
+t.cframe		16	checks§2.1, checks§5.1, checks§8.10, checks§8.2, coll§11.2, coll§5.1, coll§8.2, coll§8.3, core§3.3, core§4.3, core§4.8, core§7.5, tool§3.4
+t.cframe(position, rotation)		1	core§3.3
+t.color3		5	core§3.3, core§4.3, core§7.5, integ§2.2
+t.color3()		1	core§3.3
+t.convert		5	core§3.5, core§4.2, tool§3.4
+t.convert(base)		1	core§4.3
+t.convert(base, decode, encode)		2	core§3.3, core§8
+t.custom		8	coll§5.1, core§3.5, core§4.2, core§4.3, core§4.8, core§8, tool§3.4
+t.custom(spec)		1	core§3.3
+t.custom({ encode, decode, maxBits | maxBytes, luauType, tsType, name, version })		1	core§8
+t.direction		22	checks§1.7, checks§2.1, checks§2.4, checks§2.5, checks§5.1, checks§5.3, checks§6.1, checks§6.2, checks§8.10, checks§8.2, coll§11.2, core§3.3, core§3.4, core§4.3, core§7.5, integ§2.2
+t.direction(10)		4	checks§5.3, checks§8.9, core§3.5
+t.direction(11)		1	checks§8.10
+t.direction(11):aim()		1	checks§8.1
+t.direction(bits)		1	core§3.3
+t.enum		9	checks§1.5, checks§5.1, checks§5.4, core§3.4, core§7.5
+t.enum(Enum.Material)		1	core§3.3
+t.enum({ "a", "b" })		1	core§3.3
+t.enum({ ... })		1	core§3.1
+t.f32		17	checks§2.1, checks§3.1, checks§4.2, checks§5.1, checks§6.1, checks§6.2, checks§8.2, coll§11.2, coll§5.1, core§3.3, core§3.5, core§4.3, core§7.5, integ§2.2, tool§3.4
+t.f32()		2	core§3.3
+t.f64		14	checks§2.1, checks§3.1, checks§4.2, checks§5.1, checks§6.1, checks§6.2, checks§8.2, coll§11.2, coll§5.1, core§4.3, core§7.5, integ§2.2, tool§3.4
+t.f64()		1	core§3.3
+t.instance		5	checks§9.2, core§3.5, core§4.1, core§7.5, tool§3.4
+t.instance(className?)		1	core§3.3
+t.int		10	checks§1.7, checks§2.1, checks§4.2, checks§5.1, checks§6.1, checks§6.2, checks§8.2, core§3.3, core§3.4
+t.int()		12	checks§3.1, checks§4.2, coll§12.2, coll§15.2, core§3.3, core§3.4, core§4.10, core§4.3, core§7.5, integ§2.2, tool§3.4
+t.int(-100, 100)		1	core§3.4
+t.int(0, 100)		1	core§3.4
+t.int(0, 1000):maxTotal(5000, 600)		1	checks§1.1
+t.int(1, 12)		1	checks§7.4
+t.int(1, 2 ^ 40)		1	core§3.3
+t.int(1, 2 ^ 40):claim()		2	checks§7.1, core§3.3
+t.int(1, 2^40)		1	tool§3.4
+t.int(1, 500)		2	checks§7.4, tool§3.4
+t.int(5, 5)		1	core§3.3
+t.int(a, a)		1	core§4.8
+t.int(min, max)		12	checks§3.1, checks§3.4, checks§4.2, checks§5.1, core§3.3, core§4.3, core§4.8, core§7.5, integ§2.2, integ§7.4, tool§3.4
+t.map(k, v)		1	core§4.3
+t.map(key, value, maxCount)		1	core§3.3
+t.number		18	checks§2.1, checks§2.4, checks§3.1, checks§3.4, checks§4.2, checks§5.1, checks§6.1, checks§6.2, checks§8.2, coll§11.2, coll§5.1, core§3.3, core§7.5, integ§2.2, tool§3.4
+t.number(0, 0.3, 0.1)		2	core§3.3
+t.number(0, 600, 0.01)		2	checks§7.4, tool§3.4
+t.number(min, max, step)		5	checks§4.2, core§3.3
+t.optional		9	coll§10, coll§14, coll§9, core§3.3, integ§7.4, integ§8, tool§3.4
+t.optional(c)		2	coll§9, core§4.3
+t.optional(codec)		1	core§3.3
+t.optional(t.int(0, 9999))		1	integ§7.4
+t.rotation		14	checks§2.1, checks§5.1, checks§8.10, checks§8.2, coll§11.2, coll§5.1, core§3.3, core§4.3, core§4.8, core§7.5, integ§2.2
+t.rotation(12)		1	coll§12.2
+t.rotation(9)		2	coll§12.2
+t.rotation(bits)		1	core§3.3
+t.string		19	core§3.3, core§3.4, core§4.11, core§4.3, core§4.8, core§7.5, integ§9, tool§3.4
+t.string(20):intern(names)		1	core§4.10
+t.string(200):input()		1	checks§7.1
+t.string(maxBytes)		1	core§3.3
+t.string(n):intern(names)		1	core§3.3
+t.union		2	core§4.3
+t.union({ name = record, ... })		1	core§3.3
+t.vector3		21	checks§2.1, checks§2.4, checks§5.1, checks§5.3, checks§5.4, checks§6.1, checks§6.2, checks§6.5, checks§8.2, coll§11.2, coll§5.1, coll§8.2, core§3.3, core§3.4, core§4.3, core§7.5, tool§3.4
+t.vector3(-2048, 2048, 1/32)		1	coll§12.2
+t.vector3(min, max, step)		1	core§3.3
+t.vector3f32		12	checks§2.1, checks§6.1, checks§6.2, checks§6.5, checks§8.2, coll§11.2, coll§5.1, coll§8.2, core§4.3, core§7.5, integ§2.2, tool§3.4
+t.vector3f32()		1	core§3.3
+table		2	core§3.3
+table.freeze		1	core§3.2
+table.isfrozen		1	integ§5
+table.isfrozen(t)		1	integ§5
+tag		1	integ§2.2
+tag.coverBytes		11	core§4.1, core§4.10, core§4.5, core§4.6, core§7.5, integ§1, integ§4
+tag_cost		1	core§9
+tagMismatch	code?	19	core§10, core§4.10, core§4.5, core§4.9, core§6.1, core§7.3, core§8, integ§1, integ§10, integ§2.4, tool§3.4
+tagMismatchesExceeded	code?	15	checks§3.1, core§10, core§4.5, core§4.9, core§7.3, integ§10, integ§2.4
+tagVariantMismatch	code?	11	core§4.5, core§6.1, core§6.2, core§7.1, core§7.3, integ§10, integ§2.4
+Target		3	coll§4, core§3.5, core§7.1
+target		2	checks§8.4, core§4.10
+targetWrongType	code?	2	core§3.5, core§7.1
+task		2	coll§8.7, core§6.1
+task.cancel		5	checks§1.7, coll§8.7, core§6.1, integ§1
+task.defer(listener, frame)		1	integ§5
+task.spawn		3	core§10, integ§12, integ§4
+task.spawn(error, message, 0)		1	core§7.2
+task.spawn(view.fire, view, v)		1	integ§10
+task.wait		1	checks§1.7
+taunt		2	core§4.10
+taunt:fire({ to = "Zippy" })		1	core§4.10
+team		5	coll§14, coll§8.7, coll§9
+Team		1	coll§9
+team(fn)		1	coll§2
+team(fn, options)		1	core§3.4
+teamBindingMissing	code?	3	coll§14, coll§9, core§7.1
+Teams		1	tool§3.3
+telemetry		1	checks§0
+telemetry.atomsPerBatch		5	checks§10, checks§8.10, checks§8.5, core§7.5
+telemetry.maxBatchSeconds		4	checks§10, checks§8.10, checks§8.5, core§7.5
+telemetry_samples_accum.luau		1	checks§8.9
+telemetryDuplicate	code?	5	checks§10, checks§8.2, checks§8.4, checks§8.6, core§7.1
+TextDocumentDidChange		1	tool§4.2
+tick		1	checks§1.7
+tick:u8		2	coll§15.1, core§4.1
+tickOutOfRange	code?	2	coll§12.2, core§7.1
+timedOut		10	core§10, core§5.2, core§7.1, integ§10, integ§12, integ§7.4
+timeoutSeconds		9	core§3.4, core§3.5, core§4.7, core§5.2, core§7.3
+to		1	core§4.10
+token		4	integ§7.4, tool§4.1
+tokenValues		5	integ§10, integ§7.4
+tolerance		22	checks§1.5, checks§11, checks§5.1, checks§5.2, checks§5.3, checks§5.4, checks§6.2, checks§6.3, checks§6.4, checks§6.5
+Tool		4	integ§10, integ§3, tool§1.3, tool§3.4
+total		30	checks§1.5, checks§10, checks§4.1, checks§4.2, checks§4.3, checks§4.4, checks§4.5, checks§6.2, core§4.9
+toTick		1	coll§12.9
+transport		9	core§2, core§7.3, core§8, integ§10, integ§5
+trap()		1	core§3.4
+trapHandlerMisplaced	code?	2	core§7.1, integ§3
+trapMessageReceived	code?	9	checks§1.4, core§6.1, core§7.1, core§7.3, integ§10, integ§3
+true		24	checks§7.2, checks§7.3, core§3.2, core§3.3, core§3.4, core§3.5, core§7.5, integ§2.5, integ§3, integ§5, tool§2, tool§5.7
+TS.import		2	integ§3, tool§3.3
+TS.import(script, base, segments…)		1	tool§5.3
+type		2	tool§3.4
+typeof		1	tool§5.8
+u16		2	coll§2, core§4.7
+u32le		1	core§4.5
+u8		3	coll§2, core§4.7
+unanswered		8	core§3.5, core§5.1, core§5.2, core§6.1, core§7.1, core§7.2
+unexpected		1	core§7.1
+Unknown		1	core§7.1
+Unmatched		1	core§7.1
+unreferenced		6	integ§3, tool§1.2, tool§1.3, tool§4.2, tool§5.4
+unreferencedMessageReceived	code?	8	checks§1.4, core§6.1, core§7.1, core§7.3, integ§10, integ§3
+Unreliable		1	core§4.1
+Unreliable.OnClientEvent:Connect		1	integ§5
+unreliableHoldUnsupported	code?	4	core§5.3, core§7.3, integ§2.4
+unreliableLimitExceeded	code?	2	core§5.4, core§7.3
+unreliableMessageBytesExceeded	code?	3	core§3.4, core§4.9, core§7.1
+UnreliableRemoteEvent		3	core§4.1, tool§3.4
+unreliableSeqDuplicate	code?	3	core§4.5, core§6.1, core§7.3
+unreliableSeqOutOfRange	code?	3	core§4.5, core§6.1, core§7.3
+Unresolved		1	core§7.1
+Unsupported		1	core§7.1
+Unverified		1	core§7.1
+UpdateSourceAsync		3	tool§3.4, tool§4.2, tool§5.1
+uri		2	tool§3.1
+UserId		5	checks§8.7, core§7.4, integ§8, integ§9, tool§3.4
+v5.md		274	checks§0, checks§1.1, checks§1.2, checks§1.3, checks§1.4, checks§1.5, checks§1.6, checks§1.7, checks§10, checks§11, checks§2.2, checks§2.4, checks§3.1, checks§3.2, checks§4.2, checks§5.1, checks§5.3, checks§5.4, checks§6.2, checks§6.5, checks§7.1, checks§7.2, checks§7.3, checks§7.4, checks§8.1, checks§8.2, checks§8.3, checks§8.4, checks§8.5, checks§8.6, checks§8.7, checks§8.9, checks§9.1, checks§9.2, checks§9.3, checks§9.5, checks§9.6, checks§9.7, coll§0, coll§10, coll§11.1, coll§12.2, coll§12.3, coll§12.5, coll§13.2, coll§14, coll§15.1, coll§15.2, coll§15.4, coll§15.6, coll§15.7, coll§16, coll§2, coll§3, coll§5.1, coll§6, coll§7, coll§8.2, coll§8.6, coll§8.7, coll§9, core§10, integ§0, integ§1, integ§10, integ§12, integ§2.1, integ§2.2, integ§2.3, integ§2.4, integ§2.5, integ§3, integ§4, integ§5, integ§6, integ§7, integ§7.1, integ§7.2, integ§7.3, integ§7.4, integ§8, integ§9, tool§0, tool§1.1, tool§1.2, tool§1.3, tool§2, tool§3.1, tool§3.2, tool§3.4, tool§5.3, tool§5.4, tool§5.5, tool§5.6, tool§5.8, tool§6, tool§8
+validate		15	checks§0, checks§1.3, checks§4.4, checks§7.2, core§3.5, core§5.2, core§8, integ§3, tool§5.5, tool§5.8
+validate(fn)		1	core§3.4
+validatorDuplicate	code?	2	core§3.5, core§7.1
+validatorRaised	code?	4	core§6.1, core§7.1, core§7.2
+validatorsRaised	code?	3	core§6.1, core§7.2, core§7.4
+validatorsReturnedFalse		4	checks§8.3, core§6.1, core§7.2, core§7.4
+validatorsYielded	code?	3	core§6.1, core§7.2, core§7.4
+validatorYielded	code?	4	core§6.1, core§7.1, core§7.2
+Value		5	checks§8.2, core§3.3, integ§2.4
+value		2	core§3.5, tool§4.1
+valueRefused	code?	5	core§3.5, core§7.1, tool§3.4
+variant		2	tool§3.4
+VARIANT_OF		2	integ§2.4
+variantKindFieldDuplicate	code?	2	core§3.3, core§7.1
+variantMissing	code?	8	core§4.9, core§5.3, core§7.1, core§7.3, integ§10, integ§12, integ§2.4
+variants		1	tool§1.2
+varyPerViewer		7	core§7.5, integ§10, integ§9
+vector		1	tool§3.4
+vector.lerp		1	checks§5.3
+Vector3		10	checks§2.5, core§3.2, core§3.3, core§3.4, core§3.5, core§9, tool§3.4
+Vector3.new(r.X, v.Y, r.Z)		1	checks§6.3
+vectorStepOutOfRange	code?	2	core§3.3, core§7.1
+version		1	tool§3.4
+victim		1	core§4.10
+view		3	coll§13.2, core§4.6
+view.fire		1	integ§10
+visibilityModifierMisplaced	code?	4	coll§14, coll§9, core§3.3, core§7.1
+wait()		1	integ§7.4
+waitedSteps		1	core§7.3
+WaitForChild		2	checks§1.7, integ§2.4
+waitingFor		4	core§5.3, core§7.3, integ§2.4
+WalkSpeed		1	checks§2.4
+warn		4	core§10, core§7.4, core§7.5
+warning		1	tool§3.2
+watch		2	tool§3.1, tool§4.1
+Weapon		1	tool§5.9
+weave.dropClosed		4	tool§5.2, tool§5.4, tool§5.7
+weave.foldLiterals		4	tool§3.4, tool§5.3, tool§5.5, tool§5.7
+weave.ids		5	core§4.6, integ§10, integ§3, tool§5.5, tool§5.7
+weave.maxInlineSites		2	tool§5.3, tool§5.7
+weave.server		1	tool§5.7
+weave.unpackHandlers		2	tool§5.7, tool§5.8
+weaveArgumentUnsupported	code?	1	tool§3.4
+weaveBuiltinShadowed	code?	2	tool§3.4, tool§5.4
+weaveCompileFailed	code?	2	tool§3.4, tool§5.4
+weaveHash		2	tool§5.5
+weaveKeysMismatch	code?	1	tool§3.4
+weaveLiteralRefused	code?	2	tool§3.4, tool§5.7
+weaveParseFailed	code?	2	tool§3.4, tool§5.4
+weight		13	coll§14, coll§7, coll§8.2, coll§8.3, coll§8.7, core§4.9, core§6.1, core§7.2
+weight(viewer, key, record, distance, first)		1	coll§7
+weightRaised	code?	4	coll§14, coll§7, coll§8.7, core§7.1
+weightResultRefused	code?	4	coll§14, coll§7, coll§8.7, core§7.1
+weightYielded	code?	4	coll§14, coll§7, coll§8.7, core§7.1
+weird		1	core§7.1
+WELCOME		100	coll§11.1, coll§12.3, coll§13.2, coll§15.2, coll§15.5, coll§15.6, coll§4, core§10, core§3.2, core§4.1, core§4.10, core§4.11, core§4.5, core§4.6, core§4.9, core§5.1, core§5.3, core§6.2, core§7.3, core§7.5, integ§1, integ§10, integ§12, integ§2.2, integ§2.4, integ§2.5, integ§4, integ§5, integ§6, integ§7.4, tool§1.2, tool§4.1
+windowSeconds		27	checks§10, checks§4.1, checks§4.2, checks§4.3, checks§4.4, checks§4.5, checks§6.2, checks§6.3, checks§6.5, core§4.9, core§7.5
+wire		1	core§2
+within		25	checks§0, checks§1.2, checks§1.4, checks§1.5, checks§1.6, checks§11, checks§2, checks§3.3, checks§5.1, checks§5.3, checks§6.1, checks§6.3, checks§6.5, checks§7.2, coll§12.5, core§10, core§3.3, core§3.4, core§6.2
+withinExceeded	code?	7	checks§1.5, checks§10, checks§5.1, core§6.1, core§7.1, core§7.3
+Workspace		5	integ§10, tool§2, tool§3.4
+Workspace.Gravity		1	checks§6.4
+Workspace.SignalBehavior		1	integ§5
+Workspace:Raycast		2	checks§11, core§10
+world.luau		1	core§9
+WorldRoot:Raycast		2	coll§16, coll§8.5
+worstCaseDecodeUnits		1	tool§1.2
+worstCaseUnreliableInstances		1	tool§1.2
+wovenDigest		5	tool§3.3, tool§3.4, tool§5.2
+wovenScripts		3	tool§1.2, tool§3.4, tool§4.3
+WrongType		1	core§7.1
+x		1	core§3.3
+X.new(Net)		1	tool§3.4
+xpcall		10	checks§1.7, coll§16, coll§8.7, core§5.2, core§6.1
+xpcall(f, debug.traceback)		1	core§7.1
+yaw		1	checks§8.2
+Yielded		1	core§7.1

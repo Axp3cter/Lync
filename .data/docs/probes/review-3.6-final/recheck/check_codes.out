@@ -1,0 +1,37 @@
+registry build: 45
+registry caller: 31
+registry declaration: 35
+registry fact: 57
+registry fault: 25
+registry internal: 1
+registry outcome: 13
+
+== code-shaped names used but not in the registry
+buildIdMismatch	core§3.2, core§7.3, tool§4.3
+bytesReceived	core§7.4
+checkFunctionsRaised	checks§1.7, checks§10, core§6.1, core§7.2, core§7.4
+checkFunctionsYielded	checks§1.7, checks§10, core§6.1, core§7.2, core§7.4
+decodeUnitsReceived	core§7.4
+elementsReceived	core§7.4
+framesMalformed	checks§9.6, coll§5.1, core§4.6, core§4.8, core§7.4, core§8, integ§10, integ§4, integ§5
+framesReceived	core§6.1, core§7.4
+generatorVersionMismatch	tool§3.4
+idTableHashMismatch	core§7.3, tool§3.4, tool§5.5
+messagesReceived	core§7.4
+messagesUnresolved	core§7.3, core§7.4
+outerFramesMissing	core§4.6, integ§10, integ§4
+predicatesRaised	coll§14, coll§8.5, core§7.2, core§7.4
+predicatesYielded	coll§14, coll§8.5, core§7.2, core§7.4
+reactionsUnmatched	core§7.4, integ§7.3
+rekeyReceived	core§7.3
+schemaHashMismatch	core§7.3, tool§3.4
+stringReferencesReceived	core§7.4
+validatorsRaised	core§6.1, core§7.2, core§7.4
+validatorsYielded	core§6.1, core§7.2, core§7.4
+
+== registered names that fail C8 (outcomes and internal excepted)
+
+== registered names used only in the registry block
+ackMissing	outcome	core§7.1
+keyUnknown	outcome	core§7.1
+recordMissing	outcome	core§7.1

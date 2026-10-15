@@ -1,0 +1,6 @@
+row bits (ns index x id width), alone it adds the control chunk's 4 bits of type and count:
+  ns 1: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+  ns 2: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+  ns 3: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  ns 6: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+down reliable, tick unchanged, one DEPTH (ns 1, move = up id 2 of 2 bits, depth 2): ea 2c 05

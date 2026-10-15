@@ -1,0 +1,4 @@
+check: luau-lsp 1.70.1 with Roblox definitions (from luau-lsp 1.70.1), new solver, no sourcemap.json here: instance paths like script.Parent.X are typed any and unchecked
+atom_vector.luau(4,83): TypeError: Expected this to be 'vector?', but got 'Vector3'
+atom_vector.luau(7,8): TypeError: Key 'Magnitude' not found in external type 'vector'
+2 issue(s)

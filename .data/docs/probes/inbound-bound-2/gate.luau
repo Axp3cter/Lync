@@ -4,7 +4,7 @@
 -- the same run (so the test does not depend on the host), and compares the ratio with the bound's for that frame:
 --   (1 + mu) * (c_f + c_b * charge + 100 ns * units) / c_f,r     (prices from RESULTS.md claim 2 on the reference host)
 -- It fails (raises, nonzero exit) when any shape's ratio passes the bound's, and lists each failing shape.
--- Argument: "new" (the prices and unit rule of RESULTS.md, mu chosen there) or "v36" (draft 3.6: c_f,r 2.53 µs,
+-- Argument: "new" (v5.md §7.5's prices, unit rule and mu) or "v36" (draft 3.6: c_f,r 2.53 µs,
 -- c_b,r 20.2 ns/B, c_f,u 2.60 µs, c_b,u 10.8 ns/B, p(L) = 2,000 + 133 L per element with L the element's own leaves
 -- by 3.6's rule: arrays, maps and union tags count 0). Shapes it must include (§9): header-only frames at e and
 -- e + 4; failing tags on both lanes with every candidate hashed; every frame of decode_cost.luau's shape set (each
@@ -41,9 +41,11 @@ WHICH = WHICH or "new"
 -- Prices -----------------------------------------------------------------------------------------------------------
 -- c_f,r here is the header-only reliable frame at e + 4 on the reference host; every price is used as a ratio to it.
 local PRICES = {
-	-- RESULTS.md claim 2 and claim 1 (native, reference host); filled from derive.out
+	-- v5.md §7.5 (draft 3.6, final pass): RESULTS.md claim 2's prices at their highest run median (c_f,r 4,280 ns,
+	-- c_f,u 4,950 ns, c_b,r 29.99 ns/B and c_b,u 19.36 ns/B, the walk included), claim 1's unit rule, and mu 0.10.
+	-- The earlier medians (3938, 3338, 23.04, 13.28; mu 0.25) are RESULTS.md's own gate runs (gate.out).
 	new = {
-		cfr = 3938, cfu = 3338, cbr = 23.04, cbu = 13.28, unit = 100, mu = 0.25, p0 = 2500, p1 = 133,
+		cfr = 4280, cfu = 4950, cbr = 29.99, cbu = 19.36, unit = 100, mu = 0.10, p0 = 2500, p1 = 133,
 		weights = {
 			bool = 1, int = 2, varint = 3, number = 2, f32 = 2, f64 = 3, angle = 2, enum = 1, string = 3, buffer = 3,
 			robloxEnum = 3, instance = 3, vector3 = 3, vector3f32 = 4, color3 = 3, direction = 4, rotation = 8,

@@ -1,0 +1,151 @@
+from	v5.md§3.4	`"client" \	"server"`	—	—
+data	v5.md§3.4	codec	—	—	no payload
+lane	v5.md§3.4	`"reliable" \	"unreliable"`	—	—
+limit.perSecond	v5.md§3.4	number (real)	messages/s	(0, 1000]	none: no limit
+limit.burst	v5.md§3.4	integer	messages	1–1000	min(1000, max(1, ⌈perSecond⌉))
+limit.slackSeconds	v5.md§3.4	number (real)	s	0–10	2 (chosen: about twice the p99 reliable-lane stall of 850 ms under 5% bursty loss, simulated `[state-sync §1.3]`; a measured retransmission timeout would change it, §10)
+reply	v5.md§3.4	codec	—	—	no payload
+timeoutSeconds	v5.md§3.4	number (real)	s	0.1–300	10
+key	v5.md§3.4	`t.int`, `t.enum` or `t.string` codec	—	—	none: a singleton
+maxRecords	v5.md§3.4	integer	slots	1–65,536	1024
+priority	v5.md§3.4	number (real)	multiplier of a pending row's age in state ticks	0.001–1000	1
+reliablePerSecond	v5.md§3.4	number (real) or nil	reliable field sends/s	1–60	nil: reliable fields every flush
+acked	v5.md§3.4	boolean	—	—	`false` (chosen: `true` gives up encode-once for the collection's rows, a CPU-for-bytes trade only the game can price)
+ackEveryFrame	v5.md§3.4	boolean	—	—	`false`
+sealed.maxOutstanding	v5.md§3.4	integer	unrevealed seals per player per definition	1–256	1
+sealed.hideLength	v5.md§3.4	boolean	—	—	`true`
+maxEntries	v5.md§3.4	integer	entries	1–65,536 (chosen: ids fit the u16 free list and holder counts; the per-player bitset is 8 KB at the top)	required: the game's live vocabulary, which no input Lync has fixes
+maxBytes	v5.md§3.4	integer	B	1 to `maxEntries` × m, m the largest `maxBytes` of the `t.string` codecs marked with the table	`maxEntries` × m (derived: the largest sum `maxEntries` such entries can reach, so it never binds before `maxEntries`)
+state.ticksPerSecond	v5.md§7.5	integer	ticks/s	10–60	20
+state.bytesPerSecond	v5.md§7.5	integer	B/s per player	4,000–64,000	16,000
+state.newestMinFraction	v5.md§7.5	number (real)	fraction of `state.bytesPerSecond`	0–1	0.25
+inbound.reliable.frames	v5.md§7.5	bucket	frames	perSecond 1–1000, burst 1–10,000	60, 240 (above)
+inbound.reliable.bytes	v5.md§7.5	bucket	B	perSecond 1,024–1,048,576, burst 49,152–4,194,304	8,192, 49,152 (above)
+inbound.unreliable.frames	v5.md§7.5	bucket	frames	perSecond 1–1000, burst 1–10,000	120, 240 (above)
+inbound.unreliable.bytes	v5.md§7.5	bucket	B	perSecond 1,024–1,048,576, burst (1,000 + 8 × N_u)–4,194,304	16,384, 32,768 (above)
+inbound.decodeUnits	v5.md§7.5	bucket	decode units (above)	perSecond 1–10^7; burst max(2 × U_max, 102,400)–2^31	⌊(2,000 µs / (1 + μ) − frames − bytes) / 100 ns⌋ to a multiple of 1,000: 4,000 at μ = 0.10; burst max(2 × U_max, 102,400)
+tag.coverBytes	v5.md§7.5	integer	B	0–16,384	16,384
+layout.vary	v5.md§7.5	boolean	—	—	`true`
+observe.windowSeconds	v5.md§7.5	number (real)	s	5–600	30
+observe.maxFactsPerPlayer	v5.md§7.5	integer	facts per player per window	1–64	16
+observe.maxFacts	v5.md§7.5	integer	facts per window	16–4096	256
+printFacts	v5.md§7.5	boolean, or an array of fact codes	—	`true`, `false`, or codes of §7.3 and the files it points to	`true` (chosen: every fact code, so a new game sees each once per window; the game narrows it to the codes it wants in its Error Report)
+labelProfiler	v5.md§7.5	boolean	—	—	false
+latencySeconds	v5.md§9		s		0.05
+jitterSeconds	v5.md§9		s		0.02
+lossFraction	v5.md§9		fraction		0.05
+burstLoss	v5.md§9		`{ enter, leave }` per frame		`{ 0, 1 }` (off)
+duplicateFraction	v5.md§9		fraction		0
+stall	v5.md§9		`{ perSecond, seconds }` (chance per second, length)		`{ 0.05, 0.3 }`
+framesPerSecond	v5.md§9		steps/s		60
+frameNoiseFraction	v5.md§9		fraction		0.01
+maxUnreliableBytes	v5.md§9		B		1000
+build.rotationSeed	v5-integrity.md§2.5	`"release"`, or 16 hex digits	—	`"0000000000000000"` (identity) to `"ffffffffffffffff"`	`"release"` (derived: only a fresh private seed per run makes §2.2's values per build)
+build.varyOffsets	v5-integrity.md§2.5	boolean	—	—	`true` (derived below)
+build.playerVariantCount	v5-integrity.md§2.5	integer	variants	1–256	1 (chosen, below)
+check.inferReachability	v5-integrity.md§3	`false`, `true`, or an array of namespace names and definition paths (`"arena"`, `"arena.chat"`)	—	names and paths of the project	`false` (derived: whether code outside the scan set fires a listed definition is the game's knowledge)
+check.clientRoots	v5-integrity.md§3	array of instance paths	—	—	`[]`
+callerProbe.callsPerProbe	v5-integrity.md§4	integer	calls per probe	0 (off) or 1–255	1 (below)
+callerProbe.maxProbesPerSecond	v5-integrity.md§4	integer	probes/s	1–63	60 (below)
+check.callerSources	v5-integrity.md§4	table from definition path to an array of instance paths	—	definitions and scripts of the project	`{}`
+lync.toml	v5-integrity.md§4	table from definition path to an array of instance paths	—	definitions and scripts of the project	`{}`
+report.checkListenerCaller	v5-integrity.md§5	boolean	—	—	`true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line removes in every game informs nothing)
+report.runSelfCheck	v5-integrity.md§5	boolean	—	—	`true` (chosen, as above, at 22–25 µs/s for 200 views)
+clock.beaconSeconds	v5-integrity.md§6	number (real)	s	0 (off) or 0.5–1.5, a multiple of 0.1 (`WELCOME` carries tenths)	1 (chosen inside the derived bound: no 5 s window is empty without a restart while 3P ≤ 4.5 s, P ≤ 1.5 s `[clock-facts, BEACON gap]`)
+clock.minSlope	v5-integrity.md§6	number (real)	s/s (seconds of drift per second)	0.001–1	0.01 (derived above)
+clock.minFits	v5-integrity.md§6	integer	consecutive counting fits	1–12	3 (derived above)
+answerTiming.pingFraction	v5-integrity.md§7.2	number (real)	fraction of b	0 (off) to 1	0.5 (chosen, §7.1)
+stimulus	v5-integrity.md§7.3	collection view, or field handle of a server-sent event	—	its codec equal to the key field's	required
+minReactionSeconds	v5-integrity.md§7.3	number (real)	s	0 (off) or 0.01–2	0 (derived: the floor is the game's; none is a default human floor)
+pingFraction	v5-integrity.md§7.3	number (real)	fraction of b	0 (off) to 1	0.5 (chosen, §7.1)
+maxStimuli	v5-integrity.md§7.3	integer	event stimuli remembered per player	1–64	8 (chosen: a response more than 8 stimuli of its definition behind counts `reactionsUnmatched`, never a fact)
+deadlineSeconds	v5-integrity.md§7.4	number (real)	s	1–3600	required
+tokenValues	v5-integrity.md§7.4	integer	token values	2–2^32	required (it must match how the game shows the token)
+maxAttempts	v5-integrity.md§7.4	integer	values received	1–255	required (it depends on the answer's form; the docs give at least 3 for typed codes)
+maxPerViewer	v5-integrity.md§8	integer	records	1–256	1 (chosen: one decoy per viewer; the game's placement decides whether more serve)
+maxSlots	v5-integrity.md§8	integer	slots	1 to `maxRecords` − 1 (so a real record always has a slot once `maxRecords` covers live records and their reuse delay)	required (how many slots the game spares for decoys is its decision)
+gameKind	v5-integrity.md§8	integer	—	0–255	required
+reportInteraction	v5-integrity.md§8	integer	—	0–255	required
+format	v5-integrity.md§9	function (token) → value	—	a value holding the token once, within `maxBytes`	none: the bare token
+canary	v5-integrity.md§9	function (token) → value	—	a value holding the token once, within `maxBytes`	none: the bare token
+canary.maxScanBytes	v5-integrity.md§9	integer	B	12–16,000	256 (chosen: the example schema's 200 B chat line is scanned whole)
+canary.varyPerViewer	v5-integrity.md§9	boolean	—	—	`false` (derived: it adds attribution per session at the price of a comparison any two viewers can make, and which of the two matters is the game's)
+position	v5-collections.md§8.2	path string of a top-level `t.vector3`, `t.vector3f32` or `t.cframe` field	—	—	required
+radius	v5-collections.md§8.2	number (real)	studs	8–4096	required
+lookAheadSeconds	v5-collections.md§8.2	number (real)	s	0–1	0.2 (chosen: 1/`stateRate` at the default 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; fixed at 0.2, not recomputed for other rates; a measured round-trip distribution would change it)
+focus	v5-collections.md§8.2	`(player: Player) -> Vector3?` or nil	—	—	nil: §8.3's engine focus
+pvs	v5-collections.md§8.2	a table in `v5-tooling.md` §2's format: the base64 string the module `[[pvs]] output` names returns, or a `buffer` of the decoded bytes (from a bake, a `DataStore` value, or the developer's own table); or nil	—	R an integer multiple of the table's `cellSize` (§8.5)	nil
+predicate	v5-collections.md§8.2	`(viewer: Player, key, record) -> boolean` or nil	—	—	nil
+predicateOnError	v5-collections.md§8.2	`"member" \	"nonMember"`	—	—
+weight	v5-collections.md§8.2	`(viewer: Player, key, record, distance: number, first: boolean) -> number` or nil	—	result in (0, 1000]	nil: g = 1 (§7)
+predicatesPerSecond	v5-collections.md§8.2	number (real)	evaluations per pair per second	1–20	10 (the research's ceiling for exact narrowing, "≤ 10 Hz" `[state-sync §7.2]`)
+interpolation.minDelaySeconds	v5-collections.md§11.1	number (real)	s	0–1	0.1 (chosen: Source's `cl_interp` `[state-sync §6.3]`; a game's latency target would change it)
+interpolation.jitterFraction	v5-collections.md§11.1	number (real)	multiple of jitter	0–8	2 (chosen: the research's k `[state-sync §6.3]`; 0 gives every player the fixed minimum)
+fields	v5-collections.md§12.2	array of top-level field path strings, typed as the union of the record's fields it accepts (`v5.md` §3.4)	—	—	every `:newest()` field
+maxRewindSeconds	v5-collections.md§12.2	number (real)	s	0.1–2	1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it)
+mode	v5-collections.md§12.2	`"received" \	"everyTick"`	—	—
+interpolationDelaySeconds	v5-collections.md§12.2	number (real) or nil	s	0–1	nil: the player's server-chosen D (§11.1)
+rewind.roundTripSlackSeconds	v5-collections.md§12.3	number (real)	s	0–0.2	0.05 (derived floor 2/60 = 0.033 s, Lync's processing of one client flush and one server frame on top of engine ping; the margin above it chosen)
+engineDelaySeconds	v5-collections.md§12.7	number (real)	s	0–0.5	required: the engine's delay is unpublished and its backend was replaced in 2026, so the value comes from the game's own calibration (below)
+engineSpreadSeconds	v5-collections.md§12.7	number (real)	s	0–0.25	required, from the same calibration
+maxRewindSeconds	v5-collections.md§12.7	number (real)	s	0.1–2	1 (as §12.2)
+depthTicks	v5-collections.md§15.2	integer	state ticks	0–31	required: it trades J / `stateRate` of latency against late inputs on each player's jitter, and the acceptable miss rate is the game's (§15.6)
+player	v5-collections.md§15.2	`Player` or nil	—	—	nil: every player
+exemptSeconds	v5-checks.md§1.6	number (real)	s	0–10	0 (chosen: an instant reset)
+checkIndex	v5-checks.md§1.6	integer or nil	1-based check index	1 to the definition's check count	nil: every check of the definition
+reference	v5-checks.md§2.5	`(Player, Data) -> (R?, number?)`; R is `number` for scalars and `t.angle`, `Vector3` for vectors and `t.direction`	—	—	required
+maxDistance	v5-checks.md§2.5	number (real)	the field's unit: studs, radians for `t.angle` and `t.direction`, the integer's unit	≥ 0, finite	required
+policy	v5-checks.md§2.5	`"drop" \	"deliver"`	—	—
+order	v5-checks.md§3.5	`"nondecreasing" \	"increasing"`	—	—
+policy	v5-checks.md§3.5	`"drop" \	"deliver"`	—	—
+total	v5-checks.md§4.5	number (real)	the field's unit, per window	> 0, ≤ 2^53	required
+windowSeconds	v5-checks.md§4.5	number (real)	s	1–3600	required
+pool	v5-checks.md§4.5	string or nil	—	1–64 B	nil: the check's own window
+policy	v5-checks.md§4.5	`"drop" \	"deliver"`	—	—
+fn	v5-checks.md§5.4	`(Player, Data) -> T?`, T the field's decoded type	—	—	required
+tolerance	v5-checks.md§5.4	number (real)	the field's unit	0–2^31, finite; only 0 for `t.enum` and `t.bool`	required
+policy	v5-checks.md§5.4	`"drop" \	"deliver"`	—	—
+messagesPerCheck	v5-checks.md§5.4	integer	messages per evaluation	1–1000	1 (derived: principle 1, every message is checked unless the developer trades that for `fn`'s cost)
+perSecond	v5-checks.md§6.5	number (real)	the field's unit per second	> 0, finite	required
+tolerance	v5-checks.md§6.5	number (real)	the field's unit	≥ 0, finite	required (§6.2; the docs' derivation)
+windowSeconds	v5-checks.md§6.5	number (real)	s	0.1–3600	required (§6.2)
+plane	v5-checks.md§6.5	`"xyz" \	"xz"`	—	`"xz"` only for `t.vector3` and `t.vector3f32` (else `callOptionOutOfRange`)
+policy	v5-checks.md§6.5	`"drop" \	"deliver"`	—	—
+field	v5-checks.md§8.10	field handle	—	a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field	—
+field	v5-checks.md§8.10	field handle or none	—	a codec of §8.2's values	none: timing only
+maxEntries	v5-checks.md§8.10	integer	entries	16–1024	64 (chosen: a capacity, 1.07 s of entries at 60 frames/s; a window of `beforeSeconds` + `afterSeconds` truncates above `maxEntries`/(`beforeSeconds` + `afterSeconds`) frames/s, 85.3 for 0.75 s)
+beforeSeconds	v5-checks.md§8.10	number (real)	s	0–2	required (scope audit F1: the window is the analyst's choice; the docs cite VACnet's reported 0.5 s `[anticheat-design §5.1]` as an example)
+afterSeconds	v5-checks.md§8.10	number (real)	s	0–1	required (as `beforeSeconds`; VACnet's 0.25 s is the docs' example)
+fields	v5-checks.md§8.10	array of string	—	paths of §8.2's value codecs on the atom's definition, at most 16 values (a vector counts 3)	`{}`
+series	v5-checks.md§8.10	a definition with an `aim` or a `series`	—	—	nil: no entries
+maxPending	v5-checks.md§8.10	integer	atoms per player	1–64	8 (chosen, a capacity: sustains 8/(`afterSeconds` + 1/60 s) atoms/s per player, 30 at `afterSeconds` 0.25 s; a definition firing faster needs more)
+telemetry.atomsPerBatch	v5-checks.md§8.10	integer	atoms	1–256	16 (chosen: the hand-off is 41–44 ns per atom amortised at 16; a larger batch holds more memory per player)
+telemetry.maxBatchSeconds	v5-checks.md§8.10	number (real)	s	1–600	30 (chosen; at or below `observe.windowSeconds`, an atom reaches game code no later than a coalesced fact of its message)
+format	v5-tooling.md§2	integer	—	1	required
+project.sourcemap	v5-tooling.md§2	path to the JSON that `rojo sourcemap --include-non-scripts` writes	—	—	`"sourcemap.json"`
+namespace.schema	v5-tooling.md§2	path to the schema module	—	—	required
+namespace.client	v5-tooling.md§2	path of each side's shard module	—	distinct paths	required
+namespace.server	v5-tooling.md§2	path of each side's shard module	—	distinct paths	required
+namespace.dts	v5-tooling.md§2	path	—	—	none: no `.d.ts`
+namespace.staged	v5-tooling.md§2	boolean	—	—	`false`
+staged.paths	v5-tooling.md§2	array of instance paths	—	—	`[]`
+[[staged]]	v5-tooling.md§2	array of instance paths	—	—	`[]`
+staged.loader	v5-tooling.md§2	instance path of a release folder	—	—	none
+[[staged]]	v5-tooling.md§2	instance path of a release folder	—	—	none
+pvs.place	v5-tooling.md§2	path to a built `.rbxl`	—	—	none: no bake, and the module at `output` is the developer's own table, read as is
+[[pvs]]	v5-tooling.md§2	path to a built `.rbxl`	—	—	none: no bake, and the module at `output` is the developer's own table, read as is
+pvs.cellSize	v5-tooling.md§2	integer	studs	8–256, and N = columns × rows ≤ 65,536, with columns = ⌈max X / `cellSize`⌉ − ⌊min X / `cellSize`⌋ and rows likewise in Z, over the extents in studs of the place's `Workspace` parts (the grid starts at a multiple of `cellSize`, as the table format below requires; the runtime's `pvs` range, `[interest-rewind §10]`; else `configValueOutOfRange`)	32 (chosen: 1,024 cells on a 1,024-stud square map; a measured bake time or table size that a game can't afford changes it)
+pvs.samplesPerAxis	v5-tooling.md§2	integer	sample points per axis per cell	1–4	2 (chosen: a measured rate of pairs marked hidden that are visible would change it)
+pvs.output	v5-tooling.md§2	path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield)	—	must map under `ServerStorage` or `ServerScriptService` (else `outputPathMisplaced`)	required in each entry
+check.knownRemotes	v5-tooling.md§2	array of instance paths; `*` matches one path segment	—	—	`[]`
+check.minFreeFormCodes	v5-tooling.md§2	integer	codes per component	2–2^53	65,536 (chosen: below it every input of `v5.md` §3.4 and the measured demo inputs, above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]`; a schema whose claims or inputs fall on the other side changes it)
+check.minStagedNameBytes	v5-tooling.md§2	integer	B	1–64	4 (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate changes it)
+check.<code>	v5-tooling.md§2	`"off"` \	`"warn"` \	`"error"`	—
+output.manifest	v5-tooling.md§2	path	—	outside every folder the sourcemap maps into the place (else `outputPathMisplaced`)	`"build/lync-manifest.json"`
+output.report	v5-tooling.md§2	path	—	outside every folder the sourcemap maps into the place (else `outputPathMisplaced`)	`"build/lync-report.md"`
+weave.maxInlineSites	v5-tooling.md§5.7	integer	woven client sites per definition	0–65,535 (0: never inline)	2 (chosen: in the measured 20-definition mix, client Lync bytecode is 1.34× unwoven at 1 inlined site per definition, 1.64× at 2, 1.89× at 3; a measured phone load cost per KB would change it)
+weave.foldLiterals	v5-tooling.md§5.7	boolean	—	—	`true` (derived: no run-time cost; 85–165 ns less per literal call)
+weave.server	v5-tooling.md§5.7	`"off"` \	`"call"`	—	—
+weave.ids	v5-tooling.md§5.7	`"generic"` \	`"definition"` \	`"site"`	—
+weave.dropClosed	v5-tooling.md§5.7	boolean	—	—	`false` (derived: with `true`, code outside the build calling a closed definition raises at the caller instead of sending, so an unmodified client running such code breaks, and a declared trap no client code names loses its encoder, so a driver calling it sends nothing)
+weave.unpackHandlers	v5-tooling.md§5.7	boolean	—	—	`false` (derived: it is the one transform whose result the byte differential can't check)

@@ -34,6 +34,19 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   `probes/build/`). Design at draft 3.5. No milestone work without the author's go-ahead.
 - Security re-judgment in progress: the agents above find facts and designs; then an architect brings them
   together into draft 3.6; then a critic reviews it. Designing new mechanisms is research work, not the architect's.
+- Author direction: nothing is deferred. Items the docs push to milestone 7 or leave undecided get designed now.
+  No new agents beyond the five above; follow-ups go to an agent once it finishes its current task.
+- Queue (ids → follow-up, from `research/security-refusals.md`):
+  - `ae7b1fdfd83468cdb` (generation): D1 `interest` (per-viewer relevancy, build-time PVS bake, owner-only and
+    visibility classes U8, relevancy telemetry U13), D2 `rewind`, U15 streaming guidance.
+  - `ade0c89512482ae96` (tooling): D3 `checks` (`within`, `monotonic`, `maxTotal`, `:claim()`, U12 lint), D4
+    `telemetry` (feature streams, `:aim()`, Roblox terms on off-platform data), U5 `foreignRemotes`, U6 core hash
+    and manifest drift.
+  - `ad69e26579bcfc07b` (prover): U1 captured `FireServer`, U2 tag rounds and per-build rotation amounts, U7
+    `debug.info` caller attestation in the tag: cost and what each survives.
+  - `a6d6d1502e0ad3c95` (codecs): U9 `Lync.derive`, U10 reaction floor on `:reactsTo`, U11 decoy-adjacent facts,
+    U14 server-issued challenges, U3, U4 — after its current task.
+  - `adb93333f6c4648cf` (scout): any deferred items its full read adds, routed to the agent above that fits.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the

@@ -385,3 +385,42 @@ over `strike`, `announce`, `fighters` and a `{ t.int(0, 100) }` record, 200 draw
 | 16 | Instance count from `#instances` | accepted | The count comes from the chunk header; the chunk addresses the frame's array by offset, so nil entries are safe. |
 | 17 | No channel for `unresolved` | changed | Beyond a channel: a caller-provided `misses` list, which allocates only when a row is unresolved. The server reports the existing fact `unresolved`, its `value` now defined. A client counts `unresolvedMessages` and raises no fact, since streaming makes nil instances routine and the server is trusted (`v5.md` §7.3, §7.4). |
 | 18 | Rule 9 checked per run | accepted | `beginChunk`/`endChunk` around rows with prefixes (`m1-plan.md` §6.2). |
+
+---
+
+# Draft 3.2 to 3.3
+
+2026-10-15. Applies `.data/docs/reviews/m1-code.md` (`[review-m1 …]`), a review of the milestone 1 code. The code
+fixes are listed in `m1-plan.md` §7, with an owning unit and a proof each. `m2-plan.md` §3.1 now starts from them.
+
+**Count:** 24 findings. Accepted 23, changed 1, rejected 0.
+
+| Id | Title | Outcome | Reason |
+|---|---|---|---|
+| B1 | A few bytes decode into millions of tables | changed | The review's fixes are adopted, but the per-frame budget is not proportional to frame bytes. Honest constant columns reach about 21,845 elements per byte, so a byte ratio either admits the attack or refuses honest data; the v5 attempt's "1024 B per frame byte + 16 KiB" fails the same way. Instead: `zeroWidthElement` and `elementsTooMany` (W ≤ 65,536) at declaration, and a per-player server bucket `inbound.elements` (20,000/s, burst 65,536) whose allowance is charged before allocation (rule 10, reported as `overBudget`). Clients don't enforce it, since the server is trusted and its compression must not be refused (`v5.md` §3.4, §4.8, §6.1, §7.3, §7.5; `m1-plan.md` A1, B1, C5). |
+| M1 | `t.number` top code decodes to a value its encoder refuses | accepted | Decode clamps to `max` (§3.3). A clamp is the general fix: it covers every case where float stepping overshoots `max`, and the bottom code is already exact. |
+| M2 | `t.direction` accepts non-canonical fold-edge codes | accepted | Canonical = fixed point of E, checked by the decoder (rule 6), as for rotation. Closed-form edge rules were not used, because they would be a second definition of the same set. §3.3's "idempotent by construction" now names exactly which quantizers are, and which are checked. |
+| M3 | Optionals give second encodings and dropped pairs | accepted | `optionalPlacement` refuses an optional directly inside an optional, as an array element or as a map value. The review's alternative for arrays (count = the highest present index) was not chosen: it needs a scan of the table's keys on every encode, and Luau arrays with holes have no defined length. |
+| M4 | Instance lists sized with `#list` | accepted | §6.2's `Chunk` with an explicit count, now (C1). |
+| M5 | Encoding without `collect` produces refused bytes | accepted | The encode is read-only on the list, with a count fixed at collection; an unlisted instance is `internal` (C2). |
+| M6 | Partial rollback | accepted | One `pcall` on the public encode entry points, which reset bits, tail and instance entries (C4). The cost is about 20–30 ns per encode on success, paid at `fire` time; leaving the writer poisoned was not chosen, because one throwing `t.convert` would corrupt every later message of the flush. |
+| M7 | EG decode 84–105 ns against 35–58 | accepted | A batched reader (A4); §4.3 now cites the measured 53 ns interpreted and 22 ns native. |
+| M8 | `Run.collect` encodes twice | accepted | A visitor over instance leaves only (C3). |
+| M9 | Idempotence tests missing | accepted | Exhaustive quantizer specs (A5) and a canonical re-encode property on single rows (C8). |
+| m1 | Rotation decode builds every `CFrame` twice | accepted | C9. |
+| m2 | Two calls per field | accepted | A7. |
+| m3 | Loose IR types | accepted | B2, C11. |
+| m4 | A `_value` field infers as a codec | accepted | The brand becomes `["[Lync] value"]` (§3.3, B3). |
+| m5 | Duplicated helpers | accepted | `src/wire/limits.luau` (A6), used by B4 and C13. |
+| m6 | Open dispatch chains | accepted | `never` closures and `Complete` tables (B5, C10). |
+| m7 | `show` prints 17 digits | accepted | B6. |
+| m8 | Prefix without separator | accepted | B7. |
+| m9 | Size and bench checks rest on models | accepted | B11, A9, C9. |
+| t1 | Single-caller parameters | accepted | A8, B4, C12. |
+| t2 | `Fail` drops `got nil` | accepted | `Fail.NONE` (B8); §7.1's grammar has the clause unconditionally. |
+| t3 | Two conventions for options a kind doesn't take | accepted | nil throughout (B9); serialization is unchanged, and G6 holds. |
+| t4 | Public types leak `any`; `Target` incomplete | accepted | `CustomSpec` uses `Bits` types (B10); `Target`'s groups belong to milestone 2's unit F. |
+| t5 | §4.8 names only mode and k as free | accepted | Base and width are named too (§4.8). |
+
+**Routing.** Unit E is editing `src/diag/` for milestone 2, so B's diag changes touch only `fail.luau`. The three
+new codes are appended to `codes.luau` and `docs/codes/` after E's changes land.

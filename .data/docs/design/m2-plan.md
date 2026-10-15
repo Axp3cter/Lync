@@ -68,9 +68,12 @@ ones. New files are listed with their public interface; private helpers are the 
 
 ### 3.1 Milestone 1 interfaces adopted first
 
-`m1-plan.md` §6.2 is applied to `src/codec/` before anything uses it: the `root` parameter, `Rows.collect`,
-`Chunk` with `beginChunk`/`endChunk`, `misses`, and `Run.decode` taking a `Chunk`. Milestone 1's golden tests and
-properties must still pass unchanged.
+`m1-plan.md` §6.2 is applied to `src/codec/` by milestone 1's fix list (`m1-plan.md` §7, C1), together with the
+decode element budget: `Bits.Reader.budget` and rule 10 (A1, C5). Milestone 2 code starts from that state.
+- **The server sets the budget.** Unit F gives each inbound frame's reader `budget = ⌊tokens⌋` of the player's
+  `inbound.elements` bucket, then takes the elements used, whether the frame was accepted or refused. A rule 10
+  refusal is the fact `overBudget` with evidence `elements` (`v5.md` §4.8, §6.1, §7.3).
+- **Clients** leave the budget at its default, `math.huge`.
 
 ### 3.2 `diag` additions
 
@@ -80,7 +83,8 @@ properties must still pass unchanged.
 - faults: `validatorError`, `validatorYielded`, `schemaMismatch` (client), `decoderRaised`;
 - caller: `wrongSide`, `configureRange`, `unknownTarget`.
 
-Each fact's page fixes its evidence field order, which `Facts.record` uses.
+Each fact's page fixes its evidence field order, which `Facts.record` uses. `overBudget`'s order is `lane`, `bytes`,
+`instances`, `elements` (`v5.md` draft 3.3).
 
 `src/diag/facts.luau` (requires `./codes`, `../host/host`)
 ```luau
@@ -286,7 +290,7 @@ default runtime, created on first use with `Roblox.host(side)` (side from `RunSe
 
 | Unit | Owns | Must not touch | Starts |
 |---|---|---|---|
-| **D: frames and wire integrity** | `src/codec/*` (the §3.1 changes only), `src/wire/bits.luau` (`Bits.copy` only), `src/transport/*`, `src/session/{permutation,replay}.luau`, `test/transport/*`, `test/session/{permutation,replay}.spec.luau`, `test/golden/*` | `src/diag`, `src/host`, `src/sched`, `src/api`, other `src/session` files | at once; §3.1 first |
+| **D: frames and wire integrity** | `src/wire/bits.luau` (`Bits.copy` only), `src/transport/*`, `src/session/{permutation,replay}.luau`, `test/transport/*`, `test/session/{permutation,replay}.spec.luau`, `test/golden/*` | `src/codec`, `src/diag`, `src/host`, `src/sched`, `src/api`, other `src/session` files | at once; after `m1-plan.md` §7 C1 for anything that decodes chunks |
 | **E: seams and diagnostics runtime** | `src/host/*`, `src/diag/*`, `docs/codes/*`, `src/session/buckets.luau`, `test/support/{world,net}.luau`, `test/host/*`, `test/diag/*` | `src/codec`, `src/wire`, `src/transport`, `src/sched`, `src/api` | at once, in parallel with D |
 | **F: session, scheduler and API** | the remaining `src/session/*`, `src/sched/*`, `src/api/*`, `src/init.luau`, `test/session/*` (not D's), `test/sched/*`, `test/api/*`, `test/world/*`, `test/types/views*` | the other units' files | when D's transport and E's facts, host types and world pass their own tests |
 
@@ -294,7 +298,6 @@ The interfaces of §2–§3 are fixed. A unit that needs one changed asks the le
 E builds `world.luau` against `Runtime.new`'s signature with a stub endpoint, and F plugs in the real runtime.
 
 **Unit D: done when**
-- The §3.1 interfaces are in, and every milestone 1 test passes.
 - G5 and G7 (`v5.md` §4.10) and the new G10 and G11 (§5 here) are reproduced byte for byte by `Header`, `Toc`,
   `Control`, `Frame` and `Tag`. The helpers in `test/support/frame.luau` are kept only where a test still needs
   one.
@@ -418,6 +421,7 @@ produce its fact for that player, with the listed evidence, and nothing else:
 | 8 random frames in a row | `desync` (`rekeySent` 1), then `REKEY`; the honest stream resumes on the new key |
 | replaying a captured unreliable frame, inside and beyond the window | `replayed` (`seen` 1, then 0) |
 | more frames or bytes than the inbound buckets | `overBudget` |
+| a tagged frame of constant column blocks whose counts promise more elements than the element allowance (`[review-m1 B1]`'s payloads) | `overBudget` (`elements`), refused before allocation |
 | tagged frames with: non-zero padding; a count past its maximum; an unknown id; a reliable event, ask or control chunk in an unreliable frame; an unreliable event in a reliable frame; a namespace never welcomed; `REKEY-ACK` with no `REKEY`; `BEACON` with beacons off; an unreferenced or repeated instance entry; a reliable frame over 16,384 B | `malformed` (rules 4, 2, 7, 7, 7, 7, 7, 7, 9, 8) |
 | a frame whose decode raises (a stubbed decoder, test-only) | `decoderRaised`, plus one native report |
 | an ack naming a state seq never sent | `impossibleAck` |

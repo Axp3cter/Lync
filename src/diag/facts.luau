@@ -160,6 +160,7 @@ local function isUnderCaps(s: State, sender: Sender): boolean
 end
 
 local function emit(s: State, fact: Fact)
+	table.freeze(fact)
 	for _, observer in s.observers do
 		s.host.spawn(observer.notify, fact)
 	end
@@ -176,7 +177,7 @@ local function evidenceOf(
 	local values = { e1, e2, e3, e4, e5 }
 	local evidence: { [string]: number } = {}
 	for i, name in Codes.evidence[reason] do
-		evidence[name] = values[i]
+		evidence[name] = values[i] :: number
 	end
 	table.freeze(evidence)
 
@@ -207,7 +208,6 @@ local function deliver(
 		last = last,
 		evidence = evidence,
 	}
-	table.freeze(fact)
 	emit(s, fact)
 end
 
@@ -286,7 +286,6 @@ local function closeCapWindow(s: State, sender: Sender)
 	}
 	table.clear(sender.suppressedByReason)
 	sender.suppressedCount = 0
-	table.freeze(fact)
 	emit(s, fact)
 end
 

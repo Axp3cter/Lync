@@ -608,3 +608,61 @@ Run.decode(r: Bits.Reader, codec: Ir.Codec, count: number, chunk: Chunk, misses:
   - On a client, it counts `unresolvedMessages` (`v5.md` §7.3, §7.4).
 - **Rows with prefixes.** Request and answer chunks call `beginChunk` once, write or read each row's prefix and
   then `Rows.read`, and call `endChunk` once. `Run.decode` callers do the same around it.
+
+## 7. Fix list from the milestone 1 code review
+
+From `.data/docs/reviews/m1-code.md` (cited `[review-m1 …]`), and `v5.md` draft 3.3. Each item names its unit
+(A wire, B plan and diag, C codec), the exact change, and the test that proves it. The order inside a unit is the
+order to work in. A6 and A1 come first, since B and C use them, and B2 comes before C11.
+
+**Unit E is editing `src/diag/` for milestone 2** (`codes.luau`, `facts.luau`, `counters.luau`, `console.luau`). B's
+changes there touch only `fail.luau`. New codes are appended to `codes.luau` and `docs/codes/` after E's changes land,
+as entries only, without reordering.
+
+### 7.1 Unit A (wire)
+
+| # | Finding | Change | Proof |
+|---|---|---|---|
+| A6 | m5 | New `src/wire/limits.luau`: `Limits.INT_MIN = -2^52`, `Limits.INT_MAX = 2^52 - 1`, `Limits.f32Spacing(m: number): number` (2^(⌊log2 m⌋ − 23)), `Limits.isInteger(x): boolean` (`math.floor(x) == x` and finite), `Limits.isFinite(x): boolean` (`math.isfinite`). It is the one copy, and B and C switch to it (B4, C13). | `test/wire/limits.spec.luau`: boundaries, ±0, NaN, ±inf |
+| A1 | B1 | `Bits.Reader` gains `budget: number`, the decode element allowance: `Bits.reader(buf, startByte?, stopByte?, budget?)`, defaulting to `math.huge`. New `Bits.charge(r: Reader, n: number): boolean` subtracts n and returns whether the budget is still ≥ 0. | A spec: charging past the budget returns false; the default never runs out |
+| A2 | M1 | `Quant.unnumber(q, min, step, max)` returns `math.min(min + q * step, max)`. | Exhaustive idempotence (A5) over every code of the `number_steps` cases and `(0, 0.3, 0.1)`, `(0, 0.7, 0.1)`, `(0, 2.3, 0.1)` |
+| A3 | M2 | New `Quant.directionIsCanonical(qx: number, qy: number, bits: number): boolean`: true when `Quant.direction(Quant.undirection(qx, qy, bits))` returns `(qx, qy)`. | Exhaustive at 8 bits: exactly 511 codes are not canonical, and every encoder output is; 10^5 random codes at 16 bits |
+| A5 | M9 | Exhaustive idempotence specs in `test/wire/quant.spec.luau`: every `t.color3` code; every `t.direction` code at 8 bits (with A3); every code of a declared grid for `t.number` and `t.angle` (the `number_steps` cases, `math.rad(1)`, `2π/1000`, `2π/256`). | The specs themselves; each fails on the code before A2 or A3 |
+| A4 | M7 | `Ints.readEgMany(r: Reader, k: number, count: number, out: { number }, first: number, maxCode: number): number` (rule) keeps the cursor in a local, inlines the 12-bit lookup and the remainder while 32 bits remain, and falls back to `Ints.readEg` otherwise. `Column.read`'s Exp-Golomb and sparse paths use it. | A property: equal to per-value `readEg` on random columns, k 0–15, including the fallback; `bench/column.bench.luau` shows EG-0 decode ≤ 60 ns interpreted |
+| A7 | m2 | `Bits.write` holds `write`'s body; `windowAt`'s fast path is inlined into the read path. | Existing tests; `p7_bits_calls` numbers re-run and recorded |
+| A8 | t1 | Remove the unused `_lo` parameter from `Column.write` and `Column.choose`, and update callers in C's files in the same change. | Type check |
+| A9 | m9 | Re-run `bench/column.bench.luau` at HEAD after A4 and A7, and record `bench/results/<sha>.json`. | The file |
+
+### 7.2 Unit B (plan and diag)
+
+| # | Finding | Change | Proof |
+|---|---|---|---|
+| B1 | B1, M3 | The planner computes each definition's worst-case element count W (`v5.md` §4.8) into new IR fields `dataMaxElements` and `replyMaxElements`, and refuses: W > 65,536 (`elementsTooMany`); an array or map whose element is 0 bits at its worst (`zeroWidthElement`); an optional directly inside an optional, as an array element or as a map value (`optionalPlacement`). Registry pages for the three codes are added after E's changes. | `expectThrow` for each code at the constructor's line; `t.array(t.array({}, 65535), 7996)` gives `zeroWidthElement`; `t.array(t.bool(), 65535)` plans with W = 65,536; W is hand-checked for `chat`, `strike`, `announce` and `buy` |
+| B2 | m3 | `ir.luau` adds `RotationCodec`, `RecordCodec`, `MapCodec` and `CustomCodec` aliases, as `NumberCodec` was added, and types `cframe.rotation`, `Variant.record`, map keys and custom specs with them. | Type check on both solvers; C11 removes the workarounds |
+| B3 | m4 | The codec brand becomes `read ["[Lync] value"]: T` in `types.luau`. | A new typing proof: a record with a field named `_value` infers its record type; the six proofs still pass |
+| B4 | m5, t1 | `dsl.luau`, `planner.luau` and `init.luau` use `Limits` (A6). `IS_KEY_KIND` and the `isRecord`, `toFinite` and `toName` helpers keep one copy, in `dsl.luau`, which the planner requires. `init.luau`'s single-use `atOf` is inlined, and the repeated `kind == "vector3"` test is removed. | Existing tests |
+| B5 | m6 | Kind dispatch in `planner.luau` and `serialize.luau` ends in `local unhandled: never = codec`; `CODEC_TYPE` is `Complete<{ read [Kind]: number }>`. | Type check; a test codec kind missing from a table is a type error, demonstrated in `test/types/` |
+| B6 | m7 | `Fail.show` keeps `%d` for integers and uses `tostring` for other numbers. Registry examples are regenerated, so `numberStep` shows `got 0.35`. | The registry spec compares examples byte for byte |
+| B7 | m8 | Lync's source prefix keeps its separator: `"^(.-[%./\\])diag[%./\\]fail$"`. | `p14`'s cases as a spec: `…Packages.LyncNet.client` is not skipped |
+| B8 | t2 | `Fail` takes `Fail.NONE` for "no value"; `nil` renders `got nil`. | A missing required field reads `… must be a boolean, got nil` |
+| B9 | t3 | `Ir.Definition` holds nil for every option its kind doesn't take (`timeout`, `maxRecords` and `priority` included). Serialization is unchanged. | G6 bytes unchanged; planner specs |
+| B10 | t4 | `CustomSpec.encode` and `decode` take `Bits.Writer` and `Bits.Reader`. `Target`'s groups, `all` and `except` are milestone 2 (unit F). | Type check |
+| B11 | m9 | `test/plan/sizes.spec.luau` encodes 20,000 random messages per definition with `Run.encode` and checks bits and tail against `dataMaxBits` and `dataMaxTail`, and decoded element counts against W. | The spec |
+
+### 7.3 Unit C (codec)
+
+| # | Finding | Change | Proof |
+|---|---|---|---|
+| C1 | M4 | Adopt `m1-plan.md` §6.2 now: `Chunk = { list, offset, count, … }` with `Rows.beginChunk` and `Rows.endChunk`, `Run.decode` taking a `Chunk`, `misses`, the `root` parameter, and `Rows.collect`. Widths, bounds and rule 9 use `chunk.count`, never `#list`. Milestone 2's unit D no longer does this (`m2-plan.md` §3.1). | `p4`'s four lists as a spec: built by constructor and by assignment, with holes and a trailing nil, all decode alike; every golden test passes unchanged |
+| C2 | M5 | Encoding is read-only on the instance list. `Instances` gains `count`, fixed when collection ends, and widths use it. An instance not already listed raises `internal`. | `p11` as a spec: encoding without `Rows.collect`/`Run.collect` raises `internal` and writes nothing |
+| C3 | M8 | `Run.collect` and `Rows.collect` walk the codec for `instance` leaves only (`record`, `optional`, `array`, `map`, `union`, `convert`, `cframe` and `instance`), and write nothing. | A property: the same list as the previous collect on random values; `p8` shows collect ≤ 10% of collect plus encode |
+| C4 | M6 | `Rows.encodeValue` and `Run.encode` mark the writer (bit, tail count, tail bytes) and the instance list's length on entry, and run the encode in one `pcall`. On a raise or a refusal they reset the writer, truncate the list, remove the new entries from `instances.index`, and then rethrow the raise unchanged, or raise `valueRefused`. | `p12`'s cases: a raising `t.convert` leaves `w.bit` unchanged; a refused message removes its instances, so an honest second message passes rule 9; the cost of the `pcall` on success is recorded |
+| C5 | B1 | Every array, map and run count is charged with `Bits.charge` before `table.create` or `newRecord`; when the budget runs out the frame is refused with rule 10. | `p2`'s payloads with `budget = 65,536`: rule 10 in under 1 ms, with no tables beyond the budget; with the default budget they decode as before (the client case) |
+| C6 | M1 | Rows and columns call `Quant.unnumber` with `max`. | A codec-level idempotence property for `t.number` and `t.vector3` at the bounds |
+| C7 | M2 | Rows and columns refuse a non-canonical direction code with rule 6, using `Quant.directionIsCanonical`. | A mutation spec: `(0, 0)` at 8 bits gives rule 6; `(255, 255)` decodes |
+| C8 | M9 | The mutation property also checks that a single-row payload the decoder accepts re-encodes to the same bytes (`p5`'s canonical check). It is single rows only, because column mode, k, base and width are free. | The property, with seeds 1–5 at 30,000 cases, and zero second encodings after B1 |
+| C9 | m1 | `Leaves.canonicalRotation(...)` returns the checked `CFrame` or nil, so an accepted rotation is decoded once. | Rotation specs; `test/codec/rotation.bench.luau` recorded at HEAD |
+| C10 | m6 | `rows.luau` and `columns.luau` close their kind dispatch with `local unhandled: never = codec`. | Type check |
+| C11 | m3 | Remove `rotationBitsOf`, `fieldsOf`, the inline cast and the two narrowing `assert`s, using B2's aliases. | Type check; existing tests |
+| C12 | t1 | `Leaves.rotationCodes` loses its `maxSteps` test seam; the test uses a test-local copy. | Rotation specs |
+| C13 | m5 | `leaves.luau` uses `Limits` (A6): one f32-spacing function, `math.isfinite`, `math.floor`. | Existing tests |

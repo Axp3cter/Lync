@@ -773,12 +773,14 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
 
 `Net.fighters:rewind({ … })` on the server view; nothing enters the schema hash. Option errors as §8.2; a `fields`
 entry that is not a top-level field is `fieldPathUnknown`, and one whose codec has no fixed single-row width
-(strings, buffers, arrays, maps, optionals, unions) or that has a visibility class (§9: its value differs per
-viewer) is `fieldCodecUnsupported`.
+(strings, buffers, arrays, maps, optionals, unions, `t.int()`, Roblox enums, instances or custom codecs: each has a
+variable width in `v5.md` §3.3, the set `:newest()` and §15.2 exclude; an instance's code is also an index into one
+frame's list, `v5.md` §4.2, so a slot would hold a position in a frame long gone, not an instance) or that has a
+visibility class (§9: its value differs per viewer) is `fieldCodecUnsupported`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `fields` | array of top-level field path strings, typed as a union of the record's fields | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
+| `fields` | array of top-level field path strings, typed as the union of the record's fields it accepts (`v5.md` §3.4) | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
 | `maxRewindSeconds` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it) | K = ⌈(`maxRewindSeconds` + 0.25) × `stateRate`⌉ + 2 slots per record; L = K + 17 map entries per player |
 | `mode` | `"received" \| "everyTick"` | — | — | `"received"` (derived: equal to `"everyTick"` when the viewer got every row, and `"everyTick"` is off by p99 1.33 studs once a third of rows are deferred, §12.4; the bracket it used is returned, §12.5) | received: ⌈K / 8⌉ B per (viewer, record) and 8.3–8.8 ns native per acked row |
 | `interpolationDelaySeconds` | number (real) or nil | s | 0–1 | nil: the player's server-chosen D (§11.1) | none |

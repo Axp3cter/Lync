@@ -63,6 +63,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a99200becb647e121` | critic (Opus) | reviews `v5-checks.md` at draft 3.6 | `reviews/v5-3.6-checks.md` | running |
 | `abe3c9a625869cc7b` | critic (Opus) | reviews `v5.md` §4 at draft 3.6; recomputes every golden frame independently | `reviews/v5-3.6-wire.md`, `probes/review-3.6-wire/` | running |
 | `a91f8b2be20a8e336` | researcher (Opus) | `strings`: downstream string tables and upstream references (the gap R33 left) | `research/strings.md`, `probes/strings/` | running |
+| `a2488a2c51dba205d` | critic (Opus) | reviews `v5-integrity.md` at draft 3.6 | `reviews/v5-3.6-integrity.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

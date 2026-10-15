@@ -417,8 +417,8 @@ Known causes on an unmodified client (`server-facts/derive_determinism.out` unle
    at gravity 196.2 studs/s²: 3.27 studs off at 30 FPS, 1.64 at 60, 0.68 at 144, 0.41 at 240. Fix: one shared
    function.
 3. **Inputs quantized after the client used them:** at 300 studs of flight, the 0.2369° of `t.direction(10)` is 1.24
-   studs (derived). Fix: compute the outcome from the values as they will decode (`:round`, if the core-api unit
-   adopts it; §11).
+   studs (derived). Fix: compute the outcome from the values as they will decode, with the client view's
+   `Net.<def>:round(data)` (`v5.md` §3.5).
 4. **Server state that differs from the client's,** when `fn` reads it: latency (§2.4 cause 1), parts not streamed
    in, moving geometry.
 5. **Inputs that weren't sent:** the client's own clock, a random draw, local state. Fix: put them in the message
@@ -987,12 +987,12 @@ Net.nextRound:connect(function(layout) end)
 
 - **`sealed`** is a definition option of server-sent reliable events, in the shared schema and hashed (the client
   must decrypt). On a client-sent event, a request, a collection or the unreliable lane it is the declaration error
-  `optionPlacement` (`v5.md` §3.4); a `data` reaching a `t.instance` is `sealedInstance`, since instances travel in the frame's
-  instance array in the clear (`v5.md` §4.2) and can't be sealed.
+  `optionPlacement` (`v5.md` §3.4); a `data` reaching a `t.instance` is `sealedInstance`, since instances travel in
+  the frame's instance array in the clear (`v5.md` §4.2) and can't be sealed.
 - **`fire`** on a sealed definition returns a `Seal` with `reveal()` and `discard()`; calling either on a seal
   already revealed or discarded throws `sealSettled`. Generated path: `fire`'s return type is `Seal` for sealed
   definitions; runtime path: a type function on the presence of `sealed` in the definition's table type, under the
-  new solver (unverified, milestone 3's typing proofs, §11). roblox-ts: `fire(this: void, target, data): Seal`.
+  new solver (unverified until milestone 1's typing proofs, `v5.md` §3.5, §11). roblox-ts: `fire(this: void, target, data): Seal`.
 - **Client types** are unchanged: `connect` handlers receive the decoded value at the reveal.
 
 ### 9.3 Wire

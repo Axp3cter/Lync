@@ -57,6 +57,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a05178a23ec42b0d6` | scout (Opus) | build inventory from `f1fbfd7`, the m1/m2 plans and reviews: module map, harness, lessons, reuse, unit sizing | `design/build-inventory.md` | running |
 | `a1d104f77efce5b36` | critic (Opus) | one naming convention for every code, fact, counter, option and API name; full rename table; collisions and splits; message rule | `reviews/v5-3.6-naming.md` | running |
 | `aab233d5982329bfd` | critic (Opus) | scope audit: every mechanism, option, default, generated artefact and fact split into what Lync does exactly and what the developer owns | `reviews/v5-3.6-scope.md` | running |
+| `ad8d484d0a90740af` | critic (Opus) | reviews `v5-collections.md` at draft 3.6 (correctness sequences, simplifications, scope, precision, fidelity, deferrals) | `reviews/v5-3.6-collections.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

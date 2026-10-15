@@ -395,15 +395,21 @@ the only regenerate-on-edit path.
   "Prepare release", hashing `Source` with `EncodingService:ComputeStringHash(source, Enum.HashAlgorithm.Sha256)`
   (security None, thread-safe) `[build-checks §3.4]`; its speed in Studio is unmeasured (§8).
 - **Generation.** It regenerates on schema edit only when the configuration lives in `ServerStorage.Lync.Config`;
-  with a filesystem `lync.toml`, `lync watch` is the one writer. Shards are written with `UpdateSourceAsync` inside
+  with a filesystem `lync.toml`, `lync watch` is the one writer. Edit-time regeneration builds at the identity
+  build (`buildId` 0, `rotationSeed` 0) and rewrites `ServerStorage.Lync.Manifest`; it runs `editedShard`
+  (`regenerated` 0) first and overwrites nothing while it holds. Shards are written with `UpdateSourceAsync` inside
   one `ChangeHistoryService` recording `[security-tooling §3]`.
-- **"Prepare release"** draws a new `buildId` and `rotationSeed` from `HttpService:GenerateGUID()` (security None),
-  regenerates, and writes the manifest to `ServerStorage.Lync.Manifest`. The GUID's entropy source is undocumented,
-  so Studio-only builds have a public-quality `rotationSeed` until it is checked (§8), with the consequences
-  `v5-integrity.md` §2 states for a public seed `[generation-methods M16]`.
+- **"Prepare release"** draws a new pair from two `HttpService:GenerateGUID(false)` calls (security None):
+  dropping each GUID's dashes, its version digit (the 13th hex digit) and its variant digit (the 17th), it takes
+  `rotationSeed` from the first 16 remaining digits of the first GUID and `buildId` from the first 8 remaining of the
+  second, so no bit is shared between the two. It regenerates and writes the manifest, with `rotation.entropy`
+  `"guid"`. The GUID's entropy source is undocumented, so Studio-only builds have a public-quality `rotationSeed`
+  until it is checked (§8), with the consequences `v5-integrity.md` §2 states for a public seed
+  `[generation-methods M16]`.
 - **Play-test walk.** When the plugin runs in the play-test server DataModel, it walks `game:GetDescendants()` once
-  `ReplicatedStorage.Lync.Reliable` exists and reports each foreign remote with `runtime` 1, the only view of remotes
-  that helpers create at run time (Cmdr, legacy chat) `[build-checks §1.3]`. That plugin code runs in that DataModel
+  `ReplicatedStorage.Lync.Reliable` exists, then follows `game.DescendantAdded` for the three remote classes until
+  the play test ends, and reports each foreign remote with `runtime` 1: the only view of remotes that helpers create
+  at run time (Cmdr, legacy chat) `[build-checks §1.3]`. That plugin code runs in that DataModel
   is unverified (§8); where it doesn't, the walk doesn't run.
 - **"Bake"** runs each `[[pvs]]` bake on the edit DataModel's parts, on demand, never on the edit path: a 1,024-cell
   bake takes 0.17–2.16 s native on the CLI `[interest-rewind §4.2]`.
@@ -416,23 +422,28 @@ the only regenerate-on-edit path.
 
 1. `lync build`: one run, so one pair for every namespace and both sides (`v5-integrity.md` §2).
 2. `rojo build -o game.rbxl`.
-3. Woven projects: `lync weave game.rbxl -o release.rbxl` (§5).
-4. `lync check --place release.rbxl --format github`: fails on errors, stale shards and type tests.
-5. Open Cloud Place Publishing, `versionType=Published` (30 requests per minute), which returns the version.
-6. `lync check --published <universe>/<place>/<version>`.
-7. `restartServers` (30 per minute), which retires servers still on the previous build `[security-tooling §4]`.
+3. `lync check --place game.rbxl --format github`: fails on errors. The scans read this unwoven place.
+4. Woven projects: `lync weave game.rbxl -o release.rbxl` (§5). Call the place to publish P (`release.rbxl`, else
+   `game.rbxl`).
+5. Open Cloud Place Publishing of P, `versionType=Published` (30 requests per minute), which returns the version.
+6. `lync check --published <universe>/<place>/<version> --place P`.
+7. `restartServers` (30 per minute), only when step 6 exits 0; it retires servers still on the previous build
+   `[security-tooling §4]`.
 
-CI keeps each release's manifest as an artefact. Woven places are written only by CI and never edited in Team
-Create: publishing woven output into a place a team edits puts woven scripts in their editor
-`[codecs-in-scripts §2]`. Studio-only projects stay on shards.
+Servers started after step 5 already run the new version, so step 6 reports and doesn't gate them: a failure is
+answered by publishing the previous release again. CI keeps each release's manifest as an artefact. Woven places
+are written only by CI and never edited in Team Create: publishing woven output into a place a team edits puts
+woven scripts in their editor `[codecs-in-scripts §2]`. Studio-only projects stay on shards.
 
 **`--published`** creates one Luau Execution task on the versioned endpoint
 (`…/places/{p}/versions/{v}/luau-execution-session-tasks`; 5 task creations per minute per key owner, at most 5 min
-per task, return values at most 4 MB). The task reads the `Source` of each shard part, `wovenScripts` entry and
-`scripts` entry by path, hashes it with `EncodingService:ComputeStringHash` after CRLF-to-LF replacement, and returns
-`{ path, digest }` as JSON; the CLI compares them with the manifest. The API key, with scope
+per task, return values at most 4 MB). The task walks the published version's client scan set, every shard and
+variant part and every `wovenScripts` path, reads each `Source`, hashes it with `EncodingService:ComputeStringHash`
+after CRLF-to-LF replacement, and returns `{ path, digest, buildId? }` as JSON, `buildId` read from a part's body
+constant. The CLI walks the `--place` file the same way and compares path by path, each path's scripts as a
+multiset of digests; parts and woven copies are also compared with the manifest. The API key, with scope
 `universe.place.luau-execution-session:write`, comes from the environment variable `LYNC_OPEN_CLOUD_KEY`, never from
-`lync.toml`. Cost: zero at run time and on the wire; one task and one SHA-256 per listed script per check
+`lync.toml`. Cost: zero at run time and on the wire; one task and one SHA-256 per walked script per check
 `[refusals-rejudged-1 R11]`.
 
 - **Decision: what `--published` does when the task can't read `Source`.**

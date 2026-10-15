@@ -345,16 +345,20 @@ end
 
 return {
 	["an array of Column.MIN_ROWS or more elements is bounded by its column block"] = function()
+		local manyCount = Column.MIN_ROWS + 7
+		local fewCount = Column.MIN_ROWS - 1
 		local ir = Lync.schema("sizes", {
-			ints = Lync.event({ from = "server", data = t.array(t.int(0, 100), 10) }),
-			few = Lync.event({ from = "server", data = t.array(t.int(0, 100), 3) }),
+			many = Lync.event({ from = "server", data = t.array(t.int(0, 100), manyCount) }),
+			few = Lync.event({ from = "server", data = t.array(t.int(0, 100), fewCount) }),
 		}).ir
 
-		-- Count u(ceil(log2 11)) = 4; one column: mode 2 + base EG-0 of 100 (13) + width 6, then
-		-- 10 x u(bit length of 100) = 10 x 7.
-		Check.expectEqual(ir.byName.ints.dataMaxBits, 4 + 2 + 13 + 6 + 10 * 7)
-		-- Below Column.MIN_ROWS elements: count 2 bits and 3 single rows of 7 bits.
-		Check.expectEqual(ir.byName.few.dataMaxBits, 2 + 3 * 7)
+		-- Each element is u(ceil(log2 101)) = 7 bits in a single row. As a column: mode 2 bits,
+		-- base EG-0 of 100 (z = 6, so 13 bits) and width 6 bits, then 7 bits per element. The
+		-- count is u(ceil(log2(max + 1))) bits.
+		local manyCountBits = Ints.width(manyCount + 1)
+		local fewCountBits = Ints.width(fewCount + 1)
+		Check.expectEqual(ir.byName.many.dataMaxBits, manyCountBits + 2 + 13 + 6 + manyCount * 7)
+		Check.expectEqual(ir.byName.few.dataMaxBits, fewCountBits + fewCount * 7)
 	end,
 
 	["random values at the maxima never pass the planner's worst case"] = function()

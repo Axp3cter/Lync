@@ -1,0 +1,12 @@
+Log.* raise/print sites outside Log.luau:
+81
+  of which Log.refuse (error(msg, 0), no position):
+43
+  of which Log.error (record + error(msg, 0)):
+16
+Expect.throws call sites:
+193
+Expect.throws closed with a prose substring (end, "..."):
+127
+other prose matches on messages (string.find on message/thrown):
+11

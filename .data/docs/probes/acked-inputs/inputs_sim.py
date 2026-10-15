@@ -102,9 +102,16 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
             start = max(0, k - C + 1)
         else:
             start = max(0, a_cl + 1, k - C + 1)
-        ref = mode != "fixed" and start == a_cl + 1 and a_cl >= 0
+        if mode == "ackref":
+            ref = a_cl >= 0 and k - a_cl <= 64
+            refidx = a_cl
+        else:
+            ref = mode != "fixed" and start == a_cl + 1 and a_cl >= 0
+            refidx = start - 1
         b = 3 + eg0(k - start) + 12 + 1
-        b += delta_bits(vals[start - 1], vals[start]) if ref else ABS
+        if mode == "ackref" and ref:
+            b += eg0(start - 1 - refidx)
+        b += delta_bits(vals[refidx], vals[start]) if ref else ABS
         for i in range(start + 1, k + 1):
             b += delta_bits(vals[i - 1], vals[i])
         up_bits += b
@@ -153,17 +160,18 @@ if __name__ == "__main__":
             for J in (0, 1, 2, 3, 5):
                 row = []
                 for label, C, mode in (("R1", 1, "fixed"), ("R2", 2, "fixed"), (f"fixJ+1", J + 1, "fixed"),
-                                       ("ack,C=J+1", J + 1, "ack"), ("ack,C=32", 32, "ack")) + \
+                                       ("ack,C=J+1", J + 1, "ack"), ("ack,C=32", 32, "ack"),
+                                       ("ack+ref,C=J+1", J + 1, "ackref")) + \
                         ((("flush,C=J+1", J + 1, "flush"),) if rate == 20 else ()):
                     r = run(rate, J, C, mode, net)
                     row.append(f"{label} {r['miss'] * 100:6.3f}% {r['Bps']:5.0f}B/s {r['copies']:4.0f}c/s")
-                lat = run(rate, J, J + 1, "ack", net)
+                lat = run(rate, J, J + 1, "ackref", net)
                 print(f"{net[0]}{int(net[1] * 100):<3d} rate {rate:2d} J={J} lat {lat['lat'] * 1000:5.1f}ms "
                       f"ackdown {lat['down']:3.0f}B/s | " + " | ".join(row))
     print("jitter 0.05 s, bern 5%:")
     for rate in (20, 60):
         for J in (1, 2, 3, 5):
-            r = run(rate, J, J + 1, "ack", ("bern", 0.05), jitter=0.05)
+            r = run(rate, J, J + 1, "ackref", ("bern", 0.05), jitter=0.05)
             f = run(rate, J, J + 1, "fixed", ("bern", 0.05), jitter=0.05)
             print(f"  rate {rate} J={J}: ack {r['miss'] * 100:6.3f}% (late {r['late'] * 100:.3f}%) "
                   f"{r['Bps']:4.0f}B/s; fixed {f['miss'] * 100:6.3f}% {f['Bps']:4.0f}B/s; lat {r['lat'] * 1000:.1f}ms")

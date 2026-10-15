@@ -31,7 +31,7 @@ models are `probes/compression/traffic.py`, unchanged (same seeds and lengths as
 - [x] 4. What it protects and what it doesn't
 - [x] 5. Facts, counters, codes and options
 - [x] 6. Text for `v5.md` §4 and the golden vectors
-- [ ] Implications
+- [x] Implications
 
 ---
 
@@ -446,11 +446,38 @@ Proposed wording for the wire unit; every value is derived above or a stated pro
 | S2 | up reliable, `rcv` 1: `taunt:fire({ to = "Zippy" })`, a reference to 17 | `04 48 8f 00 1e 04 77 de` |
 | S3 | the same with `to = "Nobody"`, held by no entry: a literal | `04 48 33 4e 6f 62 6f 64 79 6d 34 fd 6e` |
 
-S1 (23 B) against S1b (4 B) is a definition's one-time cost against its steady state; S1 inline would be 20 B.
+S1 (23 B) against S1b (4 B) is two definitions' one-time cost against the steady state; the same message inline is
+19 B (derived: 10 bits of header and toc, 11 bits of run, 15 tail bytes).
 
 - **Needs elsewhere** (one line each): `v5.md` §3.3 methods table gains `:intern(table)` (§5.4); §3.4 gains
   `Lync.strings` as a schema entry and its option rows; §5.3 states that held sends of interned fields are encoded
   with literals (§1.3); §7.1 registers `internPlacement`, `internTable`, `stringsUnused`; §7.4 gains §5.2's counters
   and the `<namespace>.<table>` qualifier; `v5-extensions.md`'s pointer to `v5.md` §4 then holds; `v5-checks.md` §9
-  gains that a sealed event's `data` takes no `:intern`; `v5-tooling.md` `report.md` may list each table's caps and
-  `stringLiteralsFull` sizing advice (tooling's decision).
+  gains that a sealed event's `data` takes no `:intern`; `v5-tooling.md`'s `report.md` lists each table's `maxEntries`,
+  `maxBytes`, w and m.
+
+## Implications
+
+1. Specify `strings` in `v5.md` §4 now, as §6 words it: nothing in it waits on a measurement (§1–§6).
+2. Declare tables in the schema (`Lync.strings({ maxEntries, maxBytes })`) and fields with `t.string(n):intern(t)`;
+   every server-sent value of a marked field enters while there is room, so what interns is the developer's (§1.1).
+3. Own tables per (server, namespace, table), with definitions only in each viewer's strings chunk, never in
+   shared chunks: encode-once and `FireAllClients` hold, and no co-recipient's holdings leak (§1.2 option (c)).
+4. Draw entry ids uniformly among free ids: a client then learns nothing from ids; it costs column bits only, +94 B
+   per 121-add catch-up at `maxEntries` 4096 and +26 bits at 64 (§3.1, §4.2).
+5. Put strings chunks in namespace 0's state segment: zero bytes for frames and namespaces without definitions, and
+   no golden vector changes (§1.3, §6).
+6. Refuse `:intern` in unreliable server events and sealed events at declaration (`internPlacement`), rather than
+   sending silent literals or adding an `rcv`-dependent known cause (§1.3, §1.1).
+7. Reclaim an entry when no connected player holds it, and evict nothing held: exact without messages, and it bounds
+   a long server by its connected players (§1.4).
+8. Make `maxEntries` required and `maxBytes` default to `maxEntries` × m (derived); no run-time option (§5.4).
+9. Adopt R33 form A as `entry:u1 id:u(w)`, with the field implying the table and rule 2 for an id not sent to the
+   player; its known causes stay none (§2, §5.1).
+10. Add no new fact; add §5.2's seven counters, of which `stringLiteralsFull` sizes the caps (§5).
+11. Tell developers in the docs to intern names, item ids and labels, and never client-relayed text: relayed text is
+    the one way a client reaches table contents, bounded by the caps at worst inline + 1 bit per value (§4.1).
+12. Expect, on the models, 41–45 B/s saved per viewer on the shooter's kill feed, 17–19 B/s on the mmo, 55–58 B/s on
+    the tycoon (w 12 to the small w), at under 1 µs/s of server CPU with the holder-count skip and 64 B per live entry (§3).
+13. Have a milestone build reproduce S0–S3 before they count as verified, and measure the leave scan and Roblox's
+    `Random:NextInteger` there (§3.2, §6).

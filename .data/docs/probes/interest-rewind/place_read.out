@@ -1,0 +1,23 @@
+Wall (Part): Size=40, 20, 2 CanCollide=true Transparency=0
+  CFrame.Position=0, 10, 0
+  Shape=Enum.PartType.Block
+Glass (Part): Size=10, 10, 1 CanCollide=true Transparency=0.6000000238418579
+  CFrame.Position=0, 0, 0
+  Shape=Enum.PartType.Block
+Ball (Part): Size=6, 6, 6 CanCollide=true Transparency=0
+  CFrame.Position=0, 0, 0
+  Shape=Enum.PartType.Ball
+Rock (MeshPart): Size=12, 8, 12 CanCollide=true Transparency=0
+  CFrame.Position=0, 0, 0
+  MeshId=error: runtime error: Failed to get property 'MeshId' - missing default value
+  PhysicalConfigData=string
+Arch (UnionOperation): Size=16, 12, 4 CanCollide=true Transparency=0
+  CFrame.Position=0, 0, 0
+  AssetId=error: runtime error: Failed to get property 'AssetId' - missing default value
+  MeshData=string
+Terrain (Terrain): Size=2044, 252, 2044 CanCollide=true Transparency=0
+  CFrame.Position=0, 0, 0
+Terrain instance: Terrain
+Terrain.SmoothGrid: string
+Terrain:ReadVoxels: error: runtime error: ReadVoxels is not a valid member of Terrain
+Workspace:Raycast: error: runtime error: Raycast is not a valid member of Workspace

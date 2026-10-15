@@ -1,0 +1,40 @@
+
+== engine model: zstd level 1, threshold 100 B, raw fallback True
+model     frames  bits B  tail B |   plain  mask bits  mask tail   mask all
+tycoon10     597   183.4    12.8 |      196.0  196.0   +0%  196.2   +0%  196.2   +0%
+shooter20    597   173.2     4.6 |      177.8  177.8   +0%  177.8   +0%  177.8   +0%
+shooter60    597   100.3     1.3 |      101.5  101.5   +0%  101.5   +0%  101.5   +0%
+mmo20        597    94.2     1.2 |       95.5   95.5   +0%   95.5   +0%   95.5   +0%
+
+== engine model: zstd level 1, threshold 100 B, raw fallback False
+model     frames  bits B  tail B |   plain  mask bits  mask tail   mask all
+tycoon10     597   183.4    12.8 |      204.6  204.6   +0%  205.2   +0%  205.2   +0%
+shooter20    597   173.2     4.6 |      186.8  186.8   +0%  186.8   +0%  186.8   +0%
+shooter60    597   100.3     1.3 |      106.0  106.0   +0%  106.0   +0%  106.0   +0%
+mmo20        597    94.2     1.2 |       99.2   99.2   +0%   99.2   +0%   99.2   +0%
+
+== engine model: zstd level 3, threshold 100 B, raw fallback True
+model     frames  bits B  tail B |   plain  mask bits  mask tail   mask all
+tycoon10     597   183.4    12.8 |      196.0  196.0   +0%  196.2   +0%  196.2   +0%
+shooter20    597   173.2     4.6 |      177.8  177.8   +0%  177.8   +0%  177.8   +0%
+shooter60    597   100.3     1.3 |      101.5  101.5   +0%  101.5   +0%  101.5   +0%
+mmo20        597    94.2     1.2 |       95.5   95.5   +0%   95.5   +0%   95.5   +0%
+
+== engine model: zstd level 3, threshold 100 B, raw fallback False
+model     frames  bits B  tail B |   plain  mask bits  mask tail   mask all
+tycoon10     597   183.4    12.8 |      204.6  204.6   +0%  205.2   +0%  205.2   +0%
+shooter20    597   173.2     4.6 |      186.8  186.8   +0%  186.8   +0%  186.8   +0%
+shooter60    597   100.3     1.3 |      106.0  106.0   +0%  106.0   +0%  106.0   +0%
+mmo20        597    94.2     1.2 |       99.2   99.2   +0%   99.2   +0%   99.2   +0%
+
+== large tails behind one shooter60 bit section (zstd 3, fallback)
+item/player text   bits  80 B tail  600 B raw   680 plain   508  mask bits   506 (-0.4%)  mask tail   680 (+33.9%)
+player names       bits  80 B tail 3240 B raw  3320 plain   398  mask bits   402 (+1.0%)  mask tail  3320 (+734.2%)
+
+== zmask.py's synthetic draft-wire frames, masked whole (zstd 3)
+inputs      256: zstd-only plain   188 masked   266 (+41%) | with fallback plain   188 masked   256 (+36%)
+inputs     1024: zstd-only plain   625 masked  1034 (+65%) | with fallback plain   625 masked  1024 (+64%)
+inputs     4096: zstd-only plain  2458 masked  4106 (+67%) | with fallback plain  2458 masked  4096 (+67%)
+chatlike    256: zstd-only plain   134 masked   266 (+99%) | with fallback plain   134 masked   256 (+91%)
+chatlike   1024: zstd-only plain   356 masked  1034 (+190%) | with fallback plain   356 masked  1024 (+188%)
+chatlike   4096: zstd-only plain  1117 masked  4106 (+268%) | with fallback plain  1117 masked  4096 (+267%)

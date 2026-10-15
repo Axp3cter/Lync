@@ -20,8 +20,8 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | Id | Role | Task and context held | Output | Status |
 |---|---|---|---|---|
 | `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | done (59 items: R1–R40 refused, D1–D4 deferred, U1–U15 undecided; full read; no fallback); free for follow-ups |
-| `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/` | done (no fallback); now on D1, D2, U8, U13, U15 → `research/interest-rewind.md` |
-| `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | running |
+| `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/`; now `research/generation-methods.md` | facts done (no fallback), judged too generic by the author; **now the methods agent**: concrete generation methods in Lync's own pipeline |
+| `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | first write **after a model fallback** (whole file); redoing with every claim re-verified |
 | `a7526dc18c6060de5` | architect | started on codecs in game scripts; stopped, since the architect integrates rather than designs | none | stopped; do not reuse |
 | `a6d6d1502e0ad3c95` | researcher | codecs spread into game scripts: transform of the built place, typed API, call-site discovery, source maps, interaction with seed/rotation/tag; dual-purpose forms; re-derives the 5.0x bytecode figure | `research/codecs-in-scripts.md`, `probes/codecs-in-scripts/` | running |
 | `ad69e26579bcfc07b` | prover | re-measures every performance figure used to refuse or narrow a security measure, plus generated cheaper forms | `probes/security-costs/RESULTS.md` | running |
@@ -37,9 +37,9 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 - Author direction: nothing is deferred. Items the docs push to milestone 7 or leave undecided get designed now.
   No new agents beyond the five above; follow-ups go to an agent once it finishes its current task.
 - Queue (ids → follow-up, from `research/security-refusals.md`):
-  - `ae7b1fdfd83468cdb` (generation): D1 `interest` (per-viewer relevancy, build-time PVS bake, owner-only and
-    visibility classes U8, relevancy telemetry U13), D2 `rewind`, U15 streaming guidance.
-  - `ade0c89512482ae96` (tooling): D3 `checks` (`within`, `monotonic`, `maxTotal`, `:claim()`, U12 lint), D4
+  - `ade0c89512482ae96` (tooling): after its redo, D1 `interest` (per-viewer relevancy, build-time PVS bake,
+    visibility classes U8, relevancy facts U13), D2 `rewind`, U15 streaming guidance, the PlayerGui variant timing
+    rule (partial work in `probes/interest-rewind/` from the generation researcher); then D3 `checks` (`within`, `monotonic`, `maxTotal`, `:claim()`, U12 lint), D4
     `telemetry` (feature streams, `:aim()`, Roblox terms on off-platform data), U5 `foreignRemotes`, U6 core hash
     and manifest drift.
   - `ad69e26579bcfc07b` (prover): U1 captured `FireServer`, U2 tag rounds and per-build rotation amounts, U7

@@ -5,7 +5,7 @@ design*, and which of those techniques can a networking library that owns the sc
 and per-player timing build in, generated from the schema with little developer effort?
 
 Framing: defensive. Every section describes what the defender builds, what it protects, how robust it is, and
-what it costs. Client-side tamper detection is covered in `client-security.md` (scratchpad) and is not repeated
+what it costs. Client-side tamper detection is covered in `client-security.md` and is not repeated
 here.
 
 Labels: **verified** (I ran it or read the primary source), **documented** (the vendor's own docs or blog),

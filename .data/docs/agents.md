@@ -41,6 +41,16 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a1cbd31181cf78f54` | builder | milestone 2 unit F: session (handshake, tag, acks, requests, inbound pipeline), scheduler (flushing, ticks, budgets), API views, simulated-world honest and attack suites | `src/session/` (rest), `src/sched/`, `src/api/`, `src/init.luau`, `test/{session,sched,api,world}/` | **stopped** mid-build; all built code removed at the author's request (last state: commit `f1fbfd7`) |
 | `a743c6cfb1140eef3` | critic | simplification audit: judging words (e.g. "anomaly"), presets and tiers, options missing unit/range/default/cost, facts without exact triggers, vague quantities, vague refusal reasons; design, plans, `src`, `docs/codes` | `reviews/simplifications.md` | done (26 findings: 12 major, 10 minor, 4 taste; six root causes); fixes await the author |
 
+## Session 01HcPgd9HVKeKd9zYowMmdmt (2026-10-15)
+
+Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security decision with generation (the generated path: per-build, per-player shards) taken into account; re-derive runtime-path limits and costs instead of trusting them; build on the real tooling APIs.
+
+| Id | Role | Task and context held | Output | Status |
+|---|---|---|---|---|
+| `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | running |
+| `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/` | running |
+| `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | running |
+
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
 ## Next

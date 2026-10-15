@@ -1,6 +1,6 @@
 // Typing probe for the roblox-ts declarations of the U11/U14 server API (stand-in Player; no @rbxts/types).
 // Lines marked EXPECT must each produce one error under tsc --strict; nothing else may.
-// Run: tsc --ignoreConfig --noEmit --strict --target es2020 types.ts
+// Run: tsc --ignoreConfig --noEmit --strict --target es2020 --lib es2020 types.ts
 interface Player { readonly UserId: number }
 declare const player: Player;
 
@@ -53,3 +53,4 @@ for (const key of fighters.held(seen)) {
 }
 fighters.reportInteraction(player, "k", 1); // EXPECT
 declare function print(...args: unknown[]): void;
+export {};

@@ -37,6 +37,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | append to `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a10703eb41a07ff5b` | researcher (Opus) | unit 6c: consolidates `generation-methods.md` (M7 vs M13, Summary M1–M16, one Implications list, checklist); no new methods or numbers | `research/generation-methods.md` | done on Opus 5.5: 15 edits, no number changed; M1–M16 consistent, one Summary and one Implications list; retired |
 | `a476c0bb5505e0898` | researcher (Opus) | unit 9: U3 beacon window rules, U4 `roundTrip`/`ping` on request results | `research/clock-facts.md`, `probes/clock-facts/` | running |
+| `aa6e643bca7187c05` | scout (Opus) | change list for draft 3.6: every proposal by target file and section, conflicts, cross-unit questions, R items with no proposal, pending measurements; placeholders for the four briefs still running | `design/v5-3.6-inputs.md` | running; reuse it to fill the placeholders |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -66,6 +67,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   7. ~~`server facts A`~~ done.
   8. `server facts B`: U11, U14 → `research/decoy-challenge-facts.md` (on `a3a196cb42882d70c`).
   9. `clock and timing`: U3, U4 → `research/clock-facts.md` (on `a476c0bb5505e0898`).
+  9b. Scout: `design/v5-3.6-inputs.md`, the change list the architect units read (on `aa6e643bca7187c05`).
   10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
       tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and
       the `v5-changes.md` section.

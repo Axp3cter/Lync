@@ -97,7 +97,7 @@ for _, n in { 64, 300 } do
 			sink += #a
 		end
 	end)
-	bench(string.format("(c) held iteration, two arrays, %d + 1, per key", n), N // 10, function(m)
+	bench(string.format("(c) game loop over held keys, %d + 1, whole loop", n), N // 10, function(m)
 		for _ = 1, m do
 			for _, k in real do
 				sink += k

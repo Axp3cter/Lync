@@ -15,4 +15,4 @@ B=$1; A=$2; P=$(dirname "$0")
 		"$A" --solver=$s --mode=strict --formatter=plain "$P/types.luau" 2>&1 || true
 	done
 } > "$P/types.out"
-{ echo "== types.ts, tsc $(tsc --version) --strict"; tsc --ignoreConfig --noEmit --strict --target es2020 "$P/types.ts" 2>&1 || true; } > "$P/types_ts.out"
+{ echo "== types.ts, tsc $(tsc --version) --strict"; tsc --ignoreConfig --noEmit --strict --target es2020 --lib es2020 "$P/types.ts" 2>&1 || true; } > "$P/types_ts.out"

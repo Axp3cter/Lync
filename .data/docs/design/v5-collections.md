@@ -381,7 +381,7 @@ applies from the next state tick; a second call replaces the options from the ti
 naming fields), so a wrong name is a type error; untyped, a path naming no top-level field throws
 `fieldPathUnknown` and one of another codec `fieldCodecUnsupported`. A `pvs` that is neither a string nor a
 `buffer` throws `callOptionWrongType`; one whose bytes break `v5-tooling.md` §2's table format throws
-`callOptionOutOfRange`, its message naming the first rule broken, checked in this order: a string that is not
+`callOptionMalformed`, its message naming the first rule broken, checked in this order: a string that is not
 padded standard base64 (length a multiple of 4, characters `A–Z a–z 0–9 + /`, at most two trailing `=`), checked
 before decoding so `Base64Decode`'s handling of other input never matters (unverified); fewer than 14 bytes;
 `cellSize` outside 8–256; `originX` or `originZ` not a multiple of `cellSize`; `columns` or `rows` 0, or N above
@@ -465,7 +465,7 @@ reads, once at the call.
 - **The bake is an approximation with errors in both directions** (`v5-tooling.md` §2): a pair is marked hidden iff
   every segment between its cells' sample points, at one eye height, crosses an opaque collidable box `[interest-rewind
   §4.1–§4.2]`. Meshes, unions, terrain and moving parts never occlude, which errs toward visible; an opening narrower
-  than the sample spacing (`cellSize` / `raysPerAxis`), and any view over a wall from a height, can be marked hidden,
+  than the sample spacing (`cellSize` / `samplesPerAxis`), and any view over a wall from a height, can be marked hidden,
   which errs toward withholding: a 2-stud opening between two 32-stud cells at 2 × 2 samples is marked hidden while the
   line through it is clear (`probes/scope-3.6/pvs_gap.luau`). A 1,024-cell table is 128 KiB, baked in 0.17–2.16 s native
   on the measured synthetic map; 4,096 cells take 2 MiB `[interest-rewind §4.2]`. A base64 string is decoded with
@@ -483,9 +483,10 @@ reads, once at the call.
   - *Choice: per (viewer table cell, interest cell).* At the `interest` call Lync derives from the table's N × N bits
     an *enter* table of N × N_c bits, enter(u, c) = OR of PVS(u, s) over the table cells s inside interest cell c,
     and keeps cell chunks. Each is an exact function of the given table. It requires R to be an integer multiple of
-    the table's `cellSize` and the table's grid origin (`originX`, `originZ`, `v5-tooling.md` §2) to be multiples
-    of it, else the call throws `callOptionOutOfRange`. Cells outside the table's extent are visible. Derivation cost
-    at the call: N × N_c × (R / `cellSize`)² bit reads, about 10^6 for a 1,024-cell table at R / `cellSize` = 8.
+    the table's `cellSize` (else the call throws `callOptionOutOfRange`) and the table's grid origin (`originX`,
+    `originZ`, `v5-tooling.md` §2) to be multiples of it (a rule of the table format: `callOptionMalformed`, §8.2).
+    Cells outside the table's extent are visible. Derivation cost at the call: N × N_c × (R / `cellSize`)² bit reads,
+    about 10^6 for a 1,024-cell table at R / `cellSize` = 8.
 - **Decision: hysteresis for the table.**
   - *Problem.* Without it, a viewer standing on a table-cell boundary, between a cell from which interest cell c is
     visible and one from which it is hidden, removes and re-adds every record of c at each crossing (10–30 B each,
@@ -628,7 +629,7 @@ every client where that enemy is, whatever interest withholds.
 server-sent twin of `fields[path]:refers(collection)` (`v5-integrity.md` §8).
 - The handle's field has the collection's key type, or `t.optional` of it: another type is a type error on both
   solvers and in TypeScript (`v5.md` §3.4); untyped, a field whose codec is neither the collection's `key` codec nor
-  `t.optional` of it, by `v5.md` §3.3's codec equality, throws `fieldCodecUnsupported`, and an unknown path
+  `t.optional` of it, by `v5.md` §3.3's codec equality, throws `keyCodecMismatch` (as `refers` does), and an unknown path
   `fieldPathUnknown` at the `fields` read.
 - At flush, each message's target is intersected with the viewers that hold the record its field names (in the
   record's audience and, with interest, a member), taken after the flush's adds and before its removes, the order of
@@ -824,7 +825,7 @@ visibility class (§9: its value differs per viewer) is `fieldCodecUnsupported`.
   per player:
   - t_r, when f was decoded;
   - s, f's ack (else the newest ack held from p), T_s its state tick, t_s its send time. With no state frame ever
-    received from Lync, s is none: `ackSeq` is −1 and every `rewound` gives `"tickOutOfRange"`;
+    received from Lync, s is none: `ackSeq` is −1 and every `rewound` gives `"ackMissing"`;
   - ping = `p:GetNetworkPing()` at f's decode (round trip, "isolated network latency … doesn't involve data
     deserialization or processing", documented); rtt = clamp(ackRtt, ping, ping +
     `rewind.roundTripSlackSeconds`), ackRtt and jitter from §11.1. `rewind.roundTripSlackSeconds` is a
@@ -914,7 +915,8 @@ end)
   fromTick, toTick }`: the declared fields (`:newest()` fields at P by `mode`, reliable fields at R), this
   collection's P, window and D (s), and the two sample ticks the value was taken between (equal when it was held or
   extrapolated from one). Or `{ ok: false, error }`, the one error model of `v5.md` §3.5:
-  - `"tickOutOfRange"`: P or R is older than the ring, or the frame had no ack;
+  - `"tickOutOfRange"`: P or R is older than the ring;
+  - `"ackMissing"`: the frame had no ack and none was held from the player (`ackSeq` −1, §12.3);
   - `"recordMissing"`: the record existed but the viewer didn't hold it at H (no add counted ≤ H without a later
     remove ≤ H), or in `"received"` mode had no sample of it in the ring. On an unmodified client: the game also
     shows the entity through Workspace or another remote, or H was estimated (`receivedExact` false) during a
@@ -1079,7 +1081,8 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 | `streamCodecUnsupported`, `streamBytesExceeded` | declaration | a stream's `data` without a fixed single-row width; a namespace's streams over 960 B at 33 copies together (§15.2) |
 | `playoutDepthMissing` | caller | `connect` on a stream with no depth set (§15.2) |
 | `visibilityModifierMisplaced` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
-| `fieldCodecUnsupported` | caller (as `fieldPathUnknown`, which a `fields` read and a path option already throw) | on the untyped path, a field whose codec the call doesn't take: `interest`'s `position`, a handle given to `about` (codec equality with the collection's key, `v5.md` §3.3), an entry of `rewind`'s `fields` (§8.2, §10, §12.2) |
+| `fieldCodecUnsupported` | caller (as `fieldPathUnknown`, which a `fields` read and a path option already throw) | on the untyped path, a field whose codec the call doesn't take: `interest`'s `position`, an entry of `rewind`'s `fields` (§8.2, §12.2) |
+| `keyCodecMismatch` | caller | on the untyped path, a handle given to `about` whose codec is neither the collection's key codec nor `t.optional` of it, by `v5.md` §3.3's codec equality (§10) |
 | `perceptionMisplaced` | caller | `Lync.perception(player)` outside a synchronous call for a message from `player` (§12.5) |
 | `releaseFolderWrongType` | caller | `Lync.release` with a `folder` that is not a `Folder` (§13.2) |
 | `releaseFolderMisplaced` | caller | `Lync.release` with a `Folder` not under `ServerStorage`, a second call included (§13.2) |
@@ -1091,10 +1094,11 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 | `bindingRaised`, `bindingYielded` | fault | an `owner`, `team` or `gate` binding throws, or yields (§8.7, §9) |
 | `ownerBindingMissing`, `teamBindingMissing`, `gateBindingMissing` | fault | a class modifier with no binding at the first state tick with a record (§9) |
 
-Option errors are `v5.md` §7.1's run-time set, `callOptionUnknown`, `callOptionMissing`, `callOptionOutOfRange` and
-`callOptionWrongType`, with `fieldPathUnknown` for a path naming no field. One fact is added,
-`inputCopyMismatch` (§15.6); interest, classes, scoping and `acked` are the server's own behaviour, and rewind can't
-know a message is a claim. Malformed: §5.1's acked-row rule (client) and §15.6's stream rules 2 and 3 (server).
+Option errors are `v5.md` §7.1's run-time set, `callOptionUnknown`, `callOptionMissing`, `callOptionOutOfRange`,
+`callOptionWrongType` and `callOptionMalformed` (`interest`'s `pvs`, §8.2), with `fieldPathUnknown` for a path naming
+no field. One fact is added, `inputCopyMismatch` (§15.6); interest, classes, scoping and `acked` are the server's own
+behaviour, and rewind can't know a message is a claim. Malformed: §5.1's acked-row rule (client) and §15.6's stream
+rules 2 and 3 (server).
 
 **Counters** (`Lync.counters`, `v5.md` §7.4; `<field>.<namespace>.<collection>`, and per viewer with `player`). The
 last column states what the count equals; causes go on the registry pages:
@@ -1134,7 +1138,7 @@ three per stream.
 | rendering clock | ±4% slew; dead band one client flush; snap above 0.25 s | chosen: Mirror's 2–4% `[state-sync §6.3]`, unmeasured here (§11.2) |
 | rewind history | max(2 s, `maxRewindSeconds` + 0.25 s) | the slot reuse delay, or the window plus the extrapolation cap |
 
-Developer options introduced here, beside the declarations' own tables (`acked`, §5.1; stream `depth`, §15.2):
+Developer options introduced here, beside the declarations' own tables (`acked`, §5.1; stream `depthTicks`, §15.2):
 `state.maxPendingSeconds` (§7), `interpolation.minDelaySeconds` and `interpolation.jitterFraction` (§11.1),
 `rewind.roundTripSlackSeconds` (§12.3), all in `Lync.configure` (`v5.md` §7.5).
 
@@ -1168,13 +1172,13 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 - **Roles.** `:claim()` and `:input()` may mark leaves of a stream's `data`, as of any client-sent payload (`v5.md`
   §3.3, `v5-checks.md` §7.1); a claim leaf needs a verifier before `connect` (§15.4).
 - **Client:** `Net.move:set(value)` latches the value; `Net.move:stop()` ends sampling until the next `set`.
-- **Server view:** `Net.move:playout({ depth = J })` sets the depth for every player, `Net.move:playout({ depth = J,
-  player = p })` for one. `Net.move:connect(function(player, input, index) … end)` throws the caller error
-  `playoutDepthMissing` while no depth is set.
+- **Server view:** `Net.move:playout({ depthTicks = J })` sets the depth for every player,
+  `Net.move:playout({ depthTicks = J, player = p })` for one. `Net.move:connect(function(player, input, index) … end)`
+  throws the caller error `playoutDepthMissing` while no depth is set.
 
   | Option | Type | Unit | Range | Default | Cost |
   |---|---|---|---|---|---|
-  | `depth` | integer | state ticks | 0–31 | required: it trades J / `stateRate` of latency against late inputs on each player's jitter, and the acceptable miss rate is the game's (§15.6) | latency J / `stateRate` plus the arrival offset o; §15.7's memory; one `DEPTH` row (1–2 B) to the client per change |
+  | `depthTicks` | integer | state ticks | 0–31 | required: it trades J / `stateRate` of latency against late inputs on each player's jitter, and the acceptable miss rate is the game's (§15.6) | latency J / `stateRate` plus the arrival offset o; §15.7's memory; one `DEPTH` row (1–2 B) to the client per change |
   | `player` | `Player` or nil | — | — | nil: every player | none |
 
   Each change of a player's depth sends that client `DEPTH` (control type 4: definition id u(w), depth u5), which
@@ -1215,7 +1219,7 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 
 - **Receipt** (per player, per stream). `first` is extended to the value in [T_now − 2047, T_now + 2048], T_now the
   server's state tick at decode (`v5.md` §4.4's rule). Before allocating, the decoder counts the new indices of
-  [first, first + count − 1] (neither received nor delivered) and charges that many elements to `inbound.elements`,
+  [first, first + count − 1] (neither received nor delivered) and charges that many elements to `inbound.decodeUnits`,
   each at the stream's decode-unit weight (`v5.md` §4.8; §15.7). It parses every copy, stores the new ones with
   their frame's perception (§12.5), and compares each redundant copy with the stored codes (§15.6).
 - **Offset.** For each index on its first arrival, s_i = arrival − θ_i, θ_i = epoch + i / `stateRate` on the server's
@@ -1232,7 +1236,7 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
   returns the perception kept with the index. A check's `"drop"` or a `false` validator drops the index (a jump in
   `index`). `monotonic` and `maxRate` key on the index and see no late frames; `maxRate`'s t is the playout time,
   which advances by exactly 1 / `stateRate` per index while o holds (`v5-checks.md`). `limit` doesn't apply to
-  streams: an unmodified client delivers one index per tick, and `inbound.elements` bounds a modified one's new
+  streams: an unmodified client delivers one index per tick, and `inbound.decodeUnits` bounds a modified one's new
   indices.
 - **Claims.** The claim requirement (`v5.md` §3.3) is not a step and runs once, at `connect`: `connect` on a stream
   whose `data` holds a claim leaf with neither a validator nor a check on that leaf throws `claimUnverified`; the
@@ -1300,13 +1304,13 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 |---|---|---|
 | the frame | `inbound.unreliable.frames` | chunks ride the flush's first unreliable frame; a stream adds a frame only for a client with no other unreliable traffic, at most one per flush step |
 | every bit, redundant copies included | `inbound.unreliable.bytes` | 98–768 B/s measured, at most 4.7% of 16,384 B/s |
-| each new index | `inbound.elements` | it becomes a delivered message (steps 5–7 and a handler call); charged from the header before allocation |
+| each new index | `inbound.decodeUnits` | it becomes a delivered message (steps 5–7 and a handler call); charged from the header before allocation |
 | each redundant copy | no bucket; a bounded parse term | parsed and compared, never allocated, at most 33 per stream per frame (rule 2): per player ≤ `inbound.unreliable.frames` × Σ_streams 33 × c_copy, 120 × 33 × 64.7 ns = 0.26 ms/s native for one 42-bit stream at the defaults, a term added to `v5.md` §7.5's bound |
 
 - Charging a redundant copy at its index's weight would price it at p(6) = 2,798 ns, 28 units (`v5.md` §7.5), for
   parse work measured at 28.5–64.7 ns, 43–98 times its cost. For the busy model's six-leaf `move6` at 60 Hz, 167–406
   copies a second (measured) would take 4,676–11,368 units a second, beside 1,680 for the 60 new indices:
-  6,356–13,048 against `inbound.elements`' 10,000 (provisional), so an unmodified client's frames would be refused at
+  6,356–13,048 against `inbound.decodeUnits`' 10,000 (provisional), so an unmodified client's frames would be refused at
   the high end `[acked-inputs §6.1, §7.1]`. The bounded parse term above prices copies at their measured cost
   instead.
 - **CPU.** Server parse per redundant copy 28.5–64.7 ns native (64.9–181 ns interpreted); at most 26 µs/s per

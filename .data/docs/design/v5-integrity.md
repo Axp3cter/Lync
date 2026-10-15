@@ -173,7 +173,7 @@ below `[security-tooling §9]` `[generation-methods §0]`.
   - **Join.** `HELLO` is untagged and comes from the shared shard, so it never waits for the variant. A namespace's
     join hold (`v5.md` §5.3) releases once its `WELCOME` has arrived and the variant is installed; until then
     reliable sends wait in the hold (a send past its byte or element cap is `joinHoldBytesExceeded` or
-    `joinHoldElementsExceeded`, `v5.md` §5.3), and an unreliable send after `WELCOME` but before the variant is
+    `joinHoldDecodeUnitsExceeded`, `v5.md` §5.3), and an unreliable send after `WELCOME` but before the variant is
     dropped as `unreliableHoldUnsupported` with `waitingFor` 2 (`v5.md` §7.3). Held sends stay encoded bytes: the tag is computed at send and
     layouts don't vary per player. `REPORT` and `BEACON` become pending only once frames can be tagged (§4, §6).
   - **`Lync.variantOf(player)`** (server) returns v, or 0 when there are no variants: the developer's input for
@@ -479,12 +479,12 @@ counter and a cost, so each has an option (below); whether such a fact informs a
     pass over 202 items 21.9–24.7 µs, so 22–25 µs of client CPU a second for 200 views. While an item fails, up to
     one forced `REPORT` a second, 20 bits of fields beyond an all-zero self-check (`selfCheckMismatches` 1,
     `selfCheckItem` 202, `selfCheckCase` 3; 2⌊log2(c + 1)⌋ + 1 bits each, `v5.md` §4.6). Shard: four values per
-    item. Option `report.checkOwnTables` (below); the frozen tables stay frozen either way.
+    item. Option `report.runSelfCheck` (below); the frozen tables stay frozen either way.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `report.checkListenerCaller` | boolean | — | — | `true` (chosen: the check costs at most 3.1 µs/s; `false` is the game's call that a fact one line removes in every game informs nothing) | as above; u1 in the connection's first `WELCOME` (`v5.md` §4.6) |
-| `report.checkOwnTables` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; u1 in the connection's first `WELCOME` (`v5.md` §4.6) |
+| `report.runSelfCheck` | boolean | — | — | `true` (chosen, as above, at 22–25 µs/s for 200 views) | as above; u1 in the connection's first `WELCOME` (`v5.md` §4.6) |
 
 - Downstream tags and a client replay window stay refused: a per-recipient tag ends `FireAllClients`, a shared key
   is held by every client that could inject, and a frame number would change the seed-0 golden frames to catch
@@ -752,11 +752,11 @@ fields of the server's request result (`v5.md` §5.2) for the same answer `[cloc
 
 ## 8. Decoys
 
-- **Declaration.** `Net.fighters:decoys(behaviour, { maxPerViewer, maxSlots })` on the server view of a collection.
-  Each state tick Lync calls `behaviour(viewer, tick)` for each viewer; it returns `{ [Key]: Record }` or nil, and
+- **Declaration.** `Net.fighters:decoys(behavior, { maxPerViewer, maxSlots })` on the server view of a collection.
+  Each state tick Lync calls `behavior(viewer, tick)` for each viewer; it returns `{ [Key]: Record }` or nil, and
   Lync diffs the result against the viewer's previous decoys and sends adds, updates and removes. Keys, values,
   timing and placement are the behaviour's, so the developer's: only the game knows where its own rendering and
-  logic never look `[generation-methods M15b]`. The behaviour runs by `v5.md` §6.1's callback rule: a throw is `decoyBehaviourRaised`, a yield `decoyBehaviourYielded` (native reports), and either leaves the
+  logic never look `[generation-methods M15b]`. The behaviour runs by `v5.md` §6.1's callback rule: a throw is `decoyBehaviorRaised`, a yield `decoyBehaviorYielded` (native reports), and either leaves the
   viewer's decoys as they were that tick.
 - **Checks on each returned decoy,** each failure reported natively with its code, the decoy not sent, or removed
   in that flush if already sent (its history kept, so `decoyKeyReceived` still matches it):
@@ -843,7 +843,7 @@ fields of the server's request result (`v5.md` §5.2) for the same answer `[cloc
   is the developer's: `format(token)` returns the value (a string for a string field, a buffer for a buffer
   field), which must contain the token exactly once and fit `maxBytes`. Lync calls it once per add, by
   `v5.md` §6.1's callback rule; a throw (`canaryFormatRaised`), a yield (`canaryFormatYielded`) or a value without
-  the token once or past `maxBytes` (`canaryValueRefused`) is reported natively and the bare token is used.
+  the token once or past `maxBytes` (`canaryFormatResultRefused`) is reported natively and the bare token is used.
   Without `format` the field holds the bare token, a format identical in every Lync game.
 - **Per viewer** (`canary.varyPerViewer` true) `[generation-methods M15c]`. The token's first 8 characters (bytes) are
   shared and unique per record per server; its last 4 differ per viewer and carry s = (j + p) mod M, where j is the

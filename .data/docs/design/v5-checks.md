@@ -201,8 +201,8 @@ has no use for.
   - **threw:** reported natively as `checkFunctionRaised`, with `debug.traceback(thread, message)`;
   - **yielded:** reported natively as `checkFunctionYielded`; whatever the function did before its yield stays done.
   The declared fallback is the drop: on a throw or a yield the message is dropped (an ask is answered `rejected`),
-  checks after it are not evaluated, occurrences already recorded stand, and the definition's `validatorsRaised` or
-  `validatorsYielded` counter rises by one (`v5.md` §7.4). Native reports are spaced per (code, definition) per
+  checks after it are not evaluated, occurrences already recorded stand, and the definition's `checkFunctionsRaised` or
+  `checkFunctionsYielded` counter rises by one (`v5.md` §7.4). Native reports are spaced per (code, definition) per
   `observe.windowSeconds`, and name the function (`arena.strike.fields.origin:within reference`). The pipeline
   thread never runs game code, so a yield costs nothing to the frame or the flush.
 - A function returning nil skips its check for that message, counted in `checksSkipped`; nothing is committed for
@@ -722,7 +722,7 @@ Net.strike:connect(onStrike)
 ### 7.4 The `freeFormRoleMissing` lint
 
 The rule, its evidence, severity option and channel are the `freeFormRoleMissing` row of `v5-tooling.md` §3.4: a
-free-form leaf (unbounded floats and integers, more codes per component than `check.freeFormCodes`, 65,536 by default,
+free-form leaf (unbounded floats and integers, more codes per component than `check.minFreeFormCodes`, 65,536 by default,
 strings, buffers, instances, custom codecs) in a client-sent payload with no role marker on itself or an enclosing
 codec. Its relation to this file:
 - **It is what makes the marker protect.** A flagged leaf gets `:claim()`, and then §7.2 requires a server
@@ -736,7 +736,7 @@ codec. Its relation to this file:
   a server-provided set. The rule is syntax; it can't recognise outcomes `[anticheat-design §3.2]`.
 - **Threshold: the developer's** (scope audit H1). The trigger is exact (a code count), but the number is a proxy
   for "could be a claim", and which fields need a marker is the developer's decision. So it is a `[check]` option,
-  `check.freeFormCodes` (integer, codes per component, 2–2^53, default 65,536, chosen: below it are every input of
+  `check.minFreeFormCodes` (integer, codes per component, 2–2^53, default 65,536, chosen: below it are every input of
   `v5.md` §3.4 and the demo inputs, 255-code sticks, enums and slot indices; above it ids, currency up to 10^6 and
   fine positions; a measured count of false positives and misses over real schemas would change it; cost none at
   run time). The row and the option are `v5-tooling.md`'s.
@@ -761,7 +761,7 @@ and computes nothing about them.
   `fields` are path strings, typed as unions of the paths it accepts (`v5.md` §3.4). Declared at any time; applies
   to frames decoded after the call.
 
-### 8.2 Streams and their entries
+### 8.2 Rings and their entries
 
 Each declaration keeps one ring per player of `maxEntries` entries; one ring per definition, so a definition names its
 ring (a second `aim` or `series`, on the definition or any of its fields, throws `telemetryDuplicate`).
@@ -783,15 +783,15 @@ ring (a second `aim` or `series`, on the definition or any of its fields, throws
 
 | Bytes | Field | Meaning |
 |---|---|---|
-| 0–3 | `ms` u32 | ⌊`os.clock()` × 1000⌋ mod 2^32 when Lync received the frame (server arrival, never client time, R20) |
-| 4–7 | `key` u32 | the frame key (§3.1) mod 2^32 |
+| 0–3 | `clockMilliseconds` u32 | ⌊`os.clock()` × 1000⌋ mod 2^32 when Lync received the frame (server arrival, never client time, R20) |
+| 4–7 | `frameKey` u32 | the frame key (§3.1) mod 2^32 |
 | 8–11 | aim: `yaw` u16, `pitch` u16; scalar: f32 | aim and scalar series |
 | 8–19 | three f32 | vector series |
 
-Entry sizes: timing 8 B, aim 12 B, scalar 12 B, vector 20 B. The research's layout had u16 `ms` and `key`
-`[checks-telemetry T1]`; with them, a ring of a definition sent less often than once per second spans more than the
+Entry sizes: timing 8 B, aim 12 B, scalar 12 B, vector 20 B. The research's layout had u16 `clockMilliseconds` and
+`frameKey` `[checks-telemetry T1]`; with them, a ring of a definition sent less often than once per second spans more than the
 65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact while a ring
-spans less than 24.8 days (2^31 ms, the reach of the signed 32-bit differences of §8.4; `key` wraps after 414 days at
+spans less than 24.8 days (2^31 ms, the reach of the signed 32-bit differences of §8.4; `frameKey` wraps after 414 days at
 120 frames/s), for 4 B more per entry.
 
 **Decision: one entry per frame.** A frame's messages share one arrival time, so Lync samples the last delivered
@@ -807,7 +807,7 @@ that pass step 6 and whose definition has a handler at step 7, with the values g
 with no handler (`messagesUnhandled`) is not sampled, though checks commit on it (§1.4). Dropped messages are not
 sampled: each drop is already a fact or a counter (`limitExceeded`, §1.5's check facts, `validatorsReturnedFalse`), and
 sampling them would make a second record of one event. It runs in the pipeline loop, not in a handler thread, so a
-yielding handler can't delay it. `ms` and `key` are read once per frame.
+yielding handler can't delay it. `clockMilliseconds` and `frameKey` are read once per frame.
 
 ### 8.4 Atoms
 
@@ -819,21 +819,22 @@ the definition is delivered, with a window of another definition's stream around
    `os.clock()` + `afterSeconds`. With no free slot it takes nothing and counts `atomsSkipped`; it never evicts. With no
    connection it takes nothing.
 2. **Complete**, once per flush, where fact windows are swept (`v5.md` §7.3). For each due atom, Lync binary-searches
-   the `series` ring for the first entry whose `ms` is no older than the trigger's `ms` − 1000 × `beforeSeconds` (u32
+   the `series` ring for the first entry whose `clockMilliseconds` is no older than the trigger's `clockMilliseconds`
+   − 1000 × `beforeSeconds` (u32
    differences, exact by §8.2), and copies it and every newer entry into the player's batch buffer.
 3. **Hand off** (§8.5).
 
-**Atom format, version 1:** `serverTime` f64 (`GetServerTimeNow()` at the trigger frame), `ms` u32 and `key` u32 of the
-trigger frame, `n` u16 (entries copied; at most `maxEntries`, 1024), `flags` u8, the field values as f64 in declaration
-order, then n entries. Size = 19 + 8 · F + n · E, with F the field values and E the entry size: 591 B for 4 values
-(`origin` x, y, z and `target`) and 45 aim entries. **Flags** record what happened to the copy and the message, each
-with an exact condition:
+**Atom format, version 1:** `serverTime` f64 (`GetServerTimeNow()` at the trigger frame), `clockMilliseconds` u32 and
+`frameKey` u32 of the trigger frame, `count` u16 (entries copied, n; at most `maxEntries`, 1024), `flags` u8, the field
+values as f64 in declaration order, then n entries. Size = 19 + 8 · F + n · E, with F the field values and E the entry
+size: 591 B for 4 values (`origin` x, y, z and `target`) and 45 aim entries. **Flags** record what happened to the
+copy and the message, each with an exact condition:
 - bit 0: a check with `policy = "deliver"` failed on the trigger message (its §1.5 fact occurrence exists);
-- bit 1: truncated: the ring's oldest entry is newer than the trigger's `ms` − 1000 × `beforeSeconds`;
+- bit 1: truncated: the ring's oldest entry is newer than the trigger's `clockMilliseconds` − 1000 × `beforeSeconds`;
 - bit 2: partial: the player left before `afterSeconds` elapsed, so the atom completed at the leave.
 
 The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative to the trigger is
-(entry.`ms` − atom.`ms`) as a signed 32-bit difference, in ms.
+(entry.`clockMilliseconds` − atom.`clockMilliseconds`) as a signed 32-bit difference, in milliseconds.
 
 ### 8.5 Decision: how samples reach game code
 
@@ -841,10 +842,10 @@ The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative 
 |---|---|---|---|
 | (a) a callback per atom | a frozen table and a pooled-thread resume per atom: 259 ns native to build, 88–131 ns to resume `[diagnostics §5.1, §9]` | none held | one HTTP request per atom would pass 500 requests/min per server at 8.3 atoms/s |
 | (b) **batches pushed to a callback** | 0.66–0.71 µs per batch of 16, plus one resume per connection (measured) | at most `telemetry.atomsPerBatch` atoms per (player, definition) | matches the export unit; bounded |
-| (c) pull | a copy per call | atoms held until game code asks: unbounded, or dropped unseen | right for streams, wrong for atoms |
+| (c) pull | a copy per call | atoms held until game code asks: unbounded, or dropped unseen | right for rings, wrong for atoms |
 
-- **Choice: (b) for atoms, (c) for streams** `[checks-telemetry T2]`. Atoms are events with a moment and a fixed size,
-  so bounded pushed batches keep memory bounded and give game code its export unit. A stream at 60 Hz × 12 B is
+- **Choice: (b) for atoms, (c) for rings** `[checks-telemetry T2]`. Atoms are events with a moment and a fixed size,
+  so bounded pushed batches keep memory bounded and give game code its export unit. A ring filled at 60 Hz × 12 B is
   720 B/s per player, 72 KB/s at 100 players; pushing it would hand game code all of it with no moment to cut at, so
   game code copies a ring when it decides to (a report filed, a round ended).
 - **Batch close:** at `telemetry.atomsPerBatch` atoms; at `telemetry.maxBatchSeconds` after the batch's first atom
@@ -854,9 +855,10 @@ The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative 
 - **Delivery rules**, as observers (`v5.md` §7.3): each connection is called in a pooled thread, so a throwing
   callback is reported natively and a yielding one holds only itself; the batch table and its format are frozen;
   each connection receives its own copy of the buffer, which it owns, may keep and may send.
-- **Streams:** `Lync.telemetry.read(player, Net.look)` returns a copy of the ring, oldest first, with the anchor
-  `serverTime` (`GetServerTimeNow()` at the call) and `ms` (⌊`os.clock()` × 1000⌋ mod 2^32 at the call), so an
-  entry's server time is `serverTime` − ((`ms` − entry.`ms`) mod 2^32)/1000; nil when the player has no ring. One
+- **Rings:** `Lync.telemetry.read(player, Net.look)` returns a copy of the ring, oldest first, with the anchor
+  `serverTime` (`GetServerTimeNow()` at the call) and `clockMilliseconds` (⌊`os.clock()` × 1000⌋ mod 2^32 at the
+  call), so an entry's server time is `serverTime` − ((`clockMilliseconds` − entry.`clockMilliseconds`) mod
+  2^32)/1000; nil when the player has no ring. One
   buffer copy of at most `maxEntries` × E bytes.
 - **Counters** (`v5.md` §7.4): `atomsDelivered` and `atomsSkipped`, per definition. Atoms raise no fact: an atom has
   no trigger beyond "a message arrived".
@@ -894,12 +896,12 @@ export type AtomFormat = {
 	entry: "timing" | "aim" | "scalar" | "vector" | "none",
 	entryBytes: number,  -- 8, 12, 12, 20 or 0
 }
-export type Stream = { format: AtomFormat, count: number, data: buffer, serverTime: number, ms: number }
+export type RingCopy = { format: AtomFormat, count: number, data: buffer, serverTime: number, clockMilliseconds: number }
 ```
 
-`Lync.telemetry.decode(batch): { Atom }` turns a batch into tables (`{ serverTime, key, flags, fields: { [string]:
-number }, samples: { { dt, key, yaw?, pitch?, value?, vector? } } }`, `dt` in seconds) for game code that analyses in
-process; a cold path that allocates per atom. roblox-ts, from the same IR (dot calls, `this: void`, `readonly`
+`Lync.telemetry.decode(batch): { Atom }` turns a batch into tables (`{ serverTime, frameKey, flags, fields: { [string]:
+number }, samples: { { sinceTriggerSeconds, frameKey, yaw?, pitch?, value?, vector? } } }`, `sinceTriggerSeconds`
+negative for entries before the trigger) for game code that analyses in process; a cold path that allocates per atom. roblox-ts, from the same IR (dot calls, `this: void`, `readonly`
 fields):
 
 ```ts
@@ -918,7 +920,7 @@ interface DirectionField<D> {
 }
 declare namespace telemetry {
 	function observeAtoms(this: void, fn: (batch: AtomBatch) => void): Connection;
-	function read(this: void, player: Player, def: TelemetrySource): Stream | undefined;
+	function read(this: void, player: Player, def: TelemetrySource): RingCopy | undefined;
 	function decode(this: void, batch: AtomBatch): ReadonlyArray<Atom>;
 }
 ```
@@ -1245,9 +1247,9 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
 - **Build:** `freeFormRoleMissing` (`v5-tooling.md` §3.4).
 - **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
   `checksUndrawn` (a message `messagesPerCheck` didn't draw, §5.2), `checksExempted` (a message inside a
-  `resetChecks` window, §1.6), `atomsDelivered`, `atomsSkipped` (§8.5); a check function's throw or yield adds to the
-  existing `validatorsRaised` or `validatorsYielded` (§1.7).
-- **Build option:** `check.freeFormCodes` (§7.4; `v5-tooling.md` §2).
+  `resetChecks` window, §1.6), `atomsDelivered`, `atomsSkipped` (§8.5), `checkFunctionsRaised`, `checkFunctionsYielded`
+  (a check function's throw or yield, §1.7).
+- **Build option:** `check.minFreeFormCodes` (§7.4; `v5-tooling.md` §2).
 - **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.atomsPerBatch`, `telemetry.maxBatchSeconds`
   (§8.10).
 - **Runtime constant:** `maxTotal` buckets, 16 (§4.1).

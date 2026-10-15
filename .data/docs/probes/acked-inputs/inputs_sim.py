@@ -52,8 +52,10 @@ def delta_bits(a, b):
 
 
 def run(rate, J, C, mode, net, jitter=0.02, seed=3):
-    rng = random.Random(seed)
-    down, up = Loss(net[0], net[1], rng), Loss(net[0], net[1], rng)
+    rng = random.Random(seed)                       # input values
+    rj_up, rj_dn = random.Random(seed + 1), random.Random(seed + 2)   # jitter per direction
+    down = Loss(net[0], net[1], random.Random(seed + 3))
+    up = Loss(net[0], net[1], random.Random(seed + 4))
     N = int(SECONDS * rate)
     vals, cur = [], [0] * 6
     for _ in range(N):
@@ -90,7 +92,7 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
         if mode != "fixed" and int((t - flush) * rate + 1e-9) != k and newest_srv >= 0:
             down_frames += 1
             if not down.lost():
-                acks.append((t + 0.05 + rng.uniform(0, jitter), newest_srv))
+                acks.append((t + 0.05 + rj_dn.uniform(0, jitter), newest_srv))
         acks.sort()
         while acks and acks[0][0] <= t:
             a_cl = max(a_cl, acks.pop(0)[1])
@@ -117,8 +119,10 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
         up_bits += b
         copies += k - start + 1
         sends += 1
-        if not up.lost():
-            pending_up.append((t + 0.05 + rng.uniform(0, jitter), start, k))
+        lost = up.lost()
+        jit = rj_up.uniform(0, jitter)
+        if not lost:
+            pending_up.append((t + 0.05 + jit, start, k))
     # playout: o = sliding minimum over the last 5 s of first-arrival offsets (indices i - win .. i - 1)
     from collections import deque
     win = int(5 * rate)
@@ -152,7 +156,7 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
 
 
 if __name__ == "__main__":
-    print(f"inputs_sim: {SECONDS:.0f} s per run, seed 3, input {ABS} bits; see docstring")
+    print(f"inputs_sim: {SECONDS:.0f} s per run, seeds 3-7 (one RNG per stream, so every scheme sees the same losses per send), input {ABS} bits; see docstring")
     print("not delivered = missing + late (% of played indices); up B/s = stream chunk bits only;"
           " copies/s = elements decoded; latency = mean playout - sample (ms)")
     for net in (("bern", 0.05), ("ge", 0.05), ("ge", 0.15)):

@@ -67,6 +67,12 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `ae05a016ace1f55ff` | critic (Opus) | reviews `v5.md` §0–§3 and §5.2 at draft 3.6 (types on both solvers and roblox-ts, API behaviour, §3.4 example) | `reviews/v5-3.6-core-api.md`, `probes/review-3.6-core-api/` | done on Opus 5.5: 1 blocking (visibility modifiers allowed on different fields in v5.md vs collections), 8 major (incl. ≥ 9 `field(path)` overloads too complex for the new solver; runtime-path type function fails at 10 paths with no fix found; `:claim()` breaks codec equality), 12 minor, 1 taste; retired |
 | `ac91605e4b5e81ca3` | prover (Opus) | runtime-path typing of `field(path)` at 10/32/128 paths on both solvers and roblox-ts (core-api review D1) | `probes/field-typing/RESULTS.md` | done on Opus 5.5: the limit is `LuauNormalizerInitialFuel = 3000` (2^N in overload unions); plain `:field(path)` has no exact runtime form past 53 paths; a `fields` table of handles (b) is exact at 10/32/128 on the new solver and in tsc; old solver gives error types for every type-function form; retired |
 | `a90228281c03fe04a` | prover (Opus) | re-measures the inbound bound's inputs on every shape (arrays, maps, all unreliable candidates, e..e+4, shape walk, untagged `HELLO`); bound at 0/10/25% margin; §9 CI gate shapes | `probes/inbound-bound-2/RESULTS.md` | running |
+| `aa3ac179b751edc26` | architect (Opus) | consistency: `v5.md` §0–§3, §5.2 and header (Needs elsewhere, lead decisions, renames) | `design/v5-3.6-consistency-core-api.md` | running |
+| `a16a77f14df4e38ea` | architect (Opus) | consistency: `v5.md` §4 (incl. golden regeneration) | `design/v5-3.6-consistency-wire.md` | running |
+| `a60b226001890347a` | architect (Opus) | consistency: `v5-integrity.md` | `design/v5-3.6-consistency-integrity.md` | running |
+| `abde9d80edeb18314` | architect (Opus) | consistency: `v5-collections.md` | `design/v5-3.6-consistency-collections.md` | running |
+| `a73892475d245bd6b` | architect (Opus) | consistency: `v5-checks.md`; empties or removes `v5-extensions.md` | `design/v5-3.6-consistency-checks.md` | running |
+| `aebc577709fa651ed` | architect (Opus) | consistency: `v5-tooling.md` | `design/v5-3.6-consistency-tooling.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -106,7 +112,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       integrity, collections, checks; pending research goes to the owning unit by message. Then one consistency
       unit applies every "Needs elsewhere" list and merges the change records into `v5-changes.md`.
   10b. Each area's architect then applies its critic review and its scope-audit findings together, in one pass.
-  10c. Consistency phase, small units, after collections' `acked`/`inputs` pass and the field-typing and inbound-bound
+  10c. Consistency phase (`design/v5-3.6-consistency-brief.md`), small units; six started, runtime §5–§10 waits for `probes/inbound-bound-2`, after collections' `acked`/`inputs` pass and the field-typing and inbound-bound
        provers land (each result first goes to its owning architect):
        - one unit per target file (`v5.md` §0–§3 and §5.2; §4; §5–§10; `v5-integrity.md`; `v5-collections.md`;
          `v5-checks.md`; `v5-tooling.md`): apply every "Needs elsewhere" item addressed to that text from all seven

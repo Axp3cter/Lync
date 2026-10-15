@@ -4,8 +4,8 @@
 `.data/docs/reviews/v5-design-1-redundancy.md` (redundancy: R1–R20) to `.data/docs/design/v5.md`, under the
 author's decisions. Section numbers refer to draft 2.
 
-**Count:** 51 findings. Accepted 30, changed 20, rejected 0, deferred (author to decide) 1. Parts of three
-changed findings were rejected (M11, M12, m3) or deferred (M12, R17); each row says which.
+**Count:** 51 findings. Accepted 30, changed 20, rejected 0, deferred (author to decide) 1. Some changed findings
+had parts rejected (M11, M12, m3, m4, m5, R6) or deferred (M12, R17); each row says which.
 
 ## Overlaps resolved once
 

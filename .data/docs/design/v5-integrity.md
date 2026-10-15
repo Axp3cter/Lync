@@ -303,41 +303,37 @@ build found no client code using), so one reason with one evidence value per tri
     removes the lists, and with them the source check. Lync never calls `getfenv` to reach a caller: it
     deoptimises the caller's environment, 3.5–4× on an encoder step `[security-tooling §2]`.
 - **The caller bit** `[client-self-checks U7 (b)]`. A frame holding the message of any probed call whose source
-  check failed is tagged with u = 1, the high bit of the lane byte in the tag input (`v5.md` §4.5); no byte is sent.
-  The server tries u = 0, then u = 1, at each candidate count. A match with u = 1 delivers the frame and records
-  `reportedSourceUnlisted` (§10) for it, client-stated. The bit replaces draft 3.5's `sourceUnlisted` count: it
-  holds at any `tag.cover` and names the frame, and the definition when the frame holds one.
-- **`REPORT`** (control type 5, up): `probes:EG0 identitySucceeded:EG0 refusedFrames:EG0 injectedFrames:EG0`,
-  counts since the previous `REPORT` (layout: `v5.md` §4.6). After the connection's first `WELCOME`, a `REPORT`
-  with a non-zero `identitySucceeded`, `refusedFrames` or `injectedFrames` is pending reliable data (`v5.md` §5.1):
-  the next flush sends it, in the reliable frame with other data, alone otherwise; `probes` alone makes nothing
-  pending; at most one per frame; it never counts toward `missedFlush` and never enters the join hold
-  `[refusals-rejudged-2 R26]`. The server reports one fact per non-zero count, each client-stated (§10):
-  `reportedIdentity`, `reportedRefusedFrames`, `reportedInjectedFrames`.
+  check failed carries `caller` = 1 in its header, repeated in the tag input's lane byte, so it is covered at every
+  `tag.cover` and the server hashes each candidate once (`v5.md` §4.1, §4.5, which decides where the bit
+  travels). An accepted frame with `caller` 1 is delivered and records `reportedSourceUnlisted` (§10), client-stated.
+  The bit replaces draft 3.5's `sourceUnlisted` count: it names the frame, and the definition when the frame holds
+  one.
+- **`REPORT`** (control type 5, up; field layout `v5.md` §4.6): `probes`, `identitySucceeded`, `refusedFrames`,
+  `injectedFrames` (§5), `selfCheckFailures`, `selfCheckItem`, `selfCheckKind` (§5), EG0 each, counts since the
+  previous `REPORT` (`selfCheckItem` and `selfCheckKind` describe the first failure, 0 when none). After the
+  connection's first `WELCOME`, a `REPORT` with a non-zero `identitySucceeded`, `refusedFrames`, `injectedFrames` or
+  `selfCheckFailures` is pending reliable data (`v5.md` §5.1): the next flush sends it, in the reliable frame with
+  other data, alone otherwise; `probes` alone makes nothing pending; at most one per frame; it never counts toward
+  `missedFlush` and never enters the join hold `[refusals-rejudged-2 R26]`. The server reports one fact per
+  non-zero count, each client-stated (§10): `reportedIdentity`, `reportedRefusedFrames`, `reportedInjectedFrames`,
+  `reportedSelfCheck`.
 - **Prices** **identity**: API drivers left at identity 8; with every call probed (the default) the first call
   reports, at `oneIn` = n with probability 1 − (1 − 1/n)^calls. **naming**: drivers whose chunk is not on the
   definition's list. Not priced: a patched Lync, which zeroes the counts and the bit (§1); a thread lowered to
   identity 2 (`setthreadidentity`); a chunk named as a listed script, or frames hidden from the walk; calls through
   a listed game function, whose script is the first frame outside Lync `[client-self-checks U7]`.
-- **Decision: which probe results ride the tag.**
-  - *Problem.* Each bit in the tag input doubles the keyless acceptance the 32-bit width bounds (`v5.md` §4.5) and
-    the PRFs a failing frame costs the server; a count in `REPORT` costs neither, but names no frame or definition.
-  - *Options:* every result as a count (draft 3.5); **the source result as a bit, identity as a count**; both as
-    bits; (a), a tag keyed by each caller's source and checked against a server-only list.
-  - *Choice: source as a bit, identity as a count.* The bit names the definition an unlisted chunk drives, which a
-    count can't, for keyless acceptance of one per 18.8 days instead of 37.7 at the default budgets (3.1 days at the
-    range maxima) `[refusals-rejudged-3 R28]`. A second bit for identity would take the range maxima to one per
-    37.3 h and failing frames to 4 PRFs per candidate count, while `REPORT` must exist anyway for `refusedFrames`
-    and `injectedFrames`, which have no upstream frame of their own, and delivers the identity count within one
-    flush. (a) costs the product of list sizes per frame, without bound `[client-self-checks U7 (a)]`.
+- **The identity result stays a count.** A second header bit would add per-frame evidence for a count `REPORT`
+  delivers within one flush, and `REPORT` exists anyway for the counts that have no upstream frame of their own
+  (§5) (`v5.md` §4.5). A tag keyed by each caller's source and checked against a server-only list is refused: its
+  server cost is the product of list sizes per frame, without bound `[client-self-checks U7 (a)]`.
 - **Cost.** Client: one draw per call, 25–33 ns; per probe, a failing `pcall` of 2.4–2.8 µs when the failure is
   Lua-raised and 3.9–4.5 µs when C-raised (the unwind is the cost, not the error string, so only `oneIn` scales it),
   plus the walk and lookup, 0.19 µs through one Lync frame and 0.6 µs through five; at 60 probes a second
   0.15–0.19 ms/s or 0.24–0.25 ms/s interpreted on the CLI; which of the two Roblox's capability error matches is
-  unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Server: one more PRF per u = 1 frame (0.29 µs
-  native at 64 B, 3.6 µs at 1 KB); a failing reliable frame up to 10 PRFs instead of 5, an unreliable one 6 instead
-  of 3. `REPORT`: a forced frame is 6–9 B; at most 60 forced frames a second, only while a count changes every
-  flush: ≤ 540 B/s up and about 0.14 ms/s of client CPU interpreted `[refusals-rejudged-2 R26]`.
+  unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Wire: the caller bit, 0 or 1 B per upstream
+  frame (`v5.md` §4.1). `REPORT`: a forced frame is 8–12 B with the tag; at most 60 forced frames a second, only
+  while a count changes every flush, about 0.14 ms/s of client CPU interpreted at that bound
+  `[refusals-rejudged-2 R26]` (`v5.md` §4.6).
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|

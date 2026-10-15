@@ -1,7 +1,7 @@
 -- Draft 3.6: design-3.5/golden_tag32.luau with v5.md draft 3.6's wire: upstream headers gain caller:u1 (also the
 -- high bit of the tag input's lane byte) and, on the reliable lane, rcv:u8; the schema serialization gains the
 -- perceived and sealed option slots; HELLO gains idTableHash u32; WELCOME gains layout u1 and, in the first one,
--- callerProbe.splitFrames u1 and callerProbe.noOuterFrame u1. Adds G4c (caller 1), DERIVE (session key
+-- callerProbe.noOuterFrame u1. Adds G4c (caller 1), DERIVE (session key
 -- and permutation seed derivation) and the woven fixture W1, W2. G10 and G11 are folded in from golden_m2.luau.
 -- Design draft 3.1: milestone 1 and 2 golden frames, built from draft 3.1's rules (v5.md §3.3, §4).
 -- Adapts review-3's p2_golden.luau: EG-k as EG-0 of floor(u/2^k) then u(k) of u mod 2^k; integer columns with
@@ -309,7 +309,7 @@ end
 
 -- G10: a client's first reliable frame ('11' tick 0) holding the connection's first WELCOME for arena (index 1):
 -- layout 0, epoch 1000.5, stateRate 20, key nonce 00..07 (S = 0, so the key itself), tag.cover 1024,
--- permutation nonce 0, callerProbe.oneIn 0, maxPerSecond 0, splitFrames 0, noOuterFrame 0, clock.beacon 0.
+-- permutation nonce 0, callerProbe.oneIn 0, maxPerSecond 0, noOuterFrame 0, clock.beacon 0.
 do
 	local w = writer()
 	w:u(1, 1); w:u(1, 1); w:u(16, 0)
@@ -326,7 +326,7 @@ do
 	w:u(32, 0x03020100); w:u(32, 0x07060504)   -- key nonce
 	w:u(15, 1024)                              -- tag.cover
 	w:u(32, 0)                                 -- permutation nonce
-	w:u(8, 0); w:u(6, 0); w:u(1, 0); w:u(1, 0); w:u(4, 0)
+	w:u(8, 0); w:u(6, 0); w:u(1, 0); w:u(4, 0)        -- oneIn, maxPerSecond, noOuterFrame, beacon
 	print("G10", hex(bytesOf(w)))
 end
 -- G11: a downstream reliable frame, tick unchanged ('0'), holding one MISMATCH (unchanged from draft 3.5).

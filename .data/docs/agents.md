@@ -22,6 +22,9 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `adb93333f6c4648cf` | scout | all of `.data/docs` in full; every refused, dropped or undecided security measure, its reasons, what they assume, and whether each cited cost or limit was measured, derived or asserted | `research/security-refusals.md` | running |
 | `ae7b1fdfd83468cdb` | researcher | generation facts: obfuscation rules by channel, per-player code delivery, what a client reads from a shard, generated code vs Luau limits and native codegen, load cost, prior art | `research/generation-security.md`, `probes/generation-security/` | running |
 | `ade0c89512482ae96` | researcher | API catalogue for security: Roblox engine (server, client), Studio plugin, Open Cloud, Lute, Lune, mlua, darklua, luau-lsp, rojo, Python, the executor API | `research/security-tooling.md`, `probes/security-tooling/` | running |
+| `a7526dc18c6060de5` | architect | started on codecs in game scripts; stopped, since the architect integrates rather than designs | none | stopped; do not reuse |
+| `a6d6d1502e0ad3c95` | researcher | codecs spread into game scripts: transform of the built place, typed API, call-site discovery, source maps, interaction with seed/rotation/tag; dual-purpose forms; re-derives the 5.0x bytecode figure | `research/codecs-in-scripts.md`, `probes/codecs-in-scripts/` | running |
+| `ad69e26579bcfc07b` | prover | re-measures every performance figure used to refuse or narrow a security measure, plus generated cheaper forms | `probes/security-costs/RESULTS.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -29,9 +32,9 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 
 - Built code removed at the author's request (in git at `f1fbfd7`, not on this remote; evidence data in
   `probes/build/`). Design at draft 3.5. No milestone work without the author's go-ahead.
-- Security re-judgment in progress: the three agents above, then an architect writes draft 3.6, then a critic
-  reviews it.
-- Author direction for the architect: codecs spread into game scripts can work. Reconsider it as a design
+- Security re-judgment in progress: the agents above find facts and designs; then an architect brings them
+  together into draft 3.6; then a critic reviews it. Designing new mechanisms is research work, not the architect's.
+- Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the
   script-rewrite problems. If no such form holds up, say why plainly; that outcome is acceptable.

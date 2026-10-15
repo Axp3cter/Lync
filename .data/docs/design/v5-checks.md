@@ -696,8 +696,9 @@ Net.strike:connect(onStrike)
 ### 7.4 The `freeFormField` lint
 
 The rule, its evidence, severity option and channel are the `freeFormField` row of `v5-tooling.md` §3.4: a free-form
-leaf (unbounded floats and integers, more than 65,536 codes per component, strings, buffers, instances, custom
-codecs) in a client-sent payload with no role marker on itself or an enclosing codec. Its relation to this file:
+leaf (unbounded floats and integers, more codes per component than `check.freeFormCodes`, 65,536 by default,
+strings, buffers, instances, custom codecs) in a client-sent payload with no role marker on itself or an enclosing
+codec. Its relation to this file:
 - **It is what makes the marker protect.** A flagged leaf gets `:claim()`, and then §7.2 requires a server
   verifier; or it gets `:input()`, which records the decision on the field's line.
 - **Measured on stand-in codecs** (`checks-telemetry/lint_freeform.out`): `v5.md` §3.4's `arena` gives 2 warnings,

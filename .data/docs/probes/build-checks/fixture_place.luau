@@ -13,7 +13,6 @@ local SS = game:GetService("ServerStorage")
 local WS = game:GetService("Workspace")
 local SP = game:GetService("StarterPlayer")
 local SPS = Instance.new("StarterPlayerScripts"); SPS.Parent = SP
-local Chat = game:GetService("Chat")
 
 local function new(class, name, parent, props)
 	local i = Instance.new(class)
@@ -66,8 +65,8 @@ function Comm.create(parent, className, name)
 end
 return Comm
 ]])
--- a forked legacy chat runner creating its remotes (server-only script)
-script("Script", "ChatServiceRunner", Chat, 'local f = Instance.new("Folder")\nlocal e = Instance.new("RemoteEvent")\nlocal fn = Instance.new("RemoteFunction")\n')
+-- a forked legacy chat runner creating its remotes (server-only script, where the legacy chat system installs it)
+script("Script", "ChatServiceRunner", SSS, 'local f = Instance.new("Folder")\nlocal e = Instance.new("RemoteEvent")\nlocal fn = Instance.new("RemoteFunction")\n')
 
 -- the namespace and its client shard
 local net = new("Folder", "Net", new("Folder", "Shared", RS))

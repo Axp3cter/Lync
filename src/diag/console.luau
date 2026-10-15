@@ -62,7 +62,7 @@ const LOCAL_REASONS: { [Codes.Code]: true } = {
 table.freeze(LOCAL_REASONS)
 
 const TEMPLATE_BY_CODE: { [Codes.Code]: string } = {}
-for code, family in Codes.family do
+for code: Codes.Code, family: Codes.Family in Codes.family do
 	if family == "fact" then
 		TEMPLATE_BY_CODE[code] =
 			`[Lync] {code}: \{count} in \{seconds} s, \{players} players, \{definitions} definitions`
@@ -194,7 +194,7 @@ end
 	@param now `os.clock()`
 ]=]
 function Console.sweep(s: State, now: number)
-	for code, window in s.windowByCode do
+	for code: Codes.Code, window: Window in s.windowByCode do
 		if now < window.closesAt then
 			continue
 		end

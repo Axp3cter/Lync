@@ -35,14 +35,14 @@ local Facts = {}
 
 --- What happened, frozen when delivered; `evidence` holds the reason's fields (Codes.evidence).
 export type Fact = {
-	reason: Codes.Code,
-	player: Player?,
-	namespace: string?,
-	definition: string?,
-	count: number,
-	first: number,
-	last: number,
-	evidence: { [string]: number },
+	read reason: Codes.Code,
+	read player: Player?,
+	read namespace: string?,
+	read definition: string?,
+	read count: number,
+	read first: number,
+	read last: number,
+	read evidence: { read [string]: number },
 }
 
 -- An open coalescing window. `count`, `first`, `last` and the evidence cover the occurrences
@@ -172,14 +172,14 @@ local function evidenceOf(
 	e3: number?,
 	e4: number?,
 	e5: number?
-): { [string]: number }
+): { read [string]: number }
 	local values = { e1, e2, e3, e4, e5 }
 	local evidence = {}
 	for i, name in Codes.evidence[reason] do
 		evidence[name] = values[i]
 	end
 
-	return table.freeze(evidence) :: any
+	return table.freeze(evidence)
 end
 
 local function deliver(
@@ -191,23 +191,22 @@ local function deliver(
 	count: number,
 	first: number,
 	last: number,
-	evidence: { [string]: number }
+	evidence: { read [string]: number }
 )
 	sender.deliveredCount += 1
 	s.serverDeliveredCount += 1
-	emit(
-		s,
-		table.freeze({
-			reason = reason,
-			player = sender.player,
-			namespace = namespace,
-			definition = definition,
-			count = count,
-			first = first,
-			last = last,
-			evidence = evidence,
-		})
-	)
+
+	local fact: Fact = {
+		reason = reason,
+		player = sender.player,
+		namespace = namespace,
+		definition = definition,
+		count = count,
+		first = first,
+		last = last,
+		evidence = evidence,
+	}
+	emit(s, table.freeze(fact))
 end
 
 local function suppress(

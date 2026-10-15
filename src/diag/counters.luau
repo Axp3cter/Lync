@@ -55,8 +55,6 @@ const ALWAYS_SHOWN = table.freeze({
 	"heldBytes",
 })
 
-const NO_VALUES: { number } = table.freeze({})
-
 -- Private -----------------------------------------------------------------------------------------
 
 local function zeroMessages(): { [string]: number }
@@ -151,7 +149,7 @@ end
 	@return the snapshot
 ]=]
 function Counters.snapshot(s: State, player: Player?): { [string]: any }
-	local values = if player == nil then s.totals else s.valuesByPlayer[player] or NO_VALUES
+	local values = if player == nil then s.totals else s.valuesByPlayer[player] or {}
 	local snapshot: { [string]: any } = zeroMessages()
 	local facts: { [string]: number } = {}
 	local definitions: { [string]: { [string]: number } } = {}

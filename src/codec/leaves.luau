@@ -683,18 +683,21 @@ end
 	From the first encoding q, it takes q <- E(q), E(q) the codes of the f32 CFrame q decodes to,
 	until q is a fixed point or the codes enter a 2-cycle, whose lower member it returns.
 
-	@param  value a CFrame
-	@param  bits  the codec's bits per component
+	@param  value    a CFrame
+	@param  bits     the codec's bits per component
+	@param  maxSteps how many re-encodings are allowed, 4 when nil; tests lower it to reach the
+	                 `internal` raise
 	@return the flag, or nil when the rotation is not finite
 	@return the axis index (flag 1) or the dropped component (flag 0)
 	@return the first kept component's code
 	@return the second kept component's code
 	@return the third kept component's code
-	@error  internal, when no canonical code is reached within 4 re-encodings
+	@error  internal, when no canonical code is reached within `maxSteps` re-encodings
 ]=]
 function Leaves.rotationCodes(
 	value: CFrame,
-	bits: number
+	bits: number,
+	maxSteps: number?
 ): (number?, number, number, number, number)
 	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = value:GetComponents()
 	if not isFinite(r00 + r01 + r02 + r10 + r11 + r12 + r20 + r21 + r22) then
@@ -704,7 +707,7 @@ function Leaves.rotationCodes(
 	local previous = -1
 	local current =
 		packedRotation(Quant.rotation(r00, r01, r02, r10, r11, r12, r20, r21, r22, bits))
-	for _ = 1, MAX_ROTATION_STEPS do
+	for _ = 1, maxSteps or MAX_ROTATION_STEPS do
 		-- Cast: an encoding keeps the three smallest components, whose squares sum to at most
 		-- 3/4, so it always decodes.
 		local reencoded = reencodedRotation(current, bits) :: number
@@ -719,10 +722,15 @@ function Leaves.rotationCodes(
 		previous, current = current, reencoded
 	end
 
-	return error(
-		`[Lync] internal: t.rotation({bits}) codes must be canonical within {MAX_ROTATION_STEPS} re-encodings`,
-		0
+	-- `Fail.caller` never returns; neither solver accepts its call as a pack of five results.
+	local unreachable: any = Fail.caller(
+		"internal",
+		"t.rotation encode",
+		`reach a fixed point or a 2-cycle of encode(decode(q)) within {MAX_ROTATION_STEPS} steps`,
+		nil,
+		"report this as a Lync bug"
 	)
+	return unreachable, 0, 0, 0, 0
 end
 
 --[=[

@@ -482,8 +482,9 @@ derived value, which also covers a flush up to 1/60 s after the sample.
 **Known causes on an unmodified client:**
 1. Game-applied motion: teleports, respawns, seats, vehicles, knockback, conveyors. Call `resetChecks` with
    `seconds` (below) where the game moves the player.
-2. Falling and jumping, with `plane = "xyz"`: Roblox has no fixed fall-speed bound in this model. Use `plane =
-   "xz"` for ground movement, as the guidance quoted above says.
+2. Falling and jumping, with `plane = "xyz"`: a falling character's vertical speed grows under `Workspace.Gravity`
+   (196.2 studs/s² by default, `server-facts.md` U9.6), so it passes any walk-speed `rate` within about
+   `rate`/196.2 s of falling. Use `plane = "xz"` for ground movement, as the guidance quoted above says.
 3. A server step longer than 1/60 s (a hitch) compresses arrival spans by its length; a reliable stall longer than
    2 s does the same on that lane. Evidence `span` shows it.
 4. Network jitter above the derived c (mobile jitter is unmeasured, `v5.md` §10), and a speed boost above `rate`.

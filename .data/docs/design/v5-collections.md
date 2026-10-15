@@ -489,8 +489,8 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
   `:newest()` field. Unmeasured on the client; the nearest probes are the server's position-only lerp at 141–146 ns
   interpreted and a bracket-lerp with two rotation decodes at 389–437 ns `[interest-rewind §11.7]`. Memory: §11.2's
   samples per record. Wire: §11.1's `RATE` and §11.3's bit.
-- **A game with its own interpolation** reads `get` with `Lync.tick()` (the dispatched frame's tick) in `changed`, and sets
-  `rewind`'s `delay` to the constant it uses (§12.2); Lync can't see its clock.
+- **A game with its own interpolation** reads `get` with `Lync.tick()` (the dispatched frame's tick) in `changed`,
+  and sets `rewind`'s `delay` to the constant it uses (§12.2); Lync can't see its clock.
 
 ## 12. Rewind
 
@@ -700,7 +700,7 @@ At the 100-player shooter (about 66 rows per viewer per tick under the 16,000 B/
 player, 5 targets each): pushes 21 µs/s, received recording 1.2 ms/s, queries 0.64 ms/s, about 1.8 ms/s in total,
 0.2% of a core (derived from the tables). The reliable-frame map and the per-pair add/remove counts are not in the
 probe: at most 60 reliable frames a second × 1.25 s × 16 B = 1.2 KB per player, and two u32 per membership change
-held for 2 s (derived). Wire: 28 bits per `perceived` frame that would have carried `'0'`.
+held for max(2 s, `maxRewind` + 0.25 s) (derived). Wire: 28 bits per `perceived` frame that would have carried `'0'`.
 
 ### 12.9 How it fails on an unmodified client
 
@@ -716,10 +716,10 @@ held for 2 s (derived). Wire: 28 bits per `perceived` frame that would have carr
 - **Clock slew:** τ deviates from τ* by up to one client flush in steady state, and after a jump in τ* converges at
   4% (§11.2); the window's u covers the first, not a large recent jump.
 - **A game's own interpolation** with a delay other than `delay`: P is off by the difference.
-- **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, or acks an older state
-  frame than it holds, moves P older, at most to `maxRewind`: the inherent limit of lag compensation, which Bernier accepts. `held`, `heldRaw`,
-  `hMax`, `ping`, `rtt` and `ackTick` show it as numbers; Lync attaches no verdict. Aim is an input, and an aimbot
-  passes any geometric test.
+- **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, or
+  acks an older state frame than it holds, moves P older, at most to `maxRewind`: the inherent limit of lag
+  compensation, which Bernier accepts. `held`, `heldRaw`, `hMax`, `ping`, `rtt` and `ackTick` show it as numbers;
+  Lync attaches no verdict. Aim is an input, and an aimbot passes any geometric test.
 
 ## 13. Withholding content: engine streaming and staged namespaces
 

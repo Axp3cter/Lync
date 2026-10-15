@@ -762,14 +762,15 @@ ring (a second `aim` or `series`, on the definition or any of its fields, throws
 
 Entry sizes: timing 8 B, aim 12 B, scalar 12 B, vector 20 B. The research's layout had u16 `ms` and `key`
 `[checks-telemetry T1]`; with them, a ring of a definition sent less often than once per second spans more than the
-65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact while a ring spans less than
-24.8 days (2^31 ms, the reach of the signed 32-bit differences of §8.4; `key` wraps after 414 days at 120
-frames/s), for 4 B more per entry.
+65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact while a ring
+spans less than 24.8 days (2^31 ms, the reach of the signed 32-bit differences of §8.4; `key` wraps after 414 days at
+120 frames/s), for 4 B more per entry.
 
 **Decision: one entry per frame.** A frame's messages share one arrival time, so Lync samples the last delivered
 message of the definition in each frame (messages are in call order, `v5.md` §4.1): more entries would add values
-with no time between them, and one per frame bounds a ring's turnover by its definition's lane budget (a definition uses one
-lane: at the defaults 60 frames/s reliable or 120 unreliable, plus a burst of 240, `v5.md` §7.5). At 60 frames/s a 64-entry ring holds 1.07 s.
+with no time between them, and one per frame bounds a ring's turnover by its definition's lane budget (a definition
+uses one lane: at the defaults 60 frames/s reliable or 120 unreliable, plus a burst of 240, `v5.md` §7.5). At 60
+frames/s a 64-entry ring holds 1.07 s.
 
 ### 8.3 Where it runs
 
@@ -1046,9 +1047,9 @@ readings are the research's, unverified, and not legal advice):
 - **Protects,** before the reveal: the plaintext is not on the client at all, only ciphertext under a key the client
   doesn't hold, so readers of memory, packets and state, and accounts sharing artefacts, face 2^63 expected trials
   to search one seal's key, or 2^(min(64, h) − 1) to recover S (§9.4), which opens every later seal on that server;
-  h is the entropy of S's sources, unmeasured (§11, review M7); HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide the maximum PRF security" for its key and
-  output size (documented, the SipHash README). Unlike every measure in `v5.md` §6.2, its secret is not on the client
-  before the reveal.
+  h is the entropy of S's sources, unmeasured (§11, review M7); HalfSipHash with c ≥ 2, d ≥ 4 "is expected to provide
+  the maximum PRF security" for its key and output size (documented, the SipHash README). Unlike every measure in
+  `v5.md` §6.2, its secret is not on the client before the reveal.
 - **Doesn't protect:** anything after the reveal (every client gets the plaintext then, a modified one no sooner);
   the time and count of seals; whatever the server's own behaviour discloses; the length, when `hideLength` is false.
   Only server-side code can defeat it, by revealing early or sending the value elsewhere.
@@ -1147,8 +1148,8 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
   (rule 2); with `hideLength`, `blocks` other than ⌈W/8⌉ (rule 3); a seal id already held, or a reveal or discard
   naming no held seal (rule 7).
 - **At the reveal** it decrypts and decodes the plaintext under `v5.md` §4.8 (padding bytes past the encoding must
-  be zero, rule 4); a violation refuses the frame holding the reveal. Refusals are counted in `refusedFrames` and sent in
-  `REPORT`, as for any downstream frame (`v5-integrity.md` §5). The value is then delivered to `connect` handlers
+  be zero, rule 4); a violation refuses the frame holding the reveal. Refusals are counted in `refusedFrames` and sent
+  in `REPORT`, as for any downstream frame (`v5-integrity.md` §5). The value is then delivered to `connect` handlers
   at the reveal's place in run order, and the ciphertext is freed; a discard frees it.
 
 ### 9.7 Fact, options and cost

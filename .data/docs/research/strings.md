@@ -30,7 +30,7 @@ models are `probes/compression/traffic.py`, unchanged (same seeds and lengths as
 - [x] 3. Cost and saving
 - [x] 4. What it protects and what it doesn't
 - [x] 5. Facts, counters, codes and options
-- [ ] 6. Text for `v5.md` §4 and the golden vectors
+- [x] 6. Text for `v5.md` §4 and the golden vectors
 - [ ] Implications
 
 ---
@@ -393,3 +393,64 @@ schema constructor (`v5.md` §7.1); `Lync.strings` joins the list of schema entr
 
 No `Lync.configure` option: what enters is the declaration's rule, the literal/reference choice is the reference
 encoder's fixed rule, and a run-time switch would be a second way to declare the same thing (`v5.md` principle 4).
+
+## 6. Text for `v5.md` §4 and the golden vectors
+
+Proposed wording for the wire unit; every value is derived above or a stated protocol choice.
+
+- **§4.1 grammar.** Add to the chunk lines:
+  ```
+  strings chunk := ns:EG0 { count:EG0 { id:u(w_t) length:u(L_t) } }   -- one list per table of namespace ns
+  value of an interned field := entry:u1 ( 1: id:u(w_t) | 0: the field's plain t.string encoding )
+  ```
+  and to **Segments**: "Namespace 0's state segment holds strings chunks (§4.11), one per namespace, in ascending
+  `ns`; it precedes every other state segment, so a definition precedes every reference in its frame."
+- **§4.2 Encode once.** Add: "Shared chunks carry interned values as references or literals, never definitions;
+  definitions go in each recipient's strings chunk. Frames are identical across recipients only when their
+  definition lists are equal, decided from the lists."
+- **§4.3 Flattening.** Add: "an interned `t.string`: as `t.union` of { literal: the `t.string`'s columns; entry: an
+  id column on [0, `maxEntries` − 1] }." **Free choices:** add "literal or reference for an interned value".
+- **New §4.11 String tables** (or inside §4.2): §1.2's ownership and random ids, §1.3's who-gets-which-definition,
+  splits, the `WELCOME`-frame rule and the unreliable decision, §1.4's caps, reclamation and survival, §2's upstream
+  rule. About 40 lines.
+- **§4.7 Schema hash.** Codec type 27 `intern`: the table's name `str`, then the codec (a wrapper, like type 26).
+  Schema entries gain kind 4 (strings table), serialized as name `str`, kind u8 4, `maxEntries` `num`, `maxBytes`
+  `num` (resolved), with no `from`, lane or option list: the kind fixes the layout, so no other definition's bytes
+  change and G6 stands (verified: S0 below; G6 is unchanged because it declares no table).
+- **§4.8 rules.**
+  - Rule 2 gains: "a string reference whose id is ≥ `maxEntries`, or names an entry not sent to this player
+    (upstream) or not held (downstream); a strings chunk count above `maxEntries`; a definition of an id ≥
+    `maxEntries`, of an id already held, of a value another held entry of the table has, or bringing the table's held
+    bytes past `maxBytes`."
+  - Rule 5 gains: "definition ids not strictly ascending within a table's list".
+  - Rule 6 gains: "a strings chunk whose every count is 0; strings chunks not in ascending `ns`, or two for one
+    namespace".
+  - Rule 7 gains: "a strings chunk for a namespace not welcomed when it is decoded, or declaring no table".
+  - Rule 9 gains: "a definition that no later chunk of its frame references" (the encoder places definitions in the
+    part of their first reference, §1.3, so this holds across splits).
+- **§4.9 protocol constants.** "Interned value: `entry:u1`, id u(⌈log2 `maxEntries`⌉)"; "strings chunk: namespace 0's
+  state segment; per table, in name order, `count:EG0` then id u(w_t) and length u(⌈log2(m_t + 1)⌉)". Runtime
+  constants: "entry ids: uniform among free ids (server `Random`)"; "reclamation: at holder count 0, applied at the
+  start of a flush".
+- **§4.10 golden vectors** (`golden_strings.out`; fixture namespace `feed`, index 1, identity build and permutation:
+  `names = Lync.strings({ maxEntries = 64 })` (w 6, m 20, `maxBytes` 1,280), `kill` server event with `killer`,
+  `victim` = `t.string(20):intern(names)`, `taunt` client event with `to` = the same; entry ids pinned by the test
+  seam: "Builderman" 5, "Zippy" 17; key `00 … 07`, `tag.cover` 1024, count 0, `caller` 0). Unverified until a
+  milestone build reproduces them, as draft 3.6's changed vectors are.
+
+| # | What | Bytes (hex) |
+|---|---|---|
+| S0 | `feed`'s serialization, then hash | `01 04 00 66 65 65 64 03 00 04 00 6b 69 6c 6c 01 02 01 01 17 02 00 06 00 6b 69 6c 6c 65 72 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 06 00 76 69 63 74 69 6d 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 00 00 00 00 00 00 00 00 01 00 00 05 00 6e 61 6d 65 73 04 00 00 00 00 00 00 50 40 00 00 00 00 00 00 94 40 05 00 74 61 75 6e 74 01 01 01 01 17 01 00 02 00 74 6f 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 00 00 00 00 00 00 00 00 01 00 00`; `c4 7f 89 18 f9 cf 43 66` |
+| S1 | down reliable, tick unchanged: `kill:fire(Lync.all, { killer = "Builderman", victim = "Zippy" })` to a client holding neither: strings chunk (ids 5, 17), then the run of two references | `b4 34 72 a1 a2 02 17 23 5a 69 70 70 79 42 75 69 6c 64 65 72 6d 61 6e` |
+| S1b | the same to a client holding both: no state segment | `4a 03 17 23` |
+| S2 | up reliable, `rcv` 1: `taunt:fire({ to = "Zippy" })`, a reference to 17 | `04 48 8f 00 1e 04 77 de` |
+| S3 | the same with `to = "Nobody"`, held by no entry: a literal | `04 48 33 4e 6f 62 6f 64 79 6d 34 fd 6e` |
+
+S1 (23 B) against S1b (4 B) is a definition's one-time cost against its steady state; S1 inline would be 20 B.
+
+- **Needs elsewhere** (one line each): `v5.md` §3.3 methods table gains `:intern(table)` (§5.4); §3.4 gains
+  `Lync.strings` as a schema entry and its option rows; §5.3 states that held sends of interned fields are encoded
+  with literals (§1.3); §7.1 registers `internPlacement`, `internTable`, `stringsUnused`; §7.4 gains §5.2's counters
+  and the `<namespace>.<table>` qualifier; `v5-extensions.md`'s pointer to `v5.md` §4 then holds; `v5-checks.md` §9
+  gains that a sealed event's `data` takes no `:intern`; `v5-tooling.md` `report.md` may list each table's caps and
+  `stringLiteralsFull` sizing advice (tooling's decision).

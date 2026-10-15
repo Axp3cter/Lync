@@ -34,7 +34,7 @@ local function grid(v: vector): vector
 	return vector.floor(v * INV + vector.create(0.5, 0.5, 0.5)) * STEP
 end
 
-local shots: { Shot } = table.create(1024)
+local shots: { Shot } = {}
 math.randomseed(7)
 for i = 1, 1024 do
 	local o = vector.create(math.random() * 200, 10, math.random() * 200)

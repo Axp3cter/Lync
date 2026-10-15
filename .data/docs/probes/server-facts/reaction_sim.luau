@@ -42,7 +42,7 @@ end
 for _, bound in { 0.10, 0.12 } do
 	print(string.format("-- bound (min ping) = %.2f s", bound))
 	for _, r in { 0, 0.1, 0.15 } do
-		local slack: { number } = table.create(TRIALS)
+		local slack: { number } = {}
 		local case1 = 0
 		for i = 1, TRIALS do
 			local decode = trial(r)

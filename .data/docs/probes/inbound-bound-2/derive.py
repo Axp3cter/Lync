@@ -150,10 +150,11 @@ def simplex(c, A, b):
     return z[-1], x, duals
 
 
-def upper_fit(frames):
+def upper_fit(frames, per_frame=False):
     """frames: [(features dict incl. 'p0' count, measured y)]; min sum pred/y s.t. pred >= y, coefficients >= 0.
-    Solved as the dual: max sum y_i l_i s.t. sum_i a_ij l_i <= c_j, l >= 0; the primal is the duals."""
-    feats = ["p0"] + KINDS
+    Solved as the dual: max sum y_i l_i s.t. sum_i a_ij l_i <= c_j, l >= 0; the primal is the duals. With
+    per_frame, one more coefficient paid once per frame holding a message (folded into c_f)."""
+    feats = (["frame"] if per_frame else []) + ["p0"] + KINDS
     rows = [(f, y) for f, y in frames if y > 0]
     c = [sum(f.get(k, 0) / y for f, y in rows) for k in feats]
     # dual: variables l_i (one per frame), constraints one per feature j: sum_i a_ij l_i <= c_j
@@ -170,7 +171,7 @@ def upper_fit(frames):
 
 
 def features(hist):
-    f = {"p0": 0}
+    f = {"p0": 0, "frame": 1}
     for counts, mult in hist:
         f["p0"] += mult
         for k, v in counts.items():
@@ -180,6 +181,9 @@ def features(hist):
 
 def pred(f, w):
     return sum(w.get(k, 0) * v for k, v in f.items())
+
+
+FEATS_ALL = ["frame", "p0"] + KINDS
 
 
 def main():
@@ -309,91 +313,132 @@ def main():
         p(f"frames over the design rule's unit price: milestone {len(over)} of {len(worst)}, generated {len(over_g)} of {len(worst)}")
         p("")
 
-        # ---- claim 1: fit
-        for label, frames in (("milestone", frames_m), ("generated", frames_g)):
-            w = upper_fit(frames)
-            p(f"## {mode}: claim 1, upper fit p(shape) = p_0 + sum w_k n_k ns per element, {label} decoder")
-            p("  p_0 = %.0f ns; " % w["p0"] + ", ".join(f"{k} {w[k]:.0f}" for k in KINDS))
-            ratios = sorted((y / pred(f, w), y, pred(f, w)) for f, y in frames if y > 0)
-            p(f"  frames {len(frames)}; measured / predicted: min {ratios[0][0]:.2f}, median {statistics.median([r[0] for r in ratios]):.2f}, max {ratios[-1][0]:.3f}")
-            tight = sum(1 for r in ratios if r[0] > 0.98)
-            p(f"  frames within 2% of the fit (the binding ones): {tight}")
-            if label == "milestone" and mode == "native":
-                FIT_M = w
-            if label == "generated" and mode == "native":
-                FIT_G = w
+        # ---- claim 1: marginal cost per field, from records of 16 and 1 fields of each kind, at e (1 hash)
+        h1 = (rel[("string", 15906, "fail")][0] - rel[("string", 3, "fail")][0]) / (15906 - 3) / 5
+        he = fe["header only"][0]
+        p(f"## {mode}: claim 1, marginal ns per field per message = ((F_e - h B) / msgs at 16 fields - (F_e - h B) / msgs at 1 field) / 15,")
+        p(f"   h = {h1:.2f} ns/B (one hash per byte, from failing frames); per-message base = (F_e - header-only F_e - h (B - 3)) / msgs of the no-payload event")
+        forms = ("row1", "runs", "colC", "colR")
+        for path in ("milestone", "generated"):
+            def val(n):
+                v = fe[n][0]
+                if path == "generated":
+                    v = v - dd[n][0] + gg[n][0]
+                return v
+            p(f"  {path}:")
+            base = {}
+            for f_ in forms:
+                n = "none " + f_
+                r = meta[n]
+                base[f_] = (val(n) - he - h1 * (r["B"] - 3)) / r["msgs"]
+            p("    no-payload message: " + ", ".join(f"{f_} {base[f_]:.0f}" for f_ in forms))
+            kinds = []
+            for n in meta:
+                m = re.match(r"(\w+)_16 row1$", n)
+                if m:
+                    kinds.append(m.group(1))
+            for k in sorted(kinds):
+                cells = []
+                for f_ in forms:
+                    a, b = meta[f"{k}_16 {f_}"], meta[f"{k}_1 {f_}"]
+                    ya = (val(f"{k}_16 {f_}") - h1 * a["B"]) / a["msgs"]
+                    yb = (val(f"{k}_1 {f_}") - h1 * b["B"]) / b["msgs"]
+                    cells.append((ya - yb) / 15)
+                p(f"    {k:12s} " + " ".join(f"{f_} {c:6.0f}" for f_, c in zip(forms, cells)) + f"   max {max(cells):6.0f} ns = {max(cells) / P1_DESIGN:4.1f} x 133")
         p("")
 
-        # ---- claim 1: integer leaf weights at p_1 = 133 that make 100 ns / unit an upper bound
-        if mode == "native":
-            fit = {k: max(FIT_M[k], FIT_G[k]) for k in ["p0"] + KINDS}
-            p0n = max(P0_DESIGN, math.ceil(fit["p0"] / 100) * 100)
+        # ---- claim 1: fit
+        fits = {}
+        for per_frame in (False, True):
+            for label, frames in (("milestone", frames_m), ("generated", frames_g)):
+                w = upper_fit(frames, per_frame)
+                form = "variant B, with a per-frame term (folded into c_f)" if per_frame else "variant A, the §7.5 form"
+                p(f"## {mode}: claim 1, upper fit p(shape) = p_0 + sum w_k n_k ns per element, {label} decoder, {form}")
+                p(("  per frame %.0f ns; " % w.get("frame", 0) if per_frame else "  ") + "p_0 = %.0f ns; " % w["p0"] + ", ".join(f"{k} {w[k]:.0f}" for k in KINDS))
+                ratios = sorted((y / pred(f, w), y, pred(f, w)) for f, y in frames if y > 0)
+                p(f"  frames {len(frames)}; measured / predicted: min {ratios[0][0]:.2f}, median {statistics.median([r[0] for r in ratios]):.2f}, max {ratios[-1][0]:.3f}")
+                p(f"  frames within 2% of the fit (the binding ones): {sum(1 for r in ratios if r[0] > 0.98)}")
+                fits[(per_frame, label)] = w
+        p("")
+
+        if mode != "native":
+            continue
+
+        def rule_from(per_frame):
+            fit = {k: max(fits[(per_frame, "milestone")].get(k, 0), fits[(per_frame, "generated")].get(k, 0)) for k in FEATS_ALL}
+            if per_frame:
+                p0n = math.ceil(fit["p0"] / 100) * 100
+            else:
+                p0n = max(P0_DESIGN, math.ceil(fit["p0"] / 100) * 100)
+            dcf = math.ceil(fit["frame"] / 100) * 100
             neww = {k: max(DESIGN_W[k], math.ceil(fit[k] / P1_DESIGN - 1e-9)) for k in KINDS}
-            p("## native: claim 1, the unit rule that holds: p_0 = max(2,000, fit rounded up to 100 ns), each weight = max(§7.5's, ceil(fit / 133 ns)),")
-            p("   the fit being the larger of the milestone's and the generated decoder's")
-            p("   raised over §7.5: " + ", ".join(f"{k} {DESIGN_W[k]} -> {neww[k]}" for k in KINDS if neww[k] != DESIGN_W[k]) + (f"; p_0 2,000 -> {p0n:.0f}" if p0n != P0_DESIGN else ""))
-            p(f"  p_0 = {p0n:.0f} ns, p_1 = 133 ns; weights (leaves): " + ", ".join(f"{k} {neww[k]}" for k in KINDS))
+            return neww, p0n, dcf
+
+        def check(neww, p0n, dcf):
             rs = []
             for n in names:
                 r = meta.get(n)
-                if r is None or not r["sig"]:
+                if r is None:
                     continue
                 units = units_of(r["sig"], neww, p0n, P1_DESIGN)
-                B = r["B"]
-                ex = fe4[n][0] - CF_R - CB_R * B
-                exw = fe4[n][1] - CF_Rw - CB_Rw * B
-                gen_ex = fe4[n][0] - dd[n][0] + gg[n][0] - CF_R - CB_R * B
-                bound = CF_R + CB_R * B + UNIT * units
+                bound = CF_R + (dcf if r["sig"] else 0) + CB_R * r["B"] + UNIT * units
                 rs.append((fe4[n][0] / bound, fe4[n][1] / bound, (fe4[n][0] - dd[n][0] + gg[n][0]) / bound, n, units))
             rs.sort(reverse=True)
-            p("  highest F_e4 / bound (whole frame, mu = 0), milestone [worst run] (generated):")
-            for a, b2, c2, n, u in rs[:10]:
-                p(f"    {n:28s} {a:6.3f} [{b2:6.3f}] ({c2:6.3f})  units {u}")
-            p(f"  max over frames: median-run {max(r[0] for r in rs):.3f}, worst-run {max(r[1] for r in rs):.3f}")
-            NEW_W, NEW_P0 = neww, p0n
-            RS_NATIVE = rs
-            p("")
-            # the design rule as stated (same whole-frame form), for comparison
-            rsd = []
-            for n in names:
-                r = meta.get(n)
-                if r is None or not r["sig"]:
-                    continue
-                units = units_of(r["sig"], DESIGN_W, P0_DESIGN, P1_DESIGN)
-                bound = CF_R + CB_R * r["B"] + UNIT * units
-                rsd.append((fe4[n][0] / bound, fe4[n][1] / bound, n))
-            rsd.sort(reverse=True)
-            p("  the design rule as stated (p_0 2,000, weights of §7.5), whole frame F_e4 / bound at measured c_f, c_b:")
-            for a, b2, n in rsd[:10]:
-                p(f"    {n:28s} {a:6.3f} [{b2:6.3f}]")
-            p("")
+            return rs
 
-            # ---- claim 3: the bound and the defaults
-            p("## native: claim 3, the bound per player and second")
-            busy_units = 60 * units_of([({"int": 3, "bool": 1, "number": 1, "enum": 1}, 1)], NEW_W, NEW_P0, P1_DESIGN) + \
-                10 * units_of([({"enum": 1, "string": 1, "int": 1, "optional": 1}, 1)], NEW_W, NEW_P0, P1_DESIGN)
-            busy_units_design = 60 * units_of([({"int": 3, "bool": 1, "number": 1, "enum": 1}, 1)], DESIGN_W, P0_DESIGN, P1_DESIGN) + \
-                10 * units_of([({"enum": 1, "string": 1, "int": 1, "optional": 1}, 1)], DESIGN_W, P0_DESIGN, P1_DESIGN)
-            p(f"prices: c_f,r {CF_R:.0f} ns, c_f,u {CF_U:.0f} ns, c_b,r {CB_R:.2f} ns/B, c_b,u {CB_U:.2f} ns/B, 100 ns per unit (units at p_0 {NEW_P0:.0f}, p_1 133, weights above)")
-            p(f"busy model: {busy_units} units/s at these weights ({busy_units_design} at §7.5's)")
-            Fr, Fu, Br, Bu, E = 60, 120, 8192, 16384, 10000
-            frames_cost = CF_R * Fr + CF_U * Fu
-            bytes_cost = CB_R * Br + CB_U * Bu
-            p(f"current defaults (Fr {Fr}, Fu {Fu}, Br {Br}, Bu {Bu}, E {E} units/s): frames {frames_cost / 1000:.0f} us + bytes {bytes_cost / 1000:.0f} us + units {UNIT * E / 1000:.0f} us = {(frames_cost + bytes_cost + UNIT * E) / 1000:.0f} us/s at mu = 0")
-            # measured worst per unit at the design weights (if the unit price does not hold)
-            worst_unit = max(r[0] for r in worst)
-            p(f"  with §7.5's weights as stated, the measured worst excess per unit is {worst_unit:.2f} x 100 ns: units term {worst_unit * UNIT * E / 1000:.0f} us, total {(frames_cost + bytes_cost + worst_unit * UNIT * E) / 1000:.0f} us/s")
-            bursts = {"Fr": 240, "Fu": 240, "Br": 49152, "Bu": 32768, "E": 81920}
-            burst_cost = CF_R * bursts["Fr"] + CF_U * bursts["Fu"] + CB_R * bursts["Br"] + CB_U * bursts["Bu"] + UNIT * bursts["E"]
-            p(f"  bursts (240, 240, 49,152, 32,768, 81,920 units): {CF_R * 240 / 1e6:.2f} + {CF_U * 240 / 1e6:.2f} + {CB_R * 49152 / 1e6:.2f} + {CB_U * 32768 / 1e6:.2f} + {UNIT * 81920 / 1e6:.2f} ms = {burst_cost / 1e6:.2f} ms per full refill at mu = 0")
+        rules = {}
+        for per_frame in (False, True):
+            neww, p0n, dcf = rule_from(per_frame)
+            rules[per_frame] = (neww, p0n, dcf)
+            name = "B (a per-frame term added to c_f)" if per_frame else "A (§7.5's form)"
+            p(f"## native: claim 1, a unit rule that holds, variant {name}: p_0 = fit rounded up to 100 ns"
+              + ("" if per_frame else " (at least 2,000)") + ", each weight = max(§7.5's, ceil(fit / 133 ns)), the fit the larger of the milestone's and the generated decoder's")
+            raised = ", ".join(f"{k} {DESIGN_W[k]} -> {neww[k]}" for k in KINDS if neww[k] != DESIGN_W[k])
+            p(f"  p_0 = {p0n:.0f} ns, p_1 = 133 ns" + (f", c_f + {dcf:.0f} ns per frame holding a message" if per_frame else "") + f"; weights raised over §7.5: {raised}")
+            p("  weights (leaves): " + ", ".join(f"{k} {neww[k]}" for k in KINDS))
+            rs = check(neww, p0n, dcf)
+            p("  highest F_e4 / bound (whole frame, mu = 0), milestone [worst run] (generated):")
+            for a, b2, c2, n, u in rs[:12]:
+                p(f"    {n:28s} {a:6.3f} [{b2:6.3f}] ({c2:6.3f})  units {u}")
+            p(f"  max over {len(rs)} frames: median-run {max(r[0] for r in rs):.3f}, worst-run {max(r[1] for r in rs):.3f}, generated {max(r[2] for r in rs):.3f}")
+            for mu in (0.0, 0.10, 0.25):
+                p(f"  frames over (1 + {mu:.2f}) x bound: median-run {sum(1 for r in rs if r[0] > 1 + mu)}, worst-run {sum(1 for r in rs if r[1] > 1 + mu)}")
+            p("")
+        rsd = check(DESIGN_W, P0_DESIGN, 0)
+        p("## native: claim 1, the rule as §7.5 states it (p_0 2,000, its weights), whole frame F_e4 / bound at the measured c_f, c_b:")
+        for a, b2, c2, n, u in rsd[:12]:
+            p(f"    {n:28s} {a:6.3f} [{b2:6.3f}] ({c2:6.3f})  units {u}")
+        p(f"  frames over the bound: median-run {sum(1 for r in rsd if r[0] > 1)} of {len(rsd)}; over 1.25 x: {sum(1 for r in rsd if r[0] > 1.25)}")
+        p("")
+
+        # ---- claim 3: the bound and the defaults
+        p("## native: claim 3, the bound per player and second")
+        move6 = [({"int": 3, "bool": 1, "number": 1, "enum": 1}, 1)]
+        sm = [({"enum": 1, "string": 1, "int": 1, "optional": 1}, 1)]
+        p(f"prices: c_f,r {CF_R:.0f} ns, c_f,u {CF_U:.0f} ns, c_b,r {CB_R:.2f} ns/B, c_b,u {CB_U:.2f} ns/B (walk included), 100 ns per unit")
+        Fr, Fu, Br, Bu, E = 60, 120, 8192, 16384, 10000
+        bytes_cost = CB_R * Br + CB_U * Bu
+        worst_unit = max(r[0] for r in worst)
+        frames0 = CF_R * Fr + CF_U * Fu
+        p(f"current defaults (Fr {Fr}, Fu {Fu}, Br {Br}, Bu {Bu}, E {E} units/s, §7.5's rule): frames {frames0 / 1000:.0f} us + bytes {bytes_cost / 1000:.0f} us + units {UNIT * E / 1000:.0f} us = {(frames0 + bytes_cost + UNIT * E) / 1000:.0f} us/s at mu = 0 if 100 ns per unit held;")
+        p(f"  at §7.5's weights the measured worst excess is {worst_unit:.2f} x 100 ns per unit: units {worst_unit * UNIT * E / 1000:.0f} us, total {(frames0 + bytes_cost + worst_unit * UNIT * E) / 1000:.0f} us/s")
+        for per_frame in (False, True):
+            neww, p0n, dcf = rules[per_frame]
+            busy = 60 * units_of(move6, neww, p0n, P1_DESIGN) + 10 * units_of(sm, neww, p0n, P1_DESIGN)
+            busy_design = 60 * units_of(move6, DESIGN_W, P0_DESIGN, P1_DESIGN) + 10 * units_of(sm, DESIGN_W, P0_DESIGN, P1_DESIGN)
+            cfr, cfu = CF_R + dcf, CF_U + dcf
+            frames_cost = cfr * Fr + cfu * Fu
+            name = "B" if per_frame else "A"
+            p(f"variant {name}: c_f,r {cfr:.0f}, c_f,u {cfu:.0f} ns; units at p_0 {p0n:.0f}; busy model {busy} units/s ({busy_design} at §7.5's rule): move6 {units_of(move6, neww, p0n, P1_DESIGN)}, sm {units_of(sm, neww, p0n, P1_DESIGN)} units")
+            p(f"  at the current defaults: frames {frames_cost / 1000:.0f} + bytes {bytes_cost / 1000:.0f} + units {UNIT * E / 1000:.0f} = {(frames_cost + bytes_cost + UNIT * E) / 1000:.0f} us/s at mu = 0")
+            burst_cost = cfr * 240 + cfu * 240 + CB_R * 49152 + CB_U * 32768 + UNIT * 81920
             for mu in (0.0, 0.10, 0.25):
                 target = 2_000_000 / (1 + mu)
                 e_units = math.floor((target - frames_cost - bytes_cost) / UNIT / 1000) * 1000
                 total = (1 + mu) * (frames_cost + bytes_cost + UNIT * e_units)
                 p(f"  mu = {mu:.2f}: inbound.elements.perSecond = floor(({target / 1000:.0f} - {frames_cost / 1000:.0f} - {bytes_cost / 1000:.0f}) us / 100 ns) to 1,000 = {e_units} units/s "
-                  f"({e_units / busy_units:.1f}x the busy model's {busy_units}); bound {(total) / 1000:.0f} us/s; full refill {(1 + mu) * (burst_cost) / 1e6:.2f} ms; "
-                  f"frames over (1 + mu) x bound: median-run {sum(1 for r in RS_NATIVE if r[0] > 1 + mu)}, worst-run {sum(1 for r in RS_NATIVE if r[1] > 1 + mu)} of {len(RS_NATIVE)}")
-            p("")
+                  f"({e_units / busy:.1f}x the busy model); bound (1 + mu)(frames + bytes + units) = {total / 1000:.0f} us/s; full refill (240, 240, 49,152, 32,768, 81,920) {(1 + mu) * burst_cost / 1e6:.2f} ms")
+        p("")
     print("\n".join(out))
 
 

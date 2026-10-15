@@ -1,6 +1,6 @@
 #!/bin/sh
 # Reproduces the inbound-bound-2 probes with Luau 0.742 built from .data/projects/luau (Release).
-# Usage: sh run.sh BUILD_DIR WORK_DIR [step ...]   steps: setup build gen decode tag gate derive (default: all)
+# Usage: sh run.sh BUILD_DIR WORK_DIR [step ...]   steps: setup build gen decode tag extra gate derive (default: all)
 #   BUILD_DIR holds the luau binary; WORK_DIR is scratch outside the repo. The milestone build (git f1fbfd7, src/)
 #   is exported into WORK_DIR twice, never into the repo:
 #   - WORK_DIR/src, the timed copy. Patches, each listed here, none on a path it times except as stated:
@@ -11,12 +11,13 @@
 #         vector), and CFrame/Color3 bound to rbx.luau's "fast" stand-ins;
 #       plan/dsl.luau: `typeof` bound to rbx.luau's (plan time only: `typeof(items) == "Enum"`).
 #   - WORK_DIR/srcA, the frame builder's copy: codec and dsl modules see rbx.luau's "build" stand-ins and typeof.
-# Each timing probe runs 3 times interpreted (-O2) and 3 times native (-O2 --codegen) into <probe>.out here.
+# Each timing probe runs 3 times interpreted (-O2) and 3 times native (-O2 --codegen) into <probe>.out here, then
+# 4 more times native (step extra).
 set -e
 B=$1; W=$2; shift 2
 P=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$P" rev-parse --show-toplevel)
-STEPS="${*:-setup build gen decode tag gate derive}"
+STEPS="${*:-setup build gen decode tag extra gate derive}"
 mkdir -p "$W"
 
 has() { case " $STEPS " in *" $1 "*) return 0;; esac; return 1; }
@@ -63,8 +64,18 @@ timed() {
 	done
 }
 
+# four more native runs (native is the bound's mode; more runs steady the medians the fit is taken over)
+extra() {
+	p=$1
+	for run in 4 5 6 7; do
+		echo "== $p, native (luau 0.742 -O2 --codegen), run $run" >> "$P/$p.out"
+		(cd "$W" && "$B/luau" -O2 --codegen "$p.luau") >> "$P/$p.out" 2>&1
+	done
+}
+
 has decode && timed decode_cost
 has tag && timed tag_cost
+has extra && { extra decode_cost; extra tag_cost; }
 has gate && {
 	: > "$P/gate.out"
 	for bound in v36 new; do

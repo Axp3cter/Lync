@@ -11,7 +11,7 @@
 -- codec kind in row, run, constant-column and random-column form, records of 1 and 16 fields and of 128 bools,
 -- records of empty arrays and maps, unions, nested records, long arrays, strings and buffers at e + 4); untagged
 -- HELLO frames; long instance lists.
--- Run from WORK_DIR: luau -O2 --codegen gate.luau -a new   (or -a v36)
+-- Run from WORK_DIR: luau -O2 --codegen gate.luau -a new [mu]   (or -a v36)
 
 local Lync = require("./src")
 local M = {
@@ -35,7 +35,8 @@ local DATA = require("./frames_data")
 local Frame, Tag, Bits = M.Frame, M.Tag, M.Bits
 local rt, conn, player = C.rt, C.conn, C.player
 
-local WHICH = ... or "new"
+local WHICH, MU = ...
+WHICH = WHICH or "new"
 
 -- Prices -----------------------------------------------------------------------------------------------------------
 -- c_f,r here is the header-only reliable frame at e + 4 on the reference host; every price is used as a ratio to it.
@@ -64,6 +65,9 @@ local PRICES = {
 local H_REF = 4110
 local P = PRICES[WHICH]
 assert(P, "gate: argument is new or v36")
+if MU ~= nil then
+	P.mu = assert(tonumber(MU), "gate: second argument is mu")
+end
 
 local ROUNDS = 5
 local TARGET = 0.01
@@ -318,7 +322,12 @@ for _, r in results do
 	print(string.format("%-4s %-60s ratio %8.3f  limit %8.3f", if ok then "ok" else "FAIL", r.name, r.ratio, r.limit))
 	if not ok then table.insert(failed, r.name) end
 end
-print(string.format("%d shapes, %d over the bound", #results, #failed))
+local worstAt0, worstName = 0, ""
+for _, r in results do
+	local at0 = r.ratio / (r.limit / (1 + P.mu))
+	if at0 > worstAt0 then worstAt0, worstName = at0, r.name end
+end
+print(string.format("%d shapes, %d over the bound; highest ratio / bound at mu 0: %.3f (%s)", #results, #failed, worstAt0, worstName))
 if #failed > 0 then
 	error(string.format("inbound bound exceeded by %d shape(s): %s", #failed, table.concat(failed, "; ")), 0)
 end

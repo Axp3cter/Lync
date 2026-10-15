@@ -27,4 +27,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
 
 ## Next
 
-- **Built code removed at the author's request** (in git at `f1fbfd7`; evidence data in `probes/build/`). Research and design are caught up with the build (draft 3.4). Draft 3.5 done. Waiting for the author. No milestone work without the author's go-ahead.
+- Built code removed at the author's request (in git at `f1fbfd7`, not on this remote; evidence data in
+  `probes/build/`). Design at draft 3.5. No milestone work without the author's go-ahead.
+- Security re-judgment in progress: the three agents above, then an architect writes draft 3.6, then a critic
+  reviews it.

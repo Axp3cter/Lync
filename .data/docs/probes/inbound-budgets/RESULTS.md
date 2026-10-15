@@ -40,6 +40,8 @@ message); **DP** D + step 5 (`process`: counters, unresolved, `limit`, validator
 reads with constant bounds, values into two flat arrays; checked equal to the milestone's values on every frame
 timed). **gen total** = G + (F − D) − milestone tag + generated tag: generated decode and tag, milestone step 5 and
 buckets (so an upper figure for a generated build).
+The milestone build writes a 16-bit tag (`TAG_BYTES = 2`); `v5.md` §4.5 has 32 bits, which is the same hash output
+(no CPU difference) and 2 B more per frame, added where the busy model's bytes are stated as "design".
 
 Payload shapes: the busy model (`v5.md` §4.1 rates; payloads chosen here because the docs give rates only) is
 60 unreliable frames/s each holding one `move6` (`codecs-in-scripts.md`'s 6-field input: `t.int(0,1000)` ×2,

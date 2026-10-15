@@ -53,6 +53,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aeb3f14bb82fa9e3c` | architect (Opus) | draft 3.6, integrity: `v5-integrity.md`; awaits rejudged-3 (R1, R2, R28), rejudged-4 (R8, R18) | `design/v5-integrity.md`, `design/v5-3.6-changes-integrity.md` | running |
 | `a75374bcd3227e4ff` | architect (Opus) | draft 3.6, collections: `v5-collections.md` plus interest, rewind, interpolation; awaits rejudged-4 (R16, R19) | `design/v5-collections.md`, `design/v5-3.6-changes-collections.md` | running |
 | `a61dd67964f674f75` | architect (Opus) | draft 3.6, checks: new `v5-checks.md` (checks, derive, telemetry, sealed) and `v5-extensions.md`; awaits rejudged-4 (R35) | `design/v5-checks.md`, `design/v5-extensions.md`, `design/v5-3.6-changes-checks.md` | running |
+| `a8d8d1902366d183b` | critic (Opus) | reviews `v5-tooling.md` at draft 3.6 against the shared brief | `reviews/v5-3.6-tooling.md` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -91,7 +92,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   10. Architects, seven units by ownership (`design/v5-3.6-architect-brief.md`): tooling, core-api, wire, runtime,
       integrity, collections, checks; pending research goes to the owning unit by message. Then one consistency
       unit applies every "Needs elsewhere" list and merges the change records into `v5-changes.md`.
-  11. Critic on draft 3.6, then the architect applies it.
+  11. Critic per area as each architect unit finishes (`reviews/v5-3.6-<unit>.md`); the same architect applies it. Then one critic over the merged draft.
   - R40 Studio trap line → the integrity architect unit.
   - R22 quiet mitigation hooks, R23 suspicion scores, R24 automatic consequences: kept refused by principle (facts, not verdicts; `v5.md` §1); the integrity architect records them.
   - `v5.md` §5.1 flush rule: "1/60 s since the last flush" gives 40 Hz from a steady 60 FPS client; an accumulator keeping the remainder gives 60 Hz (telemetry T5 item 10) → the wire architect unit.

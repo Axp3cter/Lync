@@ -1,0 +1,20 @@
+{
+	"emitLegacyScripts": false,
+	"name": "LyncTest",
+	"globIgnorePaths": [
+		"build/test/test/types"
+	],
+	"tree": {
+		"$className": "DataModel",
+		"HttpService": {
+			"$properties": {
+				"HttpEnabled": true
+			}
+		},
+		"ReplicatedStorage": {
+			"Lync": {
+				"$path": "build/test"
+			}
+		}
+	}
+}

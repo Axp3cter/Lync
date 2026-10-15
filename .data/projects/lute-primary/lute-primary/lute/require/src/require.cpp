@@ -1,0 +1,297 @@
+#include "lute/require.h"
+
+#include "lute/common.h"
+#include "lute/lutevfs.h"
+#include "lute/modulepath.h"
+#include "lute/options.h"
+#include "lute/ref.h"
+#include "lute/runtime.h"
+
+#include "Luau/CodeGen.h"
+#include "Luau/Compiler.h"
+#include "Luau/Require.h"
+
+#include "lua.h"
+#include "lualib.h"
+
+#include <string>
+
+static luarequire_WriteResult write(std::optional<std::string> contents, char* buffer, size_t bufferSize, size_t* sizeOut)
+{
+    if (!contents)
+        return luarequire_WriteResult::WRITE_FAILURE;
+
+    size_t nullTerminatedSize = contents->size() + 1;
+
+    if (bufferSize < nullTerminatedSize)
+    {
+        *sizeOut = nullTerminatedSize;
+        return luarequire_WriteResult::WRITE_BUFFER_TOO_SMALL;
+    }
+
+    *sizeOut = nullTerminatedSize;
+    memcpy(buffer, contents->c_str(), nullTerminatedSize);
+    return luarequire_WriteResult::WRITE_SUCCESS;
+}
+
+static luarequire_NavigateResult convert(NavigationStatus status)
+{
+    luarequire_NavigateResult navigateResult = NAVIGATE_NOT_FOUND;
+    switch (status)
+    {
+    case NavigationStatus::Success:
+        navigateResult = NAVIGATE_SUCCESS;
+        break;
+    case NavigationStatus::Ambiguous:
+        navigateResult = NAVIGATE_AMBIGUOUS;
+        break;
+    case NavigationStatus::NotFound:
+        navigateResult = NAVIGATE_NOT_FOUND;
+        break;
+    };
+    return navigateResult;
+}
+
+static luarequire_ConfigStatus convert(ConfigStatus status)
+{
+    luarequire_ConfigStatus configStatus = CONFIG_AMBIGUOUS;
+    switch (status)
+    {
+    case ConfigStatus::Absent:
+        configStatus = CONFIG_ABSENT;
+        break;
+    case ConfigStatus::Ambiguous:
+        configStatus = CONFIG_AMBIGUOUS;
+        break;
+    case ConfigStatus::PresentJson:
+        configStatus = CONFIG_PRESENT_JSON;
+        break;
+    case ConfigStatus::PresentLuau:
+        configStatus = CONFIG_PRESENT_LUAU;
+        break;
+    };
+    return configStatus;
+}
+
+static bool is_require_allowed(lua_State* L, void* ctx, const char* requirer_chunkname)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return reqCtx->vfs->isRequireAllowed(L, requirer_chunkname);
+}
+
+static luarequire_NavigateResult reset(lua_State* L, void* ctx, const char* requirer_chunkname)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->reset(L, requirer_chunkname));
+}
+
+static luarequire_NavigateResult jump_to_alias(lua_State* L, void* ctx, const char* path)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->jumpToAlias(L, path));
+}
+
+static luarequire_NavigateResult to_alias_override(lua_State* L, void* ctx, const char* alias_unprefixed)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->toAliasOverride(L, alias_unprefixed));
+}
+
+static luarequire_NavigateResult to_alias_fallback(lua_State* L, void* ctx, const char* alias_unprefixed)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->toAliasFallback(L, alias_unprefixed));
+}
+
+static luarequire_NavigateResult to_parent(lua_State* L, void* ctx)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->toParent(L));
+}
+
+static luarequire_NavigateResult to_child(lua_State* L, void* ctx, const char* name)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->toChild(L, name));
+}
+
+static bool is_module_present(lua_State* L, void* ctx)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return reqCtx->vfs->isModulePresent(L);
+}
+
+static luarequire_WriteResult get_chunkname(lua_State* L, void* ctx, char* buffer, size_t buffer_size, size_t* size_out)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return write(reqCtx->vfs->getChunkname(L), buffer, buffer_size, size_out);
+}
+
+static luarequire_WriteResult get_loadname(lua_State* L, void* ctx, char* buffer, size_t buffer_size, size_t* size_out)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return write(reqCtx->vfs->getLoadname(L), buffer, buffer_size, size_out);
+}
+
+static luarequire_WriteResult get_cache_key(lua_State* L, void* ctx, char* buffer, size_t buffer_size, size_t* size_out)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return write(reqCtx->vfs->getCacheKey(L), buffer, buffer_size, size_out);
+}
+
+static luarequire_ConfigStatus get_config_status(lua_State* L, void* ctx)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return convert(reqCtx->vfs->getConfigStatus(L));
+}
+
+static luarequire_WriteResult get_config(lua_State* L, void* ctx, char* buffer, size_t buffer_size, size_t* size_out)
+{
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    return write(reqCtx->vfs->getConfig(L), buffer, buffer_size, size_out);
+}
+
+static std::string describeModuleFailure(lua_State* ML, int status, const std::string& path)
+{
+    if (status == LUA_OK)
+        return "module " + path + " must return a single value, if it has no return value, you should explicitly return `nil`";
+    if (lua_isstring(ML, -1))
+        return lua_tostring(ML, -1);
+    return "unknown error while running module";
+}
+
+static int load(lua_State* L, void* ctx, const char* path, const char* chunkname, const char* loadname)
+{
+    // Lute modules are built-in and don't need to be compiled or executed.
+    if (strncmp(loadname, "@lute/", 6) == 0)
+    {
+        const lua_CFunction* func = kLuteModules.find(loadname);
+        LUTE_ASSERT(func);
+        lua_pushcfunction(L, *func, nullptr);
+        lua_call(L, 0, 1);
+        return 1;
+    }
+
+    // module needs to run in a new thread, isolated from the rest
+    // note: we create ML on main thread so that it doesn't inherit environment of L
+    lua_State* GL = lua_mainthread(L);
+    lua_State* ML = lua_newthread(GL);
+    lua_xmove(GL, L, 1);
+
+    // new thread needs to have the globals sandboxed
+    luaL_sandboxthread(ML);
+
+    RequireCtx* reqCtx = static_cast<RequireCtx*>(ctx);
+    std::optional<std::string> contents = reqCtx->vfs->getContents(L, loadname);
+    if (!contents)
+        luaL_error(L, "could not read file '%s'", loadname);
+
+    // now we can compile & run module on the new thread
+    std::string bytecode = reqCtx->vfs->isPrecompiled() ? *contents : Luau::compile(*contents, reqCtx->compileOptions);
+    bool errored = true;
+    if (luau_load(ML, chunkname, bytecode.data(), bytecode.size(), 0) == 0)
+    {
+        // if debug level == 2, we should not do native compilation even if that's flagged as allowed
+        if (reqCtx->compileOptions.debugLevel < 2)
+        {
+            Luau::CodeGen::CompilationOptions nativeOptions;
+            nativeOptions.flags = Luau::CodeGen::CodeGen_OnlyNativeModules;
+            Luau::CodeGen::compile(ML, -1, nativeOptions);
+        }
+        if (reqCtx->onChunkLoad)
+            reqCtx->onChunkLoad(ML, chunkname);
+        int status = lua_resume(ML, L, 0);
+
+        // If the module yielded, we yield the requiring thread as well. Once
+        // the module finishes, the requiring thread will be resumed as well.
+        if (status == LUA_YIELD)
+        {
+            ThreadCompletionHandler completion;
+            completion.onFinish = [callerToken = getResumeToken(L), modulePath = std::string(path)](lua_State* ML, int status)
+            {
+                if (status == LUA_OK && lua_gettop(ML) == 1)
+                {
+                    auto resultRef = std::make_shared<Ref>(ML, -1);
+                    callerToken->complete(
+                        [resultRef](lua_State* L)
+                        {
+                            resultRef->push(L);
+                            return 1;
+                        }
+                    );
+                    return;
+                }
+
+                std::string error = describeModuleFailure(ML, status, modulePath);
+                error += "\n";
+                error += lua_debugtrace(ML);
+
+                callerToken->fail(error);
+            };
+            getRuntime(ML)->addThreadCompletionHandler(ML, std::move(completion));
+
+            // Pop ML from L's stack and signal a yield.
+            lua_pop(L, 1);
+            return -1;
+        }
+
+        if (status == LUA_OK && lua_gettop(ML) == 1)
+            errored = false;
+        else
+            lua_pushstring(ML, describeModuleFailure(ML, status, path).c_str());
+    }
+
+    // add ML result to L stack
+    lua_xmove(ML, L, 1);
+    if (errored && lua_isstring(L, -1))
+    {
+        lua_pushstring(L, "\n");
+        lua_pushstring(L, lua_debugtrace(ML));
+        lua_concat(L, 3);
+        lua_error(L);
+    }
+
+    // remove ML thread from L stack
+    lua_remove(L, -2);
+
+    // added one value to L stack: module result
+    return 1;
+}
+
+void requireConfigInit(luarequire_Configuration* config)
+{
+    if (config == nullptr)
+        return;
+
+    config->is_require_allowed = is_require_allowed;
+    config->reset = reset;
+    config->jump_to_alias = jump_to_alias;
+    config->to_alias_override = to_alias_override;
+    config->to_alias_fallback = to_alias_fallback;
+    config->to_parent = to_parent;
+    config->to_child = to_child;
+    config->is_module_present = is_module_present;
+    config->get_config_status = get_config_status;
+    config->get_chunkname = get_chunkname;
+    config->get_loadname = get_loadname;
+    config->get_cache_key = get_cache_key;
+    config->get_config = get_config;
+    config->load = load;
+}
+
+RequireCtx::RequireCtx(std::unique_ptr<IRequireVfs> vfs)
+    : vfs(std::move(vfs))
+    , compileOptions(copts())
+{
+}
+
+RequireCtx::RequireCtx(
+    std::unique_ptr<IRequireVfs> vfs,
+    Luau::CompileOptions compileOptions,
+    std::function<void(lua_State* L, const std::string& chunkName)> onChunkLoad
+)
+    : vfs(std::move(vfs))
+    , compileOptions(std::move(compileOptions))
+    , onChunkLoad(std::move(onChunkLoad))
+{
+}

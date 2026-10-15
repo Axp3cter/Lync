@@ -1,0 +1,11 @@
+{
+	"recommendations": [
+		"JohnnyMorganz.luau-lsp",
+		"evaera.vscode-rojo",
+		"EditorConfig.EditorConfig"
+	],
+	"unwantedRecommendations": [
+		"sumneko.lua",
+		"JohnnyMorganz.stylua"
+	]
+}

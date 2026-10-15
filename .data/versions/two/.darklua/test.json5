@@ -1,0 +1,19 @@
+{
+	// Source lines and comments survive, so a Studio error points at the repository's own line.
+	generator: "retain_lines",
+	// Without this, darklua turns Rojo's meta and model files into modules and drops other types.
+	loaders: { "**/*.{json,jsonc,toml,csv,txt,rbxm,rbxmx,yml,yaml}": "copy" },
+	rules: [
+		// The branch is switched on, not folded away, so only the flag differs from the source.
+		{ rule: "inject_global_value", identifier: "IS_DEVELOPMENT", value: true },
+		// A test build has no release to stamp, so an unset version takes a default.
+		{
+			rule: "inject_global_value",
+			identifier: "VERSION",
+			env: "LYNC_VERSION",
+			default_value: "0.0.0-test",
+		},
+		// The luau mode reads `./` in an init module as Roblox does; the path mode does not.
+		{ rule: "convert_require", current: "luau", target: "luau" },
+	],
+}

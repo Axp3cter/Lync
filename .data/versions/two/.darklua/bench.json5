@@ -1,0 +1,19 @@
+{
+	// The src half of build/bench comes from release.json5, so benchmarks time the shipped code.
+	generator: "retain_lines",
+	// Without this, darklua turns Rojo's meta and model files into modules and drops other types.
+	loaders: { "**/*.{json,jsonc,toml,csv,txt,rbxm,rbxmx,yml,yaml}": "copy" },
+	rules: [
+		// The development branch is off, as in the release the benchmarks stand for.
+		{ rule: "inject_global_value", identifier: "IS_DEVELOPMENT", value: false },
+		// The harness is shared with the test build, so it needs a version here too.
+		{
+			rule: "inject_global_value",
+			identifier: "VERSION",
+			env: "LYNC_VERSION",
+			default_value: "0.0.0-bench",
+		},
+		// The luau mode reads `./` in an init module as Roblox does; the path mode does not.
+		{ rule: "convert_require", current: "luau", target: "luau" },
+	],
+}

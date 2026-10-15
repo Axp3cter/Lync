@@ -1,0 +1,144 @@
+name: "Setup and Build"
+description: "Install dependencies, configure and build target"
+
+inputs:
+  target:
+    description: "Which target to build"
+    required: true
+  config:
+    description: "Build configuration (debug or release)"
+    required: false
+    default: "debug"
+  options:
+    description: "Additional luthier options"
+    required: false
+    default: ""
+  token:
+    description: "Token for foreman"
+    required: true
+  use-bootstrap:
+    description: "Whether to use the bootstrap script to build the Lute used to run luthier"
+    required: false
+    default: "false"
+  install-system-deps:
+    description: "Whether to install system build dependencies via apt-get. Set to 'false' when the caller provisions its own toolchain (e.g. inside a custom container)."
+    required: false
+    default: "true"
+
+outputs:
+  exe_path:
+    description: "Path to the compiled executable"
+    value: ${{ steps.artifact_path.outputs.exe_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install tools
+      if: ${{ inputs.use-bootstrap == 'false' }}
+      uses: Roblox/setup-foreman@v3
+      with:
+        token: ${{ inputs.token }}
+        allow-external-github-orgs: true
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux' && inputs.install-system-deps == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build clang ccache
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew update
+        brew unlink brotli zstd
+        brew install ccache
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: choco install ccache -y
+
+    - name: Set up MSVC
+      if: runner.os == 'Windows'
+      uses: luau-lang/msvc-dev-cmd@v1
+
+    - name: Set up NASM
+      if: runner.os == 'Windows'
+      uses: luau-lang/setup-nasm@v1
+
+    - name: Cache extern folder
+      uses: actions/cache@v5
+      id: cache-extern
+      with:
+        path: extern
+        key: extern-${{ hashFiles('extern/*.tune') }}
+
+    - name: Configure ccache
+      shell: bash
+      run: |
+        echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
+        echo "CCACHE_MAXSIZE=500M" >> $GITHUB_ENV
+        echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+        echo "CCACHE_COMPRESSLEVEL=6" >> $GITHUB_ENV
+        # zero statistics
+        ccache -z
+
+    - name: Restore ccache
+      uses: actions/cache/restore@v5
+      id: cache-ccache
+      with:
+        path: .ccache
+        key: ccache-${{ runner.os }}-${{ inputs.options }}-
+        lookup-only: false
+
+
+    - name: ccache stats (pre-build)
+      shell: bash
+      run: |
+        echo "Cache status: ${{ steps.cache-ccache.outputs.cache-hit }}"
+        ccache -s
+
+    - name: Bootstrap Lute (if needed) and set LUTE
+      shell: bash
+      run: |
+        if [[ "${{ inputs.use-bootstrap }}" == "true" ]]; then
+          echo "Bootstrapping Lute..."
+          ./tools/bootstrap.sh --with-ccache --build-debug
+          echo "LUTE=./build/lute0" >> $GITHUB_ENV
+        else
+          echo "LUTE=lute" >> $GITHUB_ENV
+        fi
+
+    - name: Fetch ${{ inputs.target }}
+      if: steps.cache-extern.outputs.cache-hit != 'true'
+      shell: bash
+      run: $LUTE ./tools/luthier.luau fetch ${{ inputs.target }}
+
+    - name: Configure ${{ inputs.target }}
+      shell: bash
+      run: $LUTE ./tools/luthier.luau configure ${{ inputs.target }} --with-ccache --config ${{ inputs.config }} ${{ inputs.options }}
+
+    - name: Build ${{ inputs.target }}
+      shell: bash
+      run: $LUTE ./tools/luthier.luau build ${{ inputs.target }} --with-ccache --config ${{ inputs.config }} ${{ inputs.options }}
+
+    - name: ccache stats (post-build)
+      shell: bash
+      run: ccache -s
+
+    - name: Save ccache
+      if: github.ref_name == 'primary'
+      uses: actions/cache/save@v5
+      with:
+        path: .ccache
+        key: ccache-${{ runner.os }}-${{ inputs.options }}-${{ github.sha }}
+
+    - name: Get Artifact Path
+      id: artifact_path
+      shell: bash
+      run: |
+        exe_path=$($LUTE ./tools/luthier.luau build ${{ inputs.target }} --config ${{ inputs.config }} --which)
+        echo "Executable path: $exe_path"  # Debug print
+        echo "exe_path=$exe_path" >> "$GITHUB_OUTPUT"

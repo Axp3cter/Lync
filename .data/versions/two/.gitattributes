@@ -1,0 +1,5 @@
+# Without eol=lf, core.autocrlf checks out CRLF and darklua's retain_lines copies it into output.
+* text=auto eol=lf
+
+*.rbxl binary
+*.rbxm binary

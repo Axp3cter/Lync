@@ -1,0 +1,193 @@
+#pragma once
+
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "Protocol/SemanticTokens.hpp"
+#include "Protocol/CodeAction.hpp"
+
+namespace lsp
+{
+
+struct DocumentLinkOptions
+{
+    bool resolveProvider = false;
+};
+NLOHMANN_DEFINE_OPTIONAL(DocumentLinkOptions, resolveProvider);
+
+struct SignatureHelpOptions
+{
+    std::optional<std::vector<std::string>> triggerCharacters = std::nullopt;
+    std::optional<std::vector<std::string>> retriggerCharacters = std::nullopt;
+};
+NLOHMANN_DEFINE_OPTIONAL(SignatureHelpOptions, triggerCharacters, retriggerCharacters);
+
+enum struct TextDocumentSyncKind
+{
+    None = 0,
+    Full = 1,
+    Incremental = 2,
+};
+
+struct SaveOptions
+{
+    /**
+     * The client is supposed to include the content on save.
+     */
+    bool includeText = false;
+};
+NLOHMANN_DEFINE_OPTIONAL(SaveOptions, includeText)
+
+struct TextDocumentSyncOptions
+{
+    /**
+     * Open and close notifications are sent to the server. If omitted open
+     * close notification should not be sent.
+     */
+    bool openClose = false;
+    /**
+     * Change notifications are sent to the server. See
+     * TextDocumentSyncKind.None, TextDocumentSyncKind.Full and
+     * TextDocumentSyncKind.Incremental. If omitted it defaults to
+     * TextDocumentSyncKind.None.
+     */
+    TextDocumentSyncKind change = TextDocumentSyncKind::None;
+    /**
+     * If present will save notifications are sent to the server. If omitted
+     * the notification should not be sent.
+     */
+    bool willSave = false;
+    /**
+     * If present will save wait until requests are sent to the server. If
+     * omitted the request should not be sent.
+     */
+    bool willSaveWaitUntil = false;
+    /**
+     * If present save notifications are sent to the server. If omitted the
+     * notification should not be sent.
+     */
+    SaveOptions save;
+};
+NLOHMANN_DEFINE_OPTIONAL(TextDocumentSyncOptions, openClose, change, willSave, willSaveWaitUntil, save)
+
+struct DiagnosticOptions
+{
+    std::optional<std::string> identifier = std::nullopt;
+    bool interFileDependencies = false;
+    bool workspaceDiagnostics = false;
+};
+NLOHMANN_DEFINE_OPTIONAL(DiagnosticOptions, identifier, interFileDependencies, workspaceDiagnostics);
+
+struct WorkspaceFoldersServerCapabilities
+{
+    bool supported = false;
+    bool changeNotifications = false;
+};
+NLOHMANN_DEFINE_OPTIONAL(WorkspaceFoldersServerCapabilities, supported, changeNotifications);
+
+struct WorkspaceCapabilities
+{
+    std::optional<WorkspaceFoldersServerCapabilities> workspaceFolders = std::nullopt;
+    // fileOperations
+};
+NLOHMANN_DEFINE_OPTIONAL(WorkspaceCapabilities, workspaceFolders);
+
+struct CompletionOptions
+{
+    std::optional<std::vector<std::string>> triggerCharacters = std::nullopt;
+    std::optional<std::vector<std::string>> allCommitCharacters = std::nullopt;
+    bool resolveProvider = false;
+
+    struct CompletionItem
+    {
+        bool labelDetailsSupport = false;
+    };
+    std::optional<CompletionItem> completionItem = std::nullopt;
+};
+NLOHMANN_DEFINE_OPTIONAL(CompletionOptions::CompletionItem, labelDetailsSupport);
+NLOHMANN_DEFINE_OPTIONAL(CompletionOptions, triggerCharacters, allCommitCharacters, resolveProvider, completionItem);
+
+struct SemanticTokensOptions
+{
+    SemanticTokensLegend legend;
+    bool range = false;
+    bool full = false;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SemanticTokensOptions, legend, range, full);
+
+struct CodeActionOptions
+{
+    /**
+     * CodeActionKinds that this server may return.
+     *
+     * The list of kinds may be generic, such as `CodeActionKind.Refactor`,
+     * or the server may list out every specific kind they provide.
+     */
+    std::optional<std::vector<CodeActionKind>> codeActionKinds = std::nullopt;
+    /**
+     * The server provides support to resolve additional
+     * information for a code action.
+     *
+     * @since 3.16.0
+     */
+    bool resolveProvider = false;
+};
+NLOHMANN_DEFINE_OPTIONAL(CodeActionOptions, codeActionKinds, resolveProvider);
+
+struct DocumentOnTypeFormattingOptions
+{
+    std::string firstTriggerCharacter;
+    std::optional<std::vector<std::string>> moreTriggerCharacter = std::nullopt;
+};
+NLOHMANN_DEFINE_OPTIONAL(DocumentOnTypeFormattingOptions, firstTriggerCharacter, moreTriggerCharacter);
+
+struct ServerCapabilities
+{
+    PositionEncodingKind positionEncoding = PositionEncodingKind::UTF16;
+    std::optional<TextDocumentSyncOptions> textDocumentSync = std::nullopt;
+    std::optional<CompletionOptions> completionProvider = std::nullopt;
+    bool hoverProvider = false;
+    std::optional<SignatureHelpOptions> signatureHelpProvider = std::nullopt;
+    bool declarationProvider = false;
+    bool definitionProvider = false;
+    bool typeDefinitionProvider = false;
+    bool implementationProvider = false;
+    bool referencesProvider = false;
+    bool documentSymbolProvider = false;
+    /**
+     * The server provides code actions. The `CodeActionOptions` return type is
+     * only valid if the client signals code action literal support via the
+     * property `textDocument.codeAction.codeActionLiteralSupport`.
+     */
+    std::optional<CodeActionOptions> codeActionProvider = std::nullopt;
+    std::optional<DocumentLinkOptions> documentLinkProvider = std::nullopt;
+    bool colorProvider = false;
+    bool renameProvider = false;
+    /**
+     * The server provides folding provider support.
+     *
+     * @since 3.10.0
+     */
+    bool foldingRangeProvider = false;
+    bool inlayHintProvider = false;
+    std::optional<DiagnosticOptions> diagnosticProvider = std::nullopt;
+    /**
+     * The server provides workspace symbol support.
+     */
+    bool workspaceSymbolProvider = false;
+    /**
+     * The server provides call hierarchy support.
+     *
+     * @since 3.16.0
+     */
+    bool callHierarchyProvider = false;
+    std::optional<SemanticTokensOptions> semanticTokensProvider = std::nullopt;
+    std::optional<DocumentOnTypeFormattingOptions> documentOnTypeFormattingProvider = std::nullopt;
+    std::optional<WorkspaceCapabilities> workspace = std::nullopt;
+};
+NLOHMANN_DEFINE_OPTIONAL(ServerCapabilities, positionEncoding, textDocumentSync, completionProvider, hoverProvider, signatureHelpProvider,
+    declarationProvider, definitionProvider, typeDefinitionProvider, implementationProvider, referencesProvider, documentSymbolProvider,
+    codeActionProvider, documentLinkProvider, colorProvider, renameProvider, foldingRangeProvider, inlayHintProvider, diagnosticProvider,
+    workspaceSymbolProvider, callHierarchyProvider, semanticTokensProvider, documentOnTypeFormattingProvider, workspace);
+} // namespace lsp

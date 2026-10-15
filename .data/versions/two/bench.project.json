@@ -1,0 +1,18 @@
+{
+	"emitLegacyScripts": false,
+	"name": "LyncBench",
+	"servePort": 34873,
+	"tree": {
+		"$className": "DataModel",
+		"HttpService": {
+			"$properties": {
+				"HttpEnabled": true
+			}
+		},
+		"ReplicatedStorage": {
+			"Lync": {
+				"$path": "build/bench"
+			}
+		}
+	}
+}

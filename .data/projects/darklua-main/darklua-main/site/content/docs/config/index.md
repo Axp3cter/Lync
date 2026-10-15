@@ -1,0 +1,127 @@
+---
+title: Overview
+description: How the configuration file works
+group: Configuration
+order: 1
+---
+
+When transforming Lua using the `darklua process` command, darklua can read a configuration file to customize how the code is transformed.
+
+## Rules
+
+Rules are what transform Lua code. When processing code with darklua, it is essentially going through a given list of rules one by one, each one transforming code and feeding it to the next rule.
+
+**Important note:** one thing to understand is that the ordering of these rules sometimes have importance! For example, you should inject a value before trying to compute expressions statically or optimize if branches out.
+
+More information is available in the section specific to [rule configuration](/docs/rules).
+
+## Location
+
+From the directory where you run `darklua process`, darklua will attempt to read the following files automatically:
+
+- `.darklua.json`
+- `.darklua.json5`
+
+To provide a different configuration file, this subcommand also accept a specific path to a configuration file with `--config <path>`.
+
+## Content Loaders
+
+darklua chooses how to process each file based on its extension: Lua and Luau files are parsed, recognized data files (such as JSON, TOML, and YAML) are converted to Lua modules, and other files are left alone. With content loaders, you can override these defaults or tell darklua what to do with other files: copy them to the output, turn their content into a Lua module, or skip them.
+
+Loaders are configured with the `loaders` field, which maps glob patterns to loader names. For example, to copy Rojo model files, ignore `.yml` files and turn Markdown files into string modules:
+
+```json5
+{
+  loaders: {
+    "**/*.model.json": "copy",
+    "**/*.yml": "skip",
+    "**/*.md": "string",
+  },
+}
+```
+
+See the [content loaders](/docs/content-loaders) page for the full list of loaders and how each one works.
+
+## Filtering
+
+It is possible to limit which files are processed using `apply_to_files` and `skip_files`. Both accept glob patterns [from this implementation](https://github.com/olson-sean-k/wax/blob/master/README.md#patterns) (same syntax as `bundle.excludes`). Each field can be a single pattern string or an array of patterns.
+
+- `apply_to_files`: When set, only files whose path matches at least one pattern are processed. Files that do not match any pattern are skipped entirely.
+- `skip_files`: When set, any file whose path matches any pattern is skipped. This is **applied after** `apply_to_files`, so you can combine both (e.g. process only `src/**/*.lua` but skip `src/**/*.test.lua`).
+
+When both are empty (the default), all files are processed.
+
+## Quick Reference
+
+Any missing field will be replaced with its default value.
+
+```json5
+{
+  // Output code in different ways depending on the given generator
+  generator: "retain_lines", // default value
+
+  // Restrict on which files rules will be applied
+  apply_to_files: ["src/**/*.luau"],
+  // Exclude applying rules to some files
+  skip_files: ["**/*.test.lua"],
+
+  // Tell darklua how to process files
+  loaders: {
+    "**/*.model.json": "copy",
+    "**/*.md": "string",
+    "**/*.png": "buffer/base64",
+  },
+  // Some content loaders create Lua modules which will use this extension
+  lua_extension: "lua", // or "luau"
+
+  bundle: {
+    // Identifier used by darklua to store the bundled modules
+    modules_identifier: "__DARKLUA_BUNDLE_MODULES",
+
+    // To avoid bundling certain paths, insert patterns into the list to exclude
+    // them (see https://github.com/olson-sean-k/wax/blob/master/README.md#patterns
+    // for details about the syntax)
+    excludes: [],
+
+    // Configure how requires are interpreted
+    require_mode: {
+      // Currently, the only supported require mode is `path`
+      name: "path",
+
+      // When requiring folders, require the file named like this value inside of it
+      module_folder_name: "init",
+
+      // Provide paths that can be required with a specific prefix
+      sources: {
+        // Map strings to paths relative to the configuration files itself
+        // for example, to support requires of Wally packages as `pkg/PackageName`,
+        // map `pkg` to a path to the `Packages` folder created by Wally:
+        pkg: "./Packages",
+      },
+
+      // Enable or disable finding `.luaurc` files to load source aliases
+      use_luau_configuration: true, // default value
+    },
+  },
+
+  // Define the rules that will transform the Lua code.
+  // If you do not provide this field, the default list of rules is
+  // going to be executed.
+  rules: [
+    "remove_comments",
+    "remove_spaces",
+    // For rules with parameters, use the object notation to specify
+    // the values to override
+    {
+      rule: "inject_global_value",
+      identifier: "DEBUG",
+      value: false,
+    },
+    "remove_nil_declaration",
+    "compute_expression",
+    "remove_unused_if_branch",
+    "filter_after_early_return",
+    "remove_empty_do",
+  ],
+}
+```

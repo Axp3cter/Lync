@@ -1,0 +1,370 @@
+local cli = {}
+cli.__index = cli
+
+type ArgKind = "positional" | "flag" | "option" | "variadic"
+type ArgOptions = {
+	help: string?,
+	aliases: { string }?,
+	default: string?,
+	required: boolean?,
+	hidden: boolean?,
+}
+
+type ArgData = {
+	name: string,
+	kind: ArgKind,
+	options: ArgOptions,
+}
+
+type CommandOptions = {
+	help: string?,
+	aliases: { string }?,
+	hidden: boolean?,
+}
+
+type CommandData = {
+	name: string,
+	parser: Parser,
+	options: CommandOptions,
+}
+
+type ParseResult = {
+	values: { [string]: string? },
+	flags: { [string]: boolean },
+	variadics: { string },
+	fwdArgs: { string },
+}
+
+type ParserData = {
+	arguments: { [number]: ArgData },
+	positional: { [number]: ArgData },
+	variadicArg: ArgData?,
+	commands: { [number]: CommandData },
+	selectedCommand: CommandData?,
+	parsed: ParseResult,
+}
+
+type ParserInterface = typeof(cli)
+export type Parser = setmetatable<ParserData, ParserInterface>
+
+function cli.parser(): Parser
+	local self = {
+		arguments = {},
+		positional = {},
+		variadicArg = nil :: ArgData?,
+		commands = {},
+		selectedCommand = nil :: CommandData?,
+		parsed = { values = {}, flags = {}, variadics = {}, fwdArgs = {} },
+	}
+
+	return setmetatable(self, cli)
+end
+
+-- an argument or a command answers to its own name and to any of its aliases
+local function isNamed(entry: ArgData | CommandData, name: string): boolean
+	local aliases = entry.options.aliases or {}
+
+	return entry.name == name or table.find(aliases, name) ~= nil
+end
+
+local function findArgument(self: Parser, name: string): ArgData?
+	for _, argument in self.arguments do
+		if isNamed(argument, name) then
+			return argument
+		end
+	end
+
+	return nil
+end
+
+local function findCommand(self: Parser, name: string): CommandData?
+	for _, command in self.commands do
+		if isNamed(command, name) then
+			return command
+		end
+	end
+
+	return nil
+end
+
+function cli.add(self: Parser, name: string, kind: ArgKind, options: ArgOptions?): ()
+	local resolved: ArgOptions = options or { aliases = {}, required = false }
+
+	-- lookups return the first match, so a repeated name or alias would be unreachable
+	assert(findArgument(self, name) == nil, "Duplicate argument name: " .. name)
+
+	local aliases = resolved.aliases or {}
+	for index, alias in aliases do
+		local repeated = alias == name or table.find(aliases, alias) ~= index or findArgument(self, alias) ~= nil
+		assert(not repeated, "Duplicate argument alias: " .. alias)
+	end
+
+	-- a second variadic would replace the first, leaving it registered but unreachable
+	assert(kind ~= "variadic" or self.variadicArg == nil, "A parser can only have one variadic argument: " .. name)
+
+	local argument: ArgData = {
+		name = name,
+		kind = kind,
+		options = resolved,
+	}
+
+	table.insert(self.arguments, argument)
+	if kind == "positional" then
+		table.insert(self.positional, argument)
+	elseif kind == "variadic" then
+		self.variadicArg = argument
+	end
+end
+
+function cli.subcommand(self: Parser, name: string, options: CommandOptions?): Parser
+	local resolved: CommandOptions = options or { aliases = {} }
+
+	assert(findCommand(self, name) == nil, "Duplicate command name: " .. name)
+
+	local aliases = resolved.aliases or {}
+	for index, alias in aliases do
+		local repeated = alias == name or table.find(aliases, alias) ~= index or findCommand(self, alias) ~= nil
+		assert(not repeated, "Duplicate command alias: " .. alias)
+	end
+
+	local parser = cli.parser()
+
+	table.insert(self.commands, {
+		name = name,
+		parser = parser,
+		options = resolved,
+	})
+
+	return parser
+end
+
+-- arguments are matched against this parser until a subcommand name is reached; everything
+-- after that name belongs to the subcommand's own parser, so any argument declared here has
+-- to be given before it
+function cli.parse(self: Parser, args: { string }): ()
+	local i = 0
+	local pos_index = 1
+
+	while i < #args do
+		i += 1
+
+		local arg = args[i]
+
+		-- if the argument is exactly "--", we pass everything along
+		if arg == "--" then
+			table.move(args, i + 1, #args, #self.parsed.fwdArgs + 1, self.parsed.fwdArgs)
+			break
+		end
+
+		-- if the argument starts with two dashes, we're parsing either a flag or an option
+		if string.sub(arg, 1, 2) == "--" then
+			local name = string.sub(arg, 3)
+			local argument = findArgument(self, name)
+
+			assert(argument, "Unknown argument: " .. name)
+
+			if argument.kind == "option" then
+				-- advance past the argument
+				i += 1
+
+				assert(i <= #args, "Missing value for argument: " .. argument.name)
+				self.parsed.values[argument.name] = args[i]
+			else
+				self.parsed.flags[argument.name] = true
+			end
+
+			continue
+		end
+
+		-- if the argument starts with a single dash, we're parsing a flag
+		if string.sub(arg, 1, 1) == "-" then
+			local flags = string.sub(arg, 2)
+
+			for j = 1, #flags do
+				local name = string.sub(flags, j, j)
+				local argument = findArgument(self, name)
+
+				assert(argument, "Unknown argument: " .. name)
+
+				if argument.kind == "option" then
+					i += 1
+					assert(i <= #args, "Missing value for argument: " .. argument.name)
+					self.parsed.values[argument.name] = args[i]
+				else
+					self.parsed.flags[argument.name] = true
+				end
+			end
+
+			continue
+		end
+
+		-- if the argument names a subcommand, that subcommand takes over the rest of the arguments
+		local command = findCommand(self, arg)
+		if command then
+			self.selectedCommand = command
+			command.parser:parse(table.move(args, i + 1, #args, 1, {}))
+			break
+		end
+
+		-- if we have positional arguments left, we can take this argument as one
+		if pos_index <= #self.positional then
+			self.parsed.values[self.positional[pos_index].name] = arg
+			pos_index += 1
+			continue
+		end
+
+		-- if we have a variadic argument, we can take this argument as part of it
+		if self.variadicArg then
+			table.insert(self.parsed.variadics, arg)
+			continue
+		end
+
+		-- a parser that declares subcommands but no positional or variadic has nothing else
+		-- this argument could have meant, so report a mistyped command the way unknown flags
+		-- are reported instead of quietly forwarding it. parsers that do declare one keep
+		-- forwarding, since there an unrecognized word is not necessarily a command at all
+		local absorbs = #self.positional > 0 or self.variadicArg ~= nil
+		assert(#self.commands == 0 or absorbs, "Unknown command: " .. arg)
+
+		-- otherwise, the argument is forwarded on
+		table.insert(self.parsed.fwdArgs, arg)
+	end
+
+	-- check that all required arguments are present, and set any default values as needed
+	local selected = self.selectedCommand
+	local ordering = if selected then ` (it has to be given before the '{selected.name}' command)` else ""
+
+	for _, argument in self.arguments do
+		if argument.options.required then
+			if argument.kind == "variadic" then
+				assert(#self.parsed.variadics > 0, "Missing required variadic argument: " .. argument.name .. ordering)
+			else
+				assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name .. ordering)
+			end
+		end
+
+		if self.parsed.values[argument.name] == nil and argument.options.default then
+			self.parsed.values[argument.name] = argument.options.default
+		end
+	end
+end
+
+function cli.get(self: Parser, name: string): string?
+	return self.parsed.values[name]
+end
+
+function cli.has(self: Parser, name: string): boolean
+	return self.parsed.flags[name] ~= nil
+end
+
+function cli.variadics(self: Parser): { string }
+	return self.parsed.variadics
+end
+
+function cli.forwarded(self: Parser): { string }?
+	return self.parsed.fwdArgs
+end
+
+function cli.selected(self: Parser): (string?, Parser?)
+	local command = self.selectedCommand
+	if not command then
+		return nil, nil
+	end
+
+	return command.name, command.parser
+end
+
+function cli.usage(self: Parser, name: string): string
+	local parts = { `Usage: {name}` }
+
+	-- subcommands are matched before positionals in parse, so they are listed in that order
+	for _, command in self.commands do
+		if not command.options.hidden then
+			table.insert(parts, "<command>")
+			break
+		end
+	end
+
+	for _, arg in self.positional do
+		if not arg.options.hidden then
+			if arg.options.required then
+				table.insert(parts, `<{arg.name}>`)
+			else
+				table.insert(parts, `[{arg.name}]`)
+			end
+		end
+	end
+
+	for _, arg in self.arguments do
+		if not arg.options.hidden and arg.kind ~= "positional" and arg.kind ~= "variadic" then
+			table.insert(parts, "[options]")
+			break
+		end
+	end
+
+	if self.variadicArg and not self.variadicArg.options.hidden then
+		local v = self.variadicArg
+		if v.options.required then
+			table.insert(parts, `<{v.name}...>`)
+		else
+			table.insert(parts, `[{v.name}...]`)
+		end
+	end
+
+	return table.concat(parts, " ")
+end
+
+local function label(argument: ArgData): string
+	if argument.kind == "positional" or argument.kind == "variadic" then
+		local name = if argument.kind == "variadic" then `{argument.name}...` else argument.name
+		return if argument.options.required then `<{name}>` else `[{name}]`
+	end
+
+	local aliasStr = table.concat(argument.options.aliases or {}, ", ")
+	return `--{argument.name}{if #aliasStr > 0 then ` (-{aliasStr})` else ""}`
+end
+
+local function commandLabel(command: CommandData): string
+	local aliasStr = table.concat(command.options.aliases or {}, ", ")
+	return `{command.name}{if #aliasStr > 0 then ` ({aliasStr})` else ""}`
+end
+
+function cli.help(self: Parser, formatter: ((s: string) -> string)?): string
+	local fmt = formatter or function(s)
+		return s
+	end
+
+	local lines: { string } = {}
+
+	local hasCommands = false
+	for _, command in self.commands do
+		if command.options.hidden then
+			continue
+		end
+
+		if not hasCommands then
+			table.insert(lines, fmt("Commands:"))
+			hasCommands = true
+		end
+
+		table.insert(lines, fmt(`  {commandLabel(command)} - {command.options.help or ""}`))
+	end
+
+	if hasCommands then
+		table.insert(lines, "")
+	end
+
+	table.insert(lines, fmt("Options:"))
+	for _, argument in self.arguments do
+		if argument.options.hidden then
+			continue
+		end
+
+		local reqStr = if argument.options.required then "(required) " else ""
+		table.insert(lines, fmt(`  {label(argument)} - {reqStr}{argument.options.help or ""}`))
+	end
+
+	return table.concat(lines, "\n")
+end
+
+return table.freeze(cli)

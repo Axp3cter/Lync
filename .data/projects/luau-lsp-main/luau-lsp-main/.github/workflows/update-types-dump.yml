@@ -1,0 +1,66 @@
+name: Pull Latest API Dump
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "10 0 * * *" # Runs at 00:10 UTC every day
+  push:
+    branches:
+      - "main"
+    paths:
+      - "scripts/dumpRobloxTypes.py"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.TYPES_GENERATOR_APP_ID }}
+          private-key: ${{ secrets.TYPES_GENERATOR_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: true
+
+      - name: Update types dump
+        run: |
+          cd scripts
+          python dumpRobloxTypes.py > globalTypes.d.luau
+          python dumpRobloxTypes.py None > globalTypes.None.d.luau
+          python dumpRobloxTypes.py LocalUserSecurity > globalTypes.LocalUserSecurity.d.luau
+          python dumpRobloxTypes.py PluginSecurity > globalTypes.PluginSecurity.d.luau
+          python dumpRobloxTypes.py RobloxScriptSecurity > globalTypes.RobloxScriptSecurity.d.luau
+          python dumpRobloxTypes.py > globalTypes.d.lua
+
+      - name: Update API docs
+        run: |
+          mkdir -p scripts/api-docs
+          curl https://raw.githubusercontent.com/MaximumADHD/Roblox-Client-Tracker/roblox/api-docs/en-us.json > scripts/api-docs/en-us.json
+
+      - name: Extract Luau API docs
+        run: |
+          cd scripts
+          python extractLuauDocs.py
+
+      - name: Create Pull Request
+        id: create_pull_request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: Update to latest types dump
+          body: |
+            Pulls in latest types dump
+            - This pull request is **auto-generated**
+          branch: auto/update-dump
+          commit-message: Update types dump
+          base: main
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Enable Pull Request Automerge
+        run: gh pr merge --squash --auto "${{ steps.create_pull_request.outputs.pull-request-number }}"
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

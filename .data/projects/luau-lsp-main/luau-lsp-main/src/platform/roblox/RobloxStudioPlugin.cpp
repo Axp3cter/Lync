@@ -1,0 +1,207 @@
+#include "LuauFileUtils.hpp"
+#include "Platform/RobloxPlatform.hpp"
+
+#include "LSP/Utils.hpp"
+#include "LSP/LanguageServer.hpp"
+#include "LSP/Workspace.hpp"
+
+static bool mutateSourceNodeWithPluginInfo(SourceNode* sourceNode, const PluginNode* pluginInstance, Luau::TypedAllocator<SourceNode>& allocator)
+{
+    bool didUpdateSourcemap = false;
+
+    // Update paths if managed or syncing
+    if ((sourceNode->pluginManaged || !pluginInstance->filePaths.empty()) && sourceNode->filePaths != pluginInstance->filePaths)
+    {
+        didUpdateSourcemap = true;
+        sourceNode->filePaths = pluginInstance->filePaths;
+    }
+    // Update class if managed (eg: renaming foo.client.lua to foo.server.luau needs the foo node to change class)
+    if (sourceNode->pluginManaged && sourceNode->className != pluginInstance->className)
+    {
+        didUpdateSourcemap = true;
+        sourceNode->className = pluginInstance->className;
+    }
+
+    std::unordered_set<std::string> pluginChildNames;
+    for (const auto& dmChild : pluginInstance->children)
+    {
+        pluginChildNames.insert(dmChild->name);
+
+        if (auto existingChildNode = sourceNode->findChild(dmChild->name))
+        {
+            // Hydrate the existing child with the plugin info
+            didUpdateSourcemap |= mutateSourceNodeWithPluginInfo(*existingChildNode, dmChild, allocator);
+        }
+        else
+        {
+            // Create a new child for this plugin node
+            auto childNode = allocator.allocate(SourceNode(dmChild->name, dmChild->className, {}, {}));
+            childNode->pluginManaged = true;
+            mutateSourceNodeWithPluginInfo(childNode, dmChild, allocator);
+
+            sourceNode->children.push_back(childNode);
+            didUpdateSourcemap = true;
+        }
+    }
+
+    // Prune plugin-managed children that no longer exist in the plugin info
+    for (auto it = sourceNode->children.begin(); it != sourceNode->children.end();)
+    {
+        auto* child = *it;
+
+        if (child->pluginManaged && pluginChildNames.find(child->name) == pluginChildNames.end())
+        {
+            // The pruned subtree stays allocated but becomes unreachable from the root, so
+            // clearSourcemapTypes can no longer clear its cached types. Clear them now so a
+            // retained reference to the node cannot resurrect types from a destroyed arena
+            child->clearCachedTypes();
+            it = sourceNode->children.erase(it);
+            didUpdateSourcemap = true;
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    return didUpdateSourcemap;
+}
+
+PluginNode* PluginNode::fromJson(const json& j, Luau::TypedAllocator<PluginNode>& allocator)
+{
+    auto name = j.at("Name").get<std::string>();
+    auto className = j.at("ClassName").get<std::string>();
+    std::vector<std::string> filePaths{};
+    if (j.contains("FilePaths"))
+    {
+        for (auto& filePath : j.at("FilePaths"))
+        {
+            filePaths.emplace_back(Luau::FileUtils::normalizePath(resolvePath(filePath.get<std::string>())));
+        }
+    }
+
+    std::vector<PluginNode*> children;
+    if (j.contains("Children"))
+    {
+        for (auto& child : j.at("Children"))
+        {
+            children.emplace_back(PluginNode::fromJson(child, allocator));
+        }
+    }
+
+    return allocator.allocate(PluginNode{std::move(name), std::move(className), std::move(filePaths), std::move(children)});
+}
+
+void RobloxPlatform::clearPluginManagedNodesFromSourcemap(SourceNode* sourceNode)
+{
+    for (auto it = sourceNode->children.begin(); it != sourceNode->children.end();)
+    {
+        auto* child = *it;
+
+        if (child->pluginManaged)
+        {
+            child->clearCachedTypes();
+            it = sourceNode->children.erase(it);
+        }
+        else
+        {
+            clearPluginManagedNodesFromSourcemap(child);
+            ++it;
+        }
+    }
+}
+
+bool RobloxPlatform::hydrateSourcemapWithPluginInfo()
+{
+    if (!pluginInfo)
+    {
+        return false;
+    }
+
+    // If we don't have a sourcemap yet, we create a DataModel root node
+    if (!rootSourceNode)
+    {
+        rootSourceNode = sourceNodeAllocator.allocate(SourceNode("game", "DataModel", {}, {}));
+    }
+
+
+    if (rootSourceNode->className != "DataModel")
+    {
+        std::cerr << "Attempted to update plugin information for a non-DM instance" << '\n';
+        return false;
+    }
+
+    bool didUpdateSourcemap = mutateSourceNodeWithPluginInfo(rootSourceNode, pluginInfo, sourceNodeAllocator);
+
+    if (didUpdateSourcemap)
+    {
+        // Update the sourcemap file if needed
+        auto config = workspaceFolder->client->getConfiguration(workspaceFolder->rootUri);
+        if (config.sourcemap.enabled && config.sourcemap.autogenerate)
+        {
+            auto sourcemapPath = workspaceFolder->rootUri.resolvePath(config.sourcemap.sourcemapFile);
+
+            workspaceFolder->client->sendLogMessage(
+                lsp::MessageType::Info, "Updating " + config.sourcemap.sourcemapFile + " with information from plugin");
+
+            try
+            {
+                Luau::FileUtils::writeFileIfModified(sourcemapPath.fsPath(), rootSourceNode->toJson().dump(2));
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "Failed to write sourcemap file: " << e.what() << '\n';
+            }
+        }
+    }
+
+    return didUpdateSourcemap;
+}
+
+void RobloxPlatform::onStudioPluginFullChange(const json& dataModel)
+{
+    workspaceFolder->client->sendLogMessage(lsp::MessageType::Info, "received full change from studio plugin");
+
+    pluginNodeAllocator.clear();
+    setPluginInfo(PluginNode::fromJson(dataModel, pluginNodeAllocator));
+
+    hydrateSourcemapWithPluginInfo();
+
+    // Rebuild the path maps from scratch: hydration may have pruned nodes, and writePathsToMap
+    // only overwrites entries for nodes still in the tree. A stale entry pointing at a pruned
+    // node would let later type checks reach its (freed) cached sourcemap types
+    rebuildPathMaps();
+    updateSourcemapTypes();
+}
+
+void RobloxPlatform::onStudioPluginClear()
+{
+    workspaceFolder->client->sendLogMessage(lsp::MessageType::Info, "received clear from studio plugin");
+
+    // TODO: properly handle multi-workspace setup
+    pluginNodeAllocator.clear();
+    setPluginInfo(nullptr);
+
+    if (rootSourceNode)
+    {
+        clearPluginManagedNodesFromSourcemap(rootSourceNode);
+        rebuildPathMaps();
+        updateSourcemapTypes();
+    }
+}
+
+bool RobloxPlatform::handleNotification(const std::string& method, std::optional<json> params)
+{
+    if (method == "$/plugin/full")
+    {
+        onStudioPluginFullChange(JSON_REQUIRED_PARAMS(params, "$/plugin/full"));
+        return true;
+    }
+    else if (method == "$/plugin/clear")
+    {
+        onStudioPluginClear();
+        return true;
+    }
+
+    return false;
+}

@@ -1,0 +1,32 @@
+import { defineConfig } from 'vitepress'
+import { withSidebar } from 'vitepress-sidebar'
+
+export default withSidebar(
+  defineConfig({
+    title: 'Lute',
+    description: 'Luau for General-Purpose Programming',
+    base: "/",
+    themeConfig: {
+      nav: [
+        { text: 'Guide', link: '/guide/installation' },
+        { text: 'CLI', link: '/cli/' },
+        { text: 'Standard Library', link: '/std' },
+      ],
+      search: { provider: 'local' },
+      socialLinks: [
+        { icon: 'github', link: 'https://github.com/luau-lang/lute' },
+      ],
+    },
+  }),
+  {
+    // ============ [ SIDEBAR OPTIONS ] ============
+    useFolderLinkFromIndexFile: true,
+    useFolderTitleFromIndexFile: true,
+    useTitleFromFileHeading: true,
+    useTitleFromFrontmatter: true,
+    hyphenToSpace: true,
+    sortMenusByFrontmatterOrder: true,
+    frontmatterOrderDefaultValue: 100,
+    excludeByGlobPattern: ['README.md'],
+  }
+)

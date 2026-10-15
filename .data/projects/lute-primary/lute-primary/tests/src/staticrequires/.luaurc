@@ -1,0 +1,6 @@
+{
+    "aliases": {
+        "example": "./dep",
+        "nested": "./dep/nested"
+    }
+}

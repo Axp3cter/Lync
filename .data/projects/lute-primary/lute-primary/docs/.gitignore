@@ -1,0 +1,11 @@
+node_modules
+.vitepress/cache
+dist
+reference
+docs/
+
+# Auto-generated API docs (keep root index.md as table of contents)
+lute/*
+!lute/index.md
+std/*
+!std/index.md

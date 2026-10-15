@@ -1,0 +1,23 @@
+/.data/
+/.claude/
+
+/build/
+
+# Fetched at setup from the pinned source in Roblox.pin.json.
+/definitions/Roblox.d.luau
+
+# Fetched at setup from the pinned source in ApiDump.pin.json.
+/definitions/ApiDump.json
+
+/sourcemap.json
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+*.rbxl.lock
+*.rbxlx.lock
+
+node_modules/
+
+# Consumers resolve their own versions, so a library's lock is local state.
+/packaging/wally.lock

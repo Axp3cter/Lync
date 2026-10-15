@@ -1,0 +1,11 @@
+{
+	"languageMode": "strict",
+	"lintErrors": true,
+	"lint": { "*": true },
+	"aliases": {
+		"src": "./src",
+		"test": "./test",
+		"bench": "./bench",
+		"harness": "./harness"
+	}
+}

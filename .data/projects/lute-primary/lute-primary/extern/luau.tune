@@ -1,0 +1,6 @@
+[dependency]
+name = "luau"
+remote = "https://github.com/luau-lang/luau.git"
+branch = "0.740"
+revision = "c0e346edd89066b44dca174c9f54ce84c746a540"
+patches = []

@@ -1,0 +1,42 @@
+{
+	"files.eol": "\n",
+	"files.insertFinalNewline": true,
+	"files.trimFinalNewlines": true,
+	"files.trimTrailingWhitespace": true,
+	"editor.detectIndentation": false,
+	"editor.insertSpaces": false,
+	"editor.tabSize": 4,
+	"editor.rulers": [100],
+	"editor.formatOnSave": false,
+	"[yaml]": {
+		"editor.insertSpaces": true,
+		"editor.tabSize": 2
+	},
+	"luau-lsp.fflags.enableByDefault": true,
+	"luau-lsp.fflags.enableNewSolver": true,
+	"luau-lsp.fflags.sync": false,
+	"luau-lsp.types.definitionFiles": {
+		"@roblox": "definitions/Roblox.d.luau",
+		"@build": "definitions/Build.d.luau"
+	},
+	"luau-lsp.server.baseLuaurc": "~/.lute/typedefs/1.0.0/.luaurc",
+	"luau-lsp.sourcemap.enabled": false,
+	"luau-lsp.diagnostics.workspace": true,
+	"luau-lsp.ignoreGlobs": [
+		"**/_Index/**",
+		"build/**",
+		".data/**",
+		"definitions/**",
+		"**/.lute/**"
+	],
+	"luau-lsp.completion.imports.ignoreGlobs": [
+		"**/_Index/**",
+		"build/**",
+		".data/**",
+		"definitions/**",
+		"**/.lute/**"
+	],
+	"luau-lsp.completion.imports.requireStyle": "alwaysAbsolute",
+	"luau-lsp.completion.imports.stringRequires.enabled": true,
+	"luau-lsp.completion.imports.separateGroupsWithLine": true
+}

@@ -1,0 +1,23 @@
+# Publishing from this folder ships a package without source, and a version cannot be replaced.
+
+[package]
+name = "axp3cter/lync"
+version = "5.0.0"
+description = "Typed buffer networking for Roblox: events, requests and replicated collections."
+license = "MIT"
+authors = ["Axp3cter"]
+homepage = "https://github.com/Axp3cter/Lync"
+repository = "https://github.com/Axp3cter/Lync.git"
+realm = "shared"
+registry = "https://github.com/UpliftGames/wally-index"
+
+# Wally 0.3.2 ships every file that no exclude matches, so include alone filters nothing.
+exclude = ["**"]
+# Each directory needs both patterns: `src` keeps the folder and `src/**` keeps its contents.
+include = [
+	"wally.toml",
+	"default.project.json",
+	"LICENSE",
+	"src",
+	"src/**",
+]

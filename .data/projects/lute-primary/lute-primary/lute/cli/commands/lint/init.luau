@@ -1,0 +1,202 @@
+local cli = require("@batteries/cli")
+local files = require("./lib/files")
+local fs = require("@std/fs")
+local internalTypes = require("@self/internaltypes")
+local json = require("@std/json")
+local lint = require("@self/lint")
+local lintCore = require("@self/lintCore")
+local lsp = require("@self/lsp")
+local parseIgnores = require("./lib/parseIgnores")
+local pathLib = require("@std/path")
+local printer = require("@self/printer")
+local process = require("@std/process")
+local tableext = require("@std/tableext")
+local types = require("@lint")
+
+local VERBOSE = false
+local SEQUENTIAL = false
+
+local function printHelp(args: cli.Parser)
+	print(args:usage("lute lint"))
+	print("\nLint the specified Luau file using the specified lint rules or using the default rules.\n")
+	print(args:help())
+	print([[
+
+PATHS:
+  Paths to the Luau files or folders containing Luau files to be linted. Only files with .luau or .lua extensions will be linted.
+
+EXAMPLES:
+  lute lint -r examples/lints/almost_swapped.luau bad_swap.luau
+  lute lint -r examples/lints/ lintee.luau src_code/
+]])
+end
+
+local lintString = lintCore.lintString
+
+type Job = {
+	inputFile: pathLib.Path,
+	autoFixEnabled: boolean,
+}
+
+local function lintPaths(
+	inputFilePaths: { string },
+	lintRules: { types.LintRule },
+	configData: internalTypes.RuleConfigData,
+	rulesPath: string?,
+	noDefaults: boolean,
+	passedConfigVal: string?,
+	autofixEnabled: boolean,
+	ignoreData: parseIgnores.GitignoreData
+): { [pathLib.Path]: { types.LintViolation } }
+	if VERBOSE then
+		print("Filtering input files by gitignore")
+	end
+	local inputFiles = files.getSourceFiles(inputFilePaths, VERBOSE)
+
+	if SEQUENTIAL then
+		return lint.lintSequential(inputFiles, lintRules, configData, autofixEnabled, ignoreData, VERBOSE)
+	end
+
+	return lint.lintParallel(inputFiles, rulesPath, noDefaults, passedConfigVal, autofixEnabled, ignoreData, VERBOSE)
+end
+
+local function main(...: string)
+	local args = cli.parser()
+
+	args:add("auto-fix", "flag", {
+		help = "Automatically apply fixes for lint violations that provide a suggested fix. Assumes that suggested fixes do not overlap.",
+	})
+	args:add("config", "option", {
+		help = "Path to configuration file. By default, lute lint will look for the .config.luau file in the calling directory.",
+		aliases = { "c" },
+	})
+	args:add("help", "flag", { help = "Show help message", aliases = { "h" } })
+	args:add(
+		"json",
+		"flag",
+		{ help = "Output lint violations in JSON format matching the LSP diagnostic spec", aliases = { "j" } }
+	)
+	args:add("no-default-lints", "flag", { help = "Disables the default lint rules" })
+	args:add(
+		"output",
+		"option",
+		{ help = "Write lint violation or JSON output to the specified file instead of stdout", aliases = { "o" } }
+	)
+	args:add("rules", "option", {
+		help = "Path to a single lint rule or a folder containing lint rules. If a folder is provided, any subfolders containing init.luau files will be treated as modules exporting lint rules, while all other .luau files will be treated as individual lint rules. If unspecified, the default lint rules are used",
+		aliases = { "r" },
+	})
+	args:add(
+		"string-input",
+		"option",
+		{ help = "Lint the provided string input instead of reading from files", aliases = { "s" } }
+	)
+	args:add("verbose", "flag", { help = "Enable verbose output", aliases = { "v" } })
+	args:add("sequential", "flag", { help = "Lint files sequentially. Files are linted in parallel by default." })
+	args:add("paths", "variadic", { help = "Files or folders to lint (defaults to the current directory)" })
+
+	args:parse({ ... })
+
+	if args:has("help") then
+		printHelp(args)
+		return
+	end
+
+	VERBOSE = args:has("verbose")
+	SEQUENTIAL = args:has("sequential")
+
+	-- Paths land in variadics, but anything after `--` still arrives as forwarded args.
+	local inputFiles = table.clone(args:variadics())
+	local fwdArgs = args:forwarded() or {}
+	tableext.extend(inputFiles, fwdArgs)
+
+	local stringInput = args:get("string-input")
+	if #inputFiles == 0 and not stringInput then
+		inputFiles = { pathLib.format(process.cwd()) }
+	end
+
+	local passedConfigVal = args:get("config")
+	local noDefaultLints = args:has("no-default-lints")
+	local rulesPath = args:get("rules")
+	local outputFile = args:get("output")
+
+	local function output(content: string)
+		if outputFile then
+			fs.writeStringToFile(outputFile, content)
+		else
+			print(content)
+		end
+	end
+
+	local lintRules, configContextData, ignoreData =
+		lintCore.initialize(passedConfigVal, noDefaultLints, rulesPath, VERBOSE)
+
+	if stringInput ~= nil then
+		if args:has("auto-fix") then
+			print("Auto-fix has no effect on string input.")
+		end
+
+		local violations = lintString(stringInput, lintRules, nil, configContextData, VERBOSE)
+
+		if args:has("json") then
+			local diagnostics = tableext.map(violations, lsp.diagnostic)
+			output(json.serialize(diagnostics :: json.Array, true))
+		elseif #violations > 0 then
+			if VERBOSE then
+				print(`Printing violations from string input\n`)
+			end
+
+			output(printer.formatLintsWithSource(violations, stringInput))
+
+			process.exit(1)
+		else
+			if VERBOSE then
+				print("No lint violations found.")
+			end
+
+			process.exit(0)
+		end
+	else
+		local autofixEnabled = args:has("auto-fix")
+		if autofixEnabled and VERBOSE then
+			print("Auto-fix is enabled.")
+		end
+
+		local allViolations = lintPaths(
+			inputFiles :: { string },
+			lintRules,
+			configContextData,
+			rulesPath,
+			noDefaultLints,
+			passedConfigVal,
+			autofixEnabled,
+			ignoreData
+		)
+
+		if args:has("json") then
+			output(json.serialize(lsp.workspaceDiagnosticReport(allViolations) :: json.Object, true))
+		else
+			if VERBOSE then
+				print(`Printing violations from {#allViolations} files\n`)
+			end
+
+			local violationsFound = false
+			local parts = {}
+
+			for sourcePath, violations in allViolations do
+				if #violations > 0 then
+					violationsFound = true
+					table.insert(parts, printer.formatLintsWithPath(violations, sourcePath))
+				end
+			end
+
+			if #parts > 0 then
+				output(table.concat(parts))
+			end
+
+			process.exit(if violationsFound then 1 else 0)
+		end
+	end
+end
+
+main(...)

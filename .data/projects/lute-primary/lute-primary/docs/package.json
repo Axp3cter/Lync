@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "gen": "lute doc -m docgen.luau",
+    "dev": "npm run gen && vitepress dev",
+    "build": "npm run gen && vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  },
+  "dependencies": {
+    "vitepress-sidebar": "^1.33.0"
+  }
+}

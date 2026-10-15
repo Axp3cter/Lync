@@ -1,0 +1,41 @@
+-- Check out lute/cli/commands/lint/rules for the default rules used by lute lint!
+
+local lintTypes = require("@lint")
+local path = require("@std/path")
+local query = require("@std/syntax/query")
+local syntax = require("@std/syntax")
+local utils = require("@std/syntax/utils")
+
+local name = "divide_by_zero"
+local message = "Dividing by zero will always result in NaN, consider using `math.nan` instead."
+
+local function lint(cst: syntax.CstStatBlock, sourcepath: path.Path?): { lintTypes.LintViolation }
+	return query
+		.findAllFromRoot(cst, utils.isExprBinary)
+		:filter(function(bin)
+			return bin.operator.text == "/" or bin.operator.text == "//" or bin.operator.text == "%"
+		end)
+		:filter(function(bin)
+			return bin.rhsOperand.kind == "expr" and bin.rhsOperand.tag == "number" and bin.rhsOperand.value == 0
+		end)
+		:mapToArray(
+			-- FIXME(Luau): We would need bidirectional inference of generics
+			-- and return types to remove this annotation.
+			function(n): lintTypes.LintViolation
+				return {
+					lintname = name,
+					location = n.location,
+					message = message,
+					severity = "warning",
+					sourcepath = sourcepath,
+				}
+			end
+		)
+end
+
+local rule: lintTypes.LintRule = {
+	name = name,
+	lint = lint,
+}
+
+return table.freeze(rule)

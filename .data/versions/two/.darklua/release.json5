@@ -1,0 +1,24 @@
+{
+	// Measured on v4's 489 KB: 1000 columns gzip 5% smaller than 80, within 1% of unbroken lines.
+	generator: { name: "dense", column_span: 1000 },
+	// Without this, darklua turns Rojo's meta and model files into modules and drops other types.
+	loaders: { "**/*.{json,jsonc,toml,csv,txt,rbxm,rbxmx,yml,yaml}": "copy" },
+	// Left out on purpose: remove_types and remove_attribute break types and @native,
+	// remove_assertions drops checks, convert_local_function_to_assign drops @native,
+	// group_local_assignment turns const into local, and convert_square_root_call changes
+	// the result for infinity.
+	rules: [
+		// Injection runs first because the folding rules below only act on literals.
+		{ rule: "inject_global_value", identifier: "IS_DEVELOPMENT", value: false },
+		// No default on purpose: an unset variable makes darklua warn, and the build fails on that.
+		{ rule: "inject_global_value", identifier: "VERSION", env: "LYNC_VERSION" },
+		// The luau mode reads `./` in an init module as Roblox does; the path mode does not.
+		{ rule: "convert_require", current: "luau", target: "luau" },
+		"remove_unused_if_branch",
+		"remove_unused_while",
+		"filter_after_early_return",
+		"remove_empty_do",
+		"remove_unused_variable",
+		{ rule: "rename_variables", include_functions: true },
+	],
+}

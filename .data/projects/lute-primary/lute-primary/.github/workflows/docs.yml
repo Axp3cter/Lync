@@ -1,0 +1,60 @@
+name: Deploy Docs to GitHub Pages
+
+on:
+  push:
+    branches:
+      - primary
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup and Build Lute
+        id: build_lute
+        uses: ./.github/actions/setup-and-build
+        with:
+          target: Lute.CLI
+          config: debug
+          options: ${{ matrix.options }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          use-bootstrap: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: docs
+
+      - name: Build docs site
+        run: |
+          export PATH="$(dirname '${{ steps.build_lute.outputs.exe_path }}'):$PATH"
+          npm run build
+        working-directory: docs
+
+      - name: Upload docs artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/.vitepress/dist/
+  
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

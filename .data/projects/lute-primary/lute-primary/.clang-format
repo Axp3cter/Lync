@@ -1,0 +1,43 @@
+BasedOnStyle: LLVM
+
+AccessModifierOffset: -4
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortLambdasOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Allman
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+ColumnLimit: 150
+IndentCaseLabels: false
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^["](commands|generated/).*'
+    Priority: 1
+  - Regex: '^["](lute)/.*'
+    Priority: 2
+  - Regex: '^["](Luau)/.*'
+    Priority: 3
+  - Regex: '^["](lua).*'
+    Priority: 4
+  - Regex: '^["](openssl/|sodium/|uv|curl/|zlib).*'
+    Priority: 5
+  - Regex: '^<[^/]*>'
+    Priority: 6
+IndentWidth: 4
+TabWidth: 4
+ObjCBlockIndentWidth: 4
+UseTab: Never
+PointerAlignment: Left
+SpaceAfterTemplateKeyword: false
+AlignEscapedNewlines: DontAlign
+AlwaysBreakTemplateDeclarations: Yes
+MaxEmptyLinesToKeep: 10
+AllowAllParametersOfDeclarationOnNextLine: false
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+BinPackParameters: false
+PenaltyReturnTypeOnItsOwnLine: 10000

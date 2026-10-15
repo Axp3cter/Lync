@@ -1,0 +1,130 @@
+---
+source: tests/bundle.rs
+expression: main
+---
+local __DARKLUA_BUNDLE_MODULES = {
+    cache = {}::any,
+}
+
+do
+    do
+        local function __modImpl()
+            return 0
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.a(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.a
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.a = v
+            end
+
+            return v.c
+        end
+    end
+    do
+        local function __modImpl()
+            local tryValueDefault = __DARKLUA_BUNDLE_MODULES.a()
+
+            return tryValueDefault
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.b(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.b
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.b = v
+            end
+
+            return v.c
+        end
+    end
+    do
+        local function __modImpl()
+            return 1
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.c(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.c
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.c = v
+            end
+
+            return v.c
+        end
+    end
+    do
+        local function __modImpl()
+            local tryValue1 = __DARKLUA_BUNDLE_MODULES.c()
+
+            return tryValue1
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.d(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.d
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.d = v
+            end
+
+            return v.c
+        end
+    end
+    do
+        local function __modImpl()
+            return 2
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.e(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.e
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.e = v
+            end
+
+            return v.c
+        end
+    end
+    do
+        local function __modImpl()
+            local tryValue2 = __DARKLUA_BUNDLE_MODULES.e()
+
+            return tryValue2
+        end
+
+        function __DARKLUA_BUNDLE_MODULES.f(): typeof(__modImpl())
+            local v = __DARKLUA_BUNDLE_MODULES.cache.f
+
+            if not v then
+                v = {
+                    c = __modImpl(),
+                }
+                __DARKLUA_BUNDLE_MODULES.cache.f = v
+            end
+
+            return v.c
+        end
+    end
+end
+
+local tryValueDefaultModule = __DARKLUA_BUNDLE_MODULES.b()
+local tryValue1Module = __DARKLUA_BUNDLE_MODULES.d()
+local tryValue2Module = __DARKLUA_BUNDLE_MODULES.f()
+
+print(tryValueDefaultModule, tryValue1Module, tryValue2Module)

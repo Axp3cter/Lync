@@ -1,0 +1,13 @@
+{
+	"name": "fixture",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"Shared": { "$path": "src/shared" }
+		},
+		"StarterPlayer": {
+			"StarterPlayerScripts": { "Client": { "$path": "src/client" } }
+		},
+		"ServerScriptService": { "Server": { "$path": "src/server" } }
+	}
+}

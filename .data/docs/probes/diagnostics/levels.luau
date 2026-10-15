@@ -60,8 +60,10 @@ try("tableTostring", function()
 	error(setmetatable({ code = "LYNC1001" }, { __tostring = function() return "[Lync] LYNC1001 tostring" end }), 2)
 end)
 try("pcallDirect", function() return select(2, pcall(Lib.direct, 2)) end)
+try("pcallWalked", function() return select(2, pcall(Lib.walked, 2)) end)
 return results
 ]]
+-- note: pcallDirect/pcallWalked report the value pcall returned; the outer try prints it
 
 local chunk = assert(loadstring(userSource, "=UserScript"))
 for _, line in chunk(Lib) do

@@ -1,3 +1,43 @@
 # Luau 0.742 (built from .data/projects/luau, CMake Release), Intel Xeon 2.1 GHz, 4 cores, 2026-10-15
 # best of 7 per line; three process runs per mode
 ## run 1 interpreted -O2
+-- A. raw kernels
+within (distance^2 <= max^2)                                  52.8 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                16.0 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              73.7 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                           51.3 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             86.7 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  46.6 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)              151.9 ns/op  (sink 0)
+runner, within number (reference fn)                         162.4 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                   230.0 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                           294.0 ns/op  (sink 0)
+runner, maxTotal token bucket                                241.2 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      554.9 ns/op  (sink 0)
+runner, within vector failing every message (drop)           153.9 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             56.1 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)
+## run 1 native -O2 --codegen
+-- A. raw kernels
+within (distance^2 <= max^2)                                   7.4 ns/op  (sink 0)
+monotonic (f64 last, strict >)                                 3.5 ns/op  (sink 2)
+maxTotal (16-bucket sliding sum)                              13.6 ns/op  (sink 0)
+aim ring write (u16 pitch, u16 yaw)                           13.4 ns/op  (sink 0)
+atom copy (45 samples, 180 B, two-part ring copy)             60.7 ns/op  (sink 0)
+memory: aim ring 256 B per player; maxTotal 144 B per player per constraint
+-- B. checks as designed, table-driven runner over decoded payloads
+runner, definition with no checks (nil test)                  22.2 ns/op  (sink 0)
+runner, within vector (reference fn, magnitude)               77.3 ns/op  (sink 0)
+runner, within number (reference fn)                          71.3 ns/op  (sink 0)
+runner, monotonic nondecreasing, seq-aware                    79.4 ns/op  (sink 0)
+runner, maxTotal 16-bucket sliding                            95.8 ns/op  (sink 0)
+runner, maxTotal token bucket                                 86.9 ns/op  (sink 0)
+runner, within vector + monotonic + maxTotal (3 checks)      198.6 ns/op  (sink 0)
+runner, within vector failing every message (drop)            71.9 ns/op  (sink 0)
+clamp vector to sphere (on failure, policy clamp)             57.7 ns/op  (sink 3)
+state: within 0 B; monotonic 16 B; maxTotal 16-bucket 144 B; token bucket 16 B (per player per check)
+failures counted: 14000000 (expected 14000000: only the failing case fails)
+## run 2 interpreted -O2

@@ -1,0 +1,32 @@
+DataModel.Environment: read RobloxScriptSecurity; thread ReadSafe; tags ['ReadOnly', 'NotReplicated']; caps None
+DataModel.IsPioneerBuild: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated', 'Deprecated']; caps None
+DataModel.IsSFFlagsLoaded: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps None
+DataModel.PioneerSource: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated', 'Deprecated']; caps None
+Players.MaxPlayersInternal: read LocalUserSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['Players']}
+Players.PreferredPlayersInternal: read LocalUserSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['Players']}
+RunService.ClientGitHash: read RobloxScriptSecurity; thread ReadSafe; tags ['ReadOnly', 'NotReplicated']; caps {'Read': ['Basic']}
+RunService.RunState: read PluginSecurity; thread ReadSafe; tags ['NotReplicated']; caps {'Read': ['Basic']}
+ScriptContext.ScriptsDisabled: read LocalUserSecurity; thread ReadSafe; tags ['Hidden']; caps None
+Workspace.AuthorityMode: read RobloxScriptSecurity; thread ReadSafe; tags []; caps None
+Workspace.LuauTypeCheckMode: read PluginSecurity; thread ReadSafe; tags []; caps None
+Workspace.NextGenerationReplicationAlias: read RobloxSecurity; thread ReadSafe; tags ['NotReplicated', 'NotScriptable']; caps None
+Workspace.PlayerScriptsUseInputActionSystemAlias: read RobloxSecurity; thread ReadSafe; tags ['NotReplicated', 'NotScriptable']; caps None
+Workspace.SignalBehaviorAlias: read RobloxSecurity; thread ReadSafe; tags ['NotReplicated', 'NotScriptable']; caps None
+Workspace.StreamingEnabledAlias: read RobloxSecurity; thread ReadSafe; tags ['NotReplicated', 'NotScriptable']; caps None
+Workspace.UseFixedSimulationAlias: read RobloxSecurity; thread ReadSafe; tags ['NotReplicated', 'NotScriptable']; caps None
+UserInputService.BottomBarSize: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+UserInputService.LegacyInputEventsEnabled: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'Deprecated']; caps {'Read': ['Input']}
+UserInputService.NavBarSize: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+UserInputService.OnScreenKeyboardAnimationDuration: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+UserInputService.OverrideMouseIconBehavior: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['Input']}
+UserInputService.RightBarSize: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+UserInputService.StatusBarSize: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+UserInputService.TouchScreenEnabled: read RobloxScriptSecurity; thread ReadSafe; tags ['ReadOnly', 'NotReplicated']; caps {'Read': ['Input']}
+StarterGui.ProcessUserInput: read PluginSecurity; thread ReadSafe; tags ['Hidden', 'NotReplicated']; caps {'Read': ['UI']}
+StarterGui.StudioDefaultStyleSheet: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['UI']}
+StarterGui.StudioInsertWidgetLayerCollectorAutoLinkStyleSheet: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['UI']}
+GuiService.CoreEffectFolder: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'NotReplicated']; caps {'Read': ['UI']}
+GuiService.CoreGuiFolder: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'NotReplicated']; caps {'Read': ['UI']}
+GuiService.DisplayScalingMode: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden']; caps {'Read': ['UI']}
+GuiService.SelectedCoreObject: read RobloxScriptSecurity; thread ReadSafe; tags ['Hidden', 'NotReplicated']; caps {'Read': ['UI']}
+GuiService.ViewportSizeInMM: read RobloxScriptSecurity; thread ReadSafe; tags ['ReadOnly', 'NotReplicated']; caps {'Read': ['UI']}

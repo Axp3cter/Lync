@@ -23,8 +23,8 @@ first case, the baseline in the same run. `run.sh` runs each probe 3 times inter
 - [ ] 2. Masking: +62–272% bytes after zstd; CPU per byte at the tag's rate (`mask_bytes.py`, `mask_cpu.luau`)
 - [x] 3. Downstream tags: a PRF per recipient ≤ 3% of a core; ends `FireAllClients` (`downstream_tag.luau`)
 - [x] 4. Per-session upstream id shuffle: ~20,000-slot decode table (`id_shuffle.luau`)
-- [ ] 5. Low-order watermarks: per-viewer encoding cost (`per_viewer.luau` part A)
-- [ ] 6. Decoys: per-viewer re-encode and pool slots (`per_viewer.luau` part B)
+- [x] 5. Low-order watermarks: per-viewer encoding cost (`per_viewer.luau` part A)
+- [x] 6. Decoys: per-viewer re-encode and pool slots (`per_viewer.luau` part B)
 - [ ] 7. Caller probe on every call ≤ 0.2 ms/s at 60/s (`caller_probe.luau`)
 - [x] 8. `tag.cover` 16,384 default ≤ 0.23 ms/s per player; 0.022 / 0.0035 µs/B (`tag_cover.luau`)
 - [ ] 9. Clock beacon: one 66-slope fit per 5 s per player (`clock_fit.luau`)
@@ -164,3 +164,54 @@ against the reference port. Medians of 3 runs ("marginal" = (t(16,384) − t(102
 - Claim 11(b) and (c) from the same runs: HalfSipHash 2-4 costs 1.8–1.9x 1-3 per byte (client-security.md's "about
   twice": **true**); a 64-bit output costs +3–10% at ≥ 1 KB and +16–39% at ≤ 64 B (fixed +25–40 ns native, +0.3–0.4 µs
   interpreted), against "a longer finalization per frame" (R28: **true**, and small).
+
+### 5. Low-order watermarks: "Cost: per-viewer encoding" — **true in kind, small in size** (for `:newest()` rows)
+
+Source: `v5-changes.md:115`, `:561`; R17 (asserted, no figure). Probe: `per_viewer.luau` part A, output
+`per_viewer.out`. One viewer's 32 of 64 `:newest()` rows (slot u6, `t.vector3` 3 × u18, `t.rotation(9)`, 12 B
+each) per state tick; the shared rows are encoded once per tick and copied per viewer today. Medians of 3 runs:
+
+| Per viewer per state tick | interpreted | ratio | native | ratio |
+|---|---|---|---|---|
+| copy, encode-once (baseline) | 1.40 µs | 1.00 | 1.18 µs | 1.00 |
+| per-viewer re-encode from cached codes, mark in the low bit of x, y, z | 6.06 µs | 4.17 | 1.02 µs | 0.88 |
+| copy, then XOR the 3 low bits at build-known offsets | 2.71 µs | 1.84 | 1.21 µs | 1.07 |
+
+- The rows are already per viewer, so a watermark adds −12% to +7% natively (the per-row `buffer.copy` call costs
+  as much as re-encoding from cached codes) and +84% interpreted with the patch. At 100 viewers × 20 state
+  ticks/s that is under 0.03 ms/s native. The probe checks that copy + patch gives the bytes of the marked
+  re-encode.
+- Not measured: marking reliable (column-coded) fields, which would need the per-viewer chunk re-encode measured
+  under claim 6. The 3.5 reasons that are not cost (one rounding to twice the step strips it; it breaks step/2
+  precision) are not performance claims and are not tested here.
+
+### 6. Decoys: "one re-encode of each changed partition chunk per flush and the decoys' bytes … pool slots" — **true; the re-encode is the dominant cost, about one extra chunk encode per decoy viewer per flush at d = 1, and halved by reusing the shared chunk's k**
+
+Source: `v5-integrity.md` §8 (`maxPerViewer` row), `v5-changes.md:554` (range widened to 1–256). Probe:
+`per_viewer.luau` part B, output `per_viewer.out`. A reliable partition state chunk, column-coded as `v5.md` §4.3
+(this probe's encoder: modes zero and EG-k, every k costed), 19 changed records × 5 int columns, with the viewer's
+d decoys interleaved by slot. Medians of 3 runs, per viewer with decoys per flush in which the partition changed:
+
+| d decoys | copy (viewer without decoys) | re-encode, full k search (design) | re-encode, shared chunk's k | re-encode, shared k sums + deltas | behaviour + diff | bytes (full / shared k) |
+|---|---|---|---|---|---|---|
+| native, d = 1 | 34 ns | 19.3 µs | 9.9 µs | 12.8 µs | 0.21 µs | 68 / 68 B |
+| native, d = 16 | 35 ns | 33.0 µs | 18.4 µs | 38.0 µs | 0.24 µs | 140 / 144 B |
+| native, d = 256 | 41 ns | 247 µs | 140 µs | 277 µs | 0.32 µs | 920 / 1072 B |
+| interpreted, d = 1 | 43 ns | 99 µs | 28 µs | 45 µs | 0.28 µs | |
+| interpreted, d = 16 | 39 ns | 158 µs | 49 µs | 191 µs | 0.26 µs | |
+| interpreted, d = 256 | 46 ns | 1222 µs | 402 µs | 1353 µs | 0.43 µs | |
+
+The shared chunk itself costs 16.7–17.2 µs native and 81–88 µs interpreted to encode once per flush.
+
+- Per decoy viewer the re-encode is about 1.2x one shared-chunk encode at d = 1 (native), 2x at d = 16 and 15x at
+  d = 256, against 34–41 ns for a copy. At 60 changed flushes/s: 1.2 ms/s per decoy viewer at d = 1 (0.12% of a
+  core), 15 ms/s at d = 256 (1.5%). This probe's column encoder runs at about 2x the build's measured ns/value
+  (`probes/build/results/`), so the absolute figures are upper bounds; the ratios are what carries.
+- Cheaper and still canonical-decodable: mode and k are free choices (`v5.md` §4.3, §4.8), so the per-viewer chunk
+  can reuse the shared chunk's k per column: 1.8–2.0x faster native (3.0–3.5x interpreted), +0–17% bytes on the
+  decoy viewer's chunk (+4 B at d = 16, +152 B at d = 256). Updating the shared k-cost sums with only the changed
+  rows is exact (checked byte-identical) but no faster once decoys outnumber the real rows.
+- The behaviour call and diff (0.2–0.3 µs native) confirm `v5-integrity.md`'s 236 ns.
+- Pool slots (derived, not timed): the pool takes `maxPerViewer` of `maxRecords` slots. At the default
+  `maxRecords` 1024, d = 256 leaves 768 slots for live records and the reuse delay; keeping 1024 for them needs
+  `maxRecords` 1280, one more bit (⌈log2 1280⌉ = 11) in every slot field of that collection.

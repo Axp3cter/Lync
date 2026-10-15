@@ -2,20 +2,20 @@
 
 Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-3.6-changes-checks.md`.
 This file specifies, completely:
-- **checks** (§1–§5): `within`, `monotonic`, `maxTotal` and `derive`, declared on the server view;
-- **claims** (§6): the `:claim()` and `:input()` codec markers, the claim requirement and the `freeFormField` lint;
-- **telemetry** (§7): `:aim`, `:series`, `:atom`, delivery to game code, and what Lync's docs must say about
+- **checks** (§1–§6): `within`, `monotonic`, `maxTotal`, `derive` and `maxRate`, declared on the server view;
+- **claims** (§7): the `:claim()` and `:input()` codec markers, the claim requirement and the `freeFormField` lint;
+- **telemetry** (§8): `:aim`, `:series`, `:atom`, delivery to game code, and what Lync's docs must say about
   Roblox's terms;
-- **sealed delivery** (§8): server-sent values sent before they become visible and revealed by a key.
+- **sealed delivery** (§9): server-sent values sent before they become visible and revealed by a key.
 
 They were the `checks` and `telemetry` extensions of `v5-extensions.md` and R34's form (a); they are now part of
-the core. The markers and their hash (§6.1) are built in milestone 1, the claim requirement with validators in
+the core. The markers and their hash (§7.1) are built in milestone 1, the claim requirement with validators in
 milestone 2, the lint in milestone 3, and the rest in milestone 7 (`v5.md` §10). Codes, counters and options this
-file adds are listed in §9; pending measurements in §10.
+file adds are listed in §10; pending measurements in §11.
 
 Every part follows `v5.md` §0: Lync reports facts with exact triggers and numeric evidence, and never rewrites a
 value a client sent. A message is dropped only for a rule the developer declared: a `validate` returning `false`, a
-check with `policy = "drop"`, a claim with no verifier (§6.3), as `limit` and traps already do (`v5.md` §6.1).
+check with `policy = "drop"`, a claim with no verifier (§7.3), as `limit` and traps already do (`v5.md` §6.1).
 Nothing here scores, ranks, delays or throttles a player.
 
 ## 1. Checks: the common frame
@@ -29,18 +29,19 @@ Nothing here scores, ranks, delays or throttles a player.
 - **Choice: (b)** `[checks-telemetry C0]`. References are server functions. Bounds stay off the client, since the
   server shard is never replicated (`v5.md` §3.5), so a modified client can't read a tolerance and use exactly all of
   it. Checks change no bytes, so they stay out of the schema hash (`v5.md` §4.7) and a retune needs no client
-  rebuild. `:claim()` stays in the shared schema (§6.1), because the planner and the lint must see it.
+  rebuild. `:claim()` stays in the shared schema (§7.1), because the planner and the lint must see it.
 
 ### 1.2 Shape and scope
 
-`Net.<definition>:<check>(path, options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`.
+`Net.<definition>:<check>(path, options)`, with `<check>` one of `within`, `monotonic`, `maxTotal`, `derive`,
+`maxRate`.
 - **`path`** names a field of `data`, with dots through records and optionals (`"origin"`, `"hit.origin"`); `""`
   names `data` itself when it isn't a record. Paths can't enter arrays, maps or union variants. A path that names no
   field throws `unknownField`; a field whose codec the check doesn't take throws `fieldKind`.
 - **Types.** The generated server shard types `path` as a union of the literal paths each check accepts, and the
   options per path (§5.4 gives `derive`'s overloads); on the runtime path `path` is a string checked at the call.
   Whether the old solver picks an overload from a literal argument without an annotation is milestone 3's typing
-  proof (§10).
+  proof (§11).
 - **Scope.** `data` of client-sent events and of client requests' asks. Replies to server `invoke`s are not
   covered: answers have no validator step, and the code that called `invoke` checks its result. A check declared on
   a server-sent definition or a collection throws `viewPlacement`.
@@ -84,7 +85,7 @@ record):
 - **Step 5** is unchanged: control; traps and reachability; answers; `unresolved`; `limit`; the report-only checks
   of milestone 5. Messages over `limit` therefore never touch check state.
 - **Step 6, claims, checks and validator**, per message of a definition, in this order:
-  1. **Claim requirement.** If the definition has an unverified claim leaf (§6.3), the message is dropped (an ask is
+  1. **Claim requirement.** If the definition has an unverified claim leaf (§7.3), the message is dropped (an ask is
      answered `rejected`), counted in `claimsUnverified` and reported as `claimUnverified`. Nothing below runs.
   2. **Evaluate** every check of the definition in declaration order, each on the decoded values. Each failure
      records one `constraint` occurrence. A game function a check calls (`within`'s `reference`, `derive`'s `fn`)
@@ -95,7 +96,7 @@ record):
   5. **Commit**, for a message that will be delivered: `monotonic` stores, `maxTotal` charges. A failing check with
      `"deliver"` commits too, so check state always describes what game code received.
   Messages of one frame are handled in order, each committing before the next is evaluated.
-- **Step 6b, sample** (§7.3), then **step 7, delivery**.
+- **Step 6b, sample** (§8.3), then **step 7, delivery**.
 
 Checks run before the validator, so a validator sees only messages that passed every `"drop"` check. Report-only
 checks of milestone 5 stay in step 5, so they see messages a check or a validator later drops, as they already see
@@ -104,7 +105,7 @@ messages a validator drops.
 ### 1.5 The fact `constraint`
 
 One reason with `kind` 1–4: `v5.md` §7.3's rule is one reason, or one evidence value, per trigger whose cause or
-knob differs (draft 3.5 root cause C), and `kind` is that value, with known causes listed per kind in §2–§5. One
+knob differs (draft 3.5 root cause C), and `kind` is that value, with known causes listed per kind in §2–§6. One
 reason keeps evidence narrowing on `reason` alone, the form proven on both solvers `[probes review-2 t3]`, as
 `unresolved`'s `what` does.
 
@@ -183,7 +184,7 @@ fails; a negative m fails every value. Decoded values are never NaN (`v5.md` §3
    to 0.02 s + one client flush 1/60 s + one server step 1/60 s) ≈ 0.10 s on the default network (derived, `v5.md`
    §5.1, §9); 1.6 studs at the default `WalkSpeed` of 16 studs/s (documented), and 13.6 studs more after a 0.85 s
    reliable-lane stall (the simulated p99, `v5.md` §4.9). For physics the client owns, the engine's replication
-   delay adds an unmeasured amount (§10). A reference that reads `rewind` at the client's perceived tick
+   delay adds an unmeasured amount (§11). A reference that reads `rewind` at the client's perceived tick
    (`v5-collections.md`) removes the latency term for records Lync replicates.
 2. **Teleports, respawns and seat changes** between send and arrival.
 3. **Quantization:** up to √3 · step/2 for `t.vector3` (0.027 studs at 1/32), step/2 for `t.number`, π/n for
@@ -214,7 +215,7 @@ State 0 B; wire 0 B.
 `Net.input:monotonic("seq", { order = "increasing", policy = "drop" })` `[checks-telemetry C2]`: a number that
 unmodified client code never decreases in send order (`"nondecreasing"`) or always raises (`"increasing"`).
 - **Frame key.** On the reliable lane, the frame's tag count (`v5.md` §4.5); on the unreliable lane, its extended
-  upstream seq (§4.4). Messages of one definition in one frame are in call order (§4.1), so they share a key and are
+  upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in call order (`v5.md` §4.1), so they share a key and are
   compared in order.
 - **State:** the stored key s* and value v*, two f64 per (player, check).
 - Codecs: `t.int(min, max)`, `t.int()`, `t.number`, `t.f32`, `t.f64`. `t.angle` wraps, so it is `fieldKind`, as is
@@ -232,7 +233,7 @@ For a value v in a frame with key s:
 
 **Why the key** (`checks-telemetry/monotonic_reorder.out`): on `v5.md` §9's default network, 1.31–1.33% of
 delivered unreliable frames arrive after a newer one, none 64 or more behind. A rule against the last accepted value
-fails on each of them, 23.6% of frames at 0.05 s jitter; the keyed rule fails on none, as §9 requires.
+fails on each of them, 23.6% of frames at 0.05 s jitter; the keyed rule fails on none, as `v5.md` §9 requires.
 
 ### 3.3 What it protects, and how it is defeated
 
@@ -251,7 +252,7 @@ fails on each of them, 23.6% of frames at 0.05 s jitter; the keyed rule fails on
 3. **Quantization merging values:** two rising values that decode equal (one `t.number` step, f64 values rounding to
    one f32) fail `"increasing"`.
 4. **A clock that can be set back:** the device wall clock (`os.time()`, `DateTime.now()`), user-settable
-   (unverified on Roblox devices); whether `GetServerTimeNow()` can decrease on a client is unmeasured (§10).
+   (unverified on Roblox devices); whether `GetServerTimeNow()` can decrease on a client is unmeasured (§11).
 
 Not causes: loss (gaps pass), reordering (the key), duplicates (the replay window drops them).
 
@@ -396,14 +397,14 @@ Known causes on an unmodified client (`server-facts/derive_determinism.out` unle
    `vector.lerp` differ in 57,506 of 200,000 random lerps, by at most 2.27e-13, because native code fuses a
    multiply-add (verified from source); f32 against f64: up to 9.78e-5 studs per component, 154 of 300,000 components
    (0.051%) failing tolerance 0 at step 1/32, none by more than one step. Across devices (arm64 clients, other libm
-   builds): unverified (§10). A tolerance of at least one grid step removes this cause while the gap stays under one
+   builds): unverified (§11). A tolerance of at least one grid step removes this cause while the gap stays under one
    step.
 2. **A different algorithm:** per-frame integration on the client against a closed form in `fn`, after 1 s of flight
    at gravity 196.2 studs/s²: 3.27 studs off at 30 FPS, 1.64 at 60, 0.68 at 144, 0.41 at 240. Fix: one shared
    function.
 3. **Inputs quantized after the client used them:** at 300 studs of flight, the 0.2369° of `t.direction(10)` is 1.24
    studs (derived). Fix: compute the outcome from the values as they will decode (`:round`, if the core-api unit
-   adopts it; §10).
+   adopts it; §11).
 4. **Server state that differs from the client's,** when `fn` reads it: latency (§2.4 cause 1), parts not streamed
    in, moving geometry.
 5. **Inputs that weren't sent:** the client's own clock, a random draw, local state. Fix: put them in the message
@@ -423,7 +424,7 @@ moving server state.
 | `fn` | `(Player, Data) -> T?`, T the field's decoded type | — | — | required | the game's own, per evaluated message, in its own `xpcall` (§1.7) |
 | `tolerance` | number (real) | the field's unit | 0–2^31, finite; only 0 for `t.enum` and `t.bool` | required | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
-| `oneIn` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that for `fn`'s cost) | above 1: one draw per message, 24–32 ns in the CLI (`v5-integrity.md` §4's figure; `Random:NextInteger` on Roblox servers unmeasured, §10) and `fn` on 1/`oneIn` of messages on average; a message not drawn passes unchecked, under `"drop"` too |
+| `oneIn` | integer | messages per evaluation | 1–1000 | 1 (derived: principle 1, every message is checked unless the developer trades that for `fn`'s cost) | above 1: one draw per message, 24–32 ns in the CLI (`v5-integrity.md` §4's figure; `Random:NextInteger` on Roblox servers unmeasured, §11) and `fn` on 1/`oneIn` of messages on average; a message not drawn passes unchecked, under `"drop"` too |
 
 - **Types.** Generated shard (both solvers): `derive` is an intersection of one overload per accepted path, each
   with its own `fn` return type: `((self, path: "landing", options: DeriveOptions<ShotData, Vector3>) -> ()) &
@@ -435,9 +436,104 @@ moving server state.
   32–36 ns interpreted per message; with an exact compare (`t.enum`) the whole runner is 7.2–8.5 ns native. Add the
   protected call (§1.7) and 20.5 ns per failure. State 0 B; wire 0 B.
 
-## 6. Claims
+## 6. `maxRate`
 
-### 6.1 The markers `:claim()` and `:input()`
+### 6.1 Semantics
+
+`Net.move:maxRate("position", { rate = 16, plane = "xz", policy = "deliver" })`
+`[refusals-rejudged-4 R35]`: a claimed value that changes no faster than `rate` per second, in the field's unit.
+- **Why a kind, not a recipe.** A `within` whose reference returns the game's last delivered value plus `rate` ×
+  elapsed fails twice: game code never sees frame keys, so late unreliable frames (1.3%, §3.2) move its last value
+  backwards; and a per-step bucket accumulates quantization error. The research's leaky bucket on |Δ| reached
+  149 studs (unreliable) and 309 studs (reliable) over 3 × 10^6 messages of a client moving at exactly 16 studs/s,
+  `t.vector3` step 1/32 (`refusals-rejudged/r4_maxrate.out`), and it grows with session length. So the form compares
+  samples pairwise against two references.
+- **State** per (player, check), 80 B: the newest committed value p with its evaluation time t_p and frame key, and
+  an anchor a with its time t_a.
+- **Distance d(x, y):** §2.1's metric (`t.int`, `t.number`, `t.f32`, `t.f64`, `t.angle`, `t.direction`, `t.vector3`,
+  `t.vector3f32`); for the two vector codecs with `plane = "xz"`, |x − y| over X and Z only. Other codecs are
+  `fieldKind`.
+
+### 6.2 Exact trigger
+
+For a value v in a frame with key s, evaluated at t (`os.clock()` at evaluation): with no stored value, never.
+Otherwise it fails when not (d(v, p) ≤ `rate` × (t − t_p) + `burst`), or not (d(v, a) ≤ `rate` × (t − t_a) +
+`burst`); equality passes. A late frame (s older than the stored key) is compared with both references, `late` = 1.
+
+**Commit** (§1.4): if s is newer than the stored key, (p, t_p, key) ← (v, t, s), and when t − t_a ≥ `window` also
+(a, t_a) ← (v, t). The first message sets both. A late frame stores nothing.
+
+**Why two references.** The previous value bounds a jump against the last sample, so allowance can't be saved up;
+the anchor bounds net displacement over up to `window`, which catches sustained excess speed per-step comparisons let
+through. Each is one comparison of two samples, so honest error doesn't accumulate.
+
+**Derived `burst`.** Between two samples, the arrival span can be shorter than the send span by the lane's
+compression c, and each sample carries up to e of decode error, so `burst` = `rate` × c + 2e:
+- c = jitter range + server step = 0.02 + 1/60 = 0.0367 s on the unreliable lane (`v5.md` §9's model); 2 s more on
+  the reliable lane, `limit`'s stall slack (`v5.md` §4.9): 2.0367 s;
+- e = √3 · step/2 for `t.vector3` (√2 · step/2 with `"xz"`), step/2 for `t.number`, π/n for `t.angle`, the
+  octahedral error for `t.direction` (0.2369° at 10 bits), 0 for `t.int` and `t.f64`. `t.f32` and `t.vector3f32`
+  have a relative error (2^−24 of the value), so no constant e exists and `burst` is required for them (a change
+  from the research, whose e of 2^−24 × the codec's largest magnitude makes `burst` about 2 × 10^31 for an
+  unbounded `t.f32`).
+
+Checked against the simulation (rate 16 studs/s, step 1/32, 3 × 10^6 messages per line, `r4_maxrate.out`):
+
+| Lane and network | Smallest `burst` with no failure | Derived default |
+|---|---|---|
+| unreliable, jitter 0.02 s, 5% loss | 0.309 studs | 0.641 |
+| unreliable, jitter 0.05 s (673,080 late frames) | 0.576 | 0.641 |
+| reliable, jitter 0.02 s | 0.309 | 32.6 |
+| reliable, 0.85 s stalls at 1/600 per frame | 13.408 | 32.6 |
+
+### 6.3 What it bounds, and how it is defeated
+
+- A forged stream stays within `rate` × elapsed + `burst` of the previous sample and of the anchor; the excess speed
+  it can sustain unseen is `burst`/`window`, 0.064 studs/s at the unreliable defaults (0.4% of 16 studs/s).
+- A client that withholds messages for T seconds may then move `rate` × T + `burst`: the server can't know where it
+  was in between, so that is the bound.
+- Defeated by moving at `rate` exactly, and by any client physics change `rate` allows. It bounds only what the
+  client claims in Lync payloads, never engine-replicated characters; a game with server truth compares against it
+  with `within`.
+- **`planar` on `within`** needs no option: a reference returning `Vector3.new(r.X, v.Y, r.Z)`, v being the claim,
+  makes `within`'s distance the XZ distance, exactly equal in f32 arithmetic in 10^6 of 10^6 random pairs
+  (`refusals-rejudged/r4_cooldown.out`). The docs give the line. `maxRate` needs `plane` because its references are
+  Lync's state, which game code can't reach.
+
+### 6.4 Known causes on an unmodified client
+
+1. **Game-applied motion:** teleports, respawns, seats, vehicles, knockback, conveyors. Call `resetChecks` with
+   `seconds` (§1.6) where the game moves the player.
+2. **Falling and jumping** with `plane = "xyz"`: no fixed fall-speed bound exists in this model; ground movement uses
+   `"xz"`, as Roblox's movement-validation guidance says (documented, creator-docs
+   `scripting/security/network-ownership.md`).
+3. **A server step longer than 1/60 s** (a hitch), or a reliable stall longer than 2 s, compresses arrival spans by
+   its length; evidence `span` shows it.
+4. **Network jitter above the derived c** (mobile jitter unmeasured, §11), and a speed boost above `rate`.
+
+### 6.5 Options and cost
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `path` | string | — | a field of a codec in §6.1, through records and optionals | required | none |
+| `rate` | number (real) | the field's unit per second | > 0, finite | required | none |
+| `burst` | number (real) | the field's unit | ≥ 0, finite | derived (§6.2): `rate` × 0.0367 s + 2e on unreliable definitions, `rate` × 2.0367 s + 2e on reliable ones; required for `t.f32` and `t.vector3f32` | none |
+| `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.4% of `rate` at the unreliable default; a larger window lets less through) | none |
+| `plane` | `"xyz" \| "xz"` | — | `"xz"` only for `t.vector3` and `t.vector3f32` (else `viewOptionRange`) | `"xyz"` | none measurable (`r4_maxrate.out`: within noise) |
+| `policy` | `"drop" \| "deliver"` | — | — | required | none |
+
+Measured, net (`refusals-rejudged/r4_maxrate.out`, 3 runs, best of 7): 77–84 ns native and 316–332 ns interpreted per
+message in 3-D; 73–87 ns native and 290–331 ns interpreted with `"xz"`. State 80 B per player per check; wire 0 B.
+
+**`cooldown`** stays out: a cooldown of s seconds is `limit = { perSecond = 1/s, burst = 1 }` (`v5.md` §5.4). The
+client never sends two messages less than s apart; the server admits at most 1 + (T + 2)/s over any T seconds
+(`refusals-rejudged/r4_cooldown.out`: after idle, 5 at once at s = 0.5 s, 3 at 1 s; for s > 2 s a second only s − 2 s
+after the first). A stricter arrival-gap test would need the same 2 s stall slack, so a second limiter would add
+nothing, and principle 4 refuses it.
+
+## 7. Claims
+
+### 7.1 The markers `:claim()` and `:input()`
 
 Two codec methods in the shared schema, non-generic and returning the same codec type (`v5.md` §3.3's rule):
 `t.int(1, 2 ^ 40):claim()`, `t.string(200):input()` `[checks-telemetry C4]`.
@@ -453,16 +549,16 @@ Two codec methods in the shared schema, non-generic and returning the same codec
   (`v5.md` §4.7). Choice: (b): no exception, 2 B of hash input per marker, nothing at run time. A changed role gives
   `MISMATCH` between builds, which never meet in production because both shards come from one build run.
 - **Types:** unchanged; a marker doesn't change `T`.
-- **`:input()`** has one effect: it silences `freeFormField` on a free-form leaf (§6.4). Draft 3.5 dropped it (M4:
+- **`:input()`** has one effect: it silences `freeFormField` on a free-form leaf (§7.4). Draft 3.5 dropped it (M4:
   unmarked fields are inputs already); it returns because the lint needs a way, on the field's own line, to record
   that a free-form leaf was looked at and is an input, and an unmarked leaf can't say that.
 
 | Marker | Placement | Default | Cost |
 |---|---|---|---|
-| `:claim()` | any codec in a client-sent payload | unmarked leaves are inputs | 0 B wire; 2 B hash input; one flag test per message; a verifier per claim leaf of `data` (§6.2) |
+| `:claim()` | any codec in a client-sent payload | unmarked leaves are inputs | 0 B wire; 2 B hash input; one flag test per message; a verifier per claim leaf of `data` (§7.2) |
 | `:input()` | as `:claim()` | — | 0 B wire; 2 B hash input; no run-time effect |
 
-### 6.2 Decision: what verifies a claim
+### 7.2 Decision: what verifies a claim
 
 - **Problem.** The marker is only protection if the server must verify each claim before game code acts on it.
   Lync can't judge whether a verifier is sufficient: a validator returning `true` unconditionally looks like any
@@ -481,7 +577,7 @@ Two codec methods in the shared schema, non-generic and returning the same codec
   schema and recomputed at each `validate` or check declaration. Per message it costs one boolean test.
 - **Replies** of server requests may carry markers, for the lint only; answers have no validator step.
 
-### 6.3 Decision: a message with an unverified claim
+### 7.3 Decision: a message with an unverified claim
 
 - **Problem.** A message arrives for a definition whose claim leaves the server hasn't verified. Its cause is the
   server's declarations, not what the player sent. The hard window is the time between a server script's first use
@@ -491,7 +587,7 @@ Two codec methods in the shared schema, non-generic and returning the same codec
 - **Choice: (a).** `:claim()` is the developer's declaration that the leaf reaches game code only after a server
   verification; (b) would deliver exactly what the marker excludes, and (c) holds client data for an unbounded
   time. The drop executes the developer's declaration, as `limit` does.
-- **Exact trigger and action.** A message of a definition whose flag (§6.2) is set, at step 6 (§1.4) before checks
+- **Exact trigger and action.** A message of a definition whose flag (§7.2) is set, at step 6 (§1.4) before checks
   and validators: dropped, an ask answered `rejected`, counted in `claimsUnverified`, and reported natively as
   **`claimUnverified`** (family `fault`), at most once per definition per `observe.window` (`v5.md` §7.2):
   `[Lync] claimUnverified: arena.strike data.target must have a validator or a check, got none`. It carries no fix,
@@ -514,12 +610,12 @@ Net.strike:refers("target", "fighters") -- v5-integrity.md §8
 Net.strike:validate(function(player, s) return Fighters.alive(s.target) end)
 ```
 
-### 6.4 The `freeFormField` lint
+### 7.4 The `freeFormField` lint
 
 The rule, its evidence, severity option and channel are the `freeFormField` row of `v5-tooling.md` §3.4: a free-form
 leaf (unbounded floats and integers, more than 65,536 codes per component, strings, buffers, instances, custom
 codecs) in a client-sent payload with no role marker on itself or an enclosing codec. Its relation to this file:
-- **It is what makes the marker protect.** A flagged leaf gets `:claim()`, and then §6.2 requires a server
+- **It is what makes the marker protect.** A flagged leaf gets `:claim()`, and then §7.2 requires a server
   verifier; or it gets `:input()`, which records the decision on the field's line.
 - **Measured on stand-in codecs** (`checks-telemetry/lint_freeform.out`): `v5.md` §3.4's `arena` gives 2 warnings,
   `chat data` (an input: `:input()`) and `strike data.target` (a claim: `:claim()` and a verifier), and 0 with those
@@ -535,12 +631,12 @@ codecs) in a client-sent payload with no role marker on itself or an enclosing c
 - On the runtime path the planner computes it and drops it: there is no build to report to, and a line in every
   session is the channel M11 refused.
 
-## 7. Telemetry
+## 8. Telemetry
 
 Telemetry keeps per-player copies of values the game already sends, and hands them to game code. It raises no fact
 and computes nothing about them.
 
-### 7.1 Decision: where telemetry is declared
+### 8.1 Decision: where telemetry is declared
 
 - **Options:** (a) codec methods in the shared schema (`t.direction(11):aim()`) `[anticheat-design §5.2]`;
   (b) **calls on the server view**, as checks (§1.1).
@@ -551,7 +647,7 @@ and computes nothing about them.
   `viewPlacement`. Paths as §1.2 (`unknownField`, `fieldKind`). Declared at any time; applies to frames decoded
   after the call.
 
-### 7.2 Streams and their entries
+### 8.2 Streams and their entries
 
 Each declaration keeps one ring per player of `ring` entries; one ring per definition, so a definition names its
 ring (a second `:aim` or `:series` on a definition throws `telemetryTwice`).
@@ -580,7 +676,7 @@ ring (a second `:aim` or `:series` on a definition throws `telemetryTwice`).
 
 Entry sizes: timing 8 B, aim 12 B, scalar 12 B, vector 20 B. The research's layout had u16 `ms` and `key`
 `[checks-telemetry T1]`; with them, a ring of a definition sent less often than once per second spans more than the
-65.536 s wrap, its times alias, and the window search (§7.4) is no longer sorted. u32 fields are exact for every ring
+65.536 s wrap, its times alias, and the window search (§8.4) is no longer sorted. u32 fields are exact for every ring
 (`ms` wraps after 49.7 days, `key` after 138 days at 360 frames/s), for 4 B more per entry.
 
 **Decision: one entry per frame.** A frame's messages share one arrival time, so Lync samples the last delivered
@@ -588,7 +684,7 @@ message of the definition in each frame (messages are in call order, `v5.md` §4
 with no time between them, and one per frame bounds a ring's turnover by the inbound frame budget (at most 120 + 240
 frames/s at the defaults, `v5.md` §7.5). At 60 frames/s a 64-entry ring holds 1.07 s.
 
-### 7.3 Where it runs
+### 8.3 Where it runs
 
 **Step 6b, sample** (§1.4), after the checks' commit and before delivery, on messages that will be delivered, with
 the values game code receives. Dropped messages are not sampled: each drop is already a fact or a counter
@@ -596,7 +692,7 @@ the values game code receives. Dropped messages are not sampled: each drop is al
 in the pipeline loop, not in a handler thread, so a yielding handler can't delay it. `ms` and `key` are read once per
 frame.
 
-### 7.4 Atoms
+### 8.4 Atoms
 
 `Net.<def>:atom({ before, after, fields, series, pending })`: a fixed record taken when a message of the definition
 is delivered, with a window of another definition's stream around it. One atom declaration per definition (a second
@@ -607,8 +703,8 @@ throws `telemetryTwice`).
    connection it takes nothing.
 2. **Complete**, once per flush, where fact windows are swept (`v5.md` §7.3). For each due atom, Lync binary-searches
    the `series` ring for the first entry whose `ms` is no older than the trigger's `ms` − 1000 × `before` (u32
-   differences, exact by §7.2), and copies it and every newer entry into the player's batch buffer.
-3. **Hand off** (§7.5).
+   differences, exact by §8.2), and copies it and every newer entry into the player's batch buffer.
+3. **Hand off** (§8.5).
 
 **Atom layout, version 1:** `serverTime` f64 (`GetServerTimeNow()` at the trigger frame), `ms` u32 and `key` u32 of
 the trigger frame, `n` u16 (entries copied; at most `ring`, 1024), `flags` u8, the field values as f64 in declaration
@@ -622,7 +718,7 @@ with an exact condition:
 The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative to the trigger is
 (entry.`ms` − atom.`ms`) as a signed 32-bit difference, in ms.
 
-### 7.5 Decision: how samples reach game code
+### 8.5 Decision: how samples reach game code
 
 | Option | Cost | Memory | Fit |
 |---|---|---|---|
@@ -648,7 +744,7 @@ The research's clamp bit is gone with `clamp` (§1.3). An entry's time relative 
 - **Counters** (`v5.md` §7.4): `atomsDelivered` and `atomsSkipped`, per definition. Atoms raise no fact: an atom has
   no trigger beyond "a message arrived".
 
-### 7.6 API and types
+### 8.6 API and types
 
 ```luau
 -- server
@@ -656,7 +752,7 @@ Net.look:aim("dir")                                   -- look: from = "client", 
 Net.strike:series()                                   -- timing only
 Net.strike:atom({ before = 0.5, after = 0.25, fields = { "origin", "target" }, series = Net.look })
 local connection = Lync.telemetry.atoms(function(batch: Lync.AtomBatch)
-	Export.queue(batch.player, batch.definition, batch.data) -- game code (§7.8)
+	Export.queue(batch.player, batch.definition, batch.data) -- game code (§8.8)
 end)
 local look = Lync.telemetry.read(player, Net.look)    -- a copy of the ring, or nil
 ```
@@ -705,25 +801,25 @@ declare namespace telemetry {
 `AimPath<T>`, `SeriesPath<T>` and `NumericPath<T>` are emitted per definition as literal unions, never computed by
 type-level recursion. Caller errors: `unknownField`, `fieldKind` (the codec isn't one the call takes),
 `telemetryTwice`, `seriesMissing` (`series =` a definition with neither `:aim` nor `:series`), `viewPlacement`, and
-the option codes of §9.
+the option codes of §10.
 
-### 7.7 What Lync does not do
+### 8.7 What Lync does not do
 
 Each follows "Lync reports facts" (R23) and "no automatic consequence" (R22, R24):
 - **No statistics, scores, thresholds or models.** The research's online mean and variance
   `[anticheat-design §5.2]` are dropped: a summary Lync chooses is the first step of a verdict, and raw samples cost
   as little to keep. Means, deltas, angular speed, reaction times and models belong to game code or offline tools.
-- **No fact from a telemetry value**, and no flag meaning anything but its exact condition (§7.4).
+- **No fact from a telemetry value**, and no flag meaning anything but its exact condition (§8.4).
 - **No consequence.** Sampling never changes what is delivered, and nothing in telemetry drops, delays, throttles or
   tags a player.
 - **No export, storage or transport.** Lync makes no HTTP request, writes no DataStore and holds no secret, as
   diagnostics export is a recipe `[diagnostics §5.4]`. Game code owns the 500 HTTP requests/min per server, the
   "Allow HTTP Requests" setting (documented, creator-docs `cloud-services/http-service.md`) and the legal obligations
-  (§7.11).
+  (§8.11).
 - **No user ids and no client text in the data.** A batch carries the `Player`; the buffer carries no id. Atoms and
   series take numeric codecs only, so a batch can't carry chat or any other text a player typed.
 
-### 7.8 The export recipe (docs)
+### 8.8 The export recipe (docs)
 
 One `Lync.telemetry.atoms` connection appends each batch to a buffer behind a header the recipe fixes (version u8,
 namespace and definition as u16-length strings, the exported player key as f64, count u16), and sends the buffer every
@@ -731,12 +827,12 @@ namespace and definition as u16-length strings, the exported player key as f64, 
 binary data", documented, `HttpService.yaml`), retrying with backoff (documented best practice).
 - At 100 players × 2 atoms/s × 591 B, that is 118 KB/s: 30 requests/min of 236 KB each (derived).
 - A request body limit is not documented (`HttpService.yaml` and `http-service.md` searched for "size", "limit",
-  "MB", "body"): unverified (§10). The recipe takes a byte limit as a parameter and splits the buffer at it.
+  "MB", "body"): unverified (§11). The recipe takes a byte limit as a parameter and splits the buffer at it.
 - `PostAsync`'s `compress` argument gzips the body (documented); `EncodingService`'s Zstd is the other route.
 
-### 7.9 Known causes in the samples of an unmodified client
+### 8.9 Known causes in the samples of an unmodified client
 
-`checks-telemetry/telemetry_samples.out`, a model: v5.md §9's network, frame times drawn per case, not measured on
+`checks-telemetry/telemetry_samples.out`, a model: `v5.md` §9's network, frame times drawn per case, not measured on
 devices. Flush rate by reading of `v5.md` §5.1's rule ("reset": time since the last flush; "carry": an accumulator
 that keeps the remainder):
 
@@ -771,22 +867,22 @@ The docs state each cause, so analysis doesn't read them as anything else:
 9. **Truncated and partial atoms:** truncated after join, or when frames of the series definition exceed
    `ring`/(`before` + `after`) per second (85.3 at the defaults); partial on leave.
 10. **Server load:** arrival time is when Lync's handler runs, so a server frame hitch stamps several frames with
-    nearly one time (magnitude unverified, §10).
+    nearly one time (magnitude unverified, §11).
 
 **How it is defeated.** A modified client controls every value it sends and when; it can shape aim and timing like
 any device. Telemetry raises the cost of crude automation and gives evidence for review; it proves nothing about one
 player.
 
-### 7.10 Options, memory and cost
+### 8.10 Options, memory and cost
 
 | Option | Where | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|---|
 | `path` | `:aim(path, …)` | string | — | a `t.direction`, `t.rotation`, `t.cframe` or `{ yaw = t.angle, pitch = t.angle }` field, through records and optionals | required | 65–73 ns native, 221–228 ns interpreted per sampled frame from a decoded direction; the record form adds four trigonometric calls (unmeasured) |
-| `path` | `:series(path?, …)` | string or nil | — | a codec of §7.2's values, through records and optionals; nil: timing only | nil | timing: 22–24 ns native, 91–93 ns interpreted per sampled frame; values: unmeasured (§10) |
+| `path` | `:series(path?, …)` | string or nil | — | a codec of §8.2's values, through records and optionals; nil: timing only | nil | timing: 22–24 ns native, 91–93 ns interpreted per sampled frame; values: unmeasured (§11) |
 | `ring` | `:aim`, `:series` | integer | entries | 16–1024 | 64 (chosen: at least the 45 entries of the default window at 60 frames/s; atoms truncate above 85.3 frames/s) | E × `ring` per player: 768 B for aim at 64 |
 | `before` | `:atom` | number (real) | s | 0–2 | 0.5 (the reported VACnet window `[anticheat-design §5.1]`) | needs `ring` ≥ (`before` + `after`) × the series' frames per second, else bit 1 |
 | `after` | `:atom` | number (real) | s | 0–1 | 0.25 (VACnet, as `before`) | a pending slot held `after` s plus up to one server frame |
-| `fields` | `:atom` | array of string | — | paths of §7.2's value codecs on the atom's definition, at most 16 values (a vector counts 3) | `{}` | 8 B per value per atom; trigger 35–38 ns native, 151–163 ns interpreted for 5 values |
+| `fields` | `:atom` | array of string | — | paths of §8.2's value codecs on the atom's definition, at most 16 values (a vector counts 3) | `{}` | 8 B per value per atom; trigger 35–38 ns native, 151–163 ns interpreted for 5 values |
 | `series` | `:atom` | a definition with `:aim()` or `:series()` | — | — | nil: no entries | completion 252–260 ns native, 477–506 ns interpreted per atom of 46 entries |
 | `pending` | `:atom` | integer | atoms per player | 1–64 | 8 (chosen: sustains 8/(`after` + 1/60 s) = 30 atoms/s per player at the default `after`; a definition firing faster needs more) | (19 + 8 · F) B each |
 | `telemetry.batch` | `Lync.configure` | integer | atoms | 1–256 | 16 (chosen: the hand-off is 41–44 ns per atom amortised at 16; a larger batch holds more memory per player) | at most `batch` × the atom size held per (player, definition); 0.66–0.71 µs per hand-off plus 88–131 ns per connection |
@@ -797,14 +893,14 @@ player.
   16 × (51 + 64 × 12) = 13.1 KB. One aim series, one timing series and one atom declaration: at most 14.8 KB per
   player, 1.48 MB for 100 players. Allocated at the player's first sampled message, freed on leave.
 - **Cost** (measured on the research's 4 B and 8 B layouts, `checks-telemetry/telemetry_cost.out`; the widened
-  fields of §7.2 are the same number of buffer writes and copy 4 B more per entry, unmeasured): 100 players at 60 aim
+  fields of §8.2 are the same number of buffer writes and copy 4 B more per entry, unmeasured): 100 players at 60 aim
   samples/s is 0.39–0.44 ms/s native and 1.3 ms/s interpreted; two atoms per player per second add 0.06 ms/s native
   and 0.13 ms/s interpreted, the batches about 0.01 ms/s. Wire 0 B: Lync samples traffic the game already sends (an
   aim stream needs the game to send its look direction, 22 bits per message for `t.direction(11)` plus framing).
 - **Not sampled:** server-sent traffic, anything on the client, and `Player:GetCameraState()` (server-side camera
   under Server Authority, documented), which isn't traffic Lync decodes.
 
-### 7.11 What Lync's docs must tell developers about Roblox's terms
+### 8.11 What Lync's docs must tell developers about Roblox's terms
 
 One page, linked from the telemetry reference, quoting each source `[checks-telemetry T3]` (read 2026-10-15; the
 readings are the research's, unverified, and not legal advice):
@@ -832,15 +928,15 @@ readings are the research's, unverified, and not legal advice):
     advice.
 - **Before the page is written** it must also cite three sources the research didn't fetch: rules for users under
   13 on creator-side data, the Creator Analytics Terms the Community Standards cite, and the scoped-id announcement
-  the users page links (§10).
+  the users page links (§11).
 
-## 8. Sealed delivery
+## 9. Sealed delivery
 
-### 8.1 What it protects, and the decision against withholding
+### 9.1 What it protects, and the decision against withholding
 
 - **Problem.** A value the server sends before the game makes it visible (next round's layout, a drop table, a timed
   puzzle's answer) is readable on every client from its arrival. Withholding it until the reveal costs the transfer
-  time at the reveal: N bytes take N/R, R being the engine's downstream rate for that player (unmeasured, §10).
+  time at the reveal: N bytes take N/R, R being the engine's downstream rate for that player (unmeasured, §11).
 - **Options:** (a) withhold until the reveal (draft 3.5's recipe, R34's earlier reason); (b) **send it sealed under a
   per-seal 64-bit key and reveal the key** `[refusals-rejudged-1 R34 (a)]`.
 - **Choice: (b)**, for the case where the reveal time matters; (a) stays the game's choice. A reveal is 67–79 bits for the first 127 seals,
@@ -855,7 +951,7 @@ readings are the research's, unverified, and not legal advice):
   the time and count of seals; whatever the server's own behaviour discloses; the length, when `hideLength` is false.
   Only server-side code can defeat it, by revealing early or sending the value elsewhere.
 
-### 8.2 Declaration and API
+### 9.2 Declaration and API
 
 ```luau
 -- shared schema
@@ -875,10 +971,10 @@ Net.nextRound:connect(function(layout) end)
 - **`fire`** on a sealed definition returns a `Seal` with `reveal()` and `discard()`; calling either on a seal
   already revealed or discarded throws `sealSettled`. Generated path: `fire`'s return type is `Seal` for sealed
   definitions; runtime path: a type function on the presence of `sealed` in the definition's table type, under the
-  new solver (unverified, milestone 3's typing proofs, §10). roblox-ts: `fire(this: void, target, data): Seal`.
+  new solver (unverified, milestone 3's typing proofs, §11). roblox-ts: `fire(this: void, target, data): Seal`.
 - **Client types** are unchanged: `connect` handlers receive the decoded value at the reveal.
 
-### 8.3 Wire
+### 9.3 Wire
 
 Each message of a sealed definition is one row (`v5.md` §4.3's runs):
 
@@ -900,21 +996,21 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
   so they are shared chunks and stay eligible for `FireAllClients` (`v5.md` §4.2). Per-player values are separate
   fires.
 - **Schema hash:** `sealed` joins `v5.md` §4.7's option list after `reliableRate` (presence u8, then `outstanding`
-  `num` and `hideLength` u8); the wire unit owns the serialization numbering (§9). Golden frames at seed 0 without
+  `num` and `hideLength` u8); the wire unit owns the serialization numbering (§10). Golden frames at seed 0 without
   `sealed` don't change.
 
-### 8.4 Keys
+### 9.4 Keys
 
 - **Server secret S** (64 bits): two `NextInteger(0, 2^32 − 1)` draws from a `Random.new()` instance created without
   a seed (internal entropy source, documented, creator-docs `datatypes/Random.yaml`), used for nothing else, drawn at
   the server's first sealed send and never sent. Roblox does not document `Random` as cryptographic (unverified,
-  §10); S is never sent, and a revealed key is one PRF output under it, not generator state.
+  §11); S is never sent, and a revealed key is one PRF output under it, not generator state.
 - **Seal key** K_i = HalfSipHash-2-4/64 under S over (d as u32le, i as u64le), with d the server's number for the
   definition (sealed definitions numbered from 0 in order of first sealed send) and i the definition's seal counter
   from 0 on this server, which is also the wire `seal` id. Keys are computed at the reveal, so the server stores no
   key.
 
-### 8.5 Recipients and `outstanding`
+### 9.5 Recipients and `outstanding`
 
 - **Recipients** are the seal's target resolved at the flush that encodes it (`v5.md` §3.5); a player in the join
   hold receives it from the hold, as any send (`v5.md` §5.3). A player who joins later doesn't receive it.
@@ -925,10 +1021,10 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
   connected; called before the seal's own flush, both leave in the same flush after it. Each decrements the
   recipients' counts. A leaving player's counts are freed.
 
-### 8.6 Client decode
+### 9.6 Client decode
 
 - The client holds, per sealed definition, at most `outstanding` seals (id → ciphertext).
-- **Refused with a §4.8 rule:** `kind` 3 (rule 2); a seal while `outstanding` are held, or `blocks` above ⌈W/8⌉
+- **Refused with a `v5.md` §4.8 rule:** `kind` 3 (rule 2); a seal while `outstanding` are held, or `blocks` above ⌈W/8⌉
   (rule 2); with `hideLength`, `blocks` other than ⌈W/8⌉ (rule 3); a seal id already held, or a reveal or discard
   naming no held seal (rule 7).
 - **At the reveal** it decrypts and decodes the plaintext under §4.8 (padding bytes past the encoding must be zero,
@@ -936,7 +1032,7 @@ sealed row := kind:u2 ( 0 seal:    seal:EG0 blocks:EG0          -- ciphertext: 8
   `REPORT`, as for any downstream frame (`v5-integrity.md` §5). The value is then delivered to `connect` handlers
   at the reveal's place in run order, and the ciphertext is freed; a discard frees it.
 
-### 8.7 Fact, options and cost
+### 9.7 Fact, options and cost
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
@@ -960,7 +1056,7 @@ two are equal; a developer sets false where the length carries nothing.
 0.37–0.46 ms on the server once per seal whatever the recipient count. A seal key: one HalfSipHash over 12 B on the
 server at the reveal, 0.18–0.22 µs native for 8 B (12 B unmeasured).
 
-### 8.8 What stays out
+### 9.8 What stays out
 
 - **Commit–reveal for provably fair outcomes** (gacha, shuffles: H(seed) before the player acts, the seed after)
   guards against the server, not a client, and needs nothing from Lync: a docs recipe over two server-sent
@@ -970,16 +1066,16 @@ server at the reveal, 0.18–0.22 µs native for 8 B (12 B unmeasured).
   denied; the server holds all state and chooses what each viewer receives (`interest`) `[refusals-rejudged-1 R34
   (c)]`.
 
-## 9. Codes, counters and options added here
+## 10. Codes, counters and options added here
 
 Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units list them in `v5.md` §7.
-- **Fact:** `constraint` (§1.5); `sendDropped` gains `cause` 5 (§8.7).
-- **Fault:** `claimUnverified` (§6.3).
-- **Declaration:** `rolePlacement` (§6.1), `sealedPlacement`, `sealedInstance` (§8.2).
+- **Fact:** `constraint` (§1.5); `sendDropped` gains `cause` 5 (§9.7).
+- **Fault:** `claimUnverified` (§7.3).
+- **Declaration:** `rolePlacement` (§7.1), `sealedPlacement`, `sealedInstance` (§9.2).
 - **Caller:**
   - `fieldKind`: the codec at a check's or telemetry call's `path` isn't one that call takes;
   - `checkPool`: two `maxTotal` checks in one pool with different `cap` or `seconds`;
-  - `viewPlacement`: a check or telemetry call on a definition outside its scope (§1.2, §7.1);
+  - `viewPlacement`: a check or telemetry call on a definition outside its scope (§1.2, §8.1);
   - `telemetryTwice`: a second `:aim` or `:series`, or a second `:atom`, on one definition;
   - `seriesMissing`: an atom's `series` names a definition with neither `:aim` nor `:series`;
   - `sealSettled`: `reveal()` or `discard()` on a seal already revealed or discarded;
@@ -990,27 +1086,27 @@ Each code gets its registry page (`v5.md` §7.1); the runtime and core-api units
   - `unknownField` (exists) for a path naming no field.
 - **Build:** `freeFormField` (`v5-tooling.md` §3.4).
 - **Counters** (`v5.md` §7.4), per definition: `checksSkipped` (a `reference` or `fn` returned nil),
-  `claimsUnverified` (§6.3), `atomsDelivered`, `atomsSkipped` (§7.5).
-- **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§7.10).
+  `claimsUnverified` (§7.3), `atomsDelivered`, `atomsSkipped` (§8.5).
+- **Configuration** (`Lync.configure`, `v5.md` §7.5): `telemetry.batch`, `telemetry.seconds` (§8.10).
 - **Runtime constant:** `maxTotal` buckets, 16 (§4.1).
-- **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§6.1); the `sealed` option (§8.3).
+- **Schema hash** (`v5.md` §4.7): codec type 26 `role` (§7.1); the `sealed` option (§9.3).
 
-## 10. Pending measurements and proofs
+## 11. Pending measurements and proofs
 
 Each has a default or a rule the design uses; none blocks the milestone.
 - Roblox's server build for checks and telemetry, and whether a Roblox server runs Lync's modules native; state
   lookup by `Player` against the probes' slot index.
-- `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §8.4).
-- The engine's downstream rate per player (sealing against withholding, §8.1); HalfSipHash over 12 B (§8.7).
+- `Random:NextInteger` on Roblox servers (`oneIn`, §5.2), and whether `Random` is cryptographic (S, §9.4).
+- The engine's downstream rate per player (sealing against withholding, §9.1); HalfSipHash over 12 B (§9.7).
 - The engine's replication delay for client-owned physics (`within` cause 1).
 - Whether `GetServerTimeNow()` can decrease on a client, and whether the device clock can be set back
   (`monotonic` cause 4).
 - Cross-device float results on arm64 clients, and FP contraction in Roblox's arm64 interpreter (`derive` cause 1).
 - `Workspace:Raycast` cost inside a `fn` (`oneIn`'s use).
-- Telemetry: the value-series cost, the record-form aim cost and the widened layout (§7.10); real frame-delta
-  noise at a 60 FPS cap; the server-load timing burst (cause 10); the HTTP request body limit (§7.8); the three
-  terms sources of §7.11.
+- Telemetry: the value-series cost, the record-form aim cost and the widened layout (§8.10); real frame-delta
+  noise at a 60 FPS cap; the server-load timing burst (cause 10); the HTTP request body limit (§8.8); the three
+  terms sources of §8.11.
 - Typing proofs for milestone 3: old-solver overload selection by literal path (§1.2, §5.4); the runtime-path type
-  of a sealed `fire` (§8.2).
+  of a sealed `fire` (§9.2).
 - Whether clients may compute claims from values as they decode (a codec `:round`), the core-api unit's decision
   (`derive` cause 3).

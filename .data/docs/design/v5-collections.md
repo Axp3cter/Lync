@@ -487,5 +487,233 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
   `:newest()` field. Unmeasured on the client; the nearest probes are the server's position-only lerp at 141–146 ns
   interpreted and a bracket-lerp with two rotation decodes at 389–437 ns `[interest-rewind §11.7]`. Memory: §11.2's
   samples per record. Wire: §11.1's `RATE` and §11.3's bit.
-- **A game with its own interpolation** reads `get` and the fields' sample ticks through `changed`, and sets
+- **A game with its own interpolation** reads `get` with `Lync.tick()` (the dispatched frame's tick) in `changed`, and sets
   `rewind`'s `delay` to the constant it uses (§12.2); Lync can't see its clock.
+
+## 12. Rewind
+
+### 12.1 What it protects, and what it is not
+
+- **The claim it prices.** A client says "I hit record k" or "I fired from here". The server must judge that against
+  the state *that client was shown*, or every unmodified client with latency misses (Bernier's lag compensation
+  `[anticheat-design §4.1]`).
+- **The flaw it removes.** Community rewind libraries take the rewind time from the client, clamped to a window: a
+  free choice of any past position inside it, the "backtrack" advantage, which R20 refuses `[interest-rewind §11.1]`.
+  Lync sent every state frame and receives every ack, so it derives the tick from its own frames, the engine's ping
+  and the server-chosen D (§11.1), never from a client-stated time.
+- **What it is not.** Lync returns state at a tick. The hit test, its tolerance, world occlusion (Roblox can't rewind
+  geometry) and anything done about a miss are the game's (R36). Lync can't know a message is a hit claim, so rewind
+  states no `Lync.observe` fact; its evidence is in the values the game asks for.
+
+### 12.2 Declaration and rings
+
+`Net.fighters:rewind({ … })` on the server view; nothing enters the schema hash. Option errors as §8.2; a `fields`
+entry that is not a top-level field is `unknownField`, and one whose codec has no fixed single-row width (strings,
+buffers, arrays, maps, optionals, unions) is `fieldCodec`.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `fields` | array of top-level field names | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
+| `maxRewind` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it) | K = ⌈(`maxRewind` + 0.25) × `stateRate`⌉ + 2 slots per record; L = K + 17 map entries per player |
+| `mode` | `"received" \| "truth"` | — | — | `"received"` (derived: equal to truth when the viewer got every row, and truth is off by p99 1.33 studs once a third of rows are deferred, §12.4) | received: (4M + 1) B per (viewer, record) and 8.3–8.8 ns native per acked row |
+| `delay` | number (real) or nil | s | 0–1 | nil: the player's server-chosen D (§11.1) | none |
+| `rttSlack` | number (real) | s | 0–0.2 | 0.05 (derived: Lync's ack round trip exceeds engine ping by Lync's processing, up to one client flush and one server frame, 2/60 = 0.033 s; chosen margin above it) | none; bounds how far the ack round trip may raise engine ping |
+
+- **Truth ring.** One slot per record per state tick, written after the tick's rows are encoded, for every tracked
+  record changed or not, so a read is an index, never a search: 4 B state tick (u32; a slot is valid only for the
+  tick asked for), 12 B position as three f32 (the *decoded quantized* value the row carried, which is what clients
+  saw; a `t.vector3(-2048, 2048, 1/32)` value is exact in f32), 4 B rotation as its `t.rotation(9)` code (decoded only
+  when queried), 1 B holding the `seg` bit and up to 7 boolean fields, 3 B padding: 24 B. Other declared fields add
+  their single-row width rounded up; reliable fields hold their value as of that tick's flush. K covers the window,
+  the 0.25 s extrapolation cap and the two lerp neighbours `[interest-rewind §11.2]`.
+- **Per player:** a map from state-frame seq to (state tick, send time), L entries of 12 B (the notify ring's 17 plus
+  K); and, for each downstream reliable frame of the last max(2 s, `maxRewind` + 0.25 s), its count, send time and
+  state tick.
+- **Per (viewer, record):** the reliable-frame counts of its adds and removes for that viewer over the same span
+  (who held what, §12.3); in `"received"` mode, the ticks of the last M samples the viewer had (its add and its acked
+  rows), M = ⌈D × `stateRate`⌉ + 2 (4 at 20 Hz with 0.1 s), u32 each plus a 1 B head.
+- A `stateRate` change restarts the rings; earlier ticks return `expired`.
+
+### 12.3 Decision: how the perceived tick is established
+
+- **Problem.** The client shows `:newest()` fields D behind (§11.2) and reliable fields as soon as their frame is
+  decoded, so a message needs two ticks, and the server must find both without trusting a client-stated time. Today
+  only the first frame of a flush carries a full ack (`v5.md` §4.1): with `'0'` the server would use the newest ack
+  it holds, which may come from a lost unreliable frame (P too old) or from a frame on the other lane that arrived
+  first (P too new).
+- **Options:** the client states its render tick (R20: refused); the server takes the newest ack it holds (wrong
+  across lanes, as above); **each frame names its own state: a full ack for `:newest()` fields and the reliable
+  receipt `rcv` (`v5.md` §4.1) for reliable ones**.
+- **Choice: the frame's own ack and receipt.** A client definition declared `perceived = true` (shared schema,
+  hashed, since the client acts on it) makes every upstream frame holding one of its messages carry `'1' seq
+  received` whenever any state frame has arrived. Cost: 28 bits on each such frame that would have carried `'0'`, at
+  most 35 B/s up at 10 claim frames a second. Undeclared definitions can still be rewound, with `ackExact` false.
+- **Inputs, for a message in upstream frame f from player p** (server `os.clock()` seconds):
+  - t_r, when f was decoded;
+  - s, f's ack (else the newest ack held from p), T_s its state tick, t_s its send time;
+  - ping = `p:GetNetworkPing()` at f's decode (round trip, "isolated network latency … doesn't involve data
+    deserialization or processing", documented); rtt = clamp(ackRtt, ping, ping + `rttSlack`), ackRtt and jitter
+    from §11.1;
+  - H, the reliable horizon: f's extended `rcv` when f is a reliable frame (`receivedExact` true); for an unreliable
+    f, the count of reliable frames sent to p at or before t_r − rtt, the newest that had certainly arrived when f
+    left (`receivedExact` false);
+  - D, the D of the newest `RATE` among frames ≤ H, or the `delay` option.
+- **Formula (fractional ticks):**
+  - heldRaw = t_r − t_s − rtt, how long the client had held frame s when it sent; hMax = (send time of the next
+    state frame to p after s, or t_r if none) − t_s + 1/60 s; held = clamp(heldRaw, 0, hMax);
+  - **Q = T_s + held × `stateRate`**, the newest state the client had applied;
+  - **P = Q − D × `stateRate`**, the tick it was rendering, where `:newest()` fields are returned;
+  - **R** = the state tick of the flush that sent reliable frame H, where reliable fields are returned;
+  - window: low = max(P − u, T_s − D × rate), high = min(P + u, T_s + (hMax − D) × rate), u = (jitter + 1/60 s) ×
+    `stateRate`: the arrival jitter of τ* plus §11.2's one-flush dead band.
+- **The clamp is on Lync's own estimate**, not on anything the client sent: s pins the frame, and held places the
+  send between frame s and the next one the server sent. `heldRaw` and `hMax` are returned, so a game sees when it
+  bit (§12.7).
+
+### 12.4 Decision: truth at P, or what the viewer had
+
+- **Problem.** Under the budget a viewer doesn't get every row (the 100-player shooter's rows run at about 13 Hz
+  instead of 20, §5), and rows are lost. The client samples what it *received*; the truth ring holds every tick.
+- **Measured** (`interest-rewind/rewind_full.out`: a target strafing at 16 studs/s, reversing every 0.2–0.6 s, 20 Hz,
+  D = 2 ticks; error of truth-at-P against the client's own samples):
+
+| Rows missing | Mean | p99 | Max |
+|---|---|---|---|
+| 0% | 0 | 0 | 0 |
+| 5% (loss) | 0.005 studs | 0.16 | 1.24 |
+| 33% (≈ the 100-player shooter's deferral) | 0.084 | 1.33 | 4.89 |
+| 50% | 0.245 | 2.55 | 8.66 |
+
+- **Options:** `"truth"`, §11.2's sampling of the truth ring at P with every tick available; `"received"`, the same
+  sampling over only the samples this viewer had (its per-pair ticks, values read from the truth ring), which is
+  exact for §11.2 because the server runs the same function on the same inputs.
+- **Choice: `"received"` by default; `"truth"` stays for games that want no per-pair memory.** With interpolation in
+  the core, the sampling a viewer saw is always §11.2's, so draft 3.5's dependence of the default on an extension is
+  gone. A game with its own interpolation also samples what it received, so `"received"` with its `delay` is the
+  closer of the two for it too.
+
+### 12.5 API
+
+```luau
+Net.strike:connect(function(player, shot)
+	local seen = Lync.perceived(player)
+	local target = Net.fighters:rewound(seen, shot.target)
+	if target.ok then
+		-- game code: its own ray test against target.value.position, with its own tolerance
+	end
+end)
+```
+
+- **`Lync.perceived(player)`** returns a frozen value: `tick` (P), `applied` (Q), `reliableTick` (R), `low`, `high`,
+  `ackSeq`, `ackTick` (T_s), `ackExact` (f carried a full ack), `received` (H), `receivedExact`, `held`, `heldRaw`,
+  `hMax`, `ping`, `rtt`, `jitter`, `delay` (D, s), `arrival` (t_r). It depends only on the player's frame and D, not on
+  a collection, so it lives on `Lync` and one value serves every collection and §12.7's parts. It may be stored and
+  used while its ticks stay in the rings; computed once per frame, 26–32 ns native.
+- **Decision: where `perceived` may be called** (shared with `v5-checks.md`).
+  - *Problem.* Lync knows which frame a message came from only while it runs game code for that message. Checks
+    (`within` references, `derive`'s `fn`) and validators run at steps 5 and 6 of `v5.md` §6.1, before the handler,
+    and a check of a claim against rewound state needs the perceived tick there.
+  - *Options:* the handler's synchronous part only (checks can't use rewound references); pass `seen` as an
+    argument to check functions (a second way to obtain one value); **every synchronous call Lync makes for the
+    message**.
+  - *Choice: every synchronous call for the message.* `Lync.perceived(player)` works inside check functions, the
+    validator and the handler's synchronous part (before its first yield) of a message from `player`; the value is
+    the same in each, since the frame is. Anywhere else, or for another player, it throws the caller error
+    `perceivedOutsideDispatch`.
+- **`Net.c:rewound(seen, key)`** returns `{ ok: true, value }` with the declared fields (`:newest()` fields at P by
+  `mode`, reliable fields at R) or `{ ok: false, error }`, the one error model of `v5.md` §3.5:
+  - `"expired"`: P or R is older than the ring;
+  - `"notHeld"`: the record existed but the viewer didn't hold it at H (no add counted ≤ H without a later remove
+    ≤ H), or in `"received"` mode had no sample of it; on an unmodified client this happens only when the game also
+    shows the entity through Workspace or another remote;
+  - `"unknownKey"`: no record with that key in the ring and no decoy of this player (§12.6).
+- **`Net.c:rewoundSpan(seen, key)`** returns the records at `low` and `high`, as `{ ok: true, value: { low, high } }`
+  or the same errors. **`Net.c:at(tick, key)`** reads the truth ring at a fractional tick, with no viewer.
+  **`Net.c:held(seen)`** returns a frozen array of every key for which `rewound(seen, key)` is ok, in slot order, so a
+  ray-only shot can iterate what the client held `[decoy-challenge-facts §1]`.
+
+### 12.6 Decoys under rewind
+
+When a collection has both decoys and `rewind` `[decoy-challenge-facts §1]`:
+- each live decoy's declared fields go into a ring per (viewer, pool slot) each state tick: the same slot layout
+  and K, holding the values that viewer was sent;
+- `rewound(seen, key)` for a decoy of `seen`'s player returns its values from that ring, with the result shape of a
+  real record; `"received"` mode works unchanged, since decoy rows are rows of that viewer's state frames. A tick
+  outside the decoy's life (its history in `v5-integrity.md` §8, kept max(2 s, `maxRewind` + 0.25 s) after its
+  remove) gives `"notHeld"`; another viewer's decoy gives `"unknownKey"`, as a never-live key does, since that player
+  was never sent it; `at(tick, key)` gives `"unknownKey"` for every decoy: a decoy has no truth, only what one viewer
+  was shown;
+- `held(seen)` includes the viewer's decoys alive in the window; pool slots are random among free slots (§2), so
+  decoys fall among real records in slot order;
+- no decoy flag on results and no fact from `rewound`: the game's hit test runs as for any record, and a hit it
+  finds is stated through `reportInteraction` (`v5-integrity.md` §8).
+- Cost: 9.5–10.5 ns per decoy per state tick; `maxPerViewer` × K × 24 B per viewer with decoys (65 KB at 100
+  viewers, 1 decoy, 20 Hz, 1 s); `held` 316–564 ns native per call at 65 keys, 808–891 ns at 301
+  `[decoy-challenge-facts §4.3]`.
+
+### 12.7 Engine parts
+
+Characters the game doesn't render from Lync records are replicated by the engine with an interpolation delay no
+property reports; Roblox replaced that backend in 2026 (`ImprovedPhysicsReplication`) and published no figure, so the
+delay is unverified and stays out of Lync's constants `[interest-rewind §11.4]`.
+
+`local parts = Lync.rewindParts({ engineDelay, engineSpread, maxRewind })` (server) returns a tracker:
+`parts:track(part)`, `parts:untrack(part)`, and `parts:rewound(seen, part)` returning `{ ok: true, value: { low:
+CFrame, high: CFrame } }`, the part's `CFrame` at both ends of [t_r − rtt/2 − `engineDelay` − `engineSpread`,
+t_r − rtt/2 − `engineDelay` + `engineSpread`], or `{ ok: false, error: "expired" | "unknownKey" }` (older than the
+ring; a part not tracked then). A hit test against the swept span is correct for any true delay inside it.
+
+| Option | Type | Unit | Range | Default | Cost |
+|---|---|---|---|---|---|
+| `engineDelay` | number (real) | s | 0–0.5 | 0.1 (unverified: the only candidate figure, a 2021 "100" with no unit, predates the new backend; calibrate with the recipe below) | none |
+| `engineSpread` | number (real) | s | 0–0.25 | 0.05 (chosen: half of `engineDelay`; a calibration's spread replaces it) | none |
+| `maxRewind` | number (real) | s | 0.1–2 | 1 (as §12.2) | per part, ⌈(`maxRewind` + `engineDelay` + `engineSpread`) × `stateRate`⌉ + 2 slots of 32 B (tick u32, position 3 × f32, rotation 4 × f32); one `CFrame` read per part per state tick, which allocates (unmeasured on Roblox) |
+
+The docs give the calibration recipe: on a test server, the server keeps a ring of a character's root `CFrame` by
+time, a test-only client reports the rendered `CFrame` of another character with its own time, and the best-fitting
+lag's median and spread give the two options. Those reports are client-stated, for calibration only. Games that need
+exact rewind of characters render them from Lync records `[anticheat-design §1.2]`.
+
+### 12.8 Cost
+
+`interest-rewind/rewind_full.out` and `rewind_cost.out`; native is the server figure.
+
+| Operation | Native | Interpreted |
+|---|---|---|
+| push, one record per tick (24 B slot) | 9.5–10.5 ns | 130–138 ns |
+| perceived tick (map lookup, clamps, window) | 26–32 ns | 130–134 ns |
+| truth sample: lerp xyz, two rotation decodes, nlerp | 80–87 ns | 381–388 ns |
+| received: record one acked row | 8.3–8.8 ns | 56 ns |
+| received: bracket P, lerp, two decodes | 108–121 ns | 389–437 ns |
+
+| Model (`maxRewind` 1 s) | K | Ring per record | Ring total | Seq map | Received |
+|---|---|---|---|---|---|
+| shooter, 30 players, 20 Hz | 27 | 648 B | 19 KB | 9.7 KB | 15 KB |
+| shooter, 30 players, 60 Hz | 77 | 1,848 B | 55 KB | 28 KB | 15 KB |
+| shooter, 100 players, 20 Hz | 27 | 648 B | 65 KB | 32 KB | 170 KB |
+| mmo, 300 tracked, 100 viewers, 20 Hz | 27 | 648 B | 194 KB | 32 KB | 510 KB |
+
+At the 100-player shooter (about 66 rows per viewer per tick under the 16,000 B/s budget; 10 claims a second per
+player, 5 targets each): pushes 21 µs/s, received recording 1.2 ms/s, queries 0.64 ms/s, about 1.8 ms/s in total,
+0.2% of a core (derived from the tables). The reliable-frame map and the per-pair add/remove counts are not in the
+probe: at most 60 reliable frames a second × 1.25 s × 16 B = 1.2 KB per player, and two u32 per membership change
+held for 2 s (derived). Wire: 28 bits per `perceived` frame that would have carried `'0'`.
+
+### 12.9 How it fails on an unmodified client
+
+- **Ping above `maxRewind` − D:** `"expired"`. The game chooses whether to judge at the oldest tick or refuse;
+  under-coverage punishes high-ping players with misses `[anticheat-design §4.1]`.
+- **Bursty downstream loss, or a client hitch longer than a tick:** the client held s past the next frame the server
+  sent, so `heldRaw` > `hMax`, held is clamped, and P is older than the client's by up to the excess.
+- **Asymmetric links:** rtt/2 misplaces the client's send by half the asymmetry; only held, Q and the unreliable
+  horizon depend on it, since s pins the state frame.
+- **Reliable fields** are returned at R, the tick of the newest reliable frame the client had decoded; values written
+  in later non-state-tick flushes of that tick are newer than the ring's slot, an error of under one state tick. For
+  messages on the unreliable lane H is a lower bound (`receivedExact` false).
+- **Clock slew:** τ deviates from τ* by up to one client flush in steady state, and after a jump in τ* converges at
+  4% (§11.2); the window's u covers the first, not a large recent jump.
+- **A game's own interpolation** with a delay other than `delay`: P is off by the difference.
+- **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, moves P
+  older, at most to `maxRewind`: the inherent limit of lag compensation, which Bernier accepts. `held`, `heldRaw`,
+  `hMax`, `ping`, `rtt` and `ackTick` show it as numbers; Lync attaches no verdict. Aim is an input, and an aimbot
+  passes any geometric test.

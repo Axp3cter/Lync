@@ -289,66 +289,176 @@ principle 4; the 3.5 rule of one reason or one evidence value per trigger whose 
 
 ## 4. Caller probe and `REPORT`
 
-- **Mechanism.** Each client `fire` or `invoke` is probed with probability 1/`callerProbe.oneIn`, at most
-  `callerProbe.maxPerSecond` probes per second. A probe:
-  - **identity:** reads, in `pcall`, one member that fails at identity 2 (game scripts) and succeeds at 8 (executor
-    threads by default) `[client-security §1.2, §2.1]`; the member is chosen per build from those Studio confirms;
-  - **source** (generated path, skipped for definitions with no listed scripts and for incomplete namespaces):
-    reads `debug.info` source of the first frame outside Lync and checks it against the build's list of client
+- **Probe.** Each client `fire` or `invoke` is probed with probability 1/`callerProbe.oneIn` (one draw per call),
+  at most `callerProbe.maxPerSecond` probes a second (a bucket of that rate and capacity, `v5.md` §5.4's rule). A
+  probe makes two reads:
+  - **identity:** in `pcall`, one member that fails at identity 2 (game scripts) and succeeds at 8 (executor
+    threads by default) `[client-security §1.2, §2.1]`, drawn per build (stream `probe`, §2.2) from a list Studio
+    confirms. Candidates: the 21 `RobloxScriptSecurity` property reads on services every client has, such as
+    `RunService.ClientGitHash`; a `RobloxScriptSecurity` member also keeps the Studio command bar out if the
+    command bar runs below that level `[security-tooling §2]`. A success adds 1 to `identitySucceeded`.
+  - **source** (generated path; skipped for definitions with no listed scripts and in incomplete namespaces, §3):
+    `debug.info` walked by source, never by level (inlining differs between Studio's `-O1` and live `-O2`), from
+    level 1 to the first frame whose source is not Lync's, skipping `[C]` frames (which also skips `pcall` and
+    `newcclosure` frames) `[client-self-checks Impl10]`. That source is looked up in the build's list of client
     scripts that reference the definition, after mapping Roblox's clones of starter containers
     (`StarterPlayerScripts` to `PlayerScripts`, `StarterCharacterScripts` to the character, `StarterGui` to
-    `PlayerGui`, `StarterPack` to `Backpack`). `check.reachability = false` removes the lists, and with them the
-    source check.
-- **`REPORT`** (control type 5, up): `probes:EG0 identitySucceeded:EG0 sourceUnlisted:EG0 refusedFrames:EG0`,
-  counts since the previous `REPORT`. It is sent only when one of the last three is non-zero, in the next frame the
-  client sends anyway; it never forces a frame `[review-redundancy-2 8]`. The server reports one fact per non-zero
-  count, each marked client-stated (§10): `reportedIdentity`, `reportedSourceUnlisted`, `reportedRefusedFrames`.
-- **Prices** API drivers running at identity 8 under an unlisted chunk name: with every call probed (the default),
-  the first call reports itself; at `oneIn` = n, with probability 1 − (1 − 1/n)^calls. A patched Lync stops sending
-  counts, which the server can't tell from an unmodified client with nothing to report.
-- **Cost.** A random draw per fire, 24–32 ns; at most `maxPerSecond` failing `pcall`s of 2.2–3.3 µs and source reads
-  of 57–72 ns `[probes review-redundancy-2 inbound_hotpath]` `[client-security §2.2]`: at the defaults, at most
-  0.2 ms of client CPU a second. No bytes beyond `REPORT`.
-- **Unverified, checked in Studio before release:** a suitable member and its cost on devices; whether a capability
-  failure caught by `pcall` is logged (if it is, every probe writes a client log line, which would move the default
-  back to sampling); whether unmodified sources follow the clone mapping. If the last fails, the source check is
-  removed.
+    `PlayerGui`, `StarterPack` to `Backpack`; the player's name read once from `Players.LocalPlayer.Name`). A
+    source not on the list fails the check; a stack with no frame outside Lync fails it under
+    `callerProbe.noOuterFrame = "unlisted"` and is not checked under `"ignored"`. `check.reachability = false`
+    removes the lists, and with them the source check. Lync never calls `getfenv` to reach a caller: it
+    deoptimises the caller's environment, 3.5–4× on an encoder step `[security-tooling §2]`.
+- **The caller bit** `[client-self-checks U7 (b)]`. A frame holding the message of any probed call whose source
+  check failed is tagged with u = 1, the high bit of the lane byte in the tag input (`v5.md` §4.5); no byte is sent.
+  The server tries u = 0, then u = 1, at each candidate count. A match with u = 1 delivers the frame and records
+  `reportedSourceUnlisted` (§10) for it, client-stated. The bit replaces draft 3.5's `sourceUnlisted` count: it
+  holds at any `tag.cover` and names the frame, and the definition when the frame holds one.
+- **`REPORT`** (control type 5, up): `probes:EG0 identitySucceeded:EG0 refusedFrames:EG0 injectedFrames:EG0`,
+  counts since the previous `REPORT` (layout: `v5.md` §4.6). After the connection's first `WELCOME`, a `REPORT`
+  with a non-zero `identitySucceeded`, `refusedFrames` or `injectedFrames` is pending reliable data (`v5.md` §5.1):
+  the next flush sends it, in the reliable frame with other data, alone otherwise; `probes` alone makes nothing
+  pending; at most one per frame; it never counts toward `missedFlush` and never enters the join hold
+  `[refusals-rejudged-2 R26]`. The server reports one fact per non-zero count, each client-stated (§10):
+  `reportedIdentity`, `reportedRefusedFrames`, `reportedInjectedFrames`.
+- **Prices** **identity**: API drivers left at identity 8; with every call probed (the default) the first call
+  reports, at `oneIn` = n with probability 1 − (1 − 1/n)^calls. **naming**: drivers whose chunk is not on the
+  definition's list. Not priced: a patched Lync, which zeroes the counts and the bit (§1); a thread lowered to
+  identity 2 (`setthreadidentity`); a chunk named as a listed script, or frames hidden from the walk; calls through
+  a listed game function, whose script is the first frame outside Lync `[client-self-checks U7]`.
+- **Decision: which probe results ride the tag.**
+  - *Problem.* Each bit in the tag input doubles the keyless acceptance the 32-bit width bounds (`v5.md` §4.5) and
+    the PRFs a failing frame costs the server; a count in `REPORT` costs neither, but names no frame or definition.
+  - *Options:* every result as a count (draft 3.5); **the source result as a bit, identity as a count**; both as
+    bits; (a), a tag keyed by each caller's source and checked against a server-only list.
+  - *Choice: source as a bit, identity as a count.* The bit names the definition an unlisted chunk drives, which a
+    count can't, for keyless acceptance of one per 18.8 days instead of 37.7 at the default budgets (3.1 days at the
+    range maxima) `[refusals-rejudged-3 R28]`. A second bit for identity would take the range maxima to one per
+    37.3 h and failing frames to 4 PRFs per candidate count, while `REPORT` must exist anyway for `refusedFrames`
+    and `injectedFrames`, which have no upstream frame of their own, and delivers the identity count within one
+    flush. (a) costs the product of list sizes per frame, without bound `[client-self-checks U7 (a)]`.
+- **Cost.** Client: one draw per call, 25–33 ns; per probe, a failing `pcall` of 2.4–2.8 µs when the failure is
+  Lua-raised and 3.9–4.5 µs when C-raised (the unwind is the cost, not the error string, so only `oneIn` scales it),
+  plus the walk and lookup, 0.19 µs through one Lync frame and 0.6 µs through five; at 60 probes a second
+  0.15–0.19 ms/s or 0.24–0.25 ms/s interpreted on the CLI; which of the two Roblox's capability error matches is
+  unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Server: one more PRF per u = 1 frame (0.29 µs
+  native at 64 B, 3.6 µs at 1 KB); a failing reliable frame up to 10 PRFs instead of 5, an unreliable one 6 instead
+  of 3. `REPORT`: a forced frame is 6–9 B; at most 60 forced frames a second, only while a count changes every
+  flush: ≤ 540 B/s up and about 0.14 ms/s of client CPU interpreted `[refusals-rejudged-2 R26]`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `callerProbe.oneIn` | integer | calls per probe | 0 (off) or 1–255 | 1 | one draw per call; u8 in `WELCOME` |
-| `callerProbe.maxPerSecond` | integer | probes/s | 1–63 | 60 | ≤ 3.3 µs per probe, ≤ 0.2 ms/s at 60; u6 in `WELCOME` |
+| `callerProbe.oneIn` | integer | calls per probe | 0 (off) or 1–255 | 1 (below) | one draw per call; u8 in `WELCOME` |
+| `callerProbe.maxPerSecond` | integer | probes/s | 1–63 | 60 (below) | ≤ 4.5 µs per probe; ≤ 0.25 ms/s at 60; u6 in `WELCOME` |
+| `callerProbe.noOuterFrame` | `"unlisted"` \| `"ignored"` | — | — | `"unlisted"` (below) | none; `"ignored"`: a call with no frame outside Lync sets no bit and is counted nowhere; 1 bit in `WELCOME` |
 
-## 5. Refused-frame report
+- **Defaults.** `oneIn` 1: every call probed, so an identity-8 driver's first call reports; Studio showing that a
+  caught capability failure writes a client log line would move it back to sampling (§12). `maxPerSecond` 60: one
+  probe per automatic flush at the client's 60 flushes a second (`v5.md` §4.9). `noOuterFrame` `"unlisted"`: a
+  call started with no game frame on its thread (`task.spawn(view.fire, view, v)`, `coroutine.wrap`) is also how
+  executor code can reach `fire`, so ignoring it by default would leave that route unobserved in every game; game
+  code removes the cause by calling `fire` from a function of its own `[client-self-checks U7]`.
+- `callerProbe.splitFrames` (the unlisted calls' messages in a frame of their own) is not adopted: it breaks
+  `v5.md` §4.1's one reliable frame per player per flush, on which the reliable frame budget's default and the
+  bound on forced `REPORT`s rest, and an unmodified client with a library-callback cause would send up to 120
+  reliable frames a second, the whole default budget.
+- **Unverified, checked in Studio before release (§12):** a suitable member and its cost on devices; whether a
+  caught capability failure writes a client log line; whether unmodified sources follow the clone mapping (if not,
+  the source check is removed); the command bar's identity and source string; whether a script renamed or moved
+  after loading keeps its source string; whether `task.spawn` and signal routes leave no outer frame on Roblox.
 
-The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it refuses is counted
-(`refusedFrames`, `v5.md` §7.4) and reported in `REPORT`. It prices injectors of non-canonical frames into a
-client's own view, who must build canonical frames for this build and server or patch Lync. Cost: none beyond
-decode.
+## 5. Inbound-frame reports
+
+The client counts two things about the downstream frames it receives, and `REPORT` (§4) carries both within one
+flush. They price **signal** tools that inject frames into the client's own view (`getconnections`, `firesignal`)
+`[security-tooling §9]`.
+
+- **Refused frames.** The client decoder is as strict as the server's (`v5.md` §4.8). Each downstream frame it
+  refuses is counted (`refusedFrames`, `v5.md` §7.4). It prices injectors of non-canonical frames, who must build
+  canonical frames for this build and server or patch Lync. Cost: none beyond decode.
+- **Injected frames** `[refusals-rejudged-3 R1 (d)]`. The function Lync passes to `Reliable.OnClientEvent:Connect`
+  and `Unreliable.OnClientEvent:Connect` reads `debug.info(2, "f")` as its first statement, in that function itself
+  and never in a helper, which `-O2` could inline. The engine resumes the listener as the first function of its
+  thread, so nothing is below it; a synchronous call from other code leaves a function below it. A frame so entered
+  is decoded and delivered as usual and counted in `injectedFrames`. It prices canonical injection (replayed
+  captures, frames built with Lync's own encoder) fired synchronously into the listener. It doesn't see injection
+  fired from a thread of its own (a deferred fire starts like an engine delivery), **packet** receive injection,
+  which the engine delivers normally (non-canonical frames still reach `refusedFrames`), or a client that patches
+  Lync. Cost: 30.0–38.2 ns per frame interpreted, at most 3.1 µs/s at the busy model's 80 downstream frames a
+  second; 1 bit in each `REPORT` while the count is 0. No option: the cost leaves no game a trade to make
+  (`v5.md` principle 2).
+  - **Unverified, gating (§12):** that `debug.info(2, "f")` is nil inside the listener for every engine delivery,
+    under both `Workspace.SignalBehavior` values, including events queued before the listener connected (the
+    engine "queues it and delivers it, in order, as soon as a handler connects"). The design assumes it holds; if
+    any case finds a function below, the check is removed.
+- Downstream tags and a client replay window stay refused: a per-recipient tag ends `FireAllClients`, a shared key
+  is held by every client that could inject, and a frame number would change the seed-0 golden frames to catch
+  replays only `[refusals-rejudged-3 R1]`.
 
 ## 6. Clock beacon
 
-- **Mechanism.** The client puts `BEACON` (control type 6, up: ⌊`GetServerTimeNow()` × 1000⌋ mod 2^16 as u16) in
-  the first reliable frame it sends once `clock.beacon` tenths of a second have passed since its last beacon; it
-  never forces a frame. Per player, the server keeps, per 5 s window, the minimum of arrival time − stamp, and every
-  5 s fits a Theil–Sen slope over the last 12 windows (66 pairwise slopes) `[client-security §4 T1]`. It reports
-  `clockRate` (§10) when `clock.reportFits` consecutive fits each have a slope above `clock.reportSlope`. The first
-  30 s after join are ignored, and an arrival gap over 3 × `clock.beacon` restarts the estimate `[review-2 M7]`
-  (constants: `v5.md` §4.9).
-- **Default threshold.** `GetServerTimeNow` moves within 0.6% of the local clock, and the research estimates the
-  fit's noise at 0.03–0.08% for envelope noise σ = 20–50 ms `[client-security §4 T1]`, so an unmodified client's
-  slope stays under about 0.0068. The default 0.01 leaves a margin of about 4 times the upper noise estimate;
-  the research proposed 0.03. Both noise and slew are unmeasured on Roblox devices (`v5.md` §10).
-- **Prices** tools that accelerate the client's clock; they must keep Lync's stamps on unaccelerated time.
-- **Cost.** 20 bits per beacon (type u3, count−1 EG0, u16), plus 2–4 bits of toc when the frame has no other
-  control chunk: at most 3 B a second per player at the default. One 66-slope fit per 5 s per player on the server
-  (CPU unmeasured, milestone 5).
+- **Client.** After the connection's first `WELCOME`, a `BEACON` (control type 6, up: ⌊`GetServerTimeNow()` ×
+  1000⌋ mod 2^16 as u16, read when the frame is encoded) is due once `clock.beacon` tenths of a second of
+  `os.clock()` have passed since the last frame carrying one was passed to `FireServer` (for the first, since the
+  first `WELCOME`). A due `BEACON` is pending reliable data (`v5.md` §5.1): the next flush puts it in its reliable
+  frame, with other data or alone. It never counts toward `missedFlush` and never enters the join hold; under
+  `Lync.scheduler("manual")` it waits for the game's next `Lync.flush()`. With a pending `REPORT` it shares the
+  frame `[clock-facts, BEACON gap]`. Without forcing, a client sending fewer than 3 reliable messages a second got
+  a fit in 0–0.6% of epochs, so input-only and idle clients were never measured.
+- **Server estimator, per player** `[clock-facts §U3.2]` (constants: `v5.md` §4.9):
+  1. **Arrival** is server `os.clock()` at the decode of the frame holding the `BEACON`. `os.clock` is not adjusted
+     by NTP, so a server clock adjustment can't enter every player's estimate at once.
+  2. **Stamps** are extended: the first of a connection, and the first after a restart, to the value nearest
+     ⌊1000 × the server's `GetServerTimeNow()`⌋; each later one to the value within ±32,768 ms of the previous
+     extended stamp. Each beacon gives o = arrival − stamp (s).
+  3. **Windows** on one server grid: index ⌊t / 5⌋, t the arrival; each window keeps its minimum o. At each epoch
+     boundary (t a multiple of 5 s), a player with 12 consecutive windows ending there gets a fit: the Theil–Sen
+     slope of the 12 minima (median of the 66 pairwise slopes).
+  4. **Sign:** s = −(that slope), in seconds of client-clock gain per second of server `os.clock()`; positive is a
+     fast client clock, negative a slow one.
+  5. **Split halves:** for a fit with |s| > `clock.reportSlope`, windows 1–6 and 7–12 are fitted too (15 pairs
+     each, the 8th order statistic), giving `firstHalf` and `secondHalf`. The fit **counts** when s, `firstHalf`
+     and `secondHalf` all exceed `clock.reportSlope` in magnitude with s's sign. One level shift lies inside one
+     half, so the other is flat; a rate, from a modified clock or a delay ramp, shows in both.
+  6. **Run:** consecutive counting fits of one sign; a non-counting fit, a sign change or a restart ends it.
+     `clockRate` (§10) fires at the end of each fit that makes the run at least `clock.reportFits` long.
+  - The first 30 s after join are ignored, and an arrival gap over 3 × `clock.beacon` restarts the estimate.
+  - **Together, as evidence:** `othersSlope`, the median of s over the other players whose fit completed at the
+    same epoch, and `others`, their count (`othersSlope` is 0 when `others` is 0). The counters `clockFits`,
+    `clockRestarts` and `clockSlope` per player and `clockSlopeMedian` and `clockSlopeFits` per server are in
+    `v5.md` §7.4.
+- **Decision: server-wide corrections in the trigger.**
+  - *Problem.* A cause common to every player (a server-side inbound queue building or draining) moves every slope
+    at once; correcting for it needs a server-wide rule, and any such rule also sees a majority of players running
+    the same clock tool.
+  - *Options:* the research's literal rule (discard a window when more than half moved the same way); *discard*
+    (freeze runs at an epoch where more than half of 3 or more fits exceed the threshold one way); *guard* (test s
+    against the epoch median M); **no correction, with "together" as evidence.**
+  - *Choice: no correction.* The literal rule drops 71.5–91.5% of windows with no common cause; discard and guard
+    both remove a simulated server-wide drain but hide any majority (55 of 100 players at +5% gave 0 of 275
+    modified players a fact), and the fact would stop being a statement about one player's data. Cost is not the
+    reason: the guard costs 3.0–3.5 ns per fit `[clock-facts §U3.3]`. `othersSlope` lets the game tell the two.
+- **Defaults, derived from simulation** `[clock-facts §U3.1, §U3.5]`. The largest |s| simulated for an unmodified
+  client is 0.00691 (a sustained 0.6% slew, the documented bound, on the mobile model), so `reportSlope` 0.01
+  leaves a margin of 1.45; at `reportSlope` ≤ 0.0069 that slew is a known cause. With the split halves,
+  `reportFits` 3 gives 0 of 300 simulated players a fact for any single delay step, where a 0.5 s step fired for
+  188 of 300 without them; a +1% clock is found for 30 of 30 (first fact p50 170 s). Device noise, slew and delay
+  ramps are unmeasured (§12); measuring them would change both defaults.
+- **Prices** **clock**: tools that accelerate or slow the client clock while Lync's stamps follow it. Not priced:
+  stamps kept on unmodified time, or patched; a client that blocks Lync's frames, which leaves a count gap
+  (`frameGap` on the next reliable frame) and, blocking every beacon, no fit (`clockRestarts` counts the gaps).
+- **Cost** `[clock-facts §U3.6, BEACON gap]` `[security-costs claim 9]`. Wire: a forced `BEACON`-only frame is 8 B
+  with the tag (11 B with a full ack, 9 B with a `REPORT`); riding another frame, 20 bits of chunk plus 2–4 bits of
+  toc; ≤ 8 B/s and one `FireServer` a second per idle client at the default (≤ 16 B/s at 5). Client: ≤ 1.8 µs per
+  forced frame interpreted. Server, native: 8.8 ns per beacon, 1.52–1.59 µs per fit, 0.56–0.60 µs for the halves
+  (only beyond the threshold), 1.72–2.10 µs per epoch to sort 100 slopes, ≤ 0.12 µs per fact: ≤ 71 µs/s at 100
+  players (0.007% of a core), plus ≤ 16 µs/s for 100 idle players' forced frames. Memory: one number per player
+  (the first window's o, for `drift`) and one reused array of slopes per server.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 | ≤ 3 B per beacon; u4 in `WELCOME` |
-| `clock.reportSlope` | number (real) | fraction (seconds of drift per second) | 0.001–1 | 0.01 | none; server-only |
-| `clock.reportFits` | integer | consecutive fits | 1–12 | 3 | none; server-only |
+| `clock.beacon` | integer | tenths of a second | 0 (off) or 5–15 | 10 | ≤ 8 B and one reliable `FireServer` per beacon on a client with no other reliable data; u4 in `WELCOME` |
+| `clock.reportSlope` | number (real) | s/s (seconds of drift per second) | 0.001–1 | 0.01 (derived above) | none; server-only |
+| `clock.reportFits` | integer | consecutive counting fits | 1–12 | 3 (derived above) | none; server-only |
 
 ## 7. Early answers
 

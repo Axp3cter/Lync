@@ -33,11 +33,11 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | `research/generation-methods.md` M15–M16, `probes/generation-methods/run4.sh` | done on Opus 5.5: `build.traps` 0–8 (reopens R13), `decoyFrom`, `canary.perViewer`; weaving composition table and `weaveHash` coverage; retired |
 | `aeb8a1de57c0b9d73` | researcher (Opus) | unit 5: U5 `foreignRemotes` and `dynamicAccess` (agreeing with the reachability gap), U6 core hash in `HELLO` and manifest drift | `research/build-checks.md`, `probes/build-checks/` | done on Opus 5.5: `foreignRemotes` inventory, `dynamicAccess` = incompleteness (fixes the reachability gap), `editedShard`/`unpairedShard`/`staleManifest`; code hash in `HELLO` not recommended for protocol v1; retired |
 | `a37cd6952a2f7bad9` | researcher (Opus) | unit 7: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` | `research/server-facts.md`, `probes/server-facts/` | done on Opus 5.5: `derive` as a fourth check kind (grid-rounded tolerance; native FMA differs from interpreted), `reactsTo` with `earlyReaction` and a proposed 1 B `rcv` receipt on reliable upstream frames; its checklist's U11/U14/U3/U4 rows are covered by `decoy-challenge-facts.md` and `clock-facts.md`; retired |
-| `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | running |
+| `a3a196cb42882d70c` | researcher (Opus) | unit 8: U11 decoy-adjacent facts, U14 server-issued challenges | `research/decoy-challenge-facts.md`, `probes/decoy-challenge-facts/` | stopped by the author; partial files committed; not resumed |
 | `a8535342774a83e31` | researcher (Opus) | unit 4: `telemetry` (D4), Roblox terms on off-platform data | `research/checks-telemetry.md` T1–T5, `probes/checks-telemetry/` | done on Opus 5.5: `:aim`/`:series`/`:atom` on the server view, pushed atom batches and pulled streams, no facts or export; Roblox terms quoted (Creator Terms change 2026-11-01); found a §5.1 flush-rule ambiguity (40 vs 60 Hz); retired |
 | `a10703eb41a07ff5b` | researcher (Opus) | unit 6c: consolidates `generation-methods.md` (M7 vs M13, Summary M1–M16, one Implications list, checklist); no new methods or numbers | `research/generation-methods.md` | done on Opus 5.5: 15 edits, no number changed; M1–M16 consistent, one Summary and one Implications list; retired |
-| `a476c0bb5505e0898` | researcher (Opus) | unit 9: U3 beacon window rules, U4 `roundTrip`/`ping` on request results | `research/clock-facts.md`, `probes/clock-facts/` | running |
-| `aa6e643bca7187c05` | scout (Opus) | change list for draft 3.6: every proposal by target file and section, conflicts, cross-unit questions, R items with no proposal, pending measurements; placeholders for the four briefs still running | `design/v5-3.6-inputs.md` | running; reuse it to fill the placeholders |
+| `a476c0bb5505e0898` | researcher (Opus) | unit 9: U3 beacon window rules, U4 `roundTrip`/`ping` on request results | `research/clock-facts.md`, `probes/clock-facts/` | stopped by the author; partial files committed; not resumed |
+| `aa6e643bca7187c05` | scout (Opus) | change list for draft 3.6: every proposal by target file and section, conflicts, cross-unit questions, R items with no proposal, pending measurements; placeholders for the four briefs still running | `design/v5-3.6-inputs.md` | stopped by the author; partial files committed; not resumed |
 | `a5ef019e234ca4f1b` | researcher (Opus) | re-judges R10 darklua renaming, R11 manifest self-attestation, R31 per-frame decode budget, R33 upstream interning, R34 commit–reveal | `research/refusals-rejudged-1.md`, `probes/refusals-rejudged/` | running |
 | `a928f08cbc1635fcd` | researcher (Opus) | re-judges R26 `REPORT` forcing a frame, R27 `REKEY` rate, R32 client element bucket, R37 per-fit clock counter, R38 calls-per-second signal | `research/refusals-rejudged-2.md`, `probes/refusals-rejudged/r2_*` | running |
 
@@ -51,6 +51,10 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   together into draft 3.6; then a critic reviews it. Designing new mechanisms is research work, not the architect's.
 - Author direction: nothing is deferred. Items the docs push to milestone 7 or leave undecided get designed now.
   No new agents beyond the five above; follow-ups go to an agent once it finishes its current task.
+- No simplifications, in wording or mechanism (author): Lync never acts on input beyond dropping malformed input
+  and reporting facts (no clamping, rewriting, throttling or catch-all policies, so checks C0's `policy = clamp`
+  goes); no presets, tiers, merged modes or one knob covering several triggers; every default derived or marked
+  chosen; no vague quantities or judging words. Applies to every brief and to the architect pass.
 - Process rule: every agent writes a header and a checklist first, then one section per edit, ticking it; an
   interrupted section is marked "not written" and the agent continues. Briefs are worded around what Lync builds.
 - Generation-methods units (the methods agent and unit 6) must come from Opus 5.5 only: launched with the Opus
@@ -69,7 +73,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   7. ~~`server facts A`~~ done.
   8. `server facts B`: U11, U14 → `research/decoy-challenge-facts.md` (on `a3a196cb42882d70c`).
   9. `clock and timing`: U3, U4 → `research/clock-facts.md` (on `a476c0bb5505e0898`).
-  9a. Re-judge the ten R items no brief covered (R10, R11, R26, R27, R31–R34 minus R32 in 2, R37, R38): two units, `refusals-rejudged-1.md` and `-2.md`.
+  9a. Re-judge the ten R items no brief covered: R10, R11, R31, R33, R34 → `refusals-rejudged-1.md`; R26, R27, R32, R37, R38 → `refusals-rejudged-2.md`.
   9b. Scout: `design/v5-3.6-inputs.md`, the change list the architect units read (on `aa6e643bca7187c05`).
   10. Architect, per area once its research is in: integrity (`v5-integrity.md`), wire and ids (`v5.md` §4),
       tooling (`v5-tooling.md`), extensions now undeferred (`v5-extensions.md`), then one consistency pass and

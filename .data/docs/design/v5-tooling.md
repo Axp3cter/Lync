@@ -37,9 +37,10 @@ or `\` inside a name written `\.` or `\\`.
 - **Generator invariants**, each checked by compiling every part with the host's Luau compiler before anything is
   written; a failure is `internal` (exit 3): at most 200 locals and 200 upvalues per function, fewer than 32,768
   closures per function prototype (`kMaxClosureCount`), definitions held in a table, each with its own functions
-  `[generation-security §4.2]`. Server parts should also stay under 1,048,576 native IR instructions per module (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left
-  interpreted, not refused `[client-security-build §2.1]`. No host is verified to report that count (§8), so until
-  one is, the 200,000-byte part cap is the only bound on a server part.
+  `[generation-security §4.2]`. Server parts should also stay under 1,048,576 native IR instructions per module
+  (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left interpreted, not
+  refused `[client-security-build §2.1]`. No host is verified to report that count (§8), so until one is, the
+  200,000-byte part cap is the only bound on a server part.
 - **Native code.** Server parts begin with `--!native`; client parts carry no native directive. Roblox documents
   native code for servers only, and its clients run interpreted (reported, 2026) `[generation-security §4.1]`, so a
   client directive gains nothing and a server part without one loses native decode. There is no option.
@@ -595,5 +596,6 @@ Unverified facts a default, a code's known cause or a mechanism above rests on (
   of resolvable woven sites in real Rojo and roblox-ts games (§5);
 - the phone factor for load time per KB of bytecode (§5.9);
 - what an open Team Create session does when Open Cloud publishes a new version (§4.3);
-- whether a module returning a base64 string of 128 KiB × 4/3 or more is accepted (the PVS table), whether rbx-dom exposes `MeshPart` geometry, a
-  3D bake's cost, and place read time beyond the measured 500,003 instances (7.36 s in Lune, `build-checks/scale.out`) (§4.1, §4.2).
+- whether a module returning a base64 string of 128 KiB × 4/3 or more is accepted (the PVS table), whether rbx-dom
+  exposes `MeshPart` geometry, a 3D bake's cost, and place read time beyond the measured 500,003 instances (7.36 s
+  in Lune, `build-checks/scale.out`) (§4.1, §4.2).

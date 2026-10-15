@@ -93,7 +93,7 @@ What decides it:
 - **For dense records the whole path costs 2–3× R31's per-byte figure.** The same 6-field random record costs
   177 ns/B in `decodeUp` alone and **212–313 ns/B** native end to end (391–411 interpreted), against R31's 87–111
   (199–271). The difference is per message, outside `Run.decode`: a 9-field `Received` table per message in
-  `push` (inbound.luau:177) and step 5 (`process`, 81–690 µs per dense frame, about 220 ns per message native).
+  `push` (inbound.luau:177) and step 5 (`process`, 81–690 µs per dense frame, 220–420 ns per message native, 310–380 interpreted).
 - **The costliest byte-bound shape measured, 1-bit fields, costs 5× the dense record**: 1,062 ns/B native, 2,081
   interpreted (32 `t.bool()` fields, random). At the two lanes' 65,536 B/s that is 69.6 ms/s per player native
   (136 ms/s interpreted), against R31's 5.7–7.3 (13.1–17.7). Not proven a maximum: it is the highest of the shapes
@@ -157,17 +157,17 @@ What decides it:
 - **Not decode + tag, for three reasons.** (a) 0.7–1.0 µs native of every frame (1.2–1.7 µs interpreted) is
   neither decode nor tag: shape check, two bucket refills with `os.clock()`, reader, `Decoding` and segment tables,
   a 3-element table per unreliable match, replay window, `pcall` (the "rest" column in `derive.out`). Step 5 adds
-  about 220 ns per message native. (b) A frame whose tag does not match costs up to 5 hashes on the reliable lane
-  (counts e … e + 4, inbound.luau:816–848) and 3 on the unreliable lane (three seq extensions, inbound.luau:868–893),
+  220–420 ns per message native. (b) A frame whose tag does not match costs up to 5 hashes on the reliable lane
+  (counts e … e + 4, inbound.luau:816–848) and 3 on the unreliable lane (three seq extensions, inbound.luau:850–893),
   and twice that while a pending key exists. A client creates that state itself: 8 wrong tags give `desync` and
   `Handshake.rekey` (handshake.luau:338–344, at most once per 60 s), and `pendingKey` is cleared only by
-  `REKEY-ACK` (inbound.luau:367–377), which the client need never send. So a paid 16 KB reliable frame can cost
+  `REKEY-ACK` (inbound.luau:370–378), which the client need never send. So a paid 16 KB reliable frame can cost
   652 µs native, 9.7× the single tag. (c) Reliable frames refused at the buckets are still tag-checked
-  (inbound.luau:976–984, as `v5.md` §6.1 step 2 says), so they cost 656 µs per 16 KB frame while using no budget.
+  (inbound.luau:980–988, as `v5.md` §6.1 step 2 says), so they cost 656 µs per 16 KB frame while using no budget.
   Their rate is limited only by the engine: "approximately 500 requests per second, per client", shared per remote
   type (documented, quoted in `research/client-security.md` §2.1). That is 328 ms/s per player native at 16 KB,
   22.5 ms/s at 1 KB, and 1.4 ms/s at 3 B. Whether the engine delivers 8 MB/s from one client is unmeasured.
-- So per frame: total = fixed pipeline (≈ 1.7–2.0 µs native including one tag) + decode + 220 ns × messages
+- So per frame: total = fixed pipeline (≈ 1.7–2.0 µs native including one tag) + decode + 220–420 ns × messages
   (step 5) + (k − 1) extra tags, where k ≤ 10 reliable or 6 unreliable for frames whose tag fails, plus the
   same k tags for every engine-delivered reliable frame over budget.
 

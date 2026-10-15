@@ -1,0 +1,20 @@
+inputs 4401
+sin e612607e nan=0
+cos ceb3f670 nan=0
+tan b4b8d2d9 nan=0
+asin ce78bfdb nan=4156
+acos 37b40231 nan=4156
+atan 208c7936 nan=0
+exp e4bafd02 nan=0
+log f5b69d49 nan=2000
+log10 d6d20a7c nan=2000
+sqrt 13e32a4e nan=2000
+sinh 594969fe nan=0
+cosh dbe3ec1b nan=0
+tanh 3e90e1c8 nan=0
+atan2 9d0a1d9c nan=0
+pow 720ff4c1 nan=1987
+fmod 20fbd9d0 nan=1
+noise c4200e28 nan=0
+divide 752eeb78 nan=0
+multiplyAdd 89584b15 nan=0

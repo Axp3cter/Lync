@@ -20,12 +20,6 @@ local Types = require("@self/types")
 
 local Lync = {}
 
--- Private -----------------------------------------------------------------------------------------
-
-local function atOf(source: string, line: number): { line: number, source: string }
-	return { line = line, source = source }
-end
-
 -- Public ------------------------------------------------------------------------------------------
 
 -- The constructors are untyped inside Lync; their types come from type functions the checker
@@ -53,7 +47,8 @@ Lync.request = (Dsl.request :: any) :: Types.Request
 	@error  a declaration error at the line of the constructor that declared the mistake
 ]=]
 function Lync.schema<Defs>(name: string, definitions: Defs): Types.Schema<Defs>
-	local namespace = Planner.plan(name, definitions :: any, atOf(debug.info(2, "sl")))
+	local source: string, line: number = debug.info(2, "sl")
+	local namespace = Planner.plan(name, definitions :: any, { line = line, source = source })
 
 	-- `_definitions` exists only in the type, for the views.
 	return table.freeze({ ir = namespace }) :: any

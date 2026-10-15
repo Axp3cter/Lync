@@ -198,9 +198,11 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
 - **`"release"`**: each `lync build`, each `lync watch` rebuild and the plugin's "Prepare release" draws `buildId`
   uniform on 1–2^32 − 1 and `rotationSeed` uniform on 1–2^64 − 1, independently, from OS entropy, for every
   namespace and both sides of that run. Shards of different runs carry different `buildId`s and get `MISMATCH`.
-- **16 hex digits** fix `rotationSeed`; `buildId` is then the low 32 bits of v64(`build`) (0 replaced by 1), or 0
-  when `rotationSeed` is 0. This is for tests and reproducible builds: that `buildId` is a 32-bit check value over
-  `rotationSeed`, which still leaves a 2^64 search.
+- **16 hex digits** fix `rotationSeed`; `buildId` is then the low 32 bits of HalfSipHash-2-4 (zero key) over the
+  16 hex digits and the canonical text of every `[build]` key, so any option difference changes it, or 0 for the
+  identity build (`v5-tooling.md` §1.2). This is for tests and reproducible builds: that `buildId` is a 32-bit
+  check value over `rotationSeed`, which still leaves a 2^64 search. The manifest records which entropy source a
+  run drew from (`rotation.entropy`, `v5-tooling.md` §1.2, §4.1).
 - **Seed cost.** Zero at run time: seeded shards compile to the same opcode sequences (an 8-field codec pair is
   116 instructions and 1012 B at both seeds `[generation-methods M1]`); zero bytes; one HalfSipHash-2-4 per stream
   at build time. Developer: every `"release"` build changes every shard's bytes; client and server shards must come
@@ -223,9 +225,10 @@ evidence `basis` naming what established that: 0 the scan, 1 `:trap()`, 2 a clos
 build found no client code using), so one reason with one evidence value per trigger (`v5.md` principle 4).
 
 - **Completeness** (generated path). A namespace is incomplete, and nothing is inferred or closed for it, when the
-  scan of the client scan set (`v5-tooling.md` §3.3: scripts in replicating containers, `Packages/`, every
-  `LocalScript`, every `Script` with `RunContext = Client` wherever stored, and the scripts under
-  `check.clientRoots`; for roblox-ts, the compiled Luau) finds a dynamic access of one of its namespace values,
+  scan of the client scan set (`v5-tooling.md` §3.3: scripts in replicating containers, the top-level services
+  without the reflection tag `NotReplicated`; `Packages/`; every `LocalScript` and every `Script` with
+  `RunContext = Client` wherever stored; the scripts under `check.clientRoots`; for roblox-ts, the compiled Luau)
+  finds a dynamic access of one of its namespace values,
   each reported as `dynamicAccess`: (1) an index whose key is not one string literal; (2) iteration, as the subject
   of a generic `for … in` or the argument of `pairs`, `ipairs` or `next`; (3) a hand-off the scan cannot follow by
   name: an argument to a function with no definition in the scanned code, an entry of a table constructor without
@@ -239,9 +242,9 @@ build found no client code using), so one reason with one evidence value per tri
   inference, the caller probe's source lists (§4) and weave closure (`v5-tooling.md` §5.4); `check.dynamicAccess`
   sets only the diagnostic's severity `[build-checks §2.7]`.
 - **Declared trap** (`basis` 1, both paths). The developer adds an ordinary client-sent event or request to the
-  schema, under a name of their choosing, and calls `Net.x:trap()` on its server view. The shared schema, the
-  client shard and the wire show nothing special: a trap is in every artefact a client receives with the same
-  shape as a real definition, so no comparison of artefacts separates it. A trap has no handler: `connect`,
+  schema, under a name of their choosing, and calls `Net.x:trap()` on its server view. A trap is an ordinary schema
+  definition: Lync emits it in the schema module, client shard, types and manifest exactly as every other, and the
+  wire shows nothing special, so no output separates it (`v5-tooling.md` §1.1). A trap has no handler: `connect`,
   `handle` or `validate` on it, or `:trap()` on a definition that has one, throws `trapHandled` at the caller. Its
   messages have nothing to deliver to and are dropped; an ask is answered `rejected`, indistinguishable from a
   `validate` refusal (`v5.md` §5.2). A trapped definition reports `basis` 1, never 0. What a trap's name looks
@@ -253,8 +256,8 @@ build found no client code using), so one reason with one evidence value per tri
   over-approximates (any `.chat` counts), so an unmodified client produces it only through code the scan can't
   see (§10).
 - **Generic ids of closed definitions** (`basis` 2, woven builds with `weave.ids` `"site"` or `"definition"`). A
-  closed definition's unmodified calls all use site ids (`v5-tooling.md` §5.4, §5.5), so a message on its generic
-  id is delivered and reported.
+  closed definition (closure as `v5-tooling.md` §5.4 defines it) has every unmodified call on a site id (§5.5
+  there), so a message on its generic id is delivered and reported.
 - **Prices** **api** drivers firing a definition unmodified client code never fires (declared, inferred), and
   drivers calling a closed definition through the shard (generic). It doesn't price drivers that fire only what
   game code fires (the caller probe covers those, §4): a driver that fires only names client scripts reference
@@ -270,7 +273,7 @@ build found no client code using), so one reason with one evidence value per tri
 | `check.clientRoots` | array of instance paths | — | — | `[]` | the scripts under each path join the client scan set |
 
 - **Decision: traps generated by the build.**
-  - *Problem.* Generated traps (`build.traps`) would add bait to namespaces with few unreferenced definitions
+  - *Problem.* Traps generated by the build would add bait to namespaces with few unreferenced definitions
     `[generation-methods M15a]`. The hard constraint: the shared schema module replicates to every client (`v5.md`
     §3.5), and a generated trap can't be in it, since the schema is the developer's source.
   - *Options:* traps in the shards only, named by the build from the namespace's own name tokens; the same with
@@ -819,7 +822,7 @@ console lines are `v5.md` §7.3's; a fact's `definition` is named where a row sa
 
 | Reason | Exact trigger | Action | Evidence | Known causes on an unmodified client |
 |---|---|---|---|---|
-| `unreachable` | a message of a client-sent definition that is: `basis` 1, trapped with `:trap()`; 0, of a complete namespace and unreferenced in the client scan set (generated path, `check.reachability`); 2, on the generic id of a closed definition (woven build, `weave.ids` not `"generic"`) (§3) | 1: dropped (no handler), ask `rejected`; 0, 2: delivered | `basis` | 1: client code firing a definition the server traps, a mistake in the game's declaration; the Studio command bar or a plugin calling it (Studio only). 0: a script outside the client scan set firing the definition (a `ModuleScript` stored in `ServerStorage` or inside a `Tool` and cloned to a client at run time; `check.clientRoots` removes it); a shard reached through a `require` the scan can't resolve and then iterated or indexed by a computed key. 2: code not in the woven place (an asset inserted at run time) firing the definition; the command bar or a plugin calling the shard (Studio only) |
+| `unreachable` | a message of a client-sent definition that is: `basis` 1, trapped with `:trap()`; 0, of a complete namespace and unreferenced in the client scan set (generated path, `check.reachability`); 2, on the generic id of a closed definition (woven build, `weave.ids` not `"generic"`) (§3) | 1: dropped (no handler), ask `rejected`; 0, 2: delivered | `basis` | 1: client code firing a definition the server traps, a mistake in the game's declaration; the Studio command bar or a plugin calling it (Studio only). 0: a script outside the client scan set firing the definition (a `ModuleScript` stored in `ServerStorage` or inside a `Tool` and cloned to a client at run time; `check.clientRoots` removes it); a shard reached through a `require` the scan can't resolve and then iterated or indexed by a computed key. 2: code not in the woven place (an asset inserted at run time) firing the definition; a `ModuleScript` outside the client scan set (in `ServerStorage`, say) that the server clones into a client and that fires the definition through the shard (`check.clientRoots` removes it); the command bar or a plugin calling the shard (Studio only) |
 | `earlyAnswer` | `challenge` 0: an answer to a server ask whose `roundTrip` < `earlyAnswer.factor` × `minPing`; 1: a value closing a challenge as `answered` whose `after` < `earlyAnswer.factor` × `minPing` (§7) | delivered | `roundTrip` (s; `after` for a challenge), `minPing` (s, b of §7.1), `challenge` | `minPing` above the true path: `GetNetworkPing` is smoothed and lags a sudden latency drop where no ack round trip is in the bound (simulated: a ping-only `roundTrip`/`minPing` of 0.52–0.59 within 0.5 s of a one-way drop from 0.10 to 0.03 s, smoothing assumed). `challenge` 1 also: game client code that sends the answers field when no prompt is shown, matching by chance with probability 1/`values` per value |
 | `earlyReaction` | for a message of a definition with `reactsTo`, §7.3's case 1, 2 or 3 | delivered | `case` (1 before stimulus, 2 below floor, 3 never sent), `exact` (1 decided by the receipt or by never-sent, 0 by time), `elapsed` (s, t_r − t_s; −1 in case 3), `minPing` (s, b), `floor` (s, 0 when off), `behind` (frames: the oldest candidate's frame number − the extended receipt in exact case 1, else 0) | every case: game code acting on the same information delivered another way (the entity replicated through `Workspace`, another remote, a client timer that knows when the stimulus comes). Case 1 exact: a key the game reuses for more than `track` stimuli while an older one is still being answered; a Lync bug. Case 1 by time: those, and b above the true path (as `earlyAnswer`); on `v5.md` §9's default network 0 of 200,000 instant responses at b of 0.10 and 0.12 s. Case 2: a response fired by game code from the stimulus handler; a stimulus a player can predict; a person faster than the floor; b 0.02 s above the true path, at which 1.35% of 0.10 s reactions read under a 0.10 s floor. Case 3: the game showing the entity by another path while the viewer's audience or interest excludes the record |
 | `unsolicitedAnswer` | a non-nil value in an answers field (§7.4) from a player with no open challenge; `definition` is the answers definition | none (the message is delivered as usual) | `closedAgo` (s since that player's last challenge closed; −1 if none this session), `closedAs` (0 answered, 1 mismatched, 2 timeout, 3 cancelled, −1 none), `matchesLast` (1 the value equals that challenge's token, 0 not, −1 none) | an answer after the deadline (`closedAs` 2, `matchesLast` 1, small `closedAgo`): the player needed more than `within`; a repeated answer (`closedAs` 0, `matchesLast` 1): a double press or game code that resends; game client code that fills the field on messages sent with no prompt shown; an answer entered after the game cancelled |

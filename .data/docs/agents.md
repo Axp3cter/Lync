@@ -59,6 +59,10 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `aab233d5982329bfd` | critic (Opus) | scope audit: every mechanism, option, default, generated artefact and fact split into what Lync does exactly and what the developer owns | `reviews/v5-3.6-scope.md` | running |
 | `ad8d484d0a90740af` | critic (Opus) | reviews `v5-collections.md` at draft 3.6 (correctness sequences, simplifications, scope, precision, fidelity, deferrals) | `reviews/v5-3.6-collections.md` | running |
 | `aae56588a84d8c2de` | critic (Opus) | reviews `v5.md` §5–§10 at draft 3.6 (budget bound re-derived, pipeline charging, flush, join hold, facts, timings) | `reviews/v5-3.6-runtime.md` | running |
+| `adf82ce0e99393fe7` | researcher (Opus) | `acked` and `inputs` designed now (the last two extensions) | `research/acked-inputs.md`, `probes/acked-inputs/` | running |
+| `a99200becb647e121` | critic (Opus) | reviews `v5-checks.md` at draft 3.6 | `reviews/v5-3.6-checks.md` | running |
+| `abe3c9a625869cc7b` | critic (Opus) | reviews `v5.md` §4 at draft 3.6; recomputes every golden frame independently | `reviews/v5-3.6-wire.md`, `probes/review-3.6-wire/` | running |
+| `a91f8b2be20a8e336` | researcher (Opus) | `strings`: downstream string tables and upstream references (the gap R33 left) | `research/strings.md`, `probes/strings/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

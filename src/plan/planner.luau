@@ -119,6 +119,20 @@ const IS_KEY_KIND: { [string]: boolean } = {
 }
 table.freeze(IS_KEY_KIND)
 
+-- The kinds a `:newest()` field cannot hold: their rows have counts, lengths, Exp-Golomb codes,
+-- instance indices or opaque custom encodings.
+const IS_VARIABLE_WIDTH_KIND: { [string]: boolean } = {
+	string = true,
+	buffer = true,
+	array = true,
+	map = true,
+	varint = true,
+	robloxEnum = true,
+	instance = true,
+	custom = true,
+}
+table.freeze(IS_VARIABLE_WIDTH_KIND)
+
 -- Private -----------------------------------------------------------------------------------------
 
 -- The casts are for the old solver, whose `getmetatable` and `table.isfrozen` take no `unknown`.
@@ -135,6 +149,8 @@ local function toName(value: unknown, maxBytes: number): string?
 end
 
 local function toFinite(value: unknown): number?
+	-- selene's standard library predates math.isfinite.
+	-- selene: allow(incorrect_standard_library_use)
 	if typeof(value) ~= "number" or not math.isfinite(value) then
 		return nil
 	end
@@ -237,24 +253,26 @@ end
 
 -- Returns the worst-case bits and tail bytes of a codec's single-row encoding (v5.md §3.3).
 local function sizeOf(codec: Ir.Codec): (number, number)
-	local kind = codec.kind
-	if kind == "bool" then
+	if codec.kind == "bool" then
 		return 1, 0
-	elseif kind == "varint" then
+	elseif codec.kind == "varint" then
 		return VARINT_BITS, 0
-	elseif kind == "f32" then
+	elseif codec.kind == "f32" then
 		return 32, 0
-	elseif kind == "f64" then
+	elseif codec.kind == "f64" then
 		return 64, 0
-	elseif kind == "vector3f32" then
+	elseif codec.kind == "vector3f32" then
 		return 96, 0
-	elseif kind == "color3" then
+	elseif codec.kind == "color3" then
 		return 24, 0
-	elseif kind == "instance" then
+	elseif codec.kind == "instance" then
 		return INSTANCE_INDEX_BITS, 0
-	elseif codec.kind == "int" or codec.kind == "number" or codec.kind == "angle" then
-		return codec.width, 0
-	elseif codec.kind == "enum" then
+	elseif
+		codec.kind == "int"
+		or codec.kind == "number"
+		or codec.kind == "angle"
+		or codec.kind == "enum"
+	then
 		return codec.width, 0
 	elseif codec.kind == "string" or codec.kind == "buffer" then
 		return codec.width, codec.max
@@ -309,7 +327,7 @@ local function sizeOf(codec: Ir.Codec): (number, number)
 		return sizeOf(codec.base)
 	end
 
-	error(`a codec must have a known kind, got {kind}`)
+	error(`a codec must have a known kind, got {codec.kind}`)
 end
 
 local function hasInstance(codec: Ir.Codec): boolean
@@ -348,20 +366,8 @@ local function hasAnyInstance(data: Ir.Codec?, reply: Ir.Codec?): boolean
 	return reply ~= nil and hasInstance(reply)
 end
 
--- A `:newest()` field must have a bounded, tail-free row: no counts, lengths, Exp-Golomb codes,
--- instance indices or opaque custom encodings.
 local function isFixedWidth(codec: Ir.Codec): boolean
-	local kind = codec.kind
-	if
-		kind == "string"
-		or kind == "buffer"
-		or kind == "array"
-		or kind == "map"
-		or kind == "varint"
-		or kind == "robloxEnum"
-		or kind == "instance"
-		or kind == "custom"
-	then
+	if IS_VARIABLE_WIDTH_KIND[codec.kind] then
 		return false
 	elseif codec.kind == "cframe" then
 		return isFixedWidth(codec.position) and isFixedWidth(codec.rotation)

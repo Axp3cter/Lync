@@ -93,6 +93,10 @@ local function showNumber(value: number): string
 	return string.format("%.17g", value)
 end
 
+local function showTriple(typeName: string, a: number, b: number, c: number): string
+	return `{typeName}({showNumber(a)}, {showNumber(b)}, {showNumber(c)})`
+end
+
 local function escapedOf(text: string): string
 	local isValidUtf8 = utf8.len(text) ~= nil
 	local escaped = string.gsub(text, '[%c\\"\128-\255]', function(character: string): string
@@ -156,16 +160,16 @@ local function show(value: any): string
 	end
 
 	if valueType == "Vector3" then
-		return `Vector3({showNumber(value.X)}, {showNumber(value.Y)}, {showNumber(value.Z)})`
+		return showTriple(valueType, value.X, value.Y, value.Z)
 	end
 
 	if valueType == "CFrame" then
 		local position = value.Position
-		return `CFrame({showNumber(position.X)}, {showNumber(position.Y)}, {showNumber(position.Z)})`
+		return showTriple(valueType, position.X, position.Y, position.Z)
 	end
 
 	if valueType == "Color3" then
-		return `Color3({showNumber(value.R)}, {showNumber(value.G)}, {showNumber(value.B)})`
+		return showTriple(valueType, value.R, value.G, value.B)
 	end
 
 	if valueType == "Instance" then

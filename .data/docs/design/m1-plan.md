@@ -523,3 +523,19 @@ Builders stop at the payload. The following belong to later milestones, and none
 - selene's `roblox` std can't be generated in this environment (its API-dump fetch bypasses the proxy); `std = "luau"`
   is used until CI.
 - `v5.md` §3.3 error figures corrected to the searched worst cases reported by unit A.
+- Unit B rulings (lead):
+  - Accepted: the IR angle codec carries `step` (the hash input needs it); `vector3.axis` typed `Ir.NumberCodec`.
+  - Accepted: `src/types.luau` is `--!nocheck` + `--!nolint UnknownGlobal` (design §3.2 wins over the plan's
+    `--!strict`); `from` is typed `{ read from: ... }` and sides are selected with `index<...>` (old-solver widening
+    and a luau-analyze crash, exit 139, with a type-function selector).
+  - Accepted: `duplicateName` (repeated enum item), `nameLength` (namespace 1–64 B, other names 1–65,535 B),
+    `mapKey` for a wrong collection key kind, and `newestWidth` refusing string, buffer, array, map, `t.int()`, Roblox
+    enum, instance and custom codecs.
+  - Changed: a schema entry not made by `Lync.event`/`request`/`collection` gets its own code, `notADefinition`, not
+    `paramRange` (one fact, one code).
+  - Changed: worst-case sizes must bound column blocks too (arrays, maps), not only single rows.
+  - Changed: each registry page's `example` is compared byte for byte with the message its documented trigger
+    produces (design §9 wins; examples are the golden messages, the only prose tests compare).
+  - To fold into `v5.md` §4.7 at the next design pass: defaulted options are serialized present with resolved
+    values; options a kind does not take are absent; a union variant is a full codec (type byte 23); `hasInstances`
+    covers `data` or `reply`.

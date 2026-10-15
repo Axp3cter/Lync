@@ -1,0 +1,5 @@
+== lsp-new (exit 1)
+test/types/sides.luau(20,1): TypeError: Key 'fire' not found in table '{ connect: t1, validate: (t2, (Player, string) -> boolean) -> () } where t1 = (t2, (Player, string) -> ()) -> t3 ; t2 = { connect: t1, validate: (t2, (Player, string) -> boolean) -> () } ; t3 = { disconnect: (t3) -> () }'
+test/types/sides.luau(21,1): TypeError: Key 'fire' not found in table '{ connect: t1 } where t1 = ({ connect: t1 }, ({ kind: "round", number: number } | { kind: "winner", team: string }) -> ()) -> t2 ; t2 = { disconnect: (t2) -> () }'
+test/types/sides.luau(22,1): TypeError: Key 'handle' not found in table '{ invoke: t1 } where t1 = ({ invoke: t1 }, { item: string }) -> { error: "left" | "rejected" | "shutdown" | "timeout" | "unanswered", ok: false } | { ok: true, value: number }'
+== lsp-old (exit 0)

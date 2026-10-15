@@ -260,18 +260,19 @@ return {
 			return nil, 0
 		end
 
+		local withSize =
+			{ encode = encode, decode = decode, maxBits = 8, name = "x", version = 1, size = 1 }
+
 		local line = debug.info(1, "l")
 		Check.expectThrow(function()
-			t.custom(
-				{ encode = encode, decode = decode, maxBits = 8, name = "x", version = 1, size = 1 } :: any
-			)
+			t.custom(withSize :: any)
 		end, { code = "unknownOption", at = at(line + 2), subject = "t.custom" })
 		Check.expectThrow(function()
 			t.custom({ encode = encode, decode = decode, name = "x", version = 1 } :: any)
-		end, { code = "missingOption", at = at(line + 7), subject = "t.custom" })
+		end, { code = "missingOption", at = at(line + 5), subject = "t.custom" })
 		Check.expectThrow(function()
 			t.custom({ encode = encode, decode = decode, maxBits = 8, name = "", version = 1 })
-		end, { code = "nameLength", at = at(line + 10), subject = "t.custom" })
+		end, { code = "nameLength", at = at(line + 8), subject = "t.custom" })
 	end,
 
 	["nameLength: a union variant named by a number"] = function()

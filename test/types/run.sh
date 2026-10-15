@@ -60,7 +60,10 @@ for file in "$PROOFS"/*.luau; do
 		fi
 
 		echo "== $tool (exit $code)" >> "$actual"
-		grep -v '^\[INFO\]' "$SCRATCH/raw" | sed -e "s#$ROOT/##g" -e 's#^\./##' >> "$actual"
+		# Lync's own sources are checked by the type check, not here: under luau-analyze, which
+		# has no Roblox definitions, they report unknown Roblox types at lines that move.
+		grep -v '^\[INFO\]' "$SCRATCH/raw" | sed -e "s#$ROOT/##g" -e 's#^\./##' \
+			| grep -v '^src/' >> "$actual"
 	done
 
 	expected="$PROOFS/$name.expected"

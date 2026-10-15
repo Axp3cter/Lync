@@ -1,5 +1,7 @@
 --!nocheck
 --!nolint UnknownGlobal
+-- selene reads type function bodies as code, where `types` and their names are undefined.
+--# selene: allow(undefined_variable)
 
 --[=[
 	Types

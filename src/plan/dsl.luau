@@ -156,6 +156,8 @@ local function isRecord(value: unknown): boolean
 end
 
 local function toInteger(value: unknown): number?
+	-- selene's standard library predates math.isfinite.
+	-- selene: allow(incorrect_standard_library_use)
 	if typeof(value) ~= "number" or not math.isfinite(value) or math.floor(value) ~= value then
 		return nil
 	end
@@ -164,6 +166,8 @@ local function toInteger(value: unknown): number?
 end
 
 local function toFinite(value: unknown): number?
+	-- selene's standard library predates math.isfinite.
+	-- selene: allow(incorrect_standard_library_use)
 	if typeof(value) ~= "number" or not math.isfinite(value) then
 		return nil
 	end

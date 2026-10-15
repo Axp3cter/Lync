@@ -44,15 +44,11 @@ return {
 
 	["the caller walk skips C frames"] = function()
 		local line = debug.info(1, "l")
-		Check.expectThrow(
-			function()
-				local ok, message =
-					pcall(Fail.caller, "valueRefused", "arena.chat:fire data", "be text")
-				Check.expect(not ok, "pcall must fail")
-				error(message, 0)
-			end,
-			{ code = "valueRefused", at = at(line + 2), subject = "arena.chat:fire", path = "data" }
-		)
+		Check.expectThrow(function()
+			local ok, message = pcall(Fail.caller, "valueRefused", "a.chat:fire data", "be text")
+			Check.expect(not ok, "pcall must fail")
+			error(message, 0)
+		end, { code = "valueRefused", at = at(line + 2), subject = "a.chat:fire", path = "data" })
 	end,
 
 	["a declaration error is positioned where it was recorded"] = function()

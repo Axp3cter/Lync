@@ -20,7 +20,7 @@ local Types = require("@self/types")
 
 local Lync = {}
 
--- Private ----------------------------------------------------------------------------------------
+-- Private -----------------------------------------------------------------------------------------
 
 local function atOf(source: string, line: number): { line: number, source: string }
 	return { line = line, source = source }

@@ -338,7 +338,7 @@ end
 -- Public ------------------------------------------------------------------------------------------
 
 --- The fewest rows coded as a column block (v5.md §4.9); set by milestone 1's benchmark.
-Column.MIN_ROWS = 4
+Column.MIN_ROWS = 3
 
 --[=[
 	Returns the reference encoder's choice for a column.

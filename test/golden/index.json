@@ -8,6 +8,62 @@
 		"design": "v5.md §4.10"
 	},
 	{
+		"id": "G2",
+		"file": "G2.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "down reliable, a client's first reliable frame ('11', T = 0): announce:fire(Lync.all, { kind = \"round\", number = 3 }); payload through Run.encode",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G2b",
+		"file": "G2b.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "down reliable, tick +1 ('10'): one run of announce { round 3 }, { winner \"blue\" }; payloads through Run.encode",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G3",
+		"file": "G3.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "down reliable, tick unchanged ('0'): answer to buy, slot 0, epoch 0, value 250; payload through Run.encode",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G4",
+		"file": "G4.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "up reliable, count 0, ack '0': chat:fire(\"gg\"), tag key 00..07, cover 1024; payload through Run.encode",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G5",
+		"file": "G5.bin",
+		"bits": null,
+		"milestone": 2,
+		"what": "up unreliable, seq 0, ack-only: state seq 5 received, with 4 and 3",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G7",
+		"file": "G7.bin",
+		"bits": null,
+		"milestone": 2,
+		"what": "untagged HELLO for G6's schema, version 1, seed 0",
+		"design": "v5.md §4.10"
+	},
+	{
+		"id": "G8",
+		"file": "G8.bin",
+		"bits": null,
+		"milestone": 1,
+		"what": "up unreliable, seq 0, ack '0': one run of four strike, aim = Vector3.zAxis, target 5, 6, 7, 7, as a column block (columnMinRows 4); payloads through Run.encode",
+		"design": "v5.md §4.10"
+	},
+	{
 		"id": "G9a",
 		"file": "G9a.bin",
 		"bits": null,

@@ -1,0 +1,8 @@
+run: luau 0.740, CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+byte0	157	byte1	1
+readbits(0,3)	5	readbits(3,6)	51
+33-bit write	false	bit count is out of range of [0; 32]
+v=4503599627370496 zigzag=9007199254740992 back=true
+v=-4503599627370496 zigzag=9007199254740991 back=true
+v=4503599627370495 zigzag=9007199254740990 back=true
+v=-4503599627370495 zigzag=9007199254740989 back=true

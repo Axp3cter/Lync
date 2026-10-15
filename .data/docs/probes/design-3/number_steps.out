@@ -1,0 +1,11 @@
+run: luau 0.740, CLI flag defaults: gated Luau features are on, unlike most hosts (reference/host.md)
+t.number(-2048, 2048, 0.1): steps 40960, bits 16, q(max) 40960, max error at grid points 0
+t.number(0, 1, 0.1): steps 10, bits 4, q(max) 10, max error at grid points 0
+t.number(0, 100, 0.01): steps 10000, bits 14, q(max) 10000, max error at grid points 0
+t.number(-1, 1, 0.001): steps 2000, bits 11, q(max) 2000, max error at grid points 0
+t.number(0, 0.3, 0.1): steps 3, bits 2, q(max) 3, max error at grid points 5.55e-17
+t.number(0, 1, 0.333333): steps 3, bits 2, q(max) 3, max error at grid points 0
+t.number(0, 0.7, 0.1): steps 7, bits 3, q(max) 7, max error at grid points 1.11e-16
+t.number(0, 2.3, 0.1): steps 23, bits 5, q(max) 23, max error at grid points 4.44e-16
+t.number(-512, 512, 0.05): steps 20480, bits 15, q(max) 20480, max error at grid points 0
+t.number(0, 1, 0.3): steps 3, bits 2, q(max) 3, max error at grid points 0

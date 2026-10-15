@@ -163,3 +163,143 @@ apply.
   caller-probe behaviour): §11, pending, not blocking.
 - Typing proofs (`Lync.request` signature, side-split errors): milestone 1.
 - Rotation and seed (R7, the rotation parts of M12 and R17): kept as in draft 1, deferred to the author.
+
+---
+
+# Draft 2 to draft 3
+
+2026-10-15. Applies `.data/docs/reviews/v5-design-2.md` (review-2: B, M, m, T ids) and
+`.data/docs/reviews/v5-design-2-redundancy.md` (redundancy-2: S1–S15), and adopts
+`.data/docs/research/diagnostics.md` (cited `[diagnostics §n]`). Section numbers refer to draft 3: `v5.md` and its
+new companions `v5-collections.md`, `v5-integrity.md`, `v5-tooling.md`, `v5-extensions.md`.
+
+**Count:** 43 findings. Accepted 29, changed 14, rejected 0. Some changed findings had parts rejected (M11, M12,
+S7, S13); each row says which.
+
+**Length.** The core went from 1316 to about 880 lines while gaining the full milestone 1 and 2 wire. Moved out:
+collections (milestone 4), client-side integrity rationale and measures (milestone 5), tools (milestones 3 and 6),
+extensions (milestone 7). Removed as duplicates of this log: draft 2's §6.2.13 refused list, §12 dropped list, and
+history citations in the body.
+
+## Overlaps resolved once
+
+| Overlap | Findings | Resolution |
+|---|---|---|
+| Encode-once against per-player headers and fields | B3, S3 (and M4's decoy part) | Chunks are the unit of sharing and start byte-aligned downstream; instance indices are chunk-local; the tail layout of a shared chunk is defined; the downstream unreliable seq is server-wide, so unreliable frames can be broadcast; a shared reliable frame uses `'11' u16` when its recipients' last ticks differ (`v5.md` §4.1, §4.2, §4.4). Decoys cost their viewers per-viewer chunk copies, stated in `v5-integrity.md` §8. |
+| Hot-path raise cost against strict decode | diagnostics §9, with review-1 B1 and redundancy R6 | The decoder returns a rule number and refuses the frame whole; nothing raises on the refusal path; one `pcall` per frame catches unexpected raises as `decoderRaised` (`v5.md` §4.8). |
+| Stored 12-bit sequences aging | M2, S1 | Every stored sequence is extended to a full counter against the newest seq received (S1's fix rather than ordering by tick: it has no horizon at all) (`v5.md` §4.4). |
+| Trap and reachability | S5, S6, diagnostics §4.2 | One fact, `unreachable`, evidence `declared` (`v5-integrity.md` §3). |
+| Fact shape and event stream | T1, M8.7, M8.8, M9, S6, S13, diagnostics §5 | One frozen `Fact` discriminated on `reason`, no `kind`; per-frame `frame` events replaced by `Lync.counters()`; coalesced facts carry the last occurrence's evidence; validator outcomes leave the fact stream; 31 reasons become 17 core plus 6 of milestone 5 (`v5.md` §7.3, §7.4). |
+| Clock-beacon knobs | M7, S7 | Window, fit and threshold become constants (5 s, 12 windows, 0.006); the beacon range is 0.5–1.5 s and the restart gap 3 × beacon (`v5-integrity.md` §6). |
+| Configuration naming and knobs | m6, S7, M6 | Grouped tables per measure; transport tuning moved to protocol constants (`v5.md` §4.9); `configure` never throws for being late (`v5.md` §7.5). |
+| Runtime-path typing degradation | M11, diagnostics §6.3 | `solverOff` from `lync check` unless `[types] solver = "new"` (`v5.md` §3.2). |
+
+## Review-2 (`v5-design-2.md`)
+
+| Id | Title | Outcome | Reason |
+|---|---|---|---|
+| B1 | Dropped asks leak request slots forever | accepted | Every ask read is answered (`rejected` for traps, `unresolved`, `limit`, `validate`); a 1-bit slot epoch lets the asker reclaim a slot on timeout after frame-level drops; conflicts are the fact `slotConflict` (`v5.md` §5.2). |
+| B2 | Milestone 1 still can't be built from the text | changed | All items closed: bit order (`buffer.writebits` order, checked: `probes/design-3/bitorder.out`), EG-k bit layout, padding points (`align` before downstream chunks), flattening of nested types to columns, rule 2 off-by-one, `t.int()` capped at \|v\| ≤ 2^52 (zigzag checked exact), codec details, the hash input byte layout. Changed for `t.number`: a non-integer step count is a declaration error (`numberStep`) rather than a floor fallback, so the maximum error stays step/2 (`probes/design-3/number_steps.out`). |
+| B3 | Encode-once chunks conflict with fields that differ per frame | accepted | See overlaps. |
+| M1 | High-frame-rate clients trip the budget; per-namespace remotes multiply calls | accepted | The client auto-flushes at most every 1/60 s; one remote pair per connection carries every namespace through namespace segments in the toc (`v5.md` §4.1, §5.1). |
+| M2 | Newest-wins on a 12-bit sequence freezes idle records | changed | See overlaps: extension, not tick ordering. |
+| M3 | Any schema typo segfaults the analyzer on the runtime path | accepted | Rule: type functions never call `error()` on user-derived input; a typo schema is a milestone 1 typing proof (`v5.md` §3.2, §10). |
+| M4 | Decoys are visible on the wire and draw on shared slots | changed | Decoy updates ride in a per-viewer copy of the partition chunk; decoy slots come from a pool of `maxPerViewer` slots shared by all viewers, counted in `maxRecords`; key collisions throw `decoyKeyLive`. Not adopted: per-viewer slots outside the shared range, since a separate range would itself mark decoys (`v5-integrity.md` §8). |
+| M5 | Reliable fields replicate every flush with no budget or rate knob | changed | Documented, and a collection option `reliableRate` (Hz, 1–60, on the state clock), named like `state.rate` rather than `reliableHz` and not limited to divisors of 60 (`v5-collections.md` §1). |
+| M6 | `Lync.configure` brings back start-order rules | changed | `configure` never throws for being late: options in `WELCOME` apply to later connections, server-only ones from the next flush, and `state.rate` at the next state tick through a new control message `RATE`. Neither proposed fix (fixing server-wide options at first use, or delaying `WELCOME`) removes the race, since Script start order is undefined (`v5.md` §7.5). |
+| M7 | The clock beacon's parameters exclude each other | changed | See overlaps. |
+| M8 | Milestone 2 gaps | accepted | Joiners: the server holds sends for un-welcomed players, so broadcasts reach them late, and `FireAllClients` covers welcomed players only (§5.3). `MISMATCH`: server drops its sends and reports `schemaMismatch`; control misuse and data before `WELCOME` are malformed rule 7. Untagged `HELLO`s: defined rule (§4.5). Tag: ships in milestone 2 with the frame format. Request edge cases: `slotConflict` cases and holds. Frame size: rule 8. Observer scope: §7.3 lists every milestone 2 reason. Coalescing: per key, last evidence. |
+| M9 | Wording that still judges | accepted | "Reports what it observes"; the confidence quotation removed; evidence `identitySucceeded`, `sourceUnlisted`; one action word, "dropped"; "beyond `REKEY` and request outcomes". The word "anomaly" also went (diagnostics §11): the event is a fact. |
+| M10 | Leanness | accepted | See "Length" above. |
+| M11 | "Degradation is loud" can't be built | changed | `lync check` part adopted (overlaps); the selene claim removed. Rejected: a Studio line on every runtime-path start. Lync can't tell which solver is on, so it would print for every runtime-path user in every session, new solver included, and train people to ignore Lync's output. |
+| M12 | The client's `limit` FIFO reorders messages | changed | Documented: under `limit` delivery order holds per definition only, and a held `invoke`'s timeout runs. Rejected: holding every later message behind a held one, which would stall all of a client's traffic for up to a second whenever game code exceeds one definition's limit (`v5.md` §5.4). |
+| m1 | "The build seed changes exactly two things" contradicts §3.1 | accepted | Only record fields rotate; variant order doesn't. |
+| m2 | `t.enum(Enum.Material)` is `Codec<unknown>` on the runtime path | accepted | Listed with list enums (§3.2). |
+| m3 | Canary matching and collisions | accepted | Exact match; canary fields need `maxBytes` ≥ 12 and canaries are always 12 characters. |
+| m4 | `maxRecords` against the slot reuse delay | accepted | `maxRecords` counts slots; no free slot is `recordLimit` at the caller. |
+| m5 | The permutation's "per-build work" is unsupported | accepted | Restated as per session: read the seed or table. |
+| m6 | Two naming conventions in `Lync.configure` | accepted | See overlaps. |
+| m7 | Reachability's notion of "escape" | changed | Rather than tighten escape analysis, the rule over-approximates: a definition is reachable if its name appears as a field access or string literal anywhere in client code; only a non-literal index of the shard value makes a namespace incomplete. Sound against honest code, and structured games keep coverage (`v5-integrity.md` §3). |
+| m8 | Downstream reliable frames have no size cap | changed | Reliable frames split at 16,384 B both ways and every message must fit it, pending the engine's limit (§10). |
+| m9 | The tag specification is incomplete | accepted | PRF input layout, output bits, cover from byte 0, old key until `REKEY-ACK` (§4.5). |
+| m10 | Integrity declarations take unchecked strings | accepted | `unknownField` at the caller; the generated path types them as literal unions. |
+| m11 | Unreliable `limit` and pre-`WELCOME` semantics | accepted | Both drop and report `sendDropped`. |
+| T1 | Two meanings of `kind` | accepted | The fact type has no `kind`. |
+| T2 | `callerProbe.share` | changed | `callerProbe.oneIn`, an integer that travels exactly in a u8, rather than a fraction rounded to 1/255. |
+
+## Redundancy-2 (`v5-design-2-redundancy.md`)
+
+| Id | Title | Outcome | Reason |
+|---|---|---|---|
+| S1 | Rows ordered by a stored per-record 12-bit sequence | accepted | See overlaps. |
+| S2 | The join hold equals the inbound burst | changed | Hold cap a protocol constant of 32,768 B and the byte burst's minimum 49,152 B, a margin of one full frame, rather than an overhead formula (`v5.md` §5.3, §7.5). |
+| S3 | Per-player sequences and tick deltas defeat broadcast | accepted | See overlaps. |
+| S4 | An ack-only frame for every owed ack | accepted | Owed after 2 frames or 100 ms. |
+| S5 | `trap` and `unreachable` report the same fact | accepted | See overlaps; the source probe skips definitions with no listed scripts. |
+| S6 | 31 reasons where 21 keep every fact | accepted | All merges adopted; with per-direction id spaces, wrong direction and lane are no longer expressible apart from an unknown id. |
+| S7 | Knobs that should be constants; settings reachable two ways | changed | Adopted: the constants table (`v5.md` §4.9), `permuteIds` deleted, one off-switch for the probe, `tag.cover` range 0–16,384, the reachability note. Rejected: making `inbound.*.frames` constants, since `Lync.flush()` makes a client's frame rate the game's choice. Rotation's knobs stay with the author. |
+| S8 | `REPORT` sent for probe counts alone | accepted | Only with a non-zero fact count, never forcing a frame. |
+| S9 | Canary state per player; buffer lookups allocate | accepted | Server-wide map, per-viewer bitset, length test first. |
+| S10 | One id space for both directions and request roles | accepted | Three spaces per namespace (§4.6). |
+| S11 | Generation bits on the ordered lane | accepted | Generations are counted on both ends; only unreliable rows carry them. |
+| S12 | Unspecified framing and ordering details | accepted | Rows chunks have a collection index and count; a re-pended record is appended with its age restarting. |
+| S13 | Two channels for local game-code mistakes | changed | `validatorError` and validator outcomes left the fact stream (native report and counters). Rejected for `sendDropped`, `missedFlush` and `remotesMissing`: the call was valid when made and the condition is transient (a join stall), so throwing would kill game loops for no mistake of theirs `[diagnostics §4.2]`. |
+| S14 | The downstream unreliable tick could be 8 bits | accepted | `tick:u8`, extended against the client's own estimate. |
+| S15 | `WELCOME` repeats connection-global fields | accepted | Epoch and rate only in the first `WELCOME`, and in `RATE`. |
+
+## Diagnostics research: adopted, and where draft 3 departs
+
+Adopted, in `v5.md` §7 unless noted: one lowerCamelCase code per fact or error with a registry page each, families
+fixing channels, `lync explain` and docs links; the message grammar, `show()` and the banned words; string-only
+throws; positions from the `debug.info` walk and recorded constructor lines; the channel table; the fact shape and
+per-observer pooled threads; coalescing with last evidence and caps counted per player and reason; counters in
+place of per-frame events; console rules (constant text, `LogService:Warn` templates, at most 2 lines per code per
+window, clients print only local facts, one `console` switch, no verbosity levels); `profile`; validators under
+`xpcall`, `validatorYielded`, thread-status detection of throwing `handle`s, `decoderRaised`, `remotesMissing`;
+the type-function marker rule; build diagnostics as LSP Diagnostics in `human`, `json` and `github` formats with
+exit codes 0–3 and plugin callbacks (`v5-tooling.md` §3); testing by code, position and evidence with a
+self-linting registry (`v5.md` §9).
+
+Departures:
+- **No `configureLocked`.** `configure` never locks (M6), so the code has nothing to report.
+- **No direction and lane rules.** The research kept them as malformed rules 10 and 11; per-direction id spaces
+  (S10) make them unknown ids under rule 7.
+- **`LogService:Warn` with a `warn` fallback.** Its grouping by template in the Error Report is unverified, so
+  until milestone 2's Studio check the same constant text goes through `warn`, which keeps the one-row property.
+- **`player` on server-local facts** is the player concerned (a held send, a missed flush) rather than nil, so a
+  held send to one player can be attributed.
+
+## Client-side measures re-judged in draft 3
+
+The rule of the draft-2 section stands. Changes since: `permuteIds` removed (one off-switch would remain only for
+tests, which the seam covers; the measure costs nothing at run time); the tag, replay window and permutation moved
+to milestone 2, since they are part of the frame format; decoys gained a per-viewer chunk copy to remove the
+placement tell (M4); the per-viewer slot range was refused for the reason under M4.
+
+## Decisions made in draft 3
+
+1. **One remote pair per connection**; namespaces numbered server-wide by first use and carried as segments in a
+   table of contents; `HELLO`s answered in arrival order; a `HELLO` for a namespace not yet loaded waits 10 s.
+2. **Chunks** as the unit of sharing; downstream chunks byte-aligned, upstream packed; run, state, remove and rows
+   chunk headers; runs in call order across namespaces.
+3. **LSB-first bits** (the order of `buffer.writebits`), the EG-k bit layout, fields over 32 bits split low first.
+4. **Column flattening** for every codec, residuals modulo the code count (which keeps `t.int()` exact), raw columns
+   for floats and custom codecs, single-row request runs.
+5. **Codec edges:** `t.int()` to 2^52; integer step counts for `t.number`; `t.direction` normalises; `t.rotation`
+   refuses a position; the smallest-three sign and tie rules; the axis-aligned form as an encoder rule.
+6. **Tag layout** and the untagged-`HELLO` rule; tag, replay window and permutation in milestone 2; permutation by
+   Fisher–Yates over xorshift32 per id space.
+7. **Holds on both sides** for un-welcomed players, 32,768 B each.
+8. **Slot epochs**, `slotConflict`, and late answers as a counter.
+9. **`RATE`**, the eighth control type.
+10. **Fact set:** 17 reasons in milestone 2, 6 in milestone 5, `constraint` in `checks`.
+11. **Decoy pool slots** shared by all viewers.
+12. **16,384 B** per message and per reliable frame, both directions, until the engine's limit is measured.
+13. **`[types] solver`** in `lync.toml`.
+
+## Dropped (draft 2's §12, kept here)
+
+Event `newest`; `timestamped`; runtime demotion of oversized unreliable items; `report.json` and `debugmap.json`;
+the roblox-ts transformer; compiler plugins and `rans`; suspicion weights, scores and `Lync.suspicion`;
+quiet-mitigation hooks; the unreliable-event deadline; `:initial()`; an audience-by-field shortcut. Reasons are in
+the draft-1-to-2 tables above.

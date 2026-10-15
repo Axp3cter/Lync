@@ -1,6 +1,7 @@
 # Lync v5: compiler outputs and tools (milestones 3 and 6)
 
-Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-3.6-changes-tooling.md`.
+Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); changes from draft 3.5 are in `v5-changes.md` ("Draft 3.5
+to 3.6").
 Milestone 3 builds §1–§4 on the Lune host, except what a row marks for a later milestone; milestone 6 builds the
 Rust/mlua host, weaving (§5), `lync check --published`, `diff`, `replay`, the Studio plugin, the inspector and the
 profiler adapter (§6). A build code is raised from the milestone in its row of §3.4, under `v5.md` §7.1's deferral
@@ -18,7 +19,7 @@ for every namespace and both sides (`v5-integrity.md` §2).
 | Output | Format | Consumer | Reaches clients |
 |---|---|---|---|
 | client shard, server shard per namespace (§1.1) | Luau, readable, MIT header; each definition commented with its schema line | the game | the client shard |
-| client variant modules, with `build.playerVariants` > 1 (§1.1) | Luau, as shards | the server, which gives each player one | one variant per player |
+| variant modules, one set per build run, with `build.playerVariantCount` > 1 (§1.1) | Luau, line 1 as shards | the server, which gives each player one | one variant per player |
 | type declarations | `.d.ts`; JSDoc names each definition's schema line | roblox-ts | no |
 | `manifest.json` (§1.2) | JSON, sorted keys, LF line endings | `lync check`, `lync weave`, `lync replay`, `lync diff`, the inspector's capture replay | no: it holds `rotationSeed` |
 | `report.md` (§1.3) | Markdown rendered from the manifest | developers | no |
@@ -38,13 +39,14 @@ order of the place or, for files, in the sourcemap's order.
   server part is `--!native`: a directive after a comment line still takes effect (checked with `luau-analyze`
   0.740 on `--!strict`).
 - **Identity constants in the body**, as code the digest covers: generator version, `buildId`, seed-0 schema hash,
-  schema path, namespace, side, part number and part count. `staleShard` and `unpairedShard` (§3.4) read these.
+  schema path, namespace, side, part number and part count. `shardSchemaMismatch`, `shardPairMismatch`,
+  `shardPartMissing` and `shardPartUnknown` (§3.4) read these.
 - **Parts.** Each part holds at most 200,000 bytes of source. Derivation: `Source` set the ordinary way is capped at
   200,000 characters (reported, `[generation-security §2.4]`; §8), and a character takes at least one byte. A side
   that fits is one module, the shard module itself, `part 1/1`. A side that doesn't is split by sorted definition
   name into N parts: the shard module is then an index holding no definition, which requires its children `Part1` …
   `PartN` (files `client/init.luau`, `client/Part1.luau` …); the build deletes the other layout's files and every
-  part beyond N. A definition whose generated code alone exceeds the cap is `definitionTooLarge` (§3.4).
+  part beyond N. A definition whose generated code alone exceeds the cap is `definitionCodeBytesExceeded` (§3.4).
 - **Generator invariants**, each checked by compiling every part with the host's Luau compiler before anything is
   written; a failure is `internal` (exit 3): at most 200 locals and 200 upvalues per function, fewer than 32,768
   closures per function prototype (`kMaxClosureCount`), definitions held in a table, each with its own functions
@@ -52,31 +54,25 @@ order of the place or, for files, in the sourcemap's order.
   (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left interpreted, not
   refused `[client-security-build §2.1]`. No host is verified to report that count (§8), so until one is, the
   200,000-byte part cap is the only bound on a server part.
+- **Self-check items.** The client shard holds the self-check item list of `v5-integrity.md` §5 (table, key,
+  closure and expected line per entry that holds a Lync closure). Before anything is written, the build runs the
+  emitted check against the emitted shard; an item failing there is `internal` (exit 3), a Lync emission bug.
 - **Native code.** Server parts carry `--!native`; client parts carry no native directive. Roblox documents native
   code for servers only, and its clients run interpreted (reported, 2026) `[generation-security §4.1]`, so a client
   directive gains nothing and a server part without one loses native decode. There is no option.
 - **Names.** Generated functions keep readable names, never per-build or anonymous ones: view keys, the shard's path
   and `require` give every tool a stable route, so per-build names price nothing `[refusals-rejudged-1 R10]`.
 - **Types.** Generated Luau types use no `read` modifiers, which the old solver rejects (`v5.md` §3.2).
-- **Variant modules** (`build.playerVariants` = N > 1; the mechanism is `v5-integrity.md` §2's): N client variant
-  modules per namespace at `ServerStorage.LyncVariants.<namespace>.<k>`, k = 1 … N, never replicated until the
-  server gives one to a player `[generation-methods M7]`. Each follows the part rule, carries line 1 with
-  `variant k/N` after the side, and is covered by `editedShard`, `unpairedShard`, `staleManifest` and `--published`
-  as a shard part is; the scans exclude them as Lync outputs.
-- **Decision: the generator emits only what the schema declares.**
-  - *Problem.* Generated trap definitions would sit in the client shard and not in the shared schema module
-    `[generation-methods M15a]`, and that module replicates on both paths (`v5.md` §3.5). An API driver that
-    requires both and takes the difference of their keys finds every generated trap in one build, without reading
-    a name. Choosing trap names, codecs or counts is also a decision about placement and plausibility, which is
-    the developer's.
-  - *Options:* generate traps with names drawn from the namespace's own name pieces (separable by the key-set
-    difference, and by convention: camelCase pairs among PascalCase names); generate them with developer-given
-    names (still separable by the key-set difference); **generate none: a trap is a definition the developer
-    writes in the schema and marks `:trap()` on the server view** (`v5-integrity.md` §3).
-  - *Choice: none generated.* A declared trap is in the schema module, the client shard, the types and the
-    manifest exactly as every other definition, from the same emitter, so no output separates it; Lync guarantees
-    that, and that any arrival on it is dropped and reported. Its name, codec and number are the developer's. The
-    trade-off: a declared trap is the same in every build (no per-build churn), and the developer writes it.
+- **Variant modules** (`build.playerVariantCount` = N > 1; the mechanism is `v5-integrity.md` §2.4's): one set of N
+  modules per build run, at `ServerStorage.LyncVariants.<v>`, v = 1 … N, each returning one integer (its mask),
+  never replicated until the server gives one to a player `[generation-methods M7]`. Each carries line 1 and its
+  digest as every output does, with `variant v/N` in place of namespace, side and part
+  (`-- Lync 5.0.0 | variant 3/16 | build 3735928559 | code <64 hex digits>`); no part rule applies to a module of one
+  integer. They are covered by `shardDigestMismatch`, `shardPairMismatch`, `manifestShardMismatch` and
+  `--published` as a shard part is; the scans exclude them as Lync outputs.
+- **The generator emits only what the schema declares.** A trap is a schema definition the developer writes and
+  marks `:trap()` on the server view; it is emitted in the schema module, client shard, types and manifest by the
+  same emitter as every other definition, so no output separates it (`v5-integrity.md` §3 holds the decision).
 
 ### 1.2 Manifest
 
@@ -85,11 +81,12 @@ order of the place or, for files, in the sourcemap's order.
 | `format` | 1 |
 | `generator` | `lync` (version) and `coreDigest` (SHA-256 of the compiler core that generated the build): the generator identity, for reproducibility. A part's `code` digest (§1.1) is a different value, for drift |
 | `buildId`, `rotationSeed` | the run's public build id (u32) and private rotation seed (16 hex digits) `[generation-methods M1]` |
-| `rotation` | each value `v5-integrity.md` §2 draws from `rotationSeed` that sets a run-time cost (the tag's compression and finalization rounds, the rotation-set index), so the report states the build's cost without running the planner; and `entropy`: `"os"` (OS entropy), `"guid"` (Studio, §4.2) or `"public"` (a source a tool can search, §4.1) |
-| `inputs` | SHA-256 of `lync.toml`'s text and of each schema module's text, and of the canonical serialization of `scan` (§1); regeneration (§3.4 `editedShard`) runs only when every one equals the live value |
+| `rotation` | `entropy`, the source the run drew its pair from: `"os"` (OS entropy), `"guid"` (Studio, §4.2), `"public"` (a source a tool can search, §4.1) or `"fixed"` (a fixed `build.rotationSeed`, `v5-integrity.md` §2.5). Nothing else is drawn that sets a run-time cost (`v5-integrity.md` §2.3) |
+| `inputs` | SHA-256 of `lync.toml`'s text and of each schema module's text, and of the canonical serialization of `scan` (§1); regeneration (§3.4 `shardDigestMismatch`) runs only when every one equals the live value |
 | `scan` | the client scan set (§3.3): `{ path, ordinal, digest }` per script, SHA-256 over LF-normalised `Source`, and `source` (`"files"` or `"place"`) |
-| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `variants`, one `{ variant, part, path, digest }` per variant part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); `unreferenced`, for a complete namespace, the exact list of its client-sent definitions with no `.name`, `:name` or `"name"` token in `scan`; per definition `{ line, worstCase, scanReferenced?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
-| `foreignRemotes`, `remoteCreations` | the `foreignRemote` and `remoteCreation` entries of §3.4 with their evidence, sorted by path and ordinal, written whenever those checks run |
+| `variants` | one `{ variant, path, digest }` per variant module of the run (§1.1) |
+| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `selfCheckItems`, the client shard's self-check items in index order, each `{ table, key }`, so a `REPORT`'s 1-based `selfCheckItem` names one (`v5-integrity.md` §5); `maxMessageUnits` (U_max) and `maxUnreliableInstances` (N_u) of its client-sent definitions (`v5.md` §7.5); `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccessFound` sites `{ uri, line, column, case }`); `unreferenced`, for a complete namespace, the exact list of its client-sent definitions with no `.name`, `:name` or `"name"` token in `scan`; per definition `{ line, worstCaseBytes, scanReferenced?, callerSources?, closed?, openReason?, sites? }`: `callerSources`, for a client-sent definition, its caller-source list (`v5-integrity.md` §4), one `{ path, ordinal, origin }` per script, `origin` `"text"` (the script names it), `"view"` (a view of it reaches the script through a followed parameter, field or return, §3.3) or `"config"` (`check.callerSources`); `sites` and `closed` from §5 |
+| `remoteInstances`, `remoteCreations` | the `remoteInstanceFound` and `remoteCreationFound` entries of §3.4 with their evidence, sorted by path and ordinal, written whenever those checks run |
 | `wovenScripts` | `{ path, ordinal, digest }` of each built copy `lync weave` rewrote (§5) |
 | `streaming` | the place's `StreamingEnabled`, `StreamingTargetRadius`, `StreamingMinRadius`, `StreamOutBehavior`, `ModelStreamingBehavior` and the place file, when a place was read `[interest-rewind §12.3]` |
 | `decoyReview` | each (definition, field, collection) where a `refers` declaration meets `:decoys`, with the scripts of the client scan set that name the definition `[decoy-challenge-facts §3]` |
@@ -98,12 +95,12 @@ order of the place or, for files, in the sourcemap's order.
 
 `unreferenced` and `closed` are observations about the scan set, not about every client: code outside `scan` (a
 module in `ServerStorage` cloned into a client, an asset inserted at run time) can still fire such a definition.
-They have no run-time effect unless the developer opts a definition in (`check.reachability`, `v5-integrity.md`
-§3); only opted-in definitions' lists go into the server shard.
+They have no run-time effect unless the developer opts a definition in (`check.inferReachability`,
+`v5-integrity.md` §3); only opted-in definitions' lists go into the server shard.
 
 `lync build` and `lync watch` write it; `lync weave` rewrites it with the same `buildId`, adding the weave fields.
 It must never ship, since it holds `rotationSeed`: an `output.manifest` path inside a folder the sourcemap maps into
-the place is `configRange`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`, split
+the place is `outputPathMisplaced`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`, split
 into children `Part1` … of at most 200,000 characters each when longer (the `StringValue` cap is unverified, §8).
 `ServerStorage` never replicates, but anyone holding the place file reads the `rotationSeed` there. Studio edit-time
 regenerations run at the identity build (`buildId` 0, `rotationSeed` 0) and rewrite this manifest; only "Prepare
@@ -123,8 +120,11 @@ release" draws a pair (§4.2).
 Rendered from the manifest; it never contains `rotationSeed`. Per namespace: shard sizes; per definition its
 worst-case size, whether the scan found a reference to it, whether it is opted in to run-time reporting, closed or
 open with the first open reason, and woven site count; the `unreferenced` list with the size and source of the scan
-set it holds for; the `dynamicAccess` sites. Per build: the `rotation` values with the per-frame cost each sets
-(`v5-integrity.md` §2) and one line naming `rotation.entropy`; the `foreignRemotes` and `remoteCreations` tables, with
+set it holds for; the `dynamicAccessFound` sites; the inbound bound's schema terms (`v5.md` §7.5): U_max, N_u, the
+unit burst max(2 × U_max, 81,920) and its one-frame cost, 100 ns × the burst, and, for a namespace that declares
+streams, the stream parse term `inbound.unreliable.frames` × Σ_streams 33 × c_copy at the default frames and the
+measured c_copy of 64.7 ns native (`v5-collections.md` §15.7). Per build: one line naming `rotation.entropy`; the
+`remoteInstances` and `remoteCreations` tables, with
 one line stating that engine entry points other than remotes (`ClickDetector`, `ProximityPrompt`, `Tool` activation,
 physics ownership) are not listed `[build-checks §1.1]`; the `decoyReview` list; the `streaming` settings; each PVS
 table's N, size and bake time; the `diagnostics` counts. `output.report` takes `output.manifest`'s range (§2), since
@@ -144,7 +144,7 @@ format = 1
 sourcemap = "sourcemap.json"    # rojo sourcemap --include-non-scripts output
 
 [build]
-seed = "release"                # v5-integrity.md §2
+rotationSeed = "release"        # v5-integrity.md §2.5
 
 [[namespace]]
 schema = "src/shared/Net/schema.luau"
@@ -153,10 +153,10 @@ server = "src/server/Net"
 dts = "types/net.d.ts"          # optional
 
 [check]
-reachability = false            # opt-in to run-time reporting (v5-integrity.md §3)
+inferReachability = false       # opt-in to run-time reporting (v5-integrity.md §3)
 clientRoots = []                # v5-integrity.md §3
 knownRemotes = ["ReplicatedStorage.Remotes.LegacyShop"]
-rawRemote = "warn"              # any code of §3.4 with a [check] severity, by its own name
+remoteCallFound = "warn"        # any code of §3.4 with a [check] severity, by its own name
 
 [output]
 manifest = "build/lync-manifest.json"
@@ -168,37 +168,53 @@ report = "build/lync-report.md"
 | Key | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `format` | integer | — | 1 | required | — |
-| `project.sourcemap` | path to the JSON that `rojo sourcemap --include-non-scripts` writes | — | — | `"sourcemap.json"` | one JSON read per run; required (absent file: `configMissing`) whenever a check that maps files to instance paths runs and no `--place` is given (§3.3); a scripts-only sourcemap omits non-script instances, so `foreignRemote` sees none from it `[build-checks §1.3]` |
+| `project.sourcemap` | path to the JSON that `rojo sourcemap --include-non-scripts` writes | — | — | `"sourcemap.json"` | one JSON read per run; required (absent file: `sourcemapMissing`) whenever a check that maps files to instance paths runs and no `--place` is given (§3.3); a scripts-only sourcemap omits non-script instances, so `remoteInstanceFound` sees none from it `[build-checks §1.3]` |
 | `namespace.schema` | path to the schema module | — | — | required | — |
 | `namespace.client`, `namespace.server` | path of each side's shard module | — | distinct paths | required | — |
 | `namespace.dts` | path | — | — | none: no `.d.ts` | one file per namespace |
-| `namespace.staged` | boolean | — | — | `false` | `true`: the namespace's `schema` and `client` must map under `ServerStorage` (`stagedReplicated`, §3.4); one more namespace index in the segment toc after `Lync.release` `[interest-rewind §12.3]` |
+| `namespace.staged` | boolean | — | — | `false` | `true`: the namespace's `schema` and `client` must map under `ServerStorage` (`stagedPathMisplaced`, §3.4); one more namespace index in the segment toc after `Lync.release` `[interest-rewind §12.3]` |
 | `staged.paths` (`[[staged]]`) | array of instance paths | — | — | `[]` | one container lookup per path per run |
-| `staged.loader` (`[[staged]]`) | instance path of a release folder | — | — | none | exempts references to that path from `stagedReferenced` |
+| `staged.loader` (`[[staged]]`) | instance path of a release folder | — | — | none | exempts references to that path from `stagedReferenceFound` |
 | `pvs.place` (`[[pvs]]`) | path to a built `.rbxl` | — | — | none: no bake, and the module at `output` is the developer's own table, read as is | one place read per bake `[interest-rewind §10]` |
-| `pvs.cell` | integer | studs | 8–256, and N = ⌈X / `cell`⌉ × ⌈Z / `cell`⌉ ≤ 65,536, with X and Z the extents in studs of the place's `Workspace` parts (the runtime's `pvs` range, `[interest-rewind §10]`; else `configRange`) | 32 (chosen: 1,024 cells on a 1,024-stud square map; a measured bake time or table size that a game can't afford changes it) | a table of N²/8 B: 128 KiB at 1,024 cells, 512 MiB at 65,536; as base64 it alone fills the documented 100 MB place limit `[generation-security §2.4]` at N = 24,495 |
-| `pvs.samples` | integer | sample points per axis per cell | 1–4 | 2 (chosen: a measured rate of pairs marked hidden that are visible would change it) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
-| `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place, in parts of at most 200,000 bytes of source with line 1 and digest as shard parts (§1.1): 1 part at 1,024 cells, 14 at 4,096 |
-| `check.knownRemotes` | array of instance paths; `*` matches one path segment | — | — | `[]` | none; a listed `foreignRemote` entry keeps its manifest row and gets no Diagnostic |
-| `check.freeFormCodes` | integer | codes per component | 2–2^53 | 65,536 (chosen: below it every input of `v5.md` §3.4 and the measured demo inputs, above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]`; a schema whose claims or inputs fall on the other side changes it) | none; it sets `freeFormField`'s threshold |
-| `check.stagedNameBytes` | integer | B | 1–64 | 4 (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate changes it) | none; it sets `stagedNameLeak`'s minimum length |
+| `pvs.cellSize` | integer | studs | 8–256, and N = columns × rows ≤ 65,536, with columns = ⌈max X / `cellSize`⌉ − ⌊min X / `cellSize`⌋ and rows likewise in Z, over the extents in studs of the place's `Workspace` parts (the grid starts at a multiple of `cellSize`, as the table format below requires; the runtime's `pvs` range, `[interest-rewind §10]`; else `configValueOutOfRange`) | 32 (chosen: 1,024 cells on a 1,024-stud square map; a measured bake time or table size that a game can't afford changes it) | a table of 14 + ⌈N²/8⌉ B: 128 KiB of bits at 1,024 cells, 512 MiB at 65,536; as base64 it alone fills the documented 100 MB place limit `[generation-security §2.4]` at N = 24,495 |
+| `pvs.raysPerAxis` | integer | sample points per axis per cell | 1–4 | 2 (chosen: a measured rate of pairs marked hidden that are visible would change it) | `raysPerAxis`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
+| `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `outputPathMisplaced`) | required in each entry | the table's size × 4/3 (base64) in the place, in parts of at most 200,000 bytes of source with line 1 and digest as shard parts (§1.1): 1 part at 1,024 cells, 14 at 4,096 |
+| `check.knownRemotes` | array of instance paths; `*` matches one path segment | — | — | `[]` | none; a listed `remoteInstanceFound` entry keeps its manifest row and gets no Diagnostic |
+| `check.freeFormCodes` | integer | codes per component | 2–2^53 | 65,536 (chosen: below it every input of `v5.md` §3.4 and the measured demo inputs, above it ids, currency up to 10^6 and fine positions `[checks-telemetry C5]`; a schema whose claims or inputs fall on the other side changes it) | none; it sets `freeFormRoleMissing`'s threshold (`v5-checks.md` §7.4) |
+| `check.minStagedNameBytes` | integer | B | 1–64 | 4 (chosen: shorter names such as `id` and `hp` occur in most scripts; a measured false-match rate changes it) | none; it sets `stagedNameFound`'s minimum length |
 | `check.<code>` | `"off"` \| `"warn"` \| `"error"` | — | one key per code marked `[check]` in §3.4 | per code, §3.4 | `"off"` stops that check: no Diagnostic and no manifest entry of that code; computations another product reads still run (§3.2) |
-| `output.manifest` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-manifest.json"` | — |
-| `output.report` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-report.md"` | — |
+| `output.manifest` | path | — | outside every folder the sourcemap maps into the place (else `outputPathMisplaced`) | `"build/lync-manifest.json"` | — |
+| `output.report` | path | — | outside every folder the sourcemap maps into the place (else `outputPathMisplaced`) | `"build/lync-report.md"` | — |
 
 **The PVS bake** is an approximation the developer reviews, not an exact visibility test: a cell pair is marked
-hidden iff every one of the `samples`² × `samples`² segments between the two cells' sample points, at one eye
-height in XZ, intersects an opaque collidable part's box `[interest-rewind §4.1–§4.2]`. Its errors go both ways:
-an opening narrower than `cell`/`samples`, and every height difference (a viewer on a ledge), can be marked hidden
-though visible (`probes/scope-3.6/pvs_gap.luau`); meshes, unions, terrain and moving parts never occlude. What Lync
-does exactly is apply the table it is given: a pair is withheld iff its bit is 0 (`v5-collections.md`). The
-developer reviews the baked table, edits it, or supplies their own through an entry without `place`.
+hidden iff every one of the `raysPerAxis`² × `raysPerAxis`² segments between the two cells' sample points, at one
+eye height in XZ, intersects an opaque collidable part's box `[interest-rewind §4.1–§4.2]`. Its errors go both
+ways: an opening narrower than `cellSize`/`raysPerAxis`, and every height difference (a viewer on a ledge), can be
+marked hidden though visible (`probes/scope-3.6/pvs_gap.luau`); meshes, unions, terrain and moving parts never
+occlude. What Lync does exactly is apply the table it is given: a pair is withheld iff its bit is 0
+(`v5-collections.md` §8.5). The developer reviews the baked table, edits it, or supplies their own through an entry
+without `place`, or as a `buffer` passed to `interest`'s `pvs`.
 
-**Keys defined elsewhere**, by the section that states their meaning and cost: `build.seed`, `build.offsets`,
-`build.tagRounds`, `build.playerVariants`, `build.playerVariantScope` (`v5-integrity.md` §2); `check.reachability`,
-`check.clientRoots` (`v5-integrity.md` §3); `weave.*` (§5.7). Every value the generator draws
-per build sits in `[build]`, so per-player variants are `build.playerVariants` and `build.playerVariantScope`, not a
-`[variants]` table of one key `[generation-methods M7]` `[interest-rewind §13.4]`.
+**The PVS table format**, the bytes a `[[pvs]]` module's base64 string decodes to and the `buffer` `interest`'s
+`pvs` option takes (`v5-collections.md` §8.2), the same for a baked table and a developer's own; integers
+little-endian, as `buffer`'s functions read them:
+
+| Offset (B) | Field | Type | Meaning |
+|---|---|---|---|
+| 0 | `cellSize` | u16 | studs, 8–256 |
+| 2 | `originX`, `originZ` | i32 each | studs, the grid's minimum corner in X and Z, each a multiple of `cellSize` |
+| 10 | `columns`, `rows` | u16 each | cells along X and along Z, each at least 1; N = `columns` × `rows` ≤ 65,536 |
+| 14 | bits | ⌈N²/8⌉ B | bit b = u × N + s at byte ⌊b / 8⌋, bit b mod 8 counted from the least significant: 1 when cell s is visible from cell u, 0 when hidden; a position (x, z) is in cell ⌊(x − `originX`) / `cellSize`⌋ + `columns` × ⌊(z − `originZ`) / `cellSize`⌋ |
+
+A table is exactly 14 + ⌈N²/8⌉ bytes; bits past N² in the last byte are 0. `interest` requires its `radius` to be
+an integer multiple of the table's `cellSize` (`v5-collections.md` §8.5).
+
+**Keys defined elsewhere**, by the section that states their meaning and cost: `build.rotationSeed`,
+`build.varyOffsets`, `build.playerVariantCount` (`v5-integrity.md` §2.5); `check.inferReachability` (`false`,
+`true`, or an array of namespace names and definition paths) and `check.clientRoots` (`v5-integrity.md` §3);
+`check.callerSources` (`v5-integrity.md` §4); `weave.*` (§5.7). Every value the generator draws per build sits in
+`[build]`, so per-player variants are `build.playerVariantCount`, not a `[variants]` table of one key
+`[generation-methods M7]` `[interest-rewind §13.4]`.
 
 **Validation.** The CLI and the plugin check the text against the JSON Schema, then each range above, including
 ranges that name another key or the sourcemap; findings are the `config*` codes of §3.4. The schema bounds every
@@ -215,7 +231,7 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
   constructor records; columns by searching that line for the option key or codec name. A finding on an instance
   with no file (place-only content) takes the place file's `uri`, range 0:0, and `data.instance`.
 - **Renderings**, `--format`:
-  - `human` (default): `error[unknownOption]: arena.chat has no option "rtae"`, the `-->` location, the source line
+  - `human` (default): `error[definitionOptionUnknown]: arena.chat has no option "rtae"`, the `-->` location, the source line
     with a caret, `= help:` when there is exactly one fix, and `run lync explain <code>` once per distinct code;
   - `json`: JSON Lines, one Diagnostic plus `uri` per line (it streams under `watch`);
   - `github`: `::error file=…,line=…,col=…,title=lync <code>::<message>`, plus the human report in
@@ -228,27 +244,29 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
 
 - **Effect.** An `error` makes `lync build`, `lync watch` and `lync weave` write no outputs and `lync check` exit 1;
   a `warning` changes neither.
-- **One code per trigger whose fix or setting differs.** Triggers that share both share a code, with an evidence
-  field naming which one fired and the known causes listed per value (`dynamicAccess` `kind`, `editedShard`
-  `regenerated`).
+- **One code per subject and fix.** A trigger gets its own code when its subject or its fix differs; triggers with
+  one subject and one fix share a code, with an evidence field naming which one fired and the known causes listed
+  per value (`dynamicAccessFound` `case`, `shardDigestMismatch` `byRegeneration`); `v5.md` §7.3 states the same rule
+  for facts.
 - **Fixed severities**, for codes where no setting makes the finding right or wrong: declaration codes, the
-  configuration and environment codes, `staleShard`, `editedShard`, `unpairedShard`, `definitionTooLarge`,
-  `publishedShardDiffers`, `publishedShardMissing` and `publishedWovenDiffers` are errors; `staleManifest`,
-  `regenerateSkipped`, `lyncHeaderMismatch` and `publishedScriptChanged` are warnings. Each is a mistake in the
-  configuration, a failure of the environment, a mismatch between artefacts of one build, or a statement of what the
-  build made against what the configuration asked `[build-checks §3.5]`.
+  configuration and environment codes, `shardSchemaMismatch`, `shardDigestMismatch`, `shardPairMismatch`,
+  `shardPartMissing`, `shardPartUnknown`, `definitionCodeBytesExceeded`, `publishedShardMismatch`,
+  `publishedShardMissing` and `publishedWovenMismatch` are errors; `manifestShardMismatch`,
+  `regenerationInputMismatch`, `lyncPackageDigestMismatch` and `publishedScriptMismatch` are warnings. Each is a
+  mistake in the configuration, a failure of the environment, a mismatch between artefacts of one build, or a
+  statement of what the build made against what the configuration asked `[build-checks §3.5]`.
 - **`[check]` severities**, for every other code: `check.<code>` takes `"off"`, `"warn"` or `"error"`. Its default
   follows one rule, in this order: `"off"` when the trigger names an instance that carries no traffic between a client
-  and the server (today `foreignBindable`); `"error"` when no known cause in an unmodified game is correct code;
+  and the server (today `bindableInstanceFound`); `"error"` when no known cause in an unmodified game is correct code;
   `"warn"` when some known cause is correct code. `"off"` stops the check: no Diagnostic and no manifest entry of that
-  code. Computations that another product reads still run: `check.dynamicAccess = "off"` leaves the namespace
+  code. Computations that another product reads still run: `check.dynamicAccessFound = "off"` leaves the namespace
   incomplete.
 
 ### 3.3 Scans
 
 - **One lexer pass** per run: the core's token-level, pure-Luau lexer, in every host, so the CLI and the plugin
   compute the same sets and the server shard's reachability lists don't depend on the host. A parser-based rule in
-  the Rust host could qualify callees by module and drop some `dynamicAccess` sites `[build-checks §2.5]`; it is not
+  the Rust host could qualify callees by module and drop some `dynamicAccessFound` sites `[build-checks §2.5]`; it is not
   used, since two hosts would then write different shards for one project. Comments are not scanned; string
   literals are. Throughput, detector included: 11.0–12.3 MB/s interpreted, 19.4–20.1 MB/s native (Luau 0.742 CLI),
   6.9–14.3 MB/s inside Lune `[build-checks §2.6]`.
@@ -259,15 +277,17 @@ vendored TOML parser uses no `const`, whose availability in Studio scripts is un
   - *Replicating:* a top-level service without the reflection tag `NotReplicated` (rbx-dom's reflection database
     carries the tags); `ServerStorage`, `ServerScriptService` and `Chat` carry it, `Lighting`, `SoundService` and
     `Teams` don't (checked, API dump 0.741.19).
-  - Both exclude Lync's outputs (shard and variant parts, PVS parts) and Lync's own package, identified by content:
+  - Both exclude Lync's outputs (shard parts, variant modules, PVS parts) and Lync's own package, identified by content:
     the generator carries the SHA-256 of each runtime module of its version, and the subtree of a `ModuleScript`
     whose first line is `-- Lync <version> runtime` is excluded only when every module in it matches. A subtree that
-    carries the header and doesn't match is scanned and reported as `lyncHeaderMismatch`.
-- **Namespace values** (for `dynamicAccess`, reachability, the caller probe's source lists and weave closure): the
+    carries the header and doesn't match is scanned and reported as `lyncPackageDigestMismatch`.
+- **Namespace values** (for `dynamicAccessFound`, reachability, the caller probe's source lists and weave closure): the
   result of a `require` or `TS.import` whose static path matches the client shard's full instance path suffix, never
   its leaf name alone, since `client` is a common module name `[build-checks §2.3]`; followed through aliases, fields,
   module returns and same-named function parameters (`v5-integrity.md` §3). The incompleteness predicate is computed
-  once per run and every reader takes the same set.
+  once per run and every reader takes the same set. For the caller probe's source lists the scan follows, by the
+  same rule, views of a definition (`Net.strike`) and values holding one through parameters, fields and returns,
+  and records each list entry's origin (§1.2; `v5-integrity.md` §4).
 - **Inputs.**
   - *CLI over files:* the script files and `project.sourcemap` for their instance paths and containers, plus
     non-script instances when the sourcemap includes them.

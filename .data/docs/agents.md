@@ -137,6 +137,9 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   weigh or decide is the developer's (trap names, consequences, scores, policies). One naming convention for every
   code, fact, counter and option; current names like `foreignRemote` and `dynamicAccess` are not acceptable.
   Audits: `reviews/v5-3.6-scope.md`, `reviews/v5-3.6-naming.md`.
+- **No more agents after the running ones finish** (author, 2026-10-15). Not started: the runtime consistency unit
+  (`v5.md` §5–§10, incl. §7.5's numbers from `probes/inbound-bound-2/RESULTS.md`), the merge of the change records into
+  `v5-changes.md`, the naming re-check, the end-to-end critic.
 - **No code** (author, 2026-10-15): docs only until the design is perfected. Path: finish 3.6 → apply the scope
   and naming audits → consistency unit → critics per area plus one end-to-end trace → apply until no blocking or
   major finding remains → repeat. The build plan and builder units wait for the author's go-ahead;

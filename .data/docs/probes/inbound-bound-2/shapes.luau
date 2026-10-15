@@ -230,6 +230,8 @@ return function(Lync, R)
 	-- one long string or buffer (the review's e + 4 frames): byte-linear decode
 	defs.big_a = Lync.event({ from = "client", data = t.string(15900) })
 	defs.bigbuf_a = Lync.event({ from = "client", data = t.buffer(15900) })
+	-- tag_cost.luau's unreliable payload (a string up to the unreliable frame limit)
+	defs.ustr_a = Lync.event({ from = "client", lane = "unreliable", data = t.string(955) })
 	table.insert(cases, { name = "string15900 single", kind = "bigString", n = 1, form = "single", a = "big_a", value = function() return word(15900) end, cap = 1 })
 	table.insert(cases, { name = "buffer15900 single", kind = "bigBuffer", n = 1, form = "single", a = "bigbuf_a", value = function() return buffer.fromstring(word(15900)) end, cap = 1 })
 	-- a mixed nested record: every kind of node once

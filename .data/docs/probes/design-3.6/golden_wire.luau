@@ -4,6 +4,11 @@
 -- string tables (kind 4) and codec type 27. HELLO: idTableHash u32, path u1. WELCOME: layout u1; first WELCOME delay
 -- u8 (D0). Id permutation: Fisher-Yates with HalfSipHash-1-3 draws under a 64-bit space key. Adds G4c, PERM, DERIVE,
 -- ROT (per-build draws of v5-integrity.md section 2.2 at a nonzero rotationSeed), W1, W2, S0-S3 and SIZES.
+-- Consistency pass (wire, 2026-10-15): the option slot acked after sealed (collections take it; absent 00 for every
+-- event and request), so G6, G7 and S0 change; the first WELCOME's two report bits (report.injectedFrames,
+-- report.selfCheck) between callerProbe.maxProbesPerSecond and clock.beaconSeconds, so G10 changes; SIZES gains the
+-- REPORT with a self-check failure at item 202, case 3. Option names follow the naming review (timeoutSeconds,
+-- reliablePerSecond, ackEveryFrame, sealed.maxOutstanding); names are not hashed, so they change no byte.
 -- Design draft 3.1: milestone 1 and 2 golden frames, built from draft 3.1's rules (v5.md §3.3, §4).
 -- Adapts review-3's p2_golden.luau: EG-k as EG-0 of floor(u/2^k) then u(k) of u mod 2^k; integer columns with
 -- codes on an interval of n, residual wrapped into [-floor(n/2), ceil(n/2) - 1], zigzag; encoder ties: lowest
@@ -266,7 +271,7 @@ do
 	local s = string.pack("B", 1) .. str("arena") .. string.pack("<I2", 1)
 		.. str("chat") .. string.pack("BBB", 1, 1, 1)
 		.. string.pack("B", 1) .. string.pack("B", 8) .. num(200)
-		.. string.rep("\0", 8) .. string.pack("BBB", 1, 0, 0) -- perceived present, false; sealed absent
+		.. string.rep("\0", 8) .. string.pack("BBBB", 1, 0, 0, 0) -- ackEveryFrame present, false; sealed, acked absent
 	print("G6 serialization", hex(s))
 	print("G6 hash         ", hex(halfsiphash(string.rep("\0", 8), s, 2, 4, 8)))
 end
@@ -275,7 +280,7 @@ end
 do
 	local s = string.pack("B", 1) .. str("arena") .. string.pack("<I2", 1)
 		.. str("chat") .. string.pack("BBB", 1, 1, 1)
-		.. string.pack("B", 1) .. string.pack("B", 8) .. num(200) .. string.rep("\0", 8) .. string.pack("BBB", 1, 0, 0)
+		.. string.pack("B", 1) .. string.pack("B", 8) .. num(200) .. string.rep("\0", 8) .. string.pack("BBBB", 1, 0, 0, 0)
 	local h = halfsiphash(string.rep("\0", 8), s, 2, 4, 8)
 	local lo, hi = string.unpack("<I4I4", h)
 	local w = writer()
@@ -311,7 +316,7 @@ end
 
 -- G10: a client's first reliable frame ('11' tick 0) holding the connection's first WELCOME for arena (index 1):
 -- layout 0, epoch 1000.5, stateRate 20, delay 25 (D0), key nonce 00..07 (S = 0, so the key itself), tag.cover 1024,
--- permutation nonce 0, callerProbe.oneIn 0, maxPerSecond 0, noOuterFrame 0, clock.beacon 0.
+-- permutation nonce 0, callerProbe.callsPerProbe 0, maxProbesPerSecond 0, the two report bits 0, clock.beaconSeconds 0.
 do
 	local w = writer()
 	w:u(1, 1); w:u(1, 1); w:u(16, 0)
@@ -329,7 +334,9 @@ do
 	w:u(32, 0x03020100); w:u(32, 0x07060504)   -- key nonce
 	w:u(15, 1024)                              -- tag.cover
 	w:u(32, 0)                                 -- permutation nonce
-	w:u(8, 0); w:u(6, 0); w:u(4, 0)                  -- oneIn, maxPerSecond, beacon
+	w:u(8, 0); w:u(6, 0)                       -- callsPerProbe, maxProbesPerSecond
+	w:u(1, 0); w:u(1, 0)                       -- report.injectedFrames, report.selfCheck
+	w:u(4, 0)                                  -- clock.beaconSeconds (tenths)
 	print("G10", hex(bytesOf(w)))
 end
 -- G11: a downstream reliable frame, tick unchanged ('0'), holding one MISMATCH (unchanged from draft 3.5).
@@ -460,13 +467,14 @@ do
 		return r
 	end
 	-- options after data: reply, key, limit.perSecond, limit.burst, timeout, maxRecords, priority, reliableRate absent;
-	-- perceived: absent for a server-sent event, present false for a client-sent one; sealed absent (omitted).
+	-- ackEveryFrame: absent for a server-sent event, present false for a client-sent one; sealed absent (omitted);
+	-- acked absent (events don't take it).
 	local s0 = string.pack("B", 1) .. str("feed") .. string.pack("<I2", 3)
 		.. str("kill") .. string.pack("BBB", 1, 2, 1) .. string.pack("B", 1)
-		.. rec({ { "killer", internStr(20) }, { "victim", internStr(20) } }) .. string.rep("\0", 8) .. "\0" .. "\0"
+		.. rec({ { "killer", internStr(20) }, { "victim", internStr(20) } }) .. string.rep("\0", 8) .. "\0" .. "\0" .. "\0"
 		.. str("names") .. string.pack("B", 4) .. num(64) .. num(1280)
 		.. str("taunt") .. string.pack("BBB", 1, 1, 1) .. string.pack("B", 1)
-		.. rec({ { "to", internStr(20) } }) .. string.rep("\0", 8) .. "\1\0" .. "\0"
+		.. rec({ { "to", internStr(20) } }) .. string.rep("\0", 8) .. "\1\0" .. "\0" .. "\0"
 	print("S0 serialization", hex(s0))
 	print("S0 hash         ", hex(halfsiphash(string.rep("\0", 8), s0, 2, 4, 8)))
 	-- S1: down reliable, tick unchanged, kill:fire(all, { killer = "Builderman", victim = "Zippy" }) to a client
@@ -502,8 +510,8 @@ do
 	end
 end
 -- SIZES: forced control-only upstream reliable frames (caller, ack '0', rcv), tag included. REPORT has 8 fields:
--- probes, identitySucceeded, noOuterFrame, refusedFrames, injectedFrames, selfCheckFailures, selfCheckItem,
--- selfCheckKind.
+-- probes, identityMismatches, outerFramesMissing, framesMalformed, listenerCallerMismatches, selfCheckMismatches,
+-- selfCheckItem, selfCheckCase.
 do
 	local function frameBytes(rows: { number }): number
 		local bits = 1 + 1 + 8 + eg0bits(1) + eg0bits(0) + eg0bits(#rows - 1)
@@ -518,8 +526,11 @@ do
 	local one = rep({ 0, 1, 0, 0, 0, 0, 0, 0 })
 	local four60 = rep({ 60, 60, 0, 60, 60, 0, 0, 0 })
 	local five60 = rep({ 60, 60, 60, 60, 60, 0, 0, 0 })
+	local five60self = rep({ 60, 60, 60, 60, 60, 60, 202, 3 })
 	print("SIZES REPORT one count 1", frameBytes({ one }), "four counts 60", frameBytes({ four60 }),
 		"five counts 60", frameBytes({ five60 }), "BEACON", frameBytes({ 16 }),
 		"BEACON+REPORT one", frameBytes({ 16, one }), "BEACON+REPORT four 60", frameBytes({ 16, four60 }),
 		"BEACON+REPORT five 60", frameBytes({ 16, five60 }))
+	print("SIZES REPORT six counts 60, selfCheckItem 202, selfCheckCase 3", frameBytes({ five60self }),
+		"with BEACON", frameBytes({ 16, five60self }))
 end

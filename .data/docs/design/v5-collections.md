@@ -15,12 +15,12 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
 | What | Lane | When | Model |
 |---|---|---|---|
 | structure: add, remove, audience change | reliable | every flush | changes since the last flush, encoded once per unit (§3) |
-| reliable fields | reliable | every flush, or at `reliableRate` | changes since the last send, encoded once per unit, no acks (ordered delivery keeps the client equal to the last sent state) |
+| reliable fields | reliable | every flush, or at `reliablePerSecond` | changes since the last send, encoded once per unit, no acks (ordered delivery keeps the client equal to the last sent state) |
 | `:newest()` fields | unreliable | state ticks | absolute rows encoded once per tick (or, with `acked`, predicted per viewer, §5.1), chosen per viewer, repaired by notify |
 
 - **Reliable fields are sent as often as they are written** (every flush) unless the collection declares
-  `reliableRate`: then field changes are coalesced and sent on flushes where ⌊(`GetServerTimeNow()` − epoch) ×
-  `reliableRate`⌋ has advanced, while structure still goes every flush. With `reliableRate`, an event fired after a
+  `reliablePerSecond`: then field changes are coalesced and sent on flushes where ⌊(`GetServerTimeNow()` − epoch) ×
+  `reliablePerSecond`⌋ has advanced, while structure still goes every flush. With `reliablePerSecond`, an event fired after a
   field write can arrive before that write; without it, the order is exact `[review-2 M5]`.
 - **Not atomic across lanes.** A record with reliable and `:newest()` fields changes on two lanes, so `changed` can
   fire twice in one state tick. A collection that needs one change per tick declares no `:newest()` fields.
@@ -31,14 +31,15 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
 ## 2. Records and slots
 
 - **Slots.** A collection has `maxRecords` slots, ws = ⌈log2 maxRecords⌉ bits (0 for a singleton). A slot freed by
-  a remove becomes reusable 2 s later. A `set` that finds no free slot throws `recordLimit` at the caller
+  a remove becomes reusable 2 s later. A `set` that finds no free slot throws `recordSlotsExceeded` at the caller
   `[review-2 m4]`.
 - **One allocator for records and decoys.** Every slot, a real record's or a decoy's (`v5-integrity.md` §8), is
   drawn uniformly at random among free slots (server `Random`) and held until its remove plus 2 s. Each viewer's
   decoys hold their own slots. A separate decoy pool marks decoys to the viewer through slot reuse: a viewer's best
   gap rule sorts them at a balanced accuracy of 0.65–1.00 with the pool, and 0.51 (chance) with one allocator
   `[refusals-rejudged-4 R16]`. Decoys hold at most `maxSlots` slots of the collection, live and in their reuse delay
-  together (a `decoys` option, `v5-integrity.md` §8: how many slots the game spares for decoys is its decision); the
+  together (a required `decoys` option, an integer from 1 to `maxRecords` − 1, `v5-integrity.md` §8: how many slots
+  the game spares for decoys is its decision); the
   cap is on the count, so every slot is still drawn uniformly. A decoy add beyond the cap, or with no free slot, is
   not made that tick (counter `decoysUnplaced`, §14) and is retried when the behaviour's next result is diffed.
 - **Sizing `maxRecords`.** It must cover live records, records removed in the last 2 s, and `maxSlots`. Decoys need
@@ -88,10 +89,9 @@ case uses the model that won on the measured trade-off `[state-sync §1, Implica
   values that tick's rows carried); a record created since that tick carries the values it was created with. So the
   add is a sample at tick A that the server holds too (§12.4).
 - **Server API.** `set(key, record)` adds or replaces; `patch(key, partial)` changes fields (a misspelled key is
-  `unknownPatchKey`); `remove(key)`; `audience(key, target)`; `cut(key)` (§11.3); `rebind(key)` (§9). A singleton's
-  take no key. The
-  server-view declarations `interest`, `owner(fn)`, `team(fn)`, `rewind` and the field handle's `gate(fn)`
-  (`Net.c:field(path)`, `v5.md` §3.4) are in §8, §9 and §12.
+  `patchKeyUnknown`); `remove(key)`; `audience(key, target)`; `cut(key)` (§11.3); `rebind(key)` (§9). A singleton's
+  take no key. The server-view declarations `interest`, `owner(fn)`, `team(fn)`, `rewind` and the field handle's
+  `gate(fn)` (`Net.c.fields[path]`, `v5.md` §3.4) are in §8, §9 and §12.
 - **Client API.** `get(key)`; `interpolated(key)` (§11); signals `added(key, record)`, `changed(key, record,
   previous)`, `removed(key)`. A record changed by several chunks of one frame (§3) fires `changed` once, after the
   frame's last chunk for it, with `previous` the record before the frame.
@@ -187,7 +187,7 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
   `sealed` and present with `false` when omitted, since the client predicts with the same rule, `v5.md` §4.7). It
   applies to every `:newest()` field of that collection and to nothing else: adds (catch-up included) stay absolute
   on the reliable lane, and reliable fields, removes and other collections in the same frame are unchanged. On a
-  collection with no `:newest()` field it is the declaration error `ackedNoNewest`.
+  collection with no `:newest()` field it is the declaration error `ackedNewestMissing`.
 - **Server state.** A *shared history* per collection: for each slot, every `:newest()` leaf's code at each of the
   last H = 32 state ticks and its `seg` bit, written once per tick from the values that tick's rows carry (it
   replaces the piece encode; a decoy's slot holds the values its one viewer is sent). Per (viewer, record): the ticks
@@ -245,13 +245,13 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
   acks only state frames it decoded and accepted, so the server never names a row the client didn't store. A row
   that acceptance would apply naming a baseline tick the client doesn't hold, ages outside 1 … H − 1 or summing past
   H − 1, nb = 2, or nb = 3 without a linear leaf refuses the frame (a canonical decode rule, `v5.md` §4.8; counted in
-  `refusedFrames`; known cause: a Lync bug).
+  `framesMalformed`; known cause: a Lync bug).
 - **Loss, reordering, rekey, join, cuts.** A lost frame's rows re-pend (§6) and baselines don't advance; lost acks
   age baselines toward nb = 1 or 0; a late frame's rows apply only when newer, its named baselines held by the
   client's rule; a rekey drops old-key frames for at most one round trip, as loss. A catch-up add clears the pair, so
   the first rows after it are nb = 0 for one round trip; the add is never a baseline, since it can leave in a
   non-state-tick flush with values written after that tick's history entry. A cut makes the next row nb = 0. A
-  `state.rate` change restarts the history and clears every pair.
+  `state.ticksPerSecond` change restarts the history and clears every pair.
 - **Decision: encoding one block for viewers whose blocks are identical.**
   - *Problem.* `acked` gives up encode-once for its rows: 1.18–1.22 µs per (viewer, row), 234–242 ms/s of server CPU
     for the 100-player shooter's 99 rows to 100 viewers at 20 Hz `[acked-inputs §2.2]`. Two viewers whose admitted
@@ -311,9 +311,9 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
 
 ## 7. Scheduling and budget
 
-- **Budget.** At each state tick the scheduler may write up to `state.budget` × Δt − charged bytes of rows to a
-  player, never less than `state.floor` × `state.budget` × Δt. Δt is the time since the previous state tick (at
-  most 2/`state.rate`); charged is every byte sent to that player since (reliable frames, unreliable events).
+- **Budget.** At each state tick the scheduler may write up to `state.bytesPerSecond` × Δt − charged bytes of rows to a
+  player, never less than `state.newestMinFraction` × `state.bytesPerSecond` × Δt. Δt is the time since the previous state tick (at
+  most 2/`state.ticksPerSecond`); charged is every byte sent to that player since (reliable frames, unreliable events).
 - **Decision: who weighs records.**
   - *Problem.* Under the budget some rows wait, and which wait (the owner's record, a near one, one just entered) is a
     judgement about the game: an earlier text of this draft fixed the Iris sphere's bands and ×4 owner and first-send boosts
@@ -332,7 +332,7 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
   function; at 50% of demand it kept far records at a mean of 1.1 ticks and p99 3, with own and near records at 0,
   where strict priority starves them `[state-sync §3.4]`.
 - **Order** (one rule, exact). The candidates at each step are each collection's pending rows for the viewer.
-  1. A record pending for longer than `state.maxPendingAge` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen: the
+  1. A record pending for longer than `state.maxPendingSeconds` (`v5.md` §7.5: real, s, 0.1–60, default 2, chosen: the
      research's starvation floor, never reached in its simulations `[state-sync §3.4]`; a game's freshness
      requirement would change it) goes before every other, oldest first.
   2. Then the largest class c = clamp(⌊log2 s⌋, −20, 19) first;
@@ -376,29 +376,29 @@ An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows
 applies from the next state tick; a second call replaces the options from the tick after it. An unknown option
 throws `unknownOption`, a missing required one `missingOption`, a value out of range `paramRange`. `position` is a
 path string typed as the union of the record's eligible fields (`v5.md` §3.4's rule for options naming fields), so a
-wrong name is a type error; untyped, a path naming no top-level field throws `unknownField` and one of another codec
-`fieldCodec`.
+wrong name is a type error; untyped, a path naming no top-level field throws `fieldPathUnknown` and one of another codec
+`fieldCodecUnsupported`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `position` | path string of a top-level `t.vector3`, `t.vector3f32` or `t.cframe` field | — | — | required | none |
 | `radius` | number (real) | studs | 8–4096 | required | R, the cell side. Larger means more members: about 2.6x an exact circle of R are included `[state-sync §7.2]`, so more catch-up bytes and more pending records for §7's selection |
-| `lookAhead` | number (real) | s | 0–1 | 0.2 (chosen: 1/`stateRate` at the default 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; fixed at 0.2, not recomputed for other rates; a measured round-trip distribution would change it) | one multiply-add per moving record per state tick; a record moving toward a viewer arrives up to `lookAhead` × its speed early |
+| `lookAheadSeconds` | number (real) | s | 0–1 | 0.2 (chosen: 1/`stateRate` at the default 20 Hz, 0.05 s, plus a one-way latency of 0.15 s, a round trip of 0.3 s; fixed at 0.2, not recomputed for other rates; a measured round-trip distribution would change it) | one multiply-add per moving record per state tick; a record moving toward a viewer arrives up to `lookAheadSeconds` × its speed early |
 | `focus` | `(player: Player) -> Vector3?` or nil | — | — | nil: §8.3's engine focus | one call per viewer per state tick, in §8.7's thread |
 | `pvs` | a table in `v5-tooling.md` §2's format: the base64 string the module `[[pvs]] output` names returns, or a `buffer` of the decoded bytes (from a bake, a `DataStore` value, or the developer's own table); or nil | — | the table's cell must divide R (§8.5) | nil | decoded once at the call; 2 × N × N_c bits of server memory, N the table's cells and N_c the interest cells it covers (§8.5); one bit test per (viewer, cell) |
-| `predicate` | `(viewer: Player, key, record) -> boolean` or nil | — | — | nil | one call per pair that passed cells and `pvs`, per `predicateRate` period, in §8.7's thread; the collection's updates travel as pieces (§8.4) |
+| `predicate` | `(viewer: Player, key, record) -> boolean` or nil | — | — | nil | one call per pair that passed cells and `pvs`, per `predicatesPerSecond` period, in §8.7's thread; the collection's updates travel as pieces (§8.4) |
 | `predicateOnError` | `"member" \| "nonMember"` | — | — | required with `predicate` (what a broken predicate should do is the game's trade between leaking and pop-in) | none |
 | `weight` | `(viewer: Player, key, record, distance: number, first: boolean) -> number` or nil | — | result in (0, 1000] | nil: g = 1 (§7) | one call per (viewer, pending record) per state tick in §8.7's thread, and the bucket pass (§7) |
-| `predicateRate` | number (real) | Hz | 1–20 | 10 (the research's ceiling for exact narrowing, "≤ 10 Hz" `[state-sync §7.2]`) | as `predicate` |
+| `predicatesPerSecond` | number (real) | Hz | 1–20 | 10 (the research's ceiling for exact narrowing, "≤ 10 Hz" `[state-sync §7.2]`) | as `predicate` |
 
 ### 8.3 Membership: cells, hysteresis, look-ahead
 
 - **Cells.** The world's XZ plane is a grid of square cells of side R; a position p is in cell (⌊p.X / R⌋,
   ⌊p.Z / R⌋). Height is ignored, so a multi-storey map over-includes: the optimistic error.
-- **Filed position.** A record is filed under the cell of p + v × `lookAhead`, where p is its `position` value (a
+- **Filed position.** A record is filed under the cell of p + v × `lookAheadSeconds`, where p is its `position` value (a
   `t.cframe`'s position) at this state tick and v = (p − p′) × `stateRate` / (T − T′), with p′ its value at the
   previous state tick T′ this record was filed (v = 0 at its first tick and at the tick a `cut` takes effect,
-  §11.3, so a teleport isn't filed `lookAhead` × its jump further on). No velocity field is needed
+  §11.3, so a teleport isn't filed `lookAheadSeconds` × its jump further on). No velocity field is needed
   `[anticheat-design §1.1]` (Riot's version 3: "bigger than the expected ping time").
 - **Focus.** `focus(player)` when given; otherwise `player.ReplicationFocus` when it is a `BasePart` (its
   `Position`) or a `Model` (`GetPivot().Position`), else `player.Character.PrimaryPart.Position`, else none. It is
@@ -406,7 +406,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
   `[state-sync §8.2]`; extra foci added with `Player:AddReplicationFocus` are the game's to pass through `focus`
   (members checked in the API dump 0.741.19: `Player.ReplicationFocus: Instance`, `Model.PrimaryPart`,
   `PVInstance:GetPivot()`, `Player:AddReplicationFocus`). No focus, or a `focus` call that throws or yields
-  (`focusError`, `focusYielded`, §8.7), keeps the viewer's last cell. A viewer that has never had a focus holds no
+  (`focusRaised`, `focusYielded`, §8.7), keeps the viewer's last cell. A viewer that has never had a focus holds no
   records of the collection, the one exception to §8.1's rule: treating it as "everywhere" would let a client that
   never spawns see every record. A game that lists records before spawn supplies `focus`.
 - **Members.** At each state tick, a record is a member for a viewer when it is in the viewer's audience and:
@@ -424,7 +424,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
   instead of a 3–8 B update `[state-sync §7.3]`. The ring bounds this to one leave per two cells of travel.
 - **How it fails on an unmodified client.** A record more than one cell beyond the block's edge is withheld even in
   plain sight, so R must be at least the game's sight range for that collection; pop-in is the symptom.
-  `interestEnters` (§14) counts how often records appear for a viewer; the distance at entry is not reported.
+  `interestRecordsEntered` (§14) counts how often records appear for a viewer; the distance at entry is not reported.
 
 ### 8.4 Decision: encoding under per-viewer membership
 
@@ -490,9 +490,9 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
     held for up to one table cell (`cell` studs) of viewer travel after it is hidden. A PVS test costs 10.8 ns native,
     61.6 interpreted `[interest-rewind §4.3]`.
 - **Predicate.** `predicate(viewer, key, record)` runs on pairs that passed cells and the table, first at the state
-  tick the pair passes them, then each pair at the first state tick at least 1/`predicateRate` s after its last
+  tick the pair passes them, then each pair at the first state tick at least 1/`predicatesPerSecond` s after its last
   evaluation, for game logic such as stealth or smoke. `false` makes the pair a non-member. A throw
-  (`predicateError`) or a yield (`predicateYielded`), both counted in `predicateErrors`, gives the pair
+  (`predicateRaised`) or a yield (`predicateYielded`), both counted in `predicateErrors`, gives the pair
   `predicateOnError`'s result for that evaluation (§8.7).
 - **Not built: run-time raycasts per pair.** `WorldRoot:Raycast` is thread-safe (API dump) but reported at 10.7 µs
   per 2,500-stud ray from one unrepeated devforum timing; 20,000 pairs at 10 Hz would be 2–3.5 s of CPU per second
@@ -503,8 +503,8 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
 
 - **Rule.** Lync applies §8.3 and §8.5 to every decoy a behaviour returns (`v5-integrity.md` §8), with the decoy's
   own filed position (a `decoyFrom` clone of a record inside the block does not place the decoy there
-  `[generation-methods M15b]`). A decoy fails, throws `decoyOutsideInterest` in the behaviour's channel (that of
-  `decoyKeyLive`, a mistake in the declaration, not a fact about a player) and is removed when:
+  `[generation-methods M15b]`). A decoy fails, throws `decoyMisplaced` in the behaviour's channel (that of
+  `decoyKeyDuplicate`, a mistake in the declaration, not a fact about a player) and is removed when:
   - it is new to the viewer this state tick and its filed cell is outside the viewer's block (a real record never
     enters at ring distance, so a decoy appearing there would be the only one);
   - or it is not new and its filed cell is outside the block and its ring;
@@ -546,8 +546,8 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
   - `true` with the done flag set: the callback returned, and its result is used.
   Either fault gives the call its declared fallback at once, in the same tick: `focus` keeps the viewer's last cell,
   `predicate` takes `predicateOnError`, `weight` counts as 1, a binding or gate takes its `onError` (§9). Codes:
-  `focusError`/`focusYielded`, `predicateError`/`predicateYielded`, `weightError`/`weightYielded`,
-  `bindingError`/`bindingYielded`. Checked on the CLI: normal, yielding and throwing callbacks give `ok`,
+  `focusRaised`/`focusYielded`, `predicateRaised`/`predicateYielded`, `weightError`/`weightYielded`,
+  `bindingRaised`/`bindingYielded`. Checked on the CLI: normal, yielding and throwing callbacks give `ok`,
   `yielded` and `threw`, and the next call after a yield runs on a new thread.
 - **Cost.** One `resume` per call, 119 ns interpreted on the CLI (unmeasured native and on Roblox, §16); one thread
   allocation per fault, and one `task.cancel` per yield (unmeasured; the CLI has no `task` library).
@@ -574,7 +574,7 @@ viewers are in a class is bound on the server view, so policy never ships.
   fields (a loadout) in a second collection whose `audience` it sets to the viewers that have seen the owner.
 - **Placement.** A modifier goes on a top-level reliable field of a collection record, one per field. Anywhere else
   (an event, a nested field, a `:newest()` field, a second modifier) is the declaration error
-  `visibilityPlacement` (`v5.md` §3.3). Rows are one fixed-width piece per record per tick (§5), so a per-class
+  `visibilityModifierMisplaced` (`v5.md` §3.3). Rows are one fixed-width piece per record per tick (§5), so a per-class
   `:newest()` field would need one row per class.
 - **Hash.** Each record field gains a class byte beside its `newest` byte in the canonical serialization (0 none,
   1 owner, 2 team, 3 gated; `v5.md` §4.7).
@@ -584,11 +584,11 @@ viewers are in a class is bound on the server view, so policy never ships.
   changes nothing until the game calls `rebind(key)`, the exact trigger the game owns. Cost: one call per binding per
   changed or rebound record per state tick.
 - **On error.** `onError` (`"include" | "exclude"`, required: what a broken binding should do is the game's trade
-  between leaking and withholding) is the result of a throw or yield (`bindingError`, `bindingYielded`, §8.7):
+  between leaking and withholding) is the result of a throw or yield (`bindingRaised`, `bindingYielded`, §8.7):
   `"include"` gives the class to every holder of the record for that evaluation, `"exclude"` to none. The wire
   effect is the transition from the previous result (below), as for any other change of result.
 - **Unbound.** A modifier whose binding is missing at the first state tick where the collection holds a record is
-  reported natively once (`ownerUnbound`, `teamUnbound`, `gateUnbound`, one per fix), and no viewer receives the
+  reported natively once (`ownerBindingMissing`, `teamBindingMissing`, `gateBindingMissing`, one per fix), and no viewer receives the
   field.
 
 **Wire.** A class field is coded as `t.optional` of its codec (one presence bit), so "hidden again" decodes as nil.
@@ -627,24 +627,24 @@ every client where that enemy is, whatever interest withholds.
 server-sent twin of `field(path):refers(collection)` (`v5-integrity.md` §8).
 - The handle's field has the collection's key type, or `t.optional` of it: another type is a type error on both
   solvers and in TypeScript (`v5.md` §3.4); untyped, a field whose codec doesn't serialise (`v5.md` §4.7)
-  identically to the collection's `key` codec throws `fieldCodec`, and an unknown path `unknownField`.
+  identically to the collection's `key` codec throws `fieldCodecUnsupported`, and an unknown path `fieldPathUnknown`.
 - At flush, each message's target is intersected with the viewers that hold the record its field names (in the
   record's audience and, with interest, a member), taken after the flush's adds and before its removes, the order of
   `v5.md` §4.1. With `about` on several fields of one definition, a viewer must hold every named record. A nil field
   scopes nothing.
 - Viewers outside the intersection never receive the message; it is not queued. Each skipped (message, viewer) is
-  counted in `scopedDropped` (§14): a count, not a fact, since no player's input caused it.
+  counted in `scopedDeliveriesSkipped` (§14): a count, not a fact, since no player's input caused it.
 - **Order.** For a reliable event: state chunks precede runs in every reliable frame (`v5.md` §4.1), so a viewer
   gaining sight in the same flush receives the catch-up add before the event. An unreliable scoped event travels in
   an event frame, which can arrive before the reliable add of the record it names; `get(key)` is nil then.
 - **Events only.** A skipped event message needs nothing more: events have no reply. A skipped ask would need a new
   outcome in `invoke`'s result, a second way for the invoking code to learn what it can already read, since it
-  names the one player itself. `unscopedRef` covers server-sent events only (`v5-tooling.md` §3, Needs elsewhere).
+  names the one player itself. `aboutMissing` covers server-sent events only (`v5-tooling.md` §3, Needs elsewhere).
 - **Cost.** One holder test per (message, viewer): 10.8 ns native, 61.6 interpreted `[interest-rewind §8]`. Scoped
   messages to different holder sets become separate runs, so frames carrying them leave `FireAllClients`
   (`v5.md` §4.2); the bytes are unchanged.
 - **What it protects, and how it fails.** It closes event leaks about records interest withholds. An event left
-  unscoped still leaks, which the build check `unscopedRef` reports (`v5-tooling.md` §3). An effect with a duration
+  unscoped still leaks, which the build check `aboutMissing` reports (`v5-tooling.md` §3). An effect with a duration
   ("defusing since t") must be state on the record, so catch-up shows it: an event is never repaired after a
   relevancy gap. A lint for that has no exact trigger, since the schema doesn't say what a field means, so it stays
   documentation.
@@ -677,18 +677,18 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
   - over the samples of the last 5 s: ackRtt = their minimum, jitter = their mean absolute deviation from their
     mean. 5 s is chosen, unmeasured: it is the beacon estimator's window (`v5.md` §4.9); a longer one reacts more
     slowly to a route change, a shorter one is noisier. With no sample in the window both keep their last values.
-- **D, exactly.** Target = max(2 / `stateRate`, `interpolation.delayFloor`) + `interpolation.jitterFactor` ×
+- **D, exactly.** Target = max(2 / `stateRate`, `interpolation.minDelaySeconds`) + `interpolation.jitterFraction` ×
   jitter, in units of 4 ms rounded up, at most 255 units (1.02 s). The 2 / `stateRate` term keeps two state ticks
   buffered, so a next sample exists; how much delay to trade for smoothness above it is the game's, set with two
   `Lync.configure` options (`v5.md` §7.5):
 
   | Option | Type | Unit | Range | Default | Cost |
   |---|---|---|---|---|---|
-  | `interpolation.delayFloor` | number (real) | s | 0–1 | 0.1 (chosen: Source's `cl_interp` `[state-sync §6.3]`; a game's latency target would change it) | every rendered `:newest()` field is that much older |
-  | `interpolation.jitterFactor` | number (real) | multiple of jitter | 0–8 | 2 (chosen: the research's k `[state-sync §6.3]`; 0 gives every player the fixed floor) | D grows by that multiple of the player's jitter |
+  | `interpolation.minDelaySeconds` | number (real) | s | 0–1 | 0.1 (chosen: Source's `cl_interp` `[state-sync §6.3]`; a game's latency target would change it) | every rendered `:newest()` field is that much older |
+  | `interpolation.jitterFraction` | number (real) | multiple of jitter | 0–8 | 2 (chosen: the research's k `[state-sync §6.3]`; 0 gives every player the fixed floor) | D grows by that multiple of the player's jitter |
 
   Once a second per player, D moves one unit toward the target. D starts at D₀ = ⌈max(2 / `stateRate`,
-  `interpolation.delayFloor`) / 0.004⌉ units, sent in the connection's first `WELCOME` (`v5.md` §4.6); a
+  `interpolation.minDelaySeconds`) / 0.004⌉ units, sent in the connection's first `WELCOME` (`v5.md` §4.6); a
   `stateRate` or option change sets D = max(D, the new D₀) at once.
 - **Wire.** `RATE` gains `delay u8` (D in 4 ms units) and goes to one player whenever its D changes, besides every
   `stateRate` change; the client applies it when it decodes the frame, and the server reads which D was in
@@ -770,14 +770,14 @@ Rewind (§12) needs D exactly, so it is part of the protocol.
 ### 12.2 Declaration and rings
 
 `Net.fighters:rewind({ … })` on the server view; nothing enters the schema hash. Option errors as §8.2; a `fields`
-entry that is not a top-level field is `unknownField`, and one whose codec has no fixed single-row width (strings,
+entry that is not a top-level field is `fieldPathUnknown`, and one whose codec has no fixed single-row width (strings,
 buffers, arrays, maps, optionals, unions) or that has a visibility class (§9: its value differs per viewer) is
-`fieldCodec`.
+`fieldCodecUnsupported`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `fields` | array of top-level field path strings, typed as a union of the record's fields | — | — | every `:newest()` field | per record: each field's single-row width rounded up to bytes, × K |
-| `maxRewind` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it) | K = ⌈(`maxRewind` + 0.25) × `stateRate`⌉ + 2 slots per record; L = K + 17 map entries per player |
+| `maxRewindSeconds` | number (real) | s | 0.1–2 | 1 (chosen, unmeasured: P lies about rtt + D behind the present, so 1 s covers round trips up to 1 s − D; a measured ping distribution would change it) | K = ⌈(`maxRewindSeconds` + 0.25) × `stateRate`⌉ + 2 slots per record; L = K + 17 map entries per player |
 | `mode` | `"received" \| "truth"` | — | — | `"received"` (derived: equal to truth when the viewer got every row, and truth is off by p99 1.33 studs once a third of rows are deferred, §12.4; the bracket it used is returned, §12.5) | received: ⌈K / 8⌉ B per (viewer, record) and 8.3–8.8 ns native per acked row |
 | `delay` | number (real) or nil | s | 0–1 | nil: the player's server-chosen D (§11.1) | none |
 
@@ -791,13 +791,13 @@ buffers, arrays, maps, optionals, unions) or that has a visibility class (§9: i
   the values it was created with (its add's sample, §2). K covers the window,
   the 0.25 s extrapolation cap and the two lerp neighbours `[interest-rewind §11.2]`.
 - **Per player:** a map from state-frame seq to (state tick, send time), L entries of 12 B (the notify ring's 17 plus
-  K); and, for each downstream reliable frame of the last max(2 s, `maxRewind` + 0.25 s), its count, send time and
+  K); and, for each downstream reliable frame of the last max(2 s, `maxRewindSeconds` + 0.25 s), its count, send time and
   state tick.
 - **Per (viewer, record):** the reliable-frame counts of its adds and removes for that viewer over the same span
   (who held what, §12.3); in `"received"` mode, one bit per truth-ring slot, set when an acked state frame carried
-  that tick's row to the viewer or the viewer's add landed on that tick: K bits (4 B at 20 Hz and `maxRewind` 1 s),
+  that tick's row to the viewer or the viewer's add landed on that tick: K bits (4 B at 20 Hz and `maxRewindSeconds` 1 s),
   covering the whole window whatever D is, so a stored `seen` stays usable while its ticks are in the ring.
-- A `stateRate` change restarts the rings; earlier ticks return `expired`.
+- A `stateRate` change restarts the rings; earlier ticks return `tickOutOfRange`.
 
 ### 12.3 Decision: how the perceived tick is established
 
@@ -818,22 +818,22 @@ buffers, arrays, maps, optionals, unions) or that has a visibility class (§9: i
   per player:
   - t_r, when f was decoded;
   - s, f's ack (else the newest ack held from p), T_s its state tick, t_s its send time. With no state frame ever
-    received from Lync, s is none: `ackSeq` is −1 and every `rewound` gives `"expired"`;
+    received from Lync, s is none: `ackSeq` is −1 and every `rewound` gives `"tickOutOfRange"`;
   - ping = `p:GetNetworkPing()` at f's decode (round trip, "isolated network latency … doesn't involve data
-    deserialization or processing", documented); rtt = clamp(ackRtt, ping, ping + `rewind.rttSlack`), ackRtt and
-    jitter from §11.1. `rewind.rttSlack` is a `Lync.configure` option (`v5.md` §7.5), since it bounds a per-player
+    deserialization or processing", documented); rtt = clamp(ackRtt, ping, ping + `rewind.roundTripSlackSeconds`), ackRtt and
+    jitter from §11.1. `rewind.roundTripSlackSeconds` is a `Lync.configure` option (`v5.md` §7.5), since it bounds a per-player
     estimate, not a collection's property:
 
     | Option | Type | Unit | Range | Default | Cost |
     |---|---|---|---|---|---|
-    | `rewind.rttSlack` | number (real) | s | 0–0.2 | 0.05 (derived floor 2/60 = 0.033 s, Lync's processing of one client flush and one server frame on top of engine ping; the margin above it chosen) | none; bounds how far the ack round trip may raise engine ping |
+    | `rewind.roundTripSlackSeconds` | number (real) | s | 0–0.2 | 0.05 (derived floor 2/60 = 0.033 s, Lync's processing of one client flush and one server frame on top of engine ping; the margin above it chosen) | none; bounds how far the ack round trip may raise engine ping |
 
   - H, the reliable horizon: f's extended `rcv` when f is a reliable frame, or an unreliable frame holding a
     `perceived` message, which then carries `rcv` too (`v5.md` §4.1; `receivedExact` true). Otherwise H is estimated
     as the count of reliable frames sent to p at or before t_r − rtt (`receivedExact` false): an estimate that is too
     new during a reliable-lane stall, when a frame sent before t_r − rtt is still being retransmitted;
   - D_rate, the D of the newest `RATE` among frames ≤ H.
-- **Per player** (in `Lync.perceived`): heldRaw = t_r − t_s − rtt, how long the client had held frame s when it
+- **Per player** (in `Lync.perception`): heldRaw = t_r − t_s − rtt, how long the client had held frame s when it
   sent; hMax = (send time of the next state frame to p after s, or t_r if none) − t_s + 1/60 s; held =
   clamp(heldRaw, 0, hMax); **Q = T_s + held × `stateRate`**, the newest state the client had applied; **R** = the
   state tick of the flush that sent reliable frame H, where reliable fields are returned.
@@ -859,12 +859,12 @@ buffers, arrays, maps, optionals, unions) or that has a visibility class (§9: i
 | 33% (≈ the 100-player shooter's deferral) | 0.084 | 1.33 | 4.89 |
 | 50% | 0.245 | 2.55 | 8.66 |
 
-- **Options:** `"truth"`, §11.2's sampling of the truth ring at P with every tick available; `"received"`, the same
+- **Options:** `"everyTick"`, §11.2's sampling of the truth ring at P with every tick available; `"received"`, the same
   sampling over only the samples this viewer had (its per-pair bits, values read from the truth ring). The inputs
   are the client's: its samples are every row of the occupant that arrived plus its add (§11.2), the ack reports
   every arrival, and the add's sample is the ring's slot at A (§2, §12.2). A modified client can clear `received`
-  bits to choose which samples bracket P; the bracket is returned (§12.5) and `"truth"` is unaffected (§12.9).
-- **Choice: `"received"` by default; `"truth"` stays for games that want no per-pair memory.** With interpolation in
+  bits to choose which samples bracket P; the bracket is returned (§12.5) and `"everyTick"` is unaffected (§12.9).
+- **Choice: `"received"` by default; `"everyTick"` stays for games that want no per-pair memory.** With interpolation in
   the core, the sampling a viewer saw is always §11.2's, so draft 3.5's dependence of the default on an extension is
   gone. A game with its own interpolation also samples what it received, so `"received"` with its `delay` is the
   closer of the two for it too.
@@ -882,7 +882,7 @@ Net.strike:connect(function(player, shot)
 end)
 ```
 
-- **`Lync.perceived(player)`** returns a frozen value of the frame's and the player's inputs only: `ackSeq`,
+- **`Lync.perception(player)`** returns a frozen value of the frame's and the player's inputs only: `ackSeq`,
   `ackTick` (T_s), `ackExact` (f carried a full ack), `received` (H), `receivedExact`, `reliableTick` (R),
   `applied` (Q), `held`, `heldRaw`, `hMax`, `ping`, `ackRtt`, `rtt`, `jitter`, `rateDelay` (D_rate, s), `arrival`
   (t_r). None depends on a collection, so one value serves every collection and §12.7's parts; each collection
@@ -895,20 +895,20 @@ end)
   - *Options:* the handler's synchronous part only (checks can't use rewound references); pass `seen` as an
     argument to check functions (a second way to obtain one value); **every synchronous call Lync makes for the
     message**.
-  - *Choice: every synchronous call for the message.* `Lync.perceived(player)` works inside check functions, the
+  - *Choice: every synchronous call for the message.* `Lync.perception(player)` works inside check functions, the
     validator and the handler's synchronous part (before its first yield) of a message from `player`; the value is
     the same in each, since the frame is. Anywhere else, or for another player, it throws the caller error
-    `perceivedOutsideDispatch`.
+    `perceptionMisplaced`.
 - **`Net.c:rewound(seen, key)`** returns `{ ok: true, value, tick, lowTick, highTick, delay, fromTick, toTick }`: the
   declared fields (`:newest()` fields at P by `mode`, reliable fields at R), this collection's P, window and D (s),
   and the two sample ticks the value was taken between (equal when it was held or extrapolated from one). Or
   `{ ok: false, error }`, the one error model of `v5.md` §3.5:
-  - `"expired"`: P or R is older than the ring, or the frame had no ack;
-  - `"notHeld"`: the record existed but the viewer didn't hold it at H (no add counted ≤ H without a later remove
+  - `"tickOutOfRange"`: P or R is older than the ring, or the frame had no ack;
+  - `"recordMissing"`: the record existed but the viewer didn't hold it at H (no add counted ≤ H without a later remove
     ≤ H), or in `"received"` mode had no sample of it in the ring. On an unmodified client: the game also shows the
     entity through Workspace or another remote, or H was estimated (`receivedExact` false) during a reliable-lane
     stall;
-  - `"unknownKey"`: no record with that key in the ring and no decoy of this player (§12.6).
+  - `"keyUnknown"`: no record with that key in the ring and no decoy of this player (§12.6).
 - **`Net.c:rewoundSpan(seen, key)`** returns the records at the window's ends, as `{ ok: true, value: { low, high },
   tick, lowTick, highTick, delay }` or the same errors. **`Net.c:at(tick, key)`** reads the truth ring at a fractional tick, with no viewer.
   **`Net.c:held(seen)`** returns a frozen array of every key for which `rewound(seen, key)` is ok, in slot order, so a
@@ -921,9 +921,9 @@ When a collection has both decoys and `rewind` `[decoy-challenge-facts §1]`:
   the values its viewer was sent;
 - `rewound(seen, key)` for a decoy of `seen`'s player returns its values from that ring, with the result shape of a
   real record; `"received"` mode works unchanged, since decoy rows are rows of that viewer's state frames. A tick
-  outside the decoy's life (its history in `v5-integrity.md` §8, kept max(2 s, `maxRewind` + 0.25 s) after its
-  remove) gives `"notHeld"`; another viewer's decoy gives `"unknownKey"`, as a never-live key does, since that player
-  was never sent it; `at(tick, key)` gives `"unknownKey"` for every decoy: a decoy has no truth, only what one viewer
+  outside the decoy's life (its history in `v5-integrity.md` §8, kept max(2 s, `maxRewindSeconds` + 0.25 s) after its
+  remove) gives `"recordMissing"`; another viewer's decoy gives `"keyUnknown"`, as a never-live key does, since that player
+  was never sent it; `at(tick, key)` gives `"keyUnknown"` for every decoy: a decoy has no truth, only what one viewer
   was shown;
 - `held(seen)` includes the viewer's decoys alive in the window; decoy slots come from the one allocator (§2), so
   decoys fall among real records in slot order;
@@ -941,19 +941,19 @@ delay is unverified and stays out of Lync's constants `[interest-rewind §11.4]`
 
 `local parts = Lync.rewindParts({ engineDelay, engineSpread, maxRewind })` (server) returns a tracker:
 `parts:track(part)`, `parts:untrack(part)`, and `parts:rewound(seen, part)` returning `{ ok: true, value: { low:
-CFrame, high: CFrame } }`, the part's `CFrame` at both ends of [t_r − rtt − `engineDelay` − `engineSpread`,
-t_r − rtt − `engineDelay` + `engineSpread`], or `{ ok: false, error: "expired" | "unknownKey" }` (older than the
+CFrame, high: CFrame } }`, the part's `CFrame` at both ends of [t_r − rtt − `engineDelaySeconds` − `engineSpreadSeconds`,
+t_r − rtt − `engineDelaySeconds` + `engineSpreadSeconds`], or `{ ok: false, error: "expired" | "unknownKey" }` (older than the
 ring; a part not tracked then). The server's state reaches the client one downlink later and is drawn
-`engineDelay` after that, and the message arrives one uplink after it was sent, so the client was showing the state
-of t_r − rtt − `engineDelay`. Lync guarantees the span formula exactly and that a hit test against the swept span is
-correct for any true client-side delay inside [`engineDelay` − `engineSpread`, `engineDelay` + `engineSpread`];
+`engineDelaySeconds` after that, and the message arrives one uplink after it was sent, so the client was showing the state
+of t_r − rtt − `engineDelaySeconds`. Lync guarantees the span formula exactly and that a hit test against the swept span is
+correct for any true client-side delay inside [`engineDelaySeconds` − `engineSpreadSeconds`, `engineDelaySeconds` + `engineSpreadSeconds`];
 nothing about what the delay is.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `engineDelay` | number (real) | s | 0–0.5 | required: the engine's delay is unpublished and its backend was replaced in 2026, so the value comes from the game's own calibration (below) | none |
-| `engineSpread` | number (real) | s | 0–0.25 | required, from the same calibration | none |
-| `maxRewind` | number (real) | s | 0.1–2 | 1 (as §12.2) | per part, ⌈(`maxRewind` + `engineDelay` + `engineSpread`) × `stateRate`⌉ + 2 slots of 32 B (tick u32, position 3 × f32, rotation 4 × f32); one `CFrame` read per part per state tick, which allocates (unmeasured on Roblox) |
+| `engineDelaySeconds` | number (real) | s | 0–0.5 | required: the engine's delay is unpublished and its backend was replaced in 2026, so the value comes from the game's own calibration (below) | none |
+| `engineSpreadSeconds` | number (real) | s | 0–0.25 | required, from the same calibration | none |
+| `maxRewindSeconds` | number (real) | s | 0.1–2 | 1 (as §12.2) | per part, ⌈(`maxRewindSeconds` + `engineDelaySeconds` + `engineSpreadSeconds`) × `stateRate`⌉ + 2 slots of 32 B (tick u32, position 3 × f32, rotation 4 × f32); one `CFrame` read per part per state tick, which allocates (unmeasured on Roblox) |
 
 The docs give the calibration recipe: on a test server, the server keeps a ring of a character's root `CFrame` by
 time, a test-only client reports the rendered `CFrame` of another character with its own time, and the
@@ -973,7 +973,7 @@ of characters render them from Lync records `[anticheat-design §1.2]`.
 | received: record one acked row | 8.3–8.8 ns | 56 ns |
 | received: bracket P, lerp, two decodes | 108–121 ns | 389–437 ns |
 
-| Model (`maxRewind` 1 s) | K | Ring per record | Ring total | Seq map | Received (⌈K / 8⌉ B per pair, derived) |
+| Model (`maxRewindSeconds` 1 s) | K | Ring per record | Ring total | Seq map | Received (⌈K / 8⌉ B per pair, derived) |
 |---|---|---|---|---|---|
 | shooter, 30 players, 20 Hz | 27 | 648 B | 19 KB | 9.7 KB | 3.6 KB |
 | shooter, 30 players, 60 Hz | 77 | 1,848 B | 55 KB | 28 KB | 9 KB |
@@ -984,16 +984,16 @@ At the 100-player shooter (about 66 rows per viewer per tick under the 16,000 B/
 player, 5 targets each): pushes 21 µs/s, received recording 1.2 ms/s, queries 0.64 ms/s, about 1.8 ms/s in total,
 0.2% of a core (derived from the tables). The reliable-frame map and the per-pair add/remove counts are not in the
 probe: at most 60 reliable frames a second × 1.25 s × 16 B = 1.2 KB per player, and two u32 per membership change
-held for max(2 s, `maxRewind` + 0.25 s) (derived). Wire: 28 bits per `perceived` frame that would have carried `'0'`.
+held for max(2 s, `maxRewindSeconds` + 0.25 s) (derived). Wire: 28 bits per `perceived` frame that would have carried `'0'`.
 
 ### 12.9 How it fails on an unmodified client
 
-- **Ping above `maxRewind` − D:** `"expired"`. The game chooses whether to judge at the oldest tick or refuse;
+- **Ping above `maxRewindSeconds` − D:** `"tickOutOfRange"`. The game chooses whether to judge at the oldest tick or refuse;
   under-coverage punishes high-ping players with misses `[anticheat-design §4.1]`.
 - **Bursty downstream loss, or a client hitch longer than a tick:** the client held s past the next frame the server
   sent, so `heldRaw` > `hMax`, held is clamped, and P is older than the client's by up to the excess.
 - **Round-trip error:** held, Q, the estimated horizon and the engine-part span move by the error in rtt (engine
-  ping raised to Lync's ack round trip by at most `rewind.rttSlack`). Link asymmetry doesn't enter: each uses the
+  ping raised to Lync's ack round trip by at most `rewind.roundTripSlackSeconds`). Link asymmetry doesn't enter: each uses the
   whole round trip.
 - **Reliable fields** are returned at R, the tick of the newest reliable frame the client had decoded; values written
   in later non-state-tick flushes of that tick are newer than the ring's slot, an error of under one state tick. For
@@ -1003,10 +1003,10 @@ held for max(2 s, `maxRewind` + 0.25 s) (derived). Wire: 28 bits per `perceived`
   4% (§11.2); the window's u covers the first, not a large recent jump.
 - **A game's own interpolation** with a delay other than `delay`: P is off by the difference.
 - **Defeated by** (capability class): a modified client that delays its own traffic, engine pings included, or
-  acks an older state frame than it holds, moves P older, at most to `maxRewind`: the inherent limit of lag
+  acks an older state frame than it holds, moves P older, at most to `maxRewindSeconds`: the inherent limit of lag
   compensation, which Bernier accepts. `held`, `heldRaw`, `hMax`, `ping`, `rtt` and `ackTick` show it as numbers.
   One that clears `received` bits widens the `"received"` bracket around P to samples it chooses, within the window;
-  `fromTick` and `toTick` show the bracket, and `"truth"` is unaffected. Lync attaches no verdict. Aim is an input,
+  `fromTick` and `toTick` show the bracket, and `"everyTick"` is unaffected. Lync attaches no verdict. Aim is an input,
   and an aimbot passes any geometric test.
 
 ## 13. Withholding content: engine streaming and staged namespaces
@@ -1042,14 +1042,14 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
   - client code waits for the folder (by the path `[[staged]] loader` names) and requires the client shard, which
     sends `HELLO` and gets `WELCOME`. No restart, no new remote; released namespaces and their hashes are unchanged.
   - A `folder` that is not a `Folder` under `ServerStorage` (a second call included) throws the caller error
-    `releaseTarget`; a client view as `view` throws `wrongSide` (`v5.md` §3.5). A server view already in use is
+    `releaseTarget`; a client view as `view` throws `methodSideMismatch` (`v5.md` §3.5). A server view already in use is
     accepted: the call then only replicates the folder. Requiring the view first keeps every client `HELLO` inside the server's 10 s wait.
 - **Cost.** One namespace index more in the segment toc: EG-0 of index i is 2⌊log2(i + 1)⌋ + 1 bits per segment of
   that namespace (3 bits for 1–2, 5 for 3–6); one `HELLO`/`WELCOME` round trip per client at release, with sends
   meanwhile in the join hold (32,768 B, `v5.md` §5.3); one more schema module per staged feature.
 - **Limit.** Content that extends a *released* definition (a new item in a released enum) can't be staged: it needs
   a new build and a restart.
-- **Build checks** `stagedReplicated`, `stagedReferenced` (both `"error"`), `stagedNameLeak` and `streamingOff` are
+- **Build checks** `stagedPathMisplaced`, `stagedReferenceFound` (both `"error"`), `stagedNameFound` and `streamingDisabled` are
   in `v5-tooling.md` §3. No build can check an asset it isn't told is unreleased, game code parenting content into a
   replicated container early, or attributes set at run time.
 
@@ -1059,22 +1059,22 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 
 | Code | Family | Trigger |
 |---|---|---|
-| `ackedNoNewest` | declaration | `acked = true` on a collection with no `:newest()` field (§5.1) |
-| `streamCodec`, `streamTooLarge` | declaration | a stream's `data` without a fixed single-row width; a namespace's streams over 960 B at 33 copies together (§15.2) |
-| `playoutUnset` | caller | `connect` on a stream with no depth set (§15.2) |
-| `visibilityPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
-| `fieldCodec` | caller (as `unknownField`, which server-view declarations already throw) | on the untyped path, a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
-| `perceivedOutsideDispatch` | caller | `Lync.perceived(player)` outside a synchronous call for a message from `player` (§12.5) |
+| `ackedNewestMissing` | declaration | `acked = true` on a collection with no `:newest()` field (§5.1) |
+| `streamCodecUnsupported`, `streamBytesExceeded` | declaration | a stream's `data` without a fixed single-row width; a namespace's streams over 960 B at 33 copies together (§15.2) |
+| `playoutDepthMissing` | caller | `connect` on a stream with no depth set (§15.2) |
+| `visibilityModifierMisplaced` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
+| `fieldCodecUnsupported` | caller (as `fieldPathUnknown`, which server-view declarations already throw) | on the untyped path, a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
+| `perceptionMisplaced` | caller | `Lync.perception(player)` outside a synchronous call for a message from `player` (§12.5) |
 | `releaseTarget` | caller | `Lync.release` with a `folder` that is not a `Folder` under `ServerStorage` (§13.2) |
-| `decoyOutsideInterest` | caller (behaviour channel, as `decoyKeyLive`) | a decoy failing §8.6's test |
-| `focusError`, `focusYielded` | fault | an interest `focus` call throws, or yields (§8.7) |
-| `predicateError`, `predicateYielded` | fault | an interest predicate throws, or yields (§8.7) |
+| `decoyMisplaced` | caller (behaviour channel, as `decoyKeyDuplicate`) | a decoy failing §8.6's test |
+| `focusRaised`, `focusYielded` | fault | an interest `focus` call throws, or yields (§8.7) |
+| `predicateRaised`, `predicateYielded` | fault | an interest predicate throws, or yields (§8.7) |
 | `weightError`, `weightYielded` | fault | a `weight` call throws, returns a value outside (0, 1000] or not a finite number, or yields (§7, §8.7) |
-| `bindingError`, `bindingYielded` | fault | an `owner`, `team` or `gate` binding throws, or yields (§8.7, §9) |
-| `ownerUnbound`, `teamUnbound`, `gateUnbound` | fault | a class modifier with no binding at the first state tick with a record (§9) |
+| `bindingRaised`, `bindingYielded` | fault | an `owner`, `team` or `gate` binding throws, or yields (§8.7, §9) |
+| `ownerBindingMissing`, `teamBindingMissing`, `gateBindingMissing` | fault | a class modifier with no binding at the first state tick with a record (§9) |
 
-Option errors reuse `unknownOption`, `missingOption`, `paramRange` and `unknownField`. One fact is added,
-`inputRewritten` (§15.6); interest, classes, scoping and `acked` are the server's own behaviour, and rewind can't
+Option errors reuse `unknownOption`, `missingOption`, `paramRange` and `fieldPathUnknown`. One fact is added,
+`inputCopyMismatch` (§15.6); interest, classes, scoping and `acked` are the server's own behaviour, and rewind can't
 know a message is a claim. Malformed: §5.1's acked-row rule (client) and §15.6's stream rules 2 and 3 (server).
 
 **Counters** (`Lync.counters`, `v5.md` §7.4; `<field>.<namespace>.<collection>`, and per viewer with `player`). The
@@ -1082,13 +1082,13 @@ last column states what the count equals; causes go on the registry pages:
 
 | Counter | Increments by | Equals |
 |---|---|---|
-| `relevantPairTicks` | the viewer's member count, once per viewer per state tick | ÷ (viewers × ticks): the mean number of members per viewer |
-| `interestEnters`, `interestLeaves` | each catch-up add, and each remove, caused by interest | adds and removes caused by interest; ÷ (viewers × seconds) per viewer per second |
-| `narrowedPairs` | each pair the cells admitted and `pvs` or `predicate` removed | pairs withheld by the table or the predicate |
+| `interestPairTicks` | the viewer's member count, once per viewer per state tick | ÷ (viewers × ticks): the mean number of members per viewer |
+| `interestRecordsEntered`, `interestRecordsLeft` | each catch-up add, and each remove, caused by interest | adds and removes caused by interest; ÷ (viewers × seconds) per viewer per second |
+| `interestPairsNarrowed` | each pair the cells admitted and `pvs` or `predicate` removed | pairs withheld by the table or the predicate |
 | `predicateErrors` | each predicate throw or yield | predicate calls that gave `predicateOnError`'s result |
-| `scopedDropped` (`.<namespace>.<definition>`) | each (message, viewer) a scoped event skipped (§10) | scoped messages not sent |
+| `scopedDeliveriesSkipped` (`.<namespace>.<definition>`) | each (message, viewer) a scoped event skipped (§10) | scoped messages not sent |
 | `decoysUnplaced` | each decoy add not made because `maxSlots` was reached or no slot was free (§2) | decoy adds deferred to a later tick |
-| `inputsLate`, `inputsSkipped`, `inputCopies` (`.<namespace>.<stream>`) | each index discarded after a later one played; each index jumped between delivered ones; each redundant copy parsed (§15.6) | inputs not played, inputs missing, copies parsed |
+| `inputsDiscarded`, `inputsSkipped`, `inputCopiesParsed` (`.<namespace>.<stream>`) | each index discarded after a later one played; each index jumped between delivered ones; each redundant copy parsed (§15.6) | inputs not played, inputs missing, copies parsed |
 
 Cost: one add per viewer per state tick and one per membership change, 0.1 ns per pair native and 0.2 interpreted
 amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six more numbers per collection and three per stream.
@@ -1112,11 +1112,11 @@ amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six mo
 | order classes | 40, c = clamp(⌊log2 s⌋, −20, 19) | §7 |
 | timing window | 5 s of ack round-trip samples | chosen, unmeasured (§11.1) |
 | rendering clock | ±4% slew; dead band one client flush; snap above 0.25 s | chosen: Mirror's 2–4% `[state-sync §6.3]`, unmeasured here (§11.2) |
-| rewind history | max(2 s, `maxRewind` + 0.25 s) | the slot reuse delay, or the window plus the extrapolation cap |
+| rewind history | max(2 s, `maxRewindSeconds` + 0.25 s) | the slot reuse delay, or the window plus the extrapolation cap |
 
 Developer options introduced here, beside the declarations' own tables (`acked`, §5.1; stream `depth`, §15.2):
-`state.maxPendingAge` (§7),
-`interpolation.delayFloor` and `interpolation.jitterFactor` (§11.1), `rewind.rttSlack` (§12.3), all in
+`state.maxPendingSeconds` (§7),
+`interpolation.minDelaySeconds` and `interpolation.jitterFraction` (§11.1), `rewind.roundTripSlackSeconds` (§12.3), all in
 `Lync.configure` (`v5.md` §7.5).
 
 ## 15. Input streams
@@ -1133,19 +1133,19 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
 - **Options:** the upstream `seq` (no new field; not a tick); a per-stream counter of `set` calls (a count of game
   calls, not of time); **the client's state tick**.
 - **Choice: the client's state tick.** K = ⌊(`GetServerTimeNow()` − epoch) × `stateRate`⌋, the estimate the client
-  already uses to extend `tick:u8` (`v5.md` §4.1): one index per tick of `state.rate`.
+  already uses to extend `tick:u8` (`v5.md` §4.1): one index per tick of `state.ticksPerSecond`.
 
 ### 15.2 Declaration and API
 
 - **Shared schema:** `move = Lync.stream({ data = codec })`, a fourth definition kind (hash kind byte 4, `from`
   client, lane unreliable, `v5.md` §4.7), in the namespace's up id space. `data` must have a fixed single-row width
-  (no strings, buffers, arrays, maps, optionals or unions), else the declaration error `streamCodec`: copies are
+  (no strings, buffers, arrays, maps, optionals or unions), else the declaration error `streamCodecUnsupported`: copies are
   delta-coded per top-level field. A namespace's streams must fit one chunk each at 33 copies in 960 B together
-  (`streamTooLarge`), so they always ride the first unreliable frame of a flush, with one fate and one ack.
+  (`streamBytesExceeded`), so they always ride the first unreliable frame of a flush, with one fate and one ack.
 - **Client:** `Net.move:set(value)` latches the value; `Net.move:stop()` ends sampling until the next `set`.
 - **Server view:** `Net.move:playout({ depth = J })` sets the depth for every player, `Net.move:playout({ depth = J,
   player = p })` for one. `Net.move:connect(function(player, input, index) … end)` throws the caller error
-  `playoutUnset` while no depth is set.
+  `playoutDepthMissing` while no depth is set.
 
   | Option | Type | Unit | Range | Default | Cost |
   |---|---|---|---|---|---|
@@ -1200,10 +1200,10 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
   only lowers o for 5 s and makes that client's own later inputs late.
 - **Playout.** At each server `PostSimulation`, before the flush, index i is due when now ≥ θ_i + o + J /
   `stateRate`. Due received indices are delivered in order. An index that arrives after it was due is delivered at
-  arrival if no later index has been delivered, else discarded and counted (`inputsLate`). So every index plays at
+  arrival if no later index has been delivered, else discarded and counted (`inputsDiscarded`). So every index plays at
   most J / `stateRate` plus one server step after its arrival.
 - **Steps 5–7 per index at playout** (`v5.md` §6.1): checks, the claim requirement, the validator and delivery run
-  per index, in index order, each game function in §8.7's runner. `Lync.perceived(player)` there returns the
+  per index, in index order, each game function in §8.7's runner. `Lync.perception(player)` there returns the
   perceived value kept with the index. A check's `"drop"` or a `false` validator drops the index (a jump in
   `index`). `monotonic` and `maxRate` key on the index and see no late frames; `maxRate`'s t is the playout time,
   which advances by exactly 1 / `stateRate` per index while o holds (`v5-checks.md`). `limit` doesn't apply to
@@ -1228,20 +1228,20 @@ time, and plays each tick's value out at a fixed depth behind its earliest arriv
   (`v5.md` §4.5) drops duplicated frames before decode; a rekey is loss for one round trip.
 - **Join and respawn.** A stream starts at the client's first `set` after its namespace's `WELCOME`; the first index
   sets o and plays J ticks after it arrives. A game resetting its own input logic calls `resetChecks`.
-- **`state.rate` changes.** The client's indices switch to the new rate when it decodes `RATE`, so one round trip of
+- **`state.ticksPerSecond` changes.** The client's indices switch to the new rate when it decodes `RATE`, so one round trip of
   chunks carries old-rate ticks; `rp` names which (rate, epoch) a chunk's indices use, and the server keeps the
-  current and previous pair. Lync applies a new `state.rate` no sooner than 4 s after the previous change (chosen:
+  current and previous pair. Lync applies a new `state.ticksPerSecond` no sooner than 4 s after the previous change (chosen:
   the replay window's 64 frames last at most 4 s at 16 or more unreliable frames a second, which an active stream
   sends at 16 FPS or more, so no frame two changes old reaches decode).
-- **Fact `inputRewritten`.** Trigger: a copy of index i decodes to codes different from those first received for i.
+- **Fact `inputCopyMismatch`.** Trigger: a copy of index i decodes to codes different from those first received for i.
   Action: none, every redundant copy is discarded and the first stands. Evidence: `index`, `firstSeq` and `seq` (the
   two frames' extended upstream seqs), `field` (1-based top-level field of the first difference). Known causes on an
   unmodified client: none, since the client re-encodes one stored code tuple per index; a Lync bug. It prices
   revising an input after seeing an outcome; sending a single late copy instead shows only as lateness.
 - **Malformed** (`v5.md` §4.8): a stream chunk with count > 33, `back` > 63, or two chunks of one stream in one
   frame is rule 2; `ref = 1` naming an index the server doesn't hold is rule 3. Known causes: none.
-- **Counters** per (player, stream): `inputsLate` (indices discarded after a later one was delivered),
-  `inputsSkipped` (the sum of index jumps between delivered indices: loss, lateness, `stop`), `inputCopies`
+- **Counters** per (player, stream): `inputsDiscarded` (indices discarded after a later one was delivered),
+  `inputsSkipped` (the sum of index jumps between delivered indices: loss, lateness, `stop`), `inputCopiesParsed`
   (redundant copies parsed).
 - **`Net.move:lateness(player)`** returns a frozen array of 33 counts: the indices of the last 5 s whose first
   arrival was ⌊(s_i − o) × `stateRate`⌋ = 0, 1, … 31 ticks after the earliest, and ≥ 32. The share late at depth J
@@ -1295,11 +1295,11 @@ None blocks milestone 4; each has a default the design uses.
 - The rate of pairs a bake marks hidden that are visible, on real maps (§8.5).
 - `Player:GetNetworkPing()` per-call cost and smoothing on servers; the cost of reading `ReplicationFocus` or
   `PrimaryPart` per viewer per state tick, and of the `CFrame` read per tracked part (allocates).
-- The engine's interpolation delay under `ImprovedPhysicsReplication` (`engineDelay`).
+- The engine's interpolation delay under `ImprovedPhysicsReplication` (`engineDelaySeconds`).
 - `WorldRoot:Raycast` cost on a Roblox server (reported 10–17 µs per ray), for games that call it in a predicate.
 - Whether a module returning a 170 KiB or larger base64 string is accepted (a 1,024-cell table), and the time of
   `EncodingService:Base64Decode` on it.
 - `interpolated` on clients: CPU per call and garbage per second at 64 records × 60 Hz.
-- Round-trip distribution of real players, which `lookAhead` and `maxRewind` would be set from.
+- Round-trip distribution of real players, which `lookAheadSeconds` and `maxRewindSeconds` would be set from.
 - Real-device jitter and loss on mobile (stream depths; `acked` baseline ages), the interpreted decode cost of acked
   blocks on low-end phones, and a client's encode cost per flush of up to J + 2 stream copies.

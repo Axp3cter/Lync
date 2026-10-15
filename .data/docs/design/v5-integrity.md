@@ -324,44 +324,54 @@ trapped definition reports `basis` 1, never 0 or 2.
 ## 4. Caller probe and `REPORT`
 
 - **Probe.** Each client `fire` or `invoke` is probed with probability 1/`callerProbe.oneIn` (one draw per call),
-  at most `callerProbe.maxPerSecond` probes a second (a bucket of that rate and capacity, `v5.md` §5.4's rule). A
-  probe makes two reads:
+  at most `callerProbe.maxPerSecond` probes a second (a bucket of that rate and capacity, `v5.md` §5.4's rule).
+  Before the connection's first `WELCOME`, which carries those values, every call is probed at `oneIn` 1 and
+  `maxPerSecond` 60; each result is kept with its held run, sets the bit of the frame that releases it, and its
+  counts go into the first `REPORT`. A probe makes two reads:
   - **identity:** in `pcall`, one member that fails at identity 2 (game scripts) and succeeds at 8 (executor
     threads by default) `[client-security §1.2, §2.1]`, drawn per build (stream `probe`, §2.2) from a list Studio
     confirms. Candidates: the 21 `RobloxScriptSecurity` property reads on services every client has, such as
-    `RunService.ClientGitHash`; a `RobloxScriptSecurity` member also keeps the Studio command bar out if the
-    command bar runs below that level `[security-tooling §2]`. A success adds 1 to `identitySucceeded`.
+    `RunService.ClientGitHash` (present in API dump 0.741.19, read security `RobloxScriptSecurity`); a
+    `RobloxScriptSecurity` member also keeps the Studio command bar out if the command bar runs below that level
+    `[security-tooling §2]`. A success adds 1 to `identitySucceeded`. Until Studio confirms a member, the identity
+    read is off and `identitySucceeded` is 0 (§12).
   - **source** (generated path; skipped for definitions with no listed scripts and in incomplete namespaces, §3):
     `debug.info` walked by source, never by level (inlining differs between Studio's `-O1` and live `-O2`), from
     level 1 to the first frame whose source is not Lync's, skipping `[C]` frames (which also skips `pcall` and
-    `newcclosure` frames) `[client-self-checks Impl10]`. That source is looked up in the build's list of client
-    scripts that reference the definition, after mapping Roblox's clones of starter containers
+    `newcclosure` frames) `[client-self-checks Impl10]`, after mapping Roblox's clones of starter containers
     (`StarterPlayerScripts` to `PlayerScripts`, `StarterCharacterScripts` to the character, `StarterGui` to
-    `PlayerGui`, `StarterPack` to `Backpack`; the player's name read once from `Players.LocalPlayer.Name`). A
-    source not on the list fails the check; a stack with no frame outside Lync fails it under
-    `callerProbe.noOuterFrame = "unlisted"` and is not checked under `"ignored"`. `check.reachability = false`
-    removes the lists, and with them the source check. Lync never calls `getfenv` to reach a caller: it
+    `PlayerGui`, `StarterPack` to `Backpack`; the player's name read once from `Players.LocalPlayer.Name`). The two
+    outcomes are separate triggers: a frame whose source is not on the definition's list sets the caller bit; a
+    stack with no frame outside Lync adds 1 to `noOuterFrame`. Lync never calls `getfenv` to reach a caller: it
     deoptimises the caller's environment, 3.5–4× on an encoder step `[security-tooling §2]`.
-- **The caller bit** `[client-self-checks U7 (b)]`. A frame holding the message of any probed call whose source
-  check failed carries `caller` = 1 in its header, repeated in the tag input's lane byte, so it is covered at every
-  `tag.cover` and the server hashes each candidate once (`v5.md` §4.1, §4.5, which decides where the bit
-  travels). An accepted frame with `caller` 1 is delivered and records `reportedSourceUnlisted` (§10), client-stated.
-  The bit replaces draft 3.5's `sourceUnlisted` count: it names the frame, and the definition when the frame holds
-  one.
-- **`REPORT`** (control type 5, up; field layout `v5.md` §4.6): `probes`, `identitySucceeded`, `refusedFrames`,
-  `injectedFrames` (§5), `selfCheckFailures`, `selfCheckItem`, `selfCheckKind` (§5), EG0 each, counts since the
-  previous `REPORT` (`selfCheckItem` and `selfCheckKind` describe the first failure, 0 when none). After the
-  connection's first `WELCOME`, a `REPORT` with a non-zero `identitySucceeded`, `refusedFrames`, `injectedFrames` or
-  `selfCheckFailures` is pending reliable data (`v5.md` §5.1): the next flush sends it, in the reliable frame with
-  other data, alone otherwise; `probes` alone makes nothing pending; at most one per frame; it never counts toward
-  `missedFlush` and never enters the join hold `[refusals-rejudged-2 R26]`. The server reports one fact per
-  non-zero count, each client-stated (§10): `reportedIdentity`, `reportedRefusedFrames`, `reportedInjectedFrames`,
-  `reportedSelfCheck`.
+- **Source lists.** A definition's list is exactly: the scripts of the client scan set whose text names it (§3's
+  token rule); the scripts into which a view of it (`Net.strike`) or a value holding one is passed through a
+  parameter, field or module return the scan follows (§3's following, applied to views), so an object that stores
+  `Net.strike` and fires it from its own module is listed; and the scripts the developer lists for it in
+  `check.callerSources`, since only they know which library modules call `fire`. The manifest records each list
+  and its source. The lists are scan products; they don't depend on `check.reachability`.
+- **The caller bit** `[client-self-checks U7 (b)]`. A frame holding the message of a probed call whose source was
+  not on its definition's list carries `caller` = 1 in its header, repeated in the tag input's lane byte, so it is
+  covered at every `tag.cover` and the server hashes each candidate once (`v5.md` §4.1, §4.5, which decides where
+  the bit travels). An accepted frame with `caller` 1 is delivered and records `reportedSourceUnlisted` (§10),
+  client-stated. The bit names the frame, and the definition when the frame holds one.
+- **`REPORT`** (control type 5, up; field layout `v5.md` §4.6): `probes`, `identitySucceeded`, `noOuterFrame`,
+  `refusedFrames`, `injectedFrames` (§5), `selfCheckFailures`, `selfCheckItem`, `selfCheckKind` (§5), EG0 each,
+  counts since the previous `REPORT` (`selfCheckItem` and `selfCheckKind` describe the first failure, 0 when none).
+  Once the connection's frames can be tagged (after its first `WELCOME` and, with variants, once the mask is
+  installed, §2.4), a `REPORT` with a non-zero `identitySucceeded`, `noOuterFrame`, `refusedFrames`,
+  `injectedFrames` or `selfCheckFailures` is pending reliable data (`v5.md` §5.1): the next flush sends it, in the
+  reliable frame with other data, alone otherwise; `probes` alone makes nothing pending; at most one per frame; it
+  never counts toward `missedFlush` and never enters the join hold `[refusals-rejudged-2 R26]`. The server reports
+  one fact per non-zero count, each client-stated (§10): `reportedIdentity`, `reportedNoOuterFrame`,
+  `reportedRefusedFrames`, `reportedInjectedFrames`, `reportedSelfCheck`.
 - **Prices** **identity**: API drivers left at identity 8; with every call probed (the default) the first call
   reports, at `oneIn` = n with probability 1 − (1 − 1/n)^calls. **naming**: drivers whose chunk is not on the
-  definition's list. Not priced: a patched Lync, which zeroes the counts and the bit (§1); a thread lowered to
-  identity 2 (`setthreadidentity`); a chunk named as a listed script, or frames hidden from the walk; calls through
-  a listed game function, whose script is the first frame outside Lync `[client-self-checks U7]`.
+  definition's list. Not priced: a patched Lync, which zeroes the counts and the bit (§1); a chunk named as a
+  listed script, or frames hidden from the walk; calls through a listed game function, whose script is the first
+  frame outside Lync `[client-self-checks U7]`. **Universal counter:** identity, yes (`setthreadidentity(2)` before
+  `fire`, the same in every game); source, no (a listed name is per game and definition); every count, a patched
+  Lync (§1).
 - **The identity result stays a count.** A second header bit would add per-frame evidence for a count `REPORT`
   delivers within one flush, and `REPORT` exists anyway for the counts that have no upstream frame of their own
   (§5) (`v5.md` §4.5). A tag keyed by each caller's source and checked against a server-only list is refused: its
@@ -370,31 +380,31 @@ trapped definition reports `basis` 1, never 0 or 2.
   Lua-raised and 3.9–4.5 µs when C-raised (the unwind is the cost, not the error string, so only `oneIn` scales it),
   plus the walk and lookup, 0.19 µs through one Lync frame and 0.6 µs through five; at 60 probes a second
   0.15–0.19 ms/s or 0.24–0.25 ms/s interpreted on the CLI; which of the two Roblox's capability error matches is
-  unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Wire: the caller bit, 0 or 1 B per upstream
-  frame (`v5.md` §4.1). `REPORT`: a forced frame is 8–12 B with the tag; at most 60 forced frames a second, only
-  while a count changes every flush, about 0.14 ms/s of client CPU interpreted at that bound
-  `[refusals-rejudged-2 R26]` (`v5.md` §4.6).
+  unmeasured `[security-costs claim 7]` `[client-self-checks U7]`. Build: following views extends the scan's
+  fixed point by the same rule (§3). Wire: the caller bit, 0 or 1 B per upstream frame (`v5.md` §4.1). `REPORT`: a
+  forced frame alone is 8–17 B with the tag (derived: `v5.md` §4.6's 8–12 B for four counts of 0–60, plus at most
+  11 bits for `noOuterFrame` at 60 and 21 bits for a self-check failure at item 202, kind 3); at most 60 forced
+  frames a second, only while a count changes every flush, about 0.14 ms/s of client CPU interpreted at that bound
+  `[refusals-rejudged-2 R26]`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `callerProbe.oneIn` | integer | calls per probe | 0 (off) or 1–255 | 1 (below) | one draw per call; u8 in `WELCOME` |
 | `callerProbe.maxPerSecond` | integer | probes/s | 1–63 | 60 (below) | ≤ 4.5 µs per probe; ≤ 0.25 ms/s at 60; u6 in `WELCOME` |
-| `callerProbe.noOuterFrame` | `"unlisted"` \| `"ignored"` | — | — | `"unlisted"` (below) | none; `"ignored"`: a call with no frame outside Lync sets no bit and is counted nowhere; 1 bit in `WELCOME` |
+| `check.callerSources` (`lync.toml`) | table from definition path to an array of instance paths | — | definitions and scripts of the project | `{}` | the listed scripts join that definition's list; build only |
 
 - **Defaults.** `oneIn` 1: every call probed, so an identity-8 driver's first call reports; Studio showing that a
   caught capability failure writes a client log line would move it back to sampling (§12). `maxPerSecond` 60: one
-  probe per automatic flush at the client's 60 flushes a second (`v5.md` §4.9). `noOuterFrame` `"unlisted"`: a
-  call started with no game frame on its thread (`task.spawn(view.fire, view, v)`, `coroutine.wrap`) is also how
-  executor code can reach `fire`, so ignoring it by default would leave that route unobserved in every game; game
-  code removes the cause by calling `fire` from a function of its own `[client-self-checks U7]`.
+  probe per automatic flush at the client's 60 flushes a second (`v5.md` §4.9).
 - `callerProbe.splitFrames` (the unlisted calls' messages in a frame of their own) is not adopted: it breaks
-  `v5.md` §4.1's one reliable frame per player per flush, on which the reliable frame budget's default and the
-  bound on forced `REPORT`s rest, and an unmodified client with a library-callback cause would send up to 120
-  reliable frames a second, the whole default budget.
+  `v5.md` §4.1's one reliable frame per player per flush, on which the reliable frame budget and the bound on forced
+  `REPORT`s rest; an unmodified client with a library-callback cause would send up to 120 reliable frames a second,
+  twice the default `inbound.reliable.frames` of 60, and lose the excess as `overFrameBudget` (`v5.md` §7.5).
 - **Unverified, checked in Studio before release (§12):** a suitable member and its cost on devices; whether a
   caught capability failure writes a client log line; whether unmodified sources follow the clone mapping (if not,
-  the source check is removed); the command bar's identity and source string; whether a script renamed or moved
-  after loading keeps its source string; whether `task.spawn` and signal routes leave no outer frame on Roblox.
+  the source check is removed); the command bar's identity and source string; the identity of game callbacks that
+  CoreScripts invoke (`SetCore` callbacks, chat callbacks); whether a script renamed or moved after loading keeps
+  its source string; whether `task.spawn` and signal routes leave no outer frame on Roblox.
 
 ## 5. Inbound frames and self-check
 

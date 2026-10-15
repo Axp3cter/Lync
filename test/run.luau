@@ -10,6 +10,11 @@
 	filter, only tests whose "path name" (the spec's path under `test/`, a space, the test's name)
 	contains the filter as plain text run.
 
+	Two environment variables steer the specs:
+	- `LYNC_SEED=<n>` replays property tests from a reported seed (`support/prop.luau`).
+	- `LYNC_FULL=1` runs the long random checks at full counts, such as 10^6 random directions per
+	  width in `wire/quant.spec.luau`; by default they run 10^4 per width.
+
 	Lune exposes Roblox datatypes only through `@lune/roblox`, so they are copied into the global
 	environment before any spec is required, which makes them globals for every module required
 	afterwards (m1-plan.md §1). This is the only file that uses `getfenv`.

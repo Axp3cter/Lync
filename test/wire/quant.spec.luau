@@ -1,5 +1,7 @@
 --!strict
 
+local process = require("@lune/process")
+
 local Bits = require("../../src/wire/bits")
 local Check = require("../support/check")
 local Golden = require("../support/golden")
@@ -11,6 +13,14 @@ local cases = require("./quant.cases")
 type Quaternion = { x: number, y: number, z: number, w: number }
 
 -- probes/design-3/number_steps.out: (min, max, step, steps, bits).
+-- `LYNC_FULL=1` runs the random checks at full counts; the default keeps the suite fast.
+local IS_FULL = process.env.LYNC_FULL == "1"
+local DEFAULT_RANDOM_RUNS = 10_000
+
+local function runsOf(fullCount: number): number
+	return if IS_FULL then fullCount else math.min(fullCount, DEFAULT_RANDOM_RUNS)
+end
+
 local NUMBER_CASES = {
 	{ -2048, 2048, 0.1, 40960, 16 },
 	{ 0, 1, 0.1, 10, 4 },
@@ -243,10 +253,10 @@ return {
 	["encodes random directions to canonical codes that decode and re-encode to themselves"] = function()
 		for _, case in
 			{
-				{ bits = 8, count = 100_000 },
-				{ bits = 10, count = 1_000_000 },
-				{ bits = 12, count = 1_000_000 },
-				{ bits = 16, count = 1_000_000 },
+				{ bits = 8, count = runsOf(100_000) },
+				{ bits = 10, count = runsOf(1_000_000) },
+				{ bits = 12, count = runsOf(1_000_000) },
+				{ bits = 16, count = runsOf(1_000_000) },
 			}
 		do
 			local bits = case.bits
@@ -267,7 +277,7 @@ return {
 
 	["keeps exactly the canonical codes among random codes at 16 bits"] = function()
 		local maxCode = 2 ^ 16 - 1
-		for _ = 1, 100_000 do
+		for _ = 1, runsOf(100_000) do
 			local qx, qy = math.random(0, maxCode), math.random(0, maxCode)
 			local decoded = Vector3.new(Quant.undirection(qx, qy, 16))
 			local encodedX, encodedY = Quant.direction(decoded.X, decoded.Y, decoded.Z, 16)

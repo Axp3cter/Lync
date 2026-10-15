@@ -89,7 +89,6 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
 | key-derivation secret S | v64(`session`), 0 replaced by 1 | `v5.md` §4.5 derives the session key and permutation seed from the first `WELCOME`'s nonce under S | none: the fields keep their widths | **packet** tools that read the key from `WELCOME`, which must now read S from the shard each build |
 | identity-probe member | `probe` | index x mod (list length) into §4's list | none | a tool that spoofs one member's read |
 | variant masks | `mask:<v>:<r>` | §2.4 | §2.4 | §2.4 |
-| generated trap names and source codecs | `trap:<namespace>:<k>` | §3 | §3 | §3 |
 
 - **Not varied per build:** union variant order and ids `[review-2 m1]`; the column mode, which a build could fix
   but which prices no capability class at +7% to +588% bits per column `[generation-methods M5]`; and enum and
@@ -215,14 +214,13 @@ against the capability classes below `[security-tooling §9]` `[generation-metho
 ## 3. Traps and reachability
 
 One fact, `unreachable`, for a message of a client-sent definition that no unmodified client code fires, with
-evidence `basis` naming what established that: 0 the scan, 1 `:trap()`, 2 a generated trap, 3 a closed
-definition's generic id `[review-redundancy-2 5]` `[codecs-in-scripts §7.1]`. Four triggers, one meaning ("a path
-the build or the game found no client code using"), so one reason and one evidence value per trigger (`v5.md`
-principle 4; the 3.5 rule of one reason or one evidence value per trigger whose cause or knob differs).
+evidence `basis` naming what established that: 0 the scan, 1 `:trap()`, 2 a closed definition's generic id
+`[review-redundancy-2 5]` `[codecs-in-scripts §7.1]`. Three triggers with one meaning (a path the game or the
+build found no client code using), so one reason with one evidence value per trigger (`v5.md` principle 4).
 
-- **Completeness** (generated path). A namespace is incomplete, and nothing is inferred, generated or closed for
-  it, when the scan of the client scan set (`v5-tooling.md` §3.3: scripts in replicating containers, `Packages/`,
-  every `LocalScript`, every `Script` with `RunContext = Client` wherever stored, and the scripts under
+- **Completeness** (generated path). A namespace is incomplete, and nothing is inferred or closed for it, when the
+  scan of the client scan set (`v5-tooling.md` §3.3: scripts in replicating containers, `Packages/`, every
+  `LocalScript`, every `Script` with `RunContext = Client` wherever stored, and the scripts under
   `check.clientRoots`; for roblox-ts, the compiled Luau) finds a dynamic access of one of its namespace values,
   each reported as `dynamicAccess`: (1) an index whose key is not one string literal; (2) iteration, as the subject
   of a generic `for … in` or the argument of `pairs`, `ipairs` or `next`; (3) a hand-off the scan cannot follow by
@@ -234,53 +232,49 @@ principle 4; the 3.5 rule of one reason or one evidence value per trigger whose 
   aliases, field stores, returns and arguments to such functions are followed, not escapes `[build-checks §2.2]`.
   Following is by name, not scope, so it can only add namespace values and turn inference off more often, never
   produce an `unreachable` an unmodified client can cause. The predicate is computed once per build and read by
-  inference, generated traps, the caller probe's source lists (§4) and weave closure (`v5-tooling.md` §5.4);
-  `check.dynamicAccess` sets only the diagnostic's severity `[build-checks §2.7]`.
-- **Declared trap** (`basis` 1, both paths). `Net.x:trap()` on the server view of a client-sent event or request;
-  the shared schema shows nothing special. A trap has no handler: `connect`, `handle` or `validate` on it, or
-  `:trap()` on a definition that has one, throws `trapHandled` at the caller. Its messages have nothing to deliver
-  to, so they are dropped; an ask is answered `rejected`, indistinguishable from a `validate` refusal (`v5.md`
-  §5.2).
-- **Generated traps** (`basis` 2, generated path, `build.traps` = T > 0) `[generation-methods M15a]`. Each complete
-  namespace gets T definitions in its server and client shards, never in the schema module; an incomplete one gets
-  none (`trapsIncomplete`, `v5-tooling.md` §3.4). Trap k's name is the first output of stream `trap:<namespace>:<k>`
-  applied to `v5-tooling.md` §1.1's candidates; its source is the namespace's client-sent definition at index
-  (y mod their count) in name order, y the stream's second output; it takes the source's kind, lane and codec, under
-  its own field order and offsets (§2.2), so its encoder differs from the source's only in constants and order. Its
-  up-space id sits among the real ids by name, permuted as every id (`v5.md` §4.5). The runtime table holds traps;
-  the exported Luau and `.d.ts` types omit them. Messages are dropped and asks answered `rejected`, as for a
-  declared trap. A namespace with no client-sent definition gets none.
+  inference, the caller probe's source lists (§4) and weave closure (`v5-tooling.md` §5.4); `check.dynamicAccess`
+  sets only the diagnostic's severity `[build-checks §2.7]`.
+- **Declared trap** (`basis` 1, both paths). The developer adds an ordinary client-sent event or request to the
+  schema, under a name of their choosing, and calls `Net.x:trap()` on its server view. The shared schema, the
+  client shard and the wire show nothing special: a trap is in every artefact a client receives with the same
+  shape as a real definition, so no comparison of artefacts separates it. A trap has no handler: `connect`,
+  `handle` or `validate` on it, or `:trap()` on a definition that has one, throws `trapHandled` at the caller. Its
+  messages have nothing to deliver to and are dropped; an ask is answered `rejected`, indistinguishable from a
+  `validate` refusal (`v5.md` §5.2). What a trap's name looks like, and so whether a reader passes it by, is the
+  developer's choice; Lync guarantees only the rest: no artefact, byte or answer tells it apart.
 - **Inferred** (`basis` 0, generated path, `check.reachability` true). A client-sent definition of a complete
   namespace is reachable when its name appears after `.` or `:` as a field access, or as a string literal, anywhere
   in the client scan set. A message of an unreachable definition is delivered and reported. The rule
   over-approximates (any `.chat` counts), so an unmodified client produces it only through code the scan can't
   see (§10).
-- **Generic ids of closed definitions** (`basis` 3, woven builds with `weave.ids` `"site"` or `"definition"`). A
+- **Generic ids of closed definitions** (`basis` 2, woven builds with `weave.ids` `"site"` or `"definition"`). A
   closed definition's unmodified calls all use site ids (`v5-tooling.md` §5.4, §5.5), so a message on its generic
-  id is delivered and reported. A generated trap is closed by construction and reports `basis` 2, never 3.
-- **Prices** **api** drivers: firing a definition unmodified client code never fires (declared, inferred); browsing
-  the namespace and firing what they find (generated); calling a closed definition through the shard (generic). It
-  doesn't price drivers that fire only what game code fires (the caller probe covers those, §4), **packet** or
-  blind senders (an unknown id is already `malformed`), or a tool that tells generated traps from real definitions
-  by reading the build's outputs (**code**). Whether a reader can tell generated names from real ones at a glance
-  is unverified (`v5-tooling.md` §1.1).
-- **Cost.** Run time: one flag check and one table index per message. Wire: none, except that generated traps add
-  1 bit per upstream run when D + T crosses a power of two in the up space (D = 20 takes T ≤ 12 free; D = 32 pays
-  for any T ≥ 1) `[generation-methods M15a]`. Bytecode per generated trap: 224 B (356 B with offsets) in the client
-  shard and 223 B (351 B) in the server shard. Build: the scan at 11.0–12.3 MB/s interpreted, 19.4–20.1 MB/s native,
-  `dynamicAccess` included `[build-checks §2.6]`. The trap set is part of `idTableHash` (`v5-tooling.md` §5.5), so
-  client and server shards must come from one run.
+  id is delivered and reported.
+- **Prices** **api** drivers firing a definition unmodified client code never fires (declared, inferred), and
+  drivers calling a closed definition through the shard (generic). It doesn't price drivers that fire only what
+  game code fires (the caller probe covers those, §4), or **packet** and blind senders (an unknown id is already
+  `malformed`).
+- **Cost.** Run time: one flag check and one table index per message. Wire: none; a declared trap is an ordinary
+  definition and takes an id like one. Build: the scan at 11.0–12.3 MB/s interpreted and 19.4–20.1 MB/s native,
+  `dynamicAccess` included `[build-checks §2.6]`.
 
 | Option (`lync.toml`) | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `build.traps` | integer | definitions per complete namespace | 0–8 | 0 (chosen, below) | as above; incomplete namespaces get none |
 | `check.reachability` | boolean | — | — | `true` | the scan above per build; one flag check and one table index per message; `false` removes inference and the caller probe's source lists |
 | `check.clientRoots` | array of instance paths | — | — | `[]` | the scripts under each path join the client scan set |
 
-- **`build.traps` default, chosen.** Inference already reports every real definition unmodified code never fires,
-  so traps add bait only where a namespace has few; whether generated names can be told from real ones is
-  unverified; and every incomplete namespace would warn. A check showing the names can't be told apart would change
-  it.
+- **Decision: traps generated by the build.**
+  - *Problem.* Generated traps (`build.traps`) would add bait to namespaces with few unreferenced definitions
+    `[generation-methods M15a]`. The hard constraint: the shared schema module replicates to every client (`v5.md`
+    §3.5), and a generated trap can't be in it, since the schema is the developer's source.
+  - *Options:* traps in the shards only, named by the build from the namespace's own name tokens; the same with
+    names the developer lists in `lync.toml`; **no generated traps: a trap is a definition the developer declares.**
+  - *Choice: none generated.* With the schema module on the client, the difference between its keys and the client
+    shard's names is exactly the generated set, in every build and whatever the names
+    `[review v5-3.6-tooling B4]`, so a driver that browses the namespace skips them after a one-time change to
+    the tool: no recurring work, which is what §1 asks a measure to impose. Names drawn by the build would also be
+    Lync guessing what passes for a real name, which is the developer's. A declared trap is in the schema, so that
+    test finds nothing, and the developer names it; R13 stays refused for the generated form.
 - Execution coverage (`ScriptContext:EnableCoverage`) in play tests is not a second reachability check: in a play
   test the server's `unreachable` already reports each message of a definition the scan inferred unreachable
   (`v5-tooling.md` §4.2).

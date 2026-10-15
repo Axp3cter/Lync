@@ -156,6 +156,10 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   fields); a viewer's rows chunk is the header (`collection`, count) followed by copies of the selected pieces.
   `gen` and `seg` add 3 bits per row; with byte padding that is 0 or 1 byte per row, 3/8 B on average when row
   widths are spread evenly modulo 8 (derived).
+- **Downstream layouts are per build.** Per-player variants (`v5-integrity.md` §2.4) change the upstream plan and the
+  tag constants only, so every unit of §3, cell chunks included, is encoded once for all players. A variant that
+  varied downstream field order would need one encode per variant per unit, V times the CPU and chunk memory
+  `[interest-rewind §6.2]`.
 
 ## 6. Repair (notify)
 

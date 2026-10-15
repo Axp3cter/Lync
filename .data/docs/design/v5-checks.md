@@ -80,8 +80,7 @@ Code, counter and option names are provisional until the naming pass.
 
 ### 1.4 Where checks run
 
-`v5.md` §6.1 changes as follows (the runtime unit edits that section; the exact text is in this file's change
-record):
+`v5.md` §6.1's steps 5–7 run as follows:
 - **Step 5** is unchanged: control; traps and reachability; answers; `unresolved`; `limit`; the report-only checks
   of milestone 5. Messages over `limit` therefore never touch check state.
 - **Step 6, checks and validator**, per message of a definition, in this order (the claim requirement is enforced
@@ -92,8 +91,8 @@ record):
   2. If any failing check has `"drop"`, the message is dropped (an ask is answered `rejected`); the validator is not
      called and nothing is committed.
   3. **Validate**, as today: `false`, a throw or a yield drops the message.
-  4. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A failing check with
-     `"deliver"` commits too, so check state always describes what game code received.
+  4. **Commit**, for a message that will be delivered: `monotonic` and `maxRate` store, `maxTotal` charges. A
+     failing check with `"deliver"` commits too, so check state always describes what game code received.
   Messages of one frame are handled in order, each committing before the next is evaluated.
 - **Step 6b, sample** (§8.3), then **step 7, delivery**.
 
@@ -155,7 +154,7 @@ the evidence set stays flat (`span` and `against` are R35's).
 
 - A `reference` or `fn` call runs in its own `xpcall`, with the validator's rules (`v5.md` §6.1 step 6): a throw is
   reported natively as `validatorError`, a yield as `validatorYielded`, spaced per (code, definition) per
-  `observe.window`; the message names the function (`arena.strike:within origin reference`). The message is dropped
+  `observe.window`; the message names the function (`arena.strike:field("origin"):within reference`). The message is dropped
   (an ask is answered `rejected`), checks after it are not evaluated, and occurrences already recorded stand. A
   return of the wrong type is raised inside that call, so it is a throw.
 - A function returning nil skips its check for that message, counted in `checksSkipped`; nothing is committed for
@@ -169,7 +168,7 @@ the evidence set stays flat (`span` and `against` are R35's).
 
 ### 2.1 Semantics
 
-`Net.strike:within("origin", { reference = rootOf, maxDistance = 6, policy = "drop" })` `[checks-telemetry C1]`.
+`Net.strike:field("origin"):within({ reference = rootOf, maxDistance = 6, policy = "drop" })` `[checks-telemetry C1]`.
 - Per message Lync calls `reference(player, data)`, which returns `(r, m?)`: the server's value to compare against,
   and optionally a maximum distance for this message alone (speed × elapsed time, say), which replaces
   `maxDistance` for it. r nil skips the check (§1.7).
@@ -217,7 +216,6 @@ over a play session, then choose `"drop"` or keep `"deliver"`.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `path` | string | — | a field of a codec in §2.1, through records and optionals | required | none |
 | `reference` | `(Player, Data) -> (R?, number?)`; R is `number` for scalars and `t.angle`, `Vector3` for vectors and `t.direction` | — | — | required | the game's own, once per message, in its own `xpcall` (§1.7) |
 | `maxDistance` | number (real) | the field's unit: studs, radians for `t.angle` and `t.direction`, the integer's unit | ≥ 0, finite | required | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
@@ -230,7 +228,7 @@ State 0 B; wire 0 B.
 
 ### 3.1 Semantics
 
-`Net.input:monotonic("seq", { order = "increasing", policy = "drop" })` `[checks-telemetry C2]`: a number that
+`Net.input:field("seq"):monotonic({ order = "increasing", policy = "drop" })` `[checks-telemetry C2]`: a number that
 unmodified client code never decreases in send order (`"nondecreasing"`) or always raises (`"increasing"`).
 - **Frame key.** On the reliable lane, the frame's tag count (`v5.md` §4.5); on the unreliable lane, its extended
   upstream seq (`v5.md` §4.4). Messages of one definition in one frame are in call order (`v5.md` §4.1), so they share a key and are
@@ -278,7 +276,6 @@ Not causes: loss (gaps pass), reordering (the key), duplicates (the replay windo
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `path` | string | — | a field of a codec in §3.1, through records and optionals | required | none |
 | `order` | `"nondecreasing" \| "increasing"` | — | — | `"nondecreasing"` (derived: the weaker rule, which raises no fact on equal values) | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
 
@@ -289,7 +286,7 @@ per check; wire 0 B.
 
 ### 4.1 Semantics and the window
 
-`Net.collect:maxTotal("coins", { cap = 5000, seconds = 600, policy = "drop" })` `[checks-telemetry C3]` bounds the
+`Net.collect:field("coins"):maxTotal({ cap = 5000, seconds = 600, policy = "drop" })` `[checks-telemetry C3]` bounds the
 running sum of a field per player over a window timed by server arrival on `os.clock()`, never by client time (R20,
 R21).
 
@@ -346,7 +343,6 @@ measurement.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `path` | string | — | a field of a codec in §4.2, through records and optionals | required | none |
 | `cap` | number (real) | the field's unit, per window | > 0, ≤ 2^53 | required | none |
 | `seconds` | number (real) | s | 1–3600 | required | bucket width `seconds`/16 |
 | `pool` | string or nil | — | 1–64 B | nil: the check's own window | one window per player per pool instead of per check |
@@ -359,18 +355,18 @@ message enters a new bucket `[checks-telemetry C6]`. State 144 B per player per 
 
 ### 5.1 Semantics
 
-`Net.shot:derive("landing", { fn = landingOf, tolerance = 0.25, policy = "deliver" })` `[server-facts §U9.2]`: the
+`Net.shot:field("landing"):derive({ fn = landingOf, tolerance = 0.25, policy = "deliver" })` `[server-facts §U9.2]`: the
 server re-computes an outcome the client sent from the inputs in the same message and compares.
 
 ```luau
 -- server
 local Projectile = require(ReplicatedStorage.Shared.Projectile) -- the module the client also calls
-Net.shot:derive("landing", {
+Net.shot:field("landing"):derive({
 	fn = function(player, shot) return Projectile.landing(shot.origin, shot.velocity, shot.flight) end,
 	tolerance = 0.25, -- studs
 	policy = "deliver",
 })
-Net.craft:derive("result", {
+Net.craft:field("result"):derive({
 	fn = function(player, craft) return Recipes.result(craft.recipe, craft.inputs) end,
 	tolerance = 0, -- t.enum: exact
 	policy = "drop",
@@ -438,7 +434,6 @@ moving server state.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `path` | string | — | a field of a codec in §5.1, through records and optionals | required | none |
 | `fn` | `(Player, Data) -> T?`, T the field's decoded type | — | — | required | the game's own, per evaluated message, in its own `xpcall` (§1.7) |
 | `tolerance` | number (real) | the field's unit | 0–2^31, finite; only 0 for `t.enum` and `t.bool` | required | none |
 | `policy` | `"drop" \| "deliver"` | — | — | required | none |
@@ -458,7 +453,7 @@ moving server state.
 
 ### 6.1 Semantics
 
-`Net.move:maxRate("position", { rate = 16, plane = "xz", policy = "deliver" })`
+`Net.move:field("position"):maxRate({ rate = 16, burst = 0.907, window = 10, plane = "xz", policy = "deliver" })`
 `[refusals-rejudged-4 R35]`: a claimed value that changes no faster than `rate` per second, in the field's unit.
 - **Why a kind, not a recipe.** A `within` whose reference returns the game's last delivered value plus `rate` ×
   elapsed fails twice: game code never sees frame keys, so late unreliable frames (1.3%, §3.2) move its last value
@@ -533,7 +528,6 @@ Checked against the simulation (rate 16 studs/s, step 1/32, 3 × 10^6 messages p
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `path` | string | — | a field of a codec in §6.1, through records and optionals | required | none |
 | `rate` | number (real) | the field's unit per second | > 0, finite | required | none |
 | `burst` | number (real) | the field's unit | ≥ 0, finite | derived (§6.2): `rate` × 0.0367 s + 2e on unreliable definitions, `rate` × 2.0367 s + 2e on reliable ones; required for `t.f32` and `t.vector3f32` | none |
 | `window` | number (real) | s | 0.1–3600 | 10 (chosen: unseen excess speed `burst`/`window` = 0.4% of `rate` at the unreliable default; a larger window lets less through) | none |

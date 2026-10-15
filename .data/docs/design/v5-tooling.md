@@ -8,32 +8,43 @@ rule.
 
 ## 1. Outputs
 
-For one schema, one `lync.toml`, one generator and one pair (`buildId`, `rotationSeed`), the compiler always
-produces the same files `[client-security-build §2.2]`. A build run draws that pair once for every namespace and
-both sides (`v5-integrity.md` §2).
+**Generation inputs.** The generated files are a function of exactly these: the schema modules' text, `lync.toml`'s
+text, the generator (`coreDigest`, §1.2), the pair (`buildId`, `rotationSeed`), and the scan result (§3.3: the
+client scan set's paths, ordinals and digests, and whether they came from files or a place), which sets the server
+shard's reachability lists and each namespace's completeness. With equal inputs the compiler always produces the
+same bytes `[client-security-build §2.2]`; the manifest records every input (§1.2). A build run draws the pair once
+for every namespace and both sides (`v5-integrity.md` §2).
 
 | Output | Format | Consumer | Reaches clients |
 |---|---|---|---|
 | client shard, server shard per namespace (§1.1) | Luau, readable, MIT header; each definition commented with its schema line | the game | the client shard |
+| client variant modules, with `build.playerVariants` > 1 (§1.1) | Luau, as shards | the server, which gives each player one | one variant per player |
 | type declarations | `.d.ts`; JSDoc names each definition's schema line | roblox-ts | no |
 | `manifest.json` (§1.2) | JSON, sorted keys, LF line endings | `lync check`, `lync weave`, `lync replay`, `lync diff`, the inspector's capture replay | no: it holds `rotationSeed` |
 | `report.md` (§1.3) | Markdown rendered from the manifest | developers | no |
+| PVS modules, per `[[pvs]]` entry (§2) | Luau parts returning base64 | the server | no |
 
-**Instance paths**, in every output and diagnostic, are the names from the service down joined by `.`, with a `.`
-or `\` inside a name written `\.` or `\\`.
+**Instance paths**, in every output and diagnostic, are the names from the service down joined by `.`, with a `.`,
+`\` or `*` inside a name written `\.`, `\\` or `\*`. Where siblings share a name, each path list in the manifest
+also records an `ordinal`: the instance's 1-based index among the instances with that path, in `GetDescendants`
+order of the place or, for files, in the sourcemap's order.
 
 ### 1.1 Shards
 
-- **Line 1** mirrors the shard's identity for a reader and carries its digest `[build-checks §3.2]`:
+- **Line 1** mirrors the part's identity for a reader and carries its digest `[build-checks §3.2]`:
   `-- Lync 5.0.0 | arena | client | part 1/1 | build 3735928559 | schema 0123456789abcdef | code <64 hex digits>`.
   `code` is SHA-256 over every byte after line 1, with CRLF replaced by LF first. Nothing reads identity from line
-  1: an edit to line 1 alone is not detected (`build-checks/drift.out`), and it changes no behaviour.
+  1: an edit to line 1 alone is not detected (`build-checks/drift.out`), and it changes no behaviour. Line 2 of a
+  server part is `--!native`: a directive after a comment line still takes effect (checked with `luau-analyze`
+  0.740 on `--!strict`).
 - **Identity constants in the body**, as code the digest covers: generator version, `buildId`, seed-0 schema hash,
   schema path, namespace, side, part number and part count. `staleShard` and `unpairedShard` (§3.4) read these.
-- **Parts.** A side whose source would exceed 200,000 bytes is split, by sorted definition name, into child modules
-  `Part1` … `PartN` of the shard module, which requires them; each part has its own line 1 and digest. Derivation:
-  `Source` set the ordinary way is capped at 200,000 characters (reported, `[generation-security §2.4]`; §8), and
-  a character takes at least one byte.
+- **Parts.** Each part holds at most 200,000 bytes of source. Derivation: `Source` set the ordinary way is capped at
+  200,000 characters (reported, `[generation-security §2.4]`; §8), and a character takes at least one byte. A side
+  that fits is one module, the shard module itself, `part 1/1`. A side that doesn't is split by sorted definition
+  name into N parts: the shard module is then an index holding no definition, which requires its children `Part1` …
+  `PartN` (files `client/init.luau`, `client/Part1.luau` …); the build deletes the other layout's files and every
+  part beyond N. A definition whose generated code alone exceeds the cap is `definitionTooLarge` (§3.4).
 - **Generator invariants**, each checked by compiling every part with the host's Luau compiler before anything is
   written; a failure is `internal` (exit 3): at most 200 locals and 200 upvalues per function, fewer than 32,768
   closures per function prototype (`kMaxClosureCount`), definitions held in a table, each with its own functions
@@ -41,48 +52,57 @@ or `\` inside a name written `\.` or `\\`.
   (`CodegenHeuristicsInstructionLimit`; Roblox's value unverified), past which functions are left interpreted, not
   refused `[client-security-build §2.1]`. No host is verified to report that count (§8), so until one is, the
   200,000-byte part cap is the only bound on a server part.
-- **Native code.** Server parts begin with `--!native`; client parts carry no native directive. Roblox documents
-  native code for servers only, and its clients run interpreted (reported, 2026) `[generation-security §4.1]`, so a
-  client directive gains nothing and a server part without one loses native decode. There is no option.
+- **Native code.** Server parts carry `--!native`; client parts carry no native directive. Roblox documents native
+  code for servers only, and its clients run interpreted (reported, 2026) `[generation-security §4.1]`, so a client
+  directive gains nothing and a server part without one loses native decode. There is no option.
 - **Names.** Generated functions keep readable names, never per-build or anonymous ones: view keys, the shard's path
   and `require` give every tool a stable route, so per-build names price nothing `[refusals-rejudged-1 R10]`.
-- **Types.** Generated Luau types use no `read` modifiers, which the old solver rejects (`v5.md` §3.2). Generated
-  trap definitions are in the runtime table and absent from exported Luau and `.d.ts` types
-  `[generation-methods M15a]`.
-- **Decision: generated trap names** (`build.traps`, `v5-integrity.md` §3).
-  - *Problem.* A trap must sit in the runtime table under a name, since the drivers it prices browse the namespace
-    and fire what they find; a name a reader can tell from the real ones at a glance removes it.
-  - *Options:* random strings (separable at a glance); a word list shipped with Lync (the same words in every game,
-    so separable by the list); **names composed from the namespace's own name tokens.**
-  - *Choice: own tokens.* Each definition name of the namespace is cut at every lowercase-to-uppercase and every
-    letter-to-digit boundary, and the pieces are lowercased; V is the set of distinct pieces. The candidates are
-    every piece and every ordered pair of different pieces written as the first followed by the second with its
-    first letter uppercased, minus the namespace's definition names, sorted bytewise. Trap k (1 … T) takes the
-    candidate at index (x mod the number of candidates left), without replacement, where x is the first xorshift32
-    output seeded with the low 32 bits of HalfSipHash-2-4 keyed by `rotationSeed` over `trap:<namespace>:<k>` (0
-    replaced by `0x9E3779B9`, as in `v5-integrity.md` §2). With fewer candidates than T the build makes one trap per
-    candidate and reports `trapNamesShort`. Whether a reader can separate such names from real ones is unverified
-    `[generation-methods M15a]`.
+- **Types.** Generated Luau types use no `read` modifiers, which the old solver rejects (`v5.md` §3.2).
+- **Variant modules** (`build.playerVariants` = N > 1; the mechanism is `v5-integrity.md` §2's): N client variant
+  modules per namespace at `ServerStorage.LyncVariants.<namespace>.<k>`, k = 1 … N, never replicated until the
+  server gives one to a player `[generation-methods M7]`. Each follows the part rule, carries line 1 with
+  `variant k/N` after the side, and is covered by `editedShard`, `unpairedShard`, `staleManifest` and `--published`
+  as a shard part is; the scans exclude them as Lync outputs.
+- **Decision: the generator emits only what the schema declares.**
+  - *Problem.* Generated trap definitions would sit in the client shard and not in the shared schema module
+    `[generation-methods M15a]`, and that module replicates on both paths (`v5.md` §3.5). An API driver that
+    requires both and takes the difference of their keys finds every generated trap in one build, without reading
+    a name. Choosing trap names, codecs or counts is also a decision about placement and plausibility, which is
+    the developer's.
+  - *Options:* generate traps with names drawn from the namespace's own name pieces (separable by the key-set
+    difference, and by convention: camelCase pairs among PascalCase names); generate them with developer-given
+    names (still separable by the key-set difference); **generate none: a trap is a definition the developer
+    writes in the schema and marks `:trap()` on the server view** (`v5-integrity.md` §3).
+  - *Choice: none generated.* A declared trap is in the schema module, the client shard, the types and the
+    manifest exactly as every other definition, from the same emitter, so no output separates it; Lync guarantees
+    that, and that any arrival on it is dropped and reported. Its name, codec and number are the developer's. The
+    trade-off: a declared trap is the same in every build (no per-build churn), and the developer writes it.
 
 ### 1.2 Manifest
 
 | Field | Content |
 |---|---|
 | `format` | 1 |
-| `generator` | `lync` (version) and `coreDigest` (SHA-256 of the compiler core that generated the build): the generator identity, for reproducibility. A shard's `code` digest (§1.1) is a different value, for drift |
+| `generator` | `lync` (version) and `coreDigest` (SHA-256 of the compiler core that generated the build): the generator identity, for reproducibility. A part's `code` digest (§1.1) is a different value, for drift |
 | `buildId`, `rotationSeed` | the run's public build id (u32) and private rotation seed (16 hex digits) `[generation-methods M1]` |
-| `rotation` | each value `v5-integrity.md` §2 draws from `rotationSeed` that sets a run-time cost (the tag's compression and finalization rounds, the rotation-set index), so the report states the build's cost without running the planner |
-| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); `traps` (generated names); per definition `{ line, worstCase, reachable?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
-| `foreignRemotes`, `remoteCreations` | the `foreignRemote` and `remoteCreation` entries of §3.4 with their evidence, sorted by path, written whenever those checks run |
-| `scripts` | the client scan set (§3.3): `{ path, digest }`, SHA-256 over LF-normalised `Source`, read from the place with `--place`, else from the files the sourcemap maps `[refusals-rejudged-1 R11]` |
-| `wovenScripts` | `{ path, digest }` of each built copy `lync weave` rewrote (§5) |
+| `rotation` | each value `v5-integrity.md` §2 draws from `rotationSeed` that sets a run-time cost (the tag's compression and finalization rounds, the rotation-set index), so the report states the build's cost without running the planner; and `entropy`: `"os"` (OS entropy), `"guid"` (Studio, §4.2) or `"public"` (a source a tool can search, §4.1) |
+| `inputs` | SHA-256 of `lync.toml`'s text and of each schema module's text, and of the canonical serialization of `scan` (§1); regeneration (§3.4 `editedShard`) runs only when every one equals the live value |
+| `scan` | the client scan set (§3.3): `{ path, ordinal, digest }` per script, SHA-256 over LF-normalised `Source`, and `source` (`"files"` or `"place"`) |
+| `namespaces.<name>` | `schemaPath`; `schemaHash` (seed 0); `ids` (canonical order to wire id, both spaces); `idTableHash` (§5.5); `shards.client` and `shards.server`, one `{ part, path, digest, wovenDigest? }` per part; `variants`, one `{ variant, part, path, digest }` per variant part; `reachability` (`"complete"`, or `"incomplete"` with its `dynamicAccess` sites `{ uri, line, col, kind }`); per definition `{ line, worstCase, reachable?, closed?, openReason?, sites? }` (`sites` and `closed` from §5) |
+| `foreignRemotes`, `remoteCreations` | the `foreignRemote` and `remoteCreation` entries of §3.4 with their evidence, sorted by path and ordinal, written whenever those checks run |
+| `wovenScripts` | `{ path, ordinal, digest }` of each built copy `lync weave` rewrote (§5) |
 | `streaming` | the place's `StreamingEnabled`, `StreamingTargetRadius`, `StreamingMinRadius`, `StreamOutBehavior`, `ModelStreamingBehavior` and the place file, when a place was read `[interest-rewind §12.3]` |
-| `decoyReview` | each (definition, field, collection) where `:refers` meets `:decoys`, with the scripts of the client scan set that name the definition `[decoy-challenge-facts §3]` |
+| `decoyReview` | each (definition, field, collection) where a `refers` declaration meets `:decoys`, with the scripts of the client scan set that name the definition `[decoy-challenge-facts §3]` |
+| `pvs` | per `[[pvs]]` entry: cell count N, table bytes, part digests, bake time |
+| `diagnostics` | the count of each code the run reported |
 
 `lync build` and `lync watch` write it; `lync weave` rewrites it with the same `buildId`, adding the weave fields.
-It must never ship, since it holds `rotationSeed`: an `[output] manifest` path inside a folder the sourcemap maps
-into the place is `configRange`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`
-(never replicated; whether a `StringValue` holds a manifest of that size is unverified, §8).
+It must never ship, since it holds `rotationSeed`: an `output.manifest` path inside a folder the sourcemap maps into
+the place is `configRange`. Studio-only projects keep it in `ServerStorage.Lync.Manifest`, a `StringValue`, split
+into children `Part1` … of at most 200,000 characters each when longer (the `StringValue` cap is unverified, §8).
+`ServerStorage` never replicates, but anyone holding the place file reads the `rotationSeed` there. Studio edit-time
+regenerations run at the identity build (`buildId` 0, `rotationSeed` 0) and rewrite this manifest; only "Prepare
+release" draws a pair (§4.2).
 
 **Decision: no debug map.**
 - *Problem.* Offline decoding (`lync replay`, a capture in the inspector, `lync diff`) needs each layout. Under
@@ -96,11 +116,13 @@ into the place is `configRange`. Studio-only projects keep it in `ServerStorage.
 ### 1.3 `report.md`
 
 Rendered from the manifest; it never contains `rotationSeed`. Per namespace: shard sizes; per definition its
-worst-case size, reachability, closed or open with the first open reason, and woven site count; the generated trap
-names; the `dynamicAccess` sites. Per build: the `rotation` values with the per-frame cost each sets
-(`v5-integrity.md` §2); the `foreignRemotes` and `remoteCreations` tables, with one line stating that engine entry
-points other than remotes (`ClickDetector`, `ProximityPrompt`, `Tool` activation, physics ownership) are not listed
-`[build-checks §1.1]`; the `decoyReview` list; the `streaming` settings; the count of diagnostics per code.
+worst-case size, reachability, closed or open with the first open reason, and woven site count; the
+`dynamicAccess` sites. Per build: the `rotation` values with the per-frame cost each sets (`v5-integrity.md` §2) and
+one line naming `rotation.entropy`; the `foreignRemotes` and `remoteCreations` tables, with one line stating that
+engine entry points other than remotes (`ClickDetector`, `ProximityPrompt`, `Tool` activation, physics ownership) are
+not listed `[build-checks §1.1]`; the `decoyReview` list; the `streaming` settings; each PVS table's N, size and
+bake time; the `diagnostics` counts. `output.report` takes `output.manifest`'s range (§2), since the report lists
+review material that need not reach clients.
 
 ## 2. `lync.toml`
 
@@ -148,17 +170,17 @@ report = "build/lync-report.md"
 | `staged.paths` (`[[staged]]`) | array of instance paths | — | — | `[]` | one container lookup per path per run |
 | `staged.loader` (`[[staged]]`) | instance path of a release folder | — | — | none | exempts references to that path from `stagedReferenced` |
 | `pvs.place` (`[[pvs]]`) | path to a built `.rbxl` | — | — | required in each entry | one place read per bake `[interest-rewind §10]` |
-| `pvs.cell` | integer | studs | 8–256 | 32 (chosen: 1,024 cells on a 1,024-stud square map) | N = (map side / `cell`)² cells; a table of N²/8 B: 128 KiB at 1,024 cells |
-| `pvs.samples` | integer | rays per axis per cell | 1–4 | 2 (chosen) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
-| `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place |
+| `pvs.cell` | integer | studs | 8–256, and N = ⌈X / `cell`⌉ × ⌈Z / `cell`⌉ ≤ 65,536, with X and Z the extents in studs of the place's `Workspace` parts (the runtime's `pvs` range, `[interest-rewind §10]`; else `configRange`) | 32 (chosen: 1,024 cells on a 1,024-stud square map; a measured bake time or table size that a game can't afford changes it) | a table of N²/8 B: 128 KiB at 1,024 cells, 512 MiB at 65,536 |
+| `pvs.samples` | integer | rays per axis per cell | 1–4 | 2 (chosen: a measured rate of pairs marked hidden that are visible would change it) | `samples`⁴ rays per cell pair: 0.17 s at 1, 2.16 s at 2 for 1,024 cells on the measured map `[interest-rewind §4.2]` |
+| `pvs.output` | path of a server-only module (a module, not a data store value: a data store read at start would make Lync's start yield) | — | must map under `ServerStorage` or `ServerScriptService` (else `configRange`) | required in each entry | the table's size × 4/3 (base64) in the place, in parts of at most 200,000 bytes of source with line 1 and digest as shard parts (§1.1): 1 part at 1,024 cells, 14 at 4,096 |
 | `check.knownRemotes` | array of instance paths; `*` matches one path segment | — | — | `[]` | none; a listed `foreignRemote` entry keeps its manifest row and gets no Diagnostic |
 | `check.<code>` | `"off"` \| `"warn"` \| `"error"` | — | one key per code marked `[check]` in §3.4 | per code, §3.4 | `"off"` stops that check: no Diagnostic and no manifest entry of that code; computations another product reads still run (§3.2) |
 | `output.manifest` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-manifest.json"` | — |
-| `output.report` | path | — | — | `"build/lync-report.md"` | — |
+| `output.report` | path | — | outside every folder the sourcemap maps into the place (else `configRange`) | `"build/lync-report.md"` | — |
 
 **Keys defined elsewhere**, by the section that states their meaning and cost: `build.seed`, `build.offsets`,
-`build.tagRounds`, `build.playerVariants`, `build.playerVariantScope` (`v5-integrity.md` §2); `build.traps`,
-`check.reachability`, `check.clientRoots` (`v5-integrity.md` §3); `weave.*` (§5.7). Every value the generator draws
+`build.tagRounds`, `build.playerVariants`, `build.playerVariantScope` (`v5-integrity.md` §2); `check.reachability`,
+`check.clientRoots` (`v5-integrity.md` §3); `weave.*` (§5.7). Every value the generator draws
 per build sits in `[build]`, so per-player variants are `build.playerVariants` and `build.playerVariantScope`, not a
 `[variants]` table of one key `[generation-methods M7]` `[interest-rewind §13.4]`.
 

@@ -106,11 +106,10 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   weigh or decide is the developer's (trap names, consequences, scores, policies). One naming convention for every
   code, fact, counter and option; current names like `foreignRemote` and `dynamicAccess` are not acceptable.
   Audits: `reviews/v5-3.6-scope.md`, `reviews/v5-3.6-naming.md`.
-- Path to code (author asked to start coding once ready; work split into very small units): finish 3.6 → consistency
-  unit → critics per area plus one end-to-end trace → apply until no blocking or major finding → build plan (module
-  map, dependency graph, unit specs with owned files and proving tests, harness and fixtures first) → critic on the
-  plan → builder units, each with a code critic, a prover where it claims performance, a fallback check, a commit
-  when green. Prep now: `design/build-inventory.md`.
+- **No code** (author, 2026-10-15): docs only until the design is perfected. Path: finish 3.6 → apply the scope
+  and naming audits → consistency unit → critics per area plus one end-to-end trace → apply until no blocking or
+  major finding remains → repeat. The build plan and builder units wait for the author's go-ahead;
+  `design/build-inventory.md` is kept as reference only.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster
   and harder to isolate), transforming the built output rather than the developer's source if that removes the

@@ -1,0 +1,20 @@
+DataModel              build-checks-rojo ['default.project.json']
+ReplicatedStorage      build-checks-rojo.ReplicatedStorage []
+Folder                 build-checks-rojo.ReplicatedStorage.Shared []
+Folder                 build-checks-rojo.ReplicatedStorage.Shared.Remotes []
+RemoteEvent            build-checks-rojo.ReplicatedStorage.Shared.Remotes.LegacyShop ['src/shared/Remotes/LegacyShop.model.json']
+Folder                 build-checks-rojo.ReplicatedStorage.Shared.Remotes.Pinged ['src/shared/Remotes/Pinged.model.json']
+UnreliableRemoteEvent  build-checks-rojo.ReplicatedStorage.Shared.Remotes.Pinged.Ping []
+StarterPlayer          build-checks-rojo.StarterPlayer []
+StarterPlayerScripts   build-checks-rojo.StarterPlayer.StarterPlayerScripts []
+Folder                 build-checks-rojo.StarterPlayer.StarterPlayerScripts.Client []
+LocalScript            build-checks-rojo.StarterPlayer.StarterPlayerScripts.Client.Main ['src/client/Main.client.luau']
+Workspace              build-checks-rojo.Workspace []
+Tool                   build-checks-rojo.Workspace.Gear ['Gear.rbxm']
+RemoteEvent            build-checks-rojo.Workspace.Gear.Fire []
+Script                 build-checks-rojo.Workspace.Gear.Handler []
+foreignRemotes  tree      RemoteEvent            ReplicatedStorage.Shared.Remotes.LegacyShop      network=1 replicates=1
+foreignRemotes  tree      UnreliableRemoteEvent  ReplicatedStorage.Shared.Remotes.Pinged.Ping     network=1 replicates=1
+foreignRemotes  tree      RemoteEvent            Workspace.Gear.Fire                              network=1 replicates=1
+instances=14 scripts=2 sourceBytes=63 tokens=16 rounds=1 inventory=3 findings=0
+ms: read=0.1 deserialize=12.5 descendants=0.0 classify=0.2 scan=0.0 total=13.0

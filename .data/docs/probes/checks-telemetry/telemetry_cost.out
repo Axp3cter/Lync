@@ -1,0 +1,4 @@
+# Luau 0.742 (built from .data/projects/luau, CMake Release), Intel Xeon 2.1 GHz, 4 cores, 2026-10-15
+# best of 7 per line; three process runs per mode
+# an earlier version found the atom window by a linear scan back from the ring head: 2084.5 ns interpreted, 649.2 ns native (one run); replaced by the binary search below
+## run 1 interpreted -O2

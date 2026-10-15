@@ -1,0 +1,6 @@
+scripts=217 bytes=1648210 lex: 94.4 ms (17.5 MB/s)  lex+scan: 133.9 ms (12.3 MB/s)
+scripts=217 bytes=1648210 lex: 100.1 ms (16.5 MB/s)  lex+scan: 145.2 ms (11.3 MB/s)
+scripts=217 bytes=1648210 lex: 94.1 ms (17.5 MB/s)  lex+scan: 149.5 ms (11.0 MB/s)
+scripts=217 bytes=1648210 lex: 70.5 ms (23.4 MB/s)  lex+scan: 82.3 ms (20.0 MB/s)
+scripts=217 bytes=1648210 lex: 58.5 ms (28.2 MB/s)  lex+scan: 84.9 ms (19.4 MB/s)
+scripts=217 bytes=1648210 lex: 72.8 ms (22.6 MB/s)  lex+scan: 81.9 ms (20.1 MB/s)

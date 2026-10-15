@@ -1,0 +1,22 @@
+foreignRemotes  tree      RemoteFunction         ReplicatedStorage.Remotes.GetProfile             network=1 replicates=1
+foreignRemotes  tree      RemoteEvent            ReplicatedStorage.Remotes.LegacyShop             network=1 replicates=1
+foreignRemotes  tree      BindableEvent          ReplicatedStorage.RoundStarted                   network=0 replicates=1
+foreignRemotes  tree      BindableFunction       ServerScriptService.GetRound                     network=0 replicates=0
+foreignRemotes  tree      RemoteFunction         ServerStorage.Admin.AdminCommand                 network=1 replicates=0
+foreignRemotes  tree      RemoteEvent            Workspace.Slingshot.Fire                         network=1 replicates=1
+dynamicAccess   kind=1  StarterPlayer.StarterPlayerScripts.Client.TsClient:4:1  Net[…]
+dynamicAccess   kind=2  StarterPlayer.StarterPlayerScripts.Client.Iterate:2:18  iterate Net
+dynamicAccess   kind=2  StarterPlayer.StarterPlayerScripts.Client.Iterate:3:24  iterate Net
+dynamicAccess   kind=2  StarterPlayer.StarterPlayerScripts.Client.Iterate:4:24  iterate Net
+dynamicAccess   kind=1  StarterPlayer.StarterPlayerScripts.Client.Computed:4:2  Net[…]
+dynamicAccess   kind=1  StarterPlayer.StarterPlayerScripts.Client.Computed:8:1  alias[…]
+dynamicAccess   kind=3  ReplicatedStorage.Services.Router:8:20  passed to register()
+dynamicAccess   kind=3  ReplicatedStorage.Services.Router:9:20  stored in a table constructor
+dynamicAccess   kind=1  ReplicatedStorage.Services.Hud:10:7  net[…]
+dynamicAccess   kind=1  ReplicatedStorage.Services.Router:4:3  ns[…]
+foreignRemotes  kind=2  ServerScriptService.ChatServiceRunner:2:11  RemoteEvent
+foreignRemotes  kind=2  ServerScriptService.ChatServiceRunner:3:12  RemoteFunction
+foreignRemotes  kind=2  ReplicatedStorage.Packages._Index.knit.Comm:3:13  RemoteEvent
+foreignRemotes  kind=3  ReplicatedStorage.Packages._Index.knit.Comm:9:12  Instance.new(<non-literal>)
+instances=41 scripts=14 sourceBytes=2617 tokens=577 rounds=3 inventory=6 findings=14
+ms: read=0.1 deserialize=13.7 descendants=0.1 classify=0.5 scan=0.4 total=14.8

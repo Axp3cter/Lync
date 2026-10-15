@@ -1,0 +1,21 @@
+N=10003 scripts=198 remotes=20 fileBytes=540104 build=45ms serialize=41ms
+instances=10003 scripts=199 sourceBytes=1409232 tokens=289497 rounds=2 inventory=30 findings=3
+ms: read=0.5 deserialize=56.4 descendants=14.3 classify=12.8 scan=98.3 total=182.2
+instances=10003 scripts=199 sourceBytes=1409232 tokens=289497 rounds=2 inventory=30 findings=3
+ms: read=0.5 deserialize=52.5 descendants=13.3 classify=11.7 scan=94.3 total=172.3
+instances=10003 scripts=199 sourceBytes=1409232 tokens=289497 rounds=2 inventory=30 findings=3
+ms: read=0.5 deserialize=53.6 descendants=12.8 classify=11.5 scan=104.3 total=182.7
+N=100003 scripts=982 remotes=200 fileBytes=3036557 build=540ms serialize=511ms
+instances=100003 scripts=983 sourceBytes=7433582 tokens=1505156 rounds=2 inventory=300 findings=19
+ms: read=3.7 deserialize=504.8 descendants=168.6 classify=137.2 scan=579.9 total=1394.1
+instances=100003 scripts=983 sourceBytes=7433582 tokens=1505156 rounds=2 inventory=300 findings=19
+ms: read=3.6 deserialize=474.2 descendants=176.8 classify=119.5 scan=574.1 total=1348.2
+instances=100003 scripts=983 sourceBytes=7433582 tokens=1505156 rounds=2 inventory=300 findings=19
+ms: read=4.3 deserialize=451.6 descendants=164.8 classify=120.7 scan=622.9 total=1364.3
+N=500003 scripts=2607 remotes=1000 fileBytes=9075113 build=3333ms serialize=3021ms
+instances=500003 scripts=2608 sourceBytes=19836930 tokens=3976137 rounds=2 inventory=1500 findings=52
+ms: read=11.9 deserialize=5426.4 descendants=1413.1 classify=549.8 scan=2840.5 total=10241.8
+instances=500003 scripts=2608 sourceBytes=19836930 tokens=3976137 rounds=2 inventory=1500 findings=52
+ms: read=14.9 deserialize=2745.4 descendants=1124.8 classify=590.6 scan=2881.1 total=7356.8
+instances=500003 scripts=2608 sourceBytes=19836930 tokens=3976137 rounds=2 inventory=1500 findings=52
+ms: read=14.0 deserialize=2464.2 descendants=1173.7 classify=577.8 scan=2861.0 total=7090.6

@@ -5,8 +5,9 @@ design. Each method states what `lync build`, the Studio plugin or CI emits diff
 changes and keeps fixed on the wire, which modified-client capability it prices, and its measured cost.
 
 **Scope of this run.** Methods M1–M12 of an earlier draft (written after a model fallback, so none of its text
-was accepted as is) are re-checked against its probes, re-run, and against new probes. The "going further" items
-are listed in the checklist as **next unit** for a later agent.
+was accepted as is) are re-checked against its probes, re-run, and against new probes. The "going further" items,
+first left as **next unit**, are M13–M16, written by later agents; where they changed an earlier method, that
+method now says so.
 
 **Labels.** **verified**: I ran it or read the source. **documented**: official docs or the design say so.
 **reported**: a third party says so. **unverified**: inference, or nothing found.
@@ -26,7 +27,10 @@ all by `run.sh BUILD_DIR WORK_DIR`. New in this run:
   offset arithmetic up to n = 2^53;
 - `dispatch.luau` → `dispatch.out`: the cost of reaching a per-session variant's encoder;
 - `gen_defs2.py` + `bytecode2.sh` → `bytecode2.out`: bytecode per generated encoder and decoder, plain and offset;
-- `free_choice.luau` → `free_choice.out`: column bits when a build fixes the column mode.
+- `free_choice.luau` → `free_choice.out`: column bits when a build fixes the column mode;
+all by `run2.sh BUILD_DIR WORK_DIR`. Later units: `tagbind.luau` → `tagbind.out` (M13) and `runtime_path.luau` +
+`patch_rows.py` → `runtime_path.out` (M14), by `run3.sh BUILD_DIR WORK_DIR`; `generated_integrity.luau` →
+`generated_integrity.out` (M15), by `run4.sh BUILD_DIR`.
 
 **Capability classes** (`client-security.md` §1.2, grouped as in `security-tooling.md` §9), cited below as:
 **code** (decompile, `getscriptbytecode`, `getconstants`: reading the client's own code); **mem** (`getgc`,
@@ -52,12 +56,12 @@ machines and accounts). Routes A0–A8 are `client-security.md` §1.4's.
 - [x] M10. Build-time values in the server shard
 - [x] M11. Per-server values through `ConfigService`
 - [x] M12. Join rule for per-player variants
-- [x] Summary table and Implications
 - [x] M13. Per-player tag binding: one output mask per variant, fact `tagVariant` (was: next unit)
+- [x] M14. The runtime (no-build) path: per-server and per-session parameters through tables (was: next unit)
 - [x] M15. Per-build generated traps, decoys and canaries (was: next unit)
-- [x] M14. The runtime (no-build) path with per-server and per-session parameters through tables, measured (was:
-  next unit)
-- [x] M16. Composition with `research/codecs-in-scripts.md` (was: next unit; M9 gives only what the first run checked)
+- [x] M16. Composition with codecs in game scripts (was: next unit; replaces M9's pointer)
+- [x] Summary table (M1–M16)
+- [x] Implications
 
 ---
 
@@ -91,7 +95,7 @@ the generator changes shape, plus whatever it must redo per grain (per build, pe
 today's wire, so the golden set (`v5.md` §4.10: G1–G11, PERM) is unchanged; methods that alter a vector's shape at
 nonzero values say so. The schema hash is computed at seed 0 over the schema alone (`v5.md` §4.7), so no method
 changes it. Generated types depend on codecs, never on layout, so `.d.ts` and Luau types are unchanged by all of
-them. The runtime (no-build) path runs at seed 0 and gets none of them unless a method says otherwise.
+them. The runtime (no-build) path runs at seed 0 and gets none of them unless a method says otherwise (M14 does).
 
 **0.5 Grains** (mechanisms from `security-tooling.md` §1, §4 and `generation-security.md` §2).
 
@@ -156,9 +160,11 @@ or any tool that calibrates against the loaded shard.
   inspector must take the layout from the build's manifest. Every build already writes one; CI must keep it per
   release.
 
-**Composition.** M2, M3 and M4 derive their per-build values from the same `rotationSeed`; M6 and M7 are pools of
-builds that differ in it. Reopens nothing. Bears on R5 (no seed on the runtime path): a runtime-path seed would
-have to reach clients in `WELCOME`, so it would be public by construction and price only hard-coded tools.
+**Composition.** M2, M3 and M4 derive their per-build values from the same `rotationSeed`; M6 and upstream-scope
+M7 are pools of builds that differ in it, and tag-only M7 holds only a mask drawn from it (M13). Reopens nothing.
+Bears on R5 (no seed on the runtime path): a runtime-path seed would have to reach clients in `WELCOME`, so it
+would be public by construction and price only hard-coded tools; M14 measures that path and reaches the same
+verdict.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
@@ -210,8 +216,9 @@ cover of 16,384 B).
 **Cost.** Zero. A full HalfSipHash-1-3 with each constant set compiles to 445 instructions with an identical
 opcode sequence and 2037 B of bytecode (`opcodes.out`). Zero bytes. Build: two xorshift32 draws.
 
-**Composition.** One more value from M1's rotation seed. M7 makes the constants per player (next unit: binding a
-frame to the variant it verifies under). Reopens U2 in part: four constants add nothing over two; rotation amounts
+**Composition.** One more value from M1's rotation seed. Per-player variants do not vary these constants: M7's
+tag-only form holds an output mask instead, and M2's constants stay per build, shared by every variant (M13).
+Reopens U2 in part: four constants add nothing over two; rotation amounts
 stay out on PRF quality.
 
 No option: the constants follow `build.seed`.
@@ -298,8 +305,8 @@ price **api**, **hook**, **state**.
 - Bytes: zero for single rows; columns as in the table, by the rule chosen.
 - Build: one draw per codec site.
 
-**Composition.** Same seed as M1, read by a tool in the same pass. In M6 and M7 it is a second dimension of
-variation for definitions M1 cannot vary. Reopens R14 (answered above). It does not bear on R12 (build-time id
+**Composition.** Same seed as M1, read by a tool in the same pass. In M6 and upstream-scope M7 it is a second
+dimension of variation for definitions M1 cannot vary; M14 applies it as IR data on the runtime path. Reopens R14 (answered above). It does not bear on R12 (build-time id
 rotation), contrary to the draft: offsets act on payload codes, not ids.
 
 | Option | Type | Unit | Range | Default | Cost |
@@ -456,7 +463,7 @@ counterparts and the assignment code:
 ```luau
 -- server shard, generated (sketch)
 local VARIANTS = ServerStorage.LyncVariants        -- N ModuleScripts, never replicated
-local DECODERS = { decodersV1, decodersV2, ... }   -- N upstream decoder sets and tag constants
+local DECODERS = { decodersV1, decodersV2, ... }   -- upstream scope: N decoder sets; every scope: N masks (M13)
 Players.PlayerAdded:Connect(function(player)
 	local v = rng:NextInteger(1, N)                 -- or round-robin, so concurrent players differ
 	assigned[player] = v
@@ -467,47 +474,52 @@ end)
 ```
 
 What a variant holds is a choice with different costs:
-- **tag-only**: the two tag constants (M2) and nothing else; layouts stay per build. The variant is a module of a
-  few constants, and frames can be encoded before it arrives (M12).
-- **upstream**: the client-sent definitions' encoders under the variant's rotation seed (M1, M3), plus its tag
-  constants. Downstream layouts stay per build in every case (§0.2).
+- **tag-only**: one 32-bit mask XORed onto the tag, and nothing else (M13). This replaces the two per-variant tag
+  constants this section first proposed: with constants the server must re-hash to name another variant, with a
+  mask it XORs and looks up (M13, `tagbind.out`). M2's constants stay per build, shared by every variant; layouts
+  stay per build. The variant is a module of one u32, and frames can be encoded before it arrives (M12).
+- **upstream**: the client-sent definitions' encoders under the variant's rotation seed (M1, M3), plus its mask
+  (M13). Downstream layouts stay per build in every case (§0.2).
 
-**Changes / fixed.** Changes which upstream layout and tag constants a client holds. Fixed: the protocol, the hash,
-types, downstream encode-once, golden vectors (N = 1 at seed 0). The server decodes and verifies each player's
-frames with that player's variant.
+**Changes / fixed.** Changes which upstream layout and tag mask a client holds. Fixed: the protocol, the hash,
+types, downstream encode-once, M2's constants, golden vectors (N = 1 at seed 0). The server decodes and verifies
+each player's frames with that player's variant.
 
-**What it prices.** The **share** class: a byte script, layout or set of constants extracted on one account fails
+**What it prices.** The **share** class: a byte script, layout or mask extracted on one account fails
 on accounts holding other variants, so tools built outside one client must be rebuilt per player variant, and an
 artefact that contains variant data names the variant, which the server's assignment log ties to the players who
 held it (attribution, `generation-security.md` §2.2; unique per player only while N is at least the concurrent
-player count). Unlike M6, a client holds only its own variant, so reading its shard reveals no other player's. It
-does not price **code** or **mem** on one's own client: a tool reading the loaded variant pays nothing extra (the
+player count). With M13, the server also names the source variant on each such frame (`tagVariant`). Unlike M6,
+a client holds only its own variant, so reading its shard reveals no other player's. It does not price **code**
+or **mem** on one's own client: a tool reading the loaded variant pays nothing extra (the
 3.5 reason for R7 holds there), nor **api**, **hook** or **state**.
 
 **Cost** (sizes from `bytecode2.out`, load from `generation-security.md` §5.1):
-- Place: tag-only, N small modules; upstream, N × 356 B of encoder bytecode per client-sent definition (200
-  definitions, N = 16: about 1.1 MB).
-- Server: N decoder sets loaded in the server shard (N × 351 B per definition; the same 1.1 MB at 200 × 16), one
-  variant index per player, and a lookup per frame (about +10 ns native, `dispatch.out`'s field form).
+- Place: tag-only, N modules of one u32 each; upstream, N × 356 B of encoder bytecode per client-sent definition
+  (200 definitions, N = 16: about 1.1 MB).
+- Server: tag-only, N masks and M13's `VARIANT_OF` (13,312 B at N = 256, `tagbind.out`); upstream, also N decoder
+  sets in the server shard (N × 351 B per definition; the same 1.1 MB at 200 × 16). One variant index per player,
+  and a lookup per frame (about +10 ns native, `dispatch.out`'s field form).
 - Per join: one clone of one variant and its load, 0.5–2.4 ns per bytecode byte (a 71 KB variant: about
   35–170 µs on this Xeon), one `ScreenGui` per player.
-- Client CPU: as M6's pick, about +20 ns per fire interpreted where a fixed encoder would inline; none for
-  tag-only.
+- Client CPU: as M6's pick, about +20 ns per fire interpreted where a fixed encoder would inline; for tag-only,
+  one XOR per frame, within noise (M13).
 - Developer: client start depends on the variant's arrival (M12); arrival order against `ReplicatedStorage` is
   undocumented and must be measured in Studio and live (`generation-security.md` §2.3).
 
-**Composition.** Needs M12. M10 is where the N counterparts live. Per-player tag constants are the base for the
-next unit (a fact stating which variant a frame verifies under). Reopens R7, restated: 3.5's reason holds against
-work on one's own client and does not hold against **share**; the "join-time dependency" becomes M12's rule.
+**Composition.** Needs M12. M10 is where the N counterparts live. M13 gives the mask and the fact stating which
+variant a frame verifies under (`tagVariant`). M16: in woven builds only tag-only scope composes. Reopens R7,
+restated: 3.5's reason holds against work on one's own client and does not hold against **share**; the "join-time
+dependency" becomes M12's rule.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `build.playerVariants` | integer | variants | 1–256 | 1 | as above, linear in N |
 | `build.playerVariantScope` | `"tag" \| "upstream"` | — | — | `"tag"` | `"upstream"`: N× upstream codec bytecode in the place and the server, and the join hold of M12 for values |
 
-**Changed from the draft.** Downstream is excluded; the tag-only form is new; the protection is narrowed to
-**share** and attribution, with the 3.5 reason accepted for one's own client; server memory and the per-frame
-lookup are stated.
+**Changed from the draft.** Downstream is excluded; the tag-only form is new, and holds M13's mask rather than
+per-variant constants; the protection is narrowed to **share** and attribution, with the 3.5 reason accepted for
+one's own client; server memory and the per-frame lookup are stated.
 
 ---
 
@@ -551,8 +563,9 @@ carries it to the client's own process (`v5-changes.md` part 2), so M8 is about 
 more than the 1-3 rounds measured, unmeasured). Zero bytes. Build: S from the rotation seed. With M1's public seed of
 today, S would be computable from `HELLO` and M8 would price nothing (§0.1).
 
-**Composition.** Needs M1's private seed. Subsumes M4 (the permutation seed is already per-build-keyed). With M7,
-S can be per player variant, which is the next unit's binding. Bears on the R3 generation note
+**Composition.** Needs M1's private seed. Subsumes M4 (the permutation seed is already per-build-keyed). S stays
+per build: M13 rejected a per-variant S, which needs the same re-hashing as per-variant constants to name a variant
+and prices **share** no more than a mask; M13 binds variants with the mask on top of the derived key. Bears on the R3 generation note
 (`security-refusals.md` R3: key and seed reach the client in clear) and on R3's 3.5 verdict, whose "same memory
 read" premise holds for memory readers and not for packet readers.
 
@@ -565,8 +578,8 @@ said it must be rebuilt) because S = 0 is the identity; `WELCOME` keeps its size
 
 ## M9. Codecs at call sites (composition only)
 
-**Status.** Owned by `research/codecs-in-scripts.md`, which now exists (its §0 and §6–§9 were unwritten when read).
-Composition with it is a next-unit item; this section corrects only the draft's figures.
+**Status.** Owned by `research/codecs-in-scripts.md` (its §0 and §6–§9 were unwritten when this section was
+written; M16 uses them). Composition with it is M16; this section corrects only the draft's figures.
 
 - The draft cited "one 3-field offset encoder is ~470 B" from `bytecode.out`'s `defs_1` (474 B). That figure
   includes the module's own overhead; the marginal size is 224 B per plain encoder and 356 B per offset encoder
@@ -580,7 +593,8 @@ Composition with it is a next-unit item; this section corrects only the draft's 
   removes.
 - Every method here is a choice of *what* the generator emits; weaving is a choice of *where* it lands. M1–M3 apply
   unchanged to woven encoders. M6's pool multiplies woven bytecode by K at every site, and M7's upstream scope
-  would need N woven copies of every script that fires (inferred), which `codecs-in-scripts.md` §8 is to cover.
+  would need N woven copies of every script that fires (inferred). M16 settles both: woven builds keep K = 1, and
+only tag-only M7 composes with weaving (CIS §8).
 
 ---
 
@@ -591,7 +605,8 @@ there; what remains is the server-side half of the pools and a delivery question
 
 **What the build emits.** Grain: per build. The server shard (`ServerScriptService`, never replicated,
 `security-tooling.md` §1) holds values the server needs and no client may hold:
-- M7's N counterparts and the assignment table (each client receives one variant; the server holds all N);
+- M7's N counterparts and the assignment table (each client receives one variant; the server holds all N): in
+  every scope the N masks and `VARIANT_OF` (M13), in upstream scope also the N decoder sets;
 - M6's K decoders (these are also in every client shard, so they are not private);
 - the reachability lists of `v5-integrity.md` §3 (already planned);
 - optionally, server-only policy written by the build as one `Lync.configure` call at the top of the server shard:
@@ -614,8 +629,9 @@ to it; the other two reasons stand, and a policy file in the build would be a se
 (principle 4) unless the build emits the same `Lync.configure` call, as above. `lync.toml` itself stays build-only
 (in Studio-only projects a `StringValue` in `ServerStorage`), so it ships to no client either.
 
-**Cost.** None at run time beyond the `configure` call. Server memory: the size of whatever the shard holds (M7's
-N decoder sets dominate, about 351 B per definition per variant).
+**Cost.** None at run time beyond the `configure` call. Server memory: the size of whatever the shard holds (in
+upstream scope M7's N decoder sets dominate, about 351 B per definition per variant; tag-only, `VARIANT_OF` is
+13,312 B at N = 256, M13).
 
 **Composition.** Required by M7; holds M6's server half. Reopens R29 on one of its three reasons only.
 
@@ -692,7 +708,7 @@ never yields. Whether a server-parented `PlayerGui` child arrives before the cli
 2. The client binds its variant without yielding `require`: a thread waits for the variant under `PlayerGui` and
    installs it.
 3. **Tag-only scope.** Encoding at `fire` uses the per-build layout, as today. The tag is computed when a frame is
-   sent, so the variant's constants are needed only then. The join hold's release condition becomes "`WELCOME`
+   sent, so the variant's mask (M13) is needed only then. The join hold's release condition becomes "`WELCOME`
    received and variant installed"; nothing else changes.
 4. **Upstream scope.** The encoders arrive with the variant, so a send before it cannot be encoded. Held sends are
    kept as deep copies of their values, each charged its definition's worst-case encoded size (the planner's
@@ -702,8 +718,8 @@ never yields. Whether a server-parented `PlayerGui` child arrives before the cli
 5. Unreliable sends before both conditions are dropped as `sendDropped` cause 2, with the trigger widened to
    "before `WELCOME` or before the variant".
 6. **Server.** It assigns the variant before cloning it, so it decodes and verifies the first tagged frame under
-   that variant; a frame tagged under another variant fails as `tagMismatch` (stating which variant it verifies
-   under is the next unit).
+   that variant; a frame whose tag matches another variant's mask is reported as `tagVariant`, any other failure
+   as `tagMismatch` (M13).
 7. **A variant that never arrives** on an unmodified client: a local client fact by the pattern of
    `remotesMissing`, say `variantMissing` after 10 s, keeps waiting. It is a new code with its own trigger.
 
@@ -727,53 +743,11 @@ sends are encoded bytes, so its rule works only for tag-only variants; the value
 
 ---
 
-## Summary
-
-| Method | Grain | Prices (classes) | Wire bytes | Client CPU (interpreted) | Server CPU (native) | Bytecode | R/D/U |
-|---|---|---|---|---|---|---|---|
-| M1 field order, private seed | build | **share**; A2, A3 encoding outside `fire`; needs the private seed to require **code** | 0 | 0 | 0 | 0 | R5 noted |
-| M2 tag constants | build | tag reimplementations only | 0 | 0 | 0 | 0 | U2 in part |
-| M3 code offsets | build | as M1, plus one-field and union definitions | 0 single rows; columns by rule | +5.0 ns/field enc, +7.3 dec | +5.0, +5.9 | +59% per codec | R14 answered |
-| M4 id seed mixing | build × server | **packet**-only tools; needs the private seed | 0 | 0 | one XOR per table | 0 | R12 |
-| M5 column-mode choice | build | nothing | +7% to +588% per column | 0 | 0 | 0 | — |
-| M6 session pool | build × session | no recurring cost beyond the key read | 0 | ≈ +20 ns/fire where inlinable | ≈ +10 ns/frame | K× upstream codecs | R4 cost record |
-| M7 player variants | build × player | **share**; attribution | 0 | 0 (tag) or ≈ +20 ns/fire | ≈ +10 ns/frame | N× in place and server | R7 restated |
-| M8 derived key and seed | build × session | **packet**-only tools; needs the private seed | 0 | ≈ 2–4 µs per session | ≈ 0.3–0.5 µs per session | 0 | R3 note, open question answered |
-| M9 call sites | — | composition: next unit | — | — | — | — | R6 |
-| M10 server-shard values | build | nothing new; holds M7's pool | 0 | 0 | 0 | server only | R29 in part |
-| M11 `ConfigService` | server, player | **clock** tools tuned under a default | 0 | 0 | one read | 0 | not R30 |
-| M12 join rule | — | makes M7 correct | 0 | copies while held (upstream) | 0 | 0 | R7 timing |
-
-Every per-build row assumes M1's private seed; with today's public seed, M1–M4 and M8 price only tools that
-hard-code values (§0.1).
-
-## Implications
-
-1. Replace the published build seed with a public `buildId` and a private 64-bit `rotationSeed` drawn from OS
-   entropy; without it, M1–M4 and M8 price only hard-coded tools (§0.1, M1).
-2. Keep M1 and M2 as specified, with the narrowed statement of what each prices (M1, M2).
-3. Adopt M3 offsets for bounded codes, with `build.offsets` and its stated cost, and choose the column first-row
-   rule once: "against 0" keeps protection in blocks at up to +77 bits per column, "against c" is free and
-   protects single rows only (M3).
-4. Close R14 with M3's measurement: vary enum and variant indices by offset, never by permutation (M3).
-5. Adopt M8 together with the private seed, and drop M4, which M8 subsumes (M4, M8).
-6. Record M5 as pricing no capability class; do not specify it (M5).
-7. Correct R4's cost record (variant pick: about +20 ns per fire, not 2–3x) and keep its protection verdict; do
-   not add M6 (M6).
-8. If per-player variants are wanted, specify M7 in tag-only scope first, with M10 for the pool and M12's hold
-   rule; its price is on **share** and attribution only (M7, M10, M12).
-9. Never vary downstream layouts per session or per player; it ends encode-once and `FireAllClients` (§0.2).
-10. Leave `ConfigService` to game code through `Lync.configure`; Lync's start must not yield (M11).
-11. Next unit: per-player tag binding (builds on M7 and M8), generated traps, decoys and canaries, the runtime
-    path's per-session parameters, and composition with `codecs-in-scripts.md` (checklist).
-
----
-
 ## M13. Per-player tag binding: one output mask per variant
 
 **Status.** New (checklist "next unit"). It changes what M7's tag-only variant holds: one 32-bit output mask in
 place of two initialisation constants, because only a mask lets the server name the other variant without
-re-hashing. Probe: `tagbind.luau` → `tagbind.out` (Lync's own HalfSipHash from git `f1fbfd7`, exported by
+re-hashing. M7 now states this form. Probe: `tagbind.luau` → `tagbind.out` (Lync's own HalfSipHash from git `f1fbfd7`, exported by
 `run3.sh`; 32-bit output over the `v5.md` §4.5 input, all bytes covered).
 
 **The binding.** Grain: per build (N masks) × per player (the assignment). The build draws m_1 … m_N, each the low
@@ -782,7 +756,7 @@ it is 0 or repeats an earlier one. Variant v's module (M7, `PlayerGui`) holds m_
 shard holds all N (M10). With N = 1, or at seed 0, there is no variant and m = 0. The tag becomes:
 
 ```luau
--- client, M7 tag-only today                         -- client, M13
+-- client, M7 tag-only before M13                    -- client, M13
 local tag = H13(key, input, IV0_v, IV1_v)            local tag = bxor(H13(key, input, IV0, IV1), MASK)   -- IV per build (M2)
 
 -- server, today                                     -- server, M13 (v = assigned[player])
@@ -814,8 +788,8 @@ the number of concurrent players and assignment is round-robin (M7).
 Chance matches, at the full default frame budgets (120 reliable × 5 candidates + 240 unreliable × 3 candidates
 per second, `v5.md` §7.5) for a sender without the key (`tagbind.out`, computed): N = 2, one per 904 h;
 N = 16, one per 60 h; N = 64, one per 14 h; N = 256, one per 3.5 h. A carried mask matches on every frame it is
-used for, while chance matches come one at a time and name variants at random. The `count` and `variant`
-fields show which of the two a game is seeing; Lync states both, and does not choose between them.
+used for, while chance matches come one at a time and name variants at random. How many facts arrive and their
+`variant` field show which of the two a game is seeing; Lync states both, and does not choose between them.
 
 **Changes / fixed.** Changes the value of every upstream tag for N ≥ 2. Fixed: zero bytes; the tag width, its input,
 `tag.cover`, the count rules, the lookahead, the replay window; the M2 constants (per build, shared by every
@@ -840,7 +814,7 @@ chance facts only.
 | failing, mask and 5 lookups | 13.07 µs | 2.21 µs | 19.75 µs |
 | failing, re-hash under 15 other variants' constants (N = 16) | 199.0 µs | 31.4 µs | 314.1 µs |
 
-- **Per-variant initialisation constants** (M7's tag-only form as written). The variant's constants change the
+- **Per-variant initialisation constants** (M7's tag-only form before M13). The variant's constants change the
   hash's initial state, so naming the other variant needs 5 × (N − 1) full hashes per failing frame: 31.4 µs native
   per 64 B frame at N = 16, about 534 µs at N = 256 (× 255/15, derived). At 120 failing 1 KB reliable frames a
   second, N = 16 costs 37.7 ms of server CPU a second for that player (derived). Usable only sampled, for example
@@ -1146,8 +1120,8 @@ default 0; leaves R15 and R17 refused.
 
 **Status.** New (checklist "next unit"); replaces M9's pointer. Inputs: `codecs-in-scripts.md` §6–§9 (cited CIS)
 and its probes, `dispatch.out`, `bytecode2.out`. No new probe: every figure below is from those outputs. M13 was not
-in this file when this was written; it is taken as the checklist states it (per-player tag constants or key
-derivation bound to the player's variant).
+in this file when M16 was written; its row below holds for M13 as written (one output mask per variant), as M13's
+Composition confirms.
 
 **Rule.** The methods choose *what* the generator emits; weaving chooses *where* it lands. One planner run at one
 seed writes the shards, the woven fragments and the site table (CIS §8), so every per-build value below reaches a
@@ -1242,21 +1216,61 @@ place).
 - **Consequence.** In Studio-only projects the build-time bait for **api** drivers is reachability plus M15a;
   M15a is worth more there than in woven builds.
 
-### Implications for M15 and M16
+---
 
-These add to the list above without editing it.
-1. Offer `build.traps` (0–8, default 0) only for complete namespaces, with `unreachable` `declared` 2; record R13 as
-   reopened in that form (M15a).
-2. Fix the iteration gap of `v5-integrity.md` §3 before any generated trap ships; without it, unmodified code
-   iterating the namespace fires traps (M15a, CIS §4.2).
-3. Generate no decoy placement; add `decoyFrom` (clone-and-update values), keeping `decoyOutsideInterest` on the
-   decoy's own cell (M15b).
-4. Offer `canary.perViewer` (default false) and widen `canaryEchoed` with `sentToUserId` and `sameViewer`; it is the
-   one method here that prices **share** by naming a source session (M15c).
-5. Emit every method at woven sites from the same IR as the shard, and run the CIS differential at nonzero seeds
-   with M1, M3 and M15a on (M16).
-6. Do not combine M6 with weaving; if combined, only through W3 sites (M16).
-7. Restrict M7 to tag-only scope in woven builds (M16, CIS §8).
-8. Make `weaveHash` cover id mode, the site table, constant fields and generated traps, and never a secret or
-   per-player data (M16).
-9. Check the Studio plugin's entropy source before claiming a private seed for Studio-only builds (M16).
+## Summary
+
+| Method | Grain | Prices (classes) | Wire bytes | Client CPU (interpreted) | Server CPU (native) | Bytecode | R/D/U |
+|---|---|---|---|---|---|---|---|
+| M1 field order, private seed | build | **share**; A2, A3 encoding outside `fire`; needs the private seed to require **code** | 0 | 0 | 0 | 0 | R5 noted |
+| M2 tag constants | build | tag reimplementations only | 0 | 0 | 0 | 0 | U2 in part |
+| M3 code offsets | build | as M1, plus one-field and union definitions | 0 single rows; columns by rule | +5.0 ns/field enc, +7.3 dec | +5.0, +5.9 | +59% per codec | R14 answered |
+| M4 id seed mixing | build × server | **packet**-only tools; needs the private seed | 0 | 0 | one XOR per table | 0 | R12 |
+| M5 column-mode choice | build | nothing | +7% to +588% per column | 0 | 0 | 0 | — |
+| M6 session pool | build × session | no recurring cost beyond the key read | 0 | ≈ +20 ns/fire where inlinable | ≈ +10 ns/frame | K× upstream codecs | R4 cost record |
+| M7 player variants | build × player | **share**; attribution, per frame with M13 | 0 | one XOR (tag-only, M13) or ≈ +20 ns/fire | ≈ +10 ns/frame | tag-only: N masks; upstream: N× in place and server | R7 restated |
+| M8 derived key and seed | build × session | **packet**-only tools; needs the private seed | 0 | ≈ 2–4 µs per session | ≈ 0.3–0.5 µs per session | 0 | R3 note, open question answered |
+| M9 call sites | — | composition: see M16 | — | — | — | — | R6 |
+| M10 server-shard values | build | nothing new; holds M7's pool | 0 | 0 | 0 | server only | R29 in part |
+| M11 `ConfigService` | server, player | **clock** tools tuned under a default | 0 | 0 | one read | 0 | not R30 |
+| M12 join rule | — | makes M7 correct | 0 | copies while held (upstream) | 0 | 0 | R7 timing |
+| M13 per-player tag mask, `tagVariant` | build × player | **share**: the server names the source variant per frame | 0 | one XOR, within noise | accepted: within noise; failing: +0.24 µs per 64 B frame | one u32 per variant; `VARIANT_OF` 13,312 B at N = 256 | builds on M7's R7 |
+| M14 runtime path through IR tables | server (or session) | hard-coded tools only: A2, **share** | +2 bits in the first `WELCOME` | offsets +2 to +26 ns per bounded field; order, tag 0; set-up 1.5–4.3 µs per definition per connection | set-up 0.8–3.0 µs per definition per server; `"session"`: per player, +≈10 ns/frame | 0 (IR copies 1.7–3.8 KB per definition) | R5 reopened |
+| M15a generated traps | build | **api** drivers that browse the namespace | 0 unless D + T crosses a power of two (+1 bit per upstream run) | 0 | 0 | +224–356 B client, +223–351 B server per trap | R13 reopened (default 0) |
+| M15b `decoyFrom` | run time, per collection | narrows a **state** value-distribution signal | 0 | 0 | 81–85 ns per decoy per tick (6 fields) | one helper per collection (not measured) | R15 kept refused |
+| M15c per-viewer canaries | viewer, run time | **share** (names the source session); **state** echoes as today | 0 (same 12 B); those flushes leave `FireAllClients` | 0 | ≈ 290 ns per (viewer, add); 312 ns per echo | 0 | R17 kept refused |
+| M16 composition with weaving | — | composition: every method from one IR; M6 kept out; M7 tag-only | `weaveHash` 4 B per namespace per connection (CIS §7.3) | M6 at a woven site: ≈ +20 ns/fire | as each method | K× woven bytecode if M6 is woven | R6 (with CIS) |
+
+Every per-build row assumes M1's private seed; with today's public seed, M1–M4 and M8 price only tools that
+hard-code values (§0.1). Studio-only builds have a public-quality seed until the plugin's entropy is checked (M16).
+
+## Implications
+
+1. Replace the published build seed with a public `buildId` and a private 64-bit `rotationSeed` drawn from OS
+   entropy; without it, M1–M4 and M8 price only hard-coded tools (§0.1, M1).
+2. Keep M1 and M2 as specified, with the narrowed statement of what each prices (M1, M2).
+3. Adopt M3 offsets for bounded codes, with `build.offsets` and its stated cost, and choose the column first-row
+   rule once: "against 0" keeps protection in blocks at up to +77 bits per column, "against c" is free and
+   protects single rows only (M3).
+4. Close R14 with M3's measurement: vary enum and variant indices by offset, never by permutation (M3).
+5. Adopt M8 together with the private seed, and drop M4, which M8 subsumes (M4, M8).
+6. Record M5 as pricing no capability class; do not specify it (M5).
+7. Correct R4's cost record (variant pick: about +20 ns per fire, not 2–3x) and keep its protection verdict; do
+   not add M6 (M6).
+8. If per-player variants are wanted, specify M7 in tag-only scope first, holding one output mask per variant,
+   with M10 for the pool and M12's hold rule; its price is on **share** and attribution only (M7, M10, M12, M13).
+9. Never vary downstream layouts per session or per player; it ends encode-once and `FireAllClients` (§0.2).
+10. Leave `ConfigService` to game code through `Lync.configure`; Lync's start must not yield (M11).
+11. Add `tagVariant` with its chance rate in the known causes; keep M8's S per build; expose `Lync.variantOf` (M13).
+12. Reopen R5: vary order, offsets and tag constants per server through IR tables, on by default (M14).
+13. State M14's protection as hard-coded tools only, and offer no `"session"` until `"server"` falls short (M14).
+14. Record the interpreter as built at 1.7–1.9x G1, 3.2–3.9x G2 to encode; Cf (1.45–1.72x) is the runtime team's (M14).
+15. Offer `build.traps` (0–8, default 0) for complete namespaces only, `unreachable` `declared` 2; R13 reopened (M15a).
+16. Fix the iteration gap of `v5-integrity.md` §3 before any generated trap ships (M15a, CIS §4.2).
+17. Generate no decoy placement; add `decoyFrom`, keeping `decoyOutsideInterest` on the decoy's own cell (M15b).
+18. Offer `canary.perViewer` (default false); widen `canaryEchoed` with `sentToUserId`, `sameViewer` (M15c).
+19. Emit every method at woven sites from the shard's IR; run the CIS differential at nonzero seeds, M1, M3, M15a on (M16).
+20. Do not combine M6 with weaving; if combined, only through W3 sites (M16).
+21. Restrict M7 to tag-only scope in woven builds (M16, CIS §8).
+22. Make `weaveHash` cover id mode, site table, constant fields and traps, never a secret or per-player data (M16).
+23. Check the Studio plugin's entropy source before claiming a private seed for Studio-only builds (M16).

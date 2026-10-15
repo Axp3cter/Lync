@@ -39,7 +39,7 @@ while count < N do
 	if count % 500 == 250 then
 		remotes += 1
 		inst = Instance.new(CLASSES[remotes % 3 + 1]); inst.Name = "R" .. remotes; inst.Parent = model
-	elseif count % 1000 == 750 then
+	elseif count % 1000 == 900 then
 		inst = Instance.new("BindableEvent"); inst.Name = "B" .. count; inst.Parent = model
 	elseif scripts < S and count % math.max(1, (N // S) - 1) == 0 then
 		scripts += 1

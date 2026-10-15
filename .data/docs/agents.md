@@ -30,6 +30,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a0f684951116653fa` | researcher | unit 2: `rewind` (D2), U15 streaming guidance, the PlayerGui variant timing rule | append to `research/interest-rewind.md`, `probes/interest-rewind/` | running |
 | `aaaa767102bda45cc` | researcher | unit 3: `checks` (D3) and the free-form field lint (U12) | `research/checks-telemetry.md`, `probes/checks-telemetry/` | running |
 | `a052ba82d8257f6be` | researcher (Opus) | unit 6a: M13 per-player tag or key binding, M14 runtime path with per-session parameters | append to `research/generation-methods.md`, `probes/generation-methods/run3.sh` | running |
+| `a90ea3732751c0bdf` | researcher (Opus) | unit 6b: M15 generated traps, decoys and canaries; M16 composition with codecs in game scripts | append to `research/generation-methods.md`, `probes/generation-methods/run4.sh` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 
@@ -55,7 +56,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
   5. `build checks`: U5 `foreignRemotes` and `dynamicAccess`, U6 core hash and manifest drift → `research/build-checks.md`.
   6a. `methods, part 2a` (Opus, on `a052ba82d8257f6be`): per-player tag or key binding, runtime-path per-session parameters through
       tables → append to `research/generation-methods.md`.
-  6b. `methods, part 2b` (Opus): per-build generated traps, decoys and canaries; composition with
+  6b. `methods, part 2b` (Opus, on `a90ea3732751c0bdf`): per-build generated traps, decoys and canaries; composition with
       `codecs-in-scripts.md` (site-bound ids) → append to `research/generation-methods.md`.
   7. `server facts A`: U9 `Lync.derive`, U10 reaction floor on `:reactsTo` → `research/server-facts.md`.
   8. `server facts B`: U11 decoy-adjacent facts, U14 server-issued challenges → append to `research/server-facts.md`.
@@ -65,6 +66,7 @@ Paths are relative to `.data/docs/`, except builders' paths, which are relative 
       the `v5-changes.md` section.
   11. Critic on draft 3.6, then the architect applies it.
   - R40 Studio trap line → the integrity architect unit.
+  - Self-checks open questions (direct method-call path for Instances, command-bar identity, renamed-script source, `task.spawn`) → add to `v5.md` §10 pending measurements in the architect pass.
   - Codecs-in-scripts found a reachability gap in `v5-integrity.md` §3 (namespace iteration) → the integrity architect unit.
 - Author direction: codecs spread into game scripts can work. Reconsider it as a design
   problem, not a refusal: look for a form that serves two purposes at once (e.g. per-site code that is both faster

@@ -482,3 +482,26 @@ Ranked for the architect. Each points at its findings.
     `predicateErrors`, `scopedDropped`, per collection and per player. They cost one add per viewer per tick (§9).
 11. **Re-judge R7 with interest in mind:** per-player field-order variants would multiply cell-chunk encode CPU and
     memory by the variant count (§6.2).
+
+---
+
+# Rewind and timing
+
+Researcher findings, 2026-10-15, appended by the agent that owns D2 (`rewind`), U15 (streaming guidance and staged
+release) and the `PlayerGui` variant timing rule (`research/security-refusals.md` §3–§4, R7). Labels as above.
+Probes added to `.data/docs/probes/interest-rewind/` (Luau 0.742 built from `.data/projects/luau`, Release, on the
+same 2.1 GHz Xeon, best of 5; native is `-O2 --codegen`, which Roblox runs on servers only):
+- `rewind_cost.luau`, `.out`: the earlier probe, re-run on 0.742 (it matched the 0.740 figures within noise).
+- `rewind_full.luau`, `.out`: the design below: 24 B slots, perceived-tick resolution, rotation decode and nlerp,
+  the "as received" mode, an error simulation and a memory table.
+- `stream_read.luau`, `.out`: what a Lune 0.11.0 build host reads from a place file for the U15 checks.
+
+Roblox documentation is quoted from `Roblox/creator-docs` at commit `efe8741` (2026-10-15); API tags from the
+pinned dump (Roblox 0.741.19).
+
+## Checklist (rewind and timing)
+
+- [ ] §11 D2 `rewind`: rings at the perceived tick
+- [ ] §12 U15: `StreamingTargetRadius` and staged release
+- [ ] §13 `PlayerGui` variant timing
+- [ ] Implications (rewind and timing)

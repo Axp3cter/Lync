@@ -1,0 +1,4 @@
+shared -g0: 4587 bytes of bytecode, 4505 bytes of source
+shared -g1: 5484 bytes of bytecode, 4505 bytes of source
+inline -g0: 22927 bytes of bytecode, 16962 bytes of source
+inline -g1: 27090 bytes of bytecode, 16962 bytes of source

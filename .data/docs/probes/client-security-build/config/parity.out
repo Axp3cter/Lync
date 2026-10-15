@@ -1,10 +1,10 @@
 == lync.toml
 toml.luau (luau 0.740):
-  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":"server","schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"serverOutput":"src/serverGenerated","sharedOutput":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
 smol-toml (node):  (same as first)
-  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":"server","schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"serverOutput":"src/serverGenerated","sharedOutput":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
 lune serde:  (same as first)
-  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":false,"schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"output":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
+  {"build":{"seed":"release"},"check":{"dynamicAccess":"warn","foreignRemotes":"warn","rawRemotes":"error","reachability":"report","unreliableSize":"error"},"format":1,"generate":{"maxShardBytes":65536,"native":"server","schemaLocations":true,"shardBy":"namespace","types":["luau","dts"]},"output":{"debugMap":"lync-build/debug.json","report":"lync-build/report"},"project":{"namespaces":["ReplicatedStorage.Shared.Combat"],"serverOutput":"src/serverGenerated","sharedOutput":"src/shared/LyncGenerated","sourcemap":"sourcemap.json"},"rotate":{"fieldOrder":true,"tagConstants":true}}
 == edges.toml
 toml.luau (luau 0.740):
   {"beyond":9007199254740992,"big":4294967295,"date":"1979-05-27","hexInt":255,"whole":1,"wholeFloat":1}
@@ -12,5 +12,5 @@ smol-toml (node):  (DIFFERS)
   Error: Invalid TOML document: integer value cannot be represented losslessly
 lune serde:  (DIFFERS)
   {"beyond":9007199254740992,"big":4294967295,"date":{"$__toml_private_datetime":"1979-05-27"},"hexInt":255,"whole":1,"wholeFloat":1}
-lync.toml valid
-edges.toml ["'format' is a required property", "Additional properties are not allowed ('beyond', 'big', 'date', 'hexInt', 'whole', 'wholeFloat' were unexpected)"]
+schema (python jsonschema 4.26): lync.toml valid
+schema (python jsonschema 4.26): edges.toml ["'format' is a required property", "Additional properties are not allowed ('beyond', 'big', 'date', 'hexInt', 'whole', 'wholeFloat' were unexpected)"]

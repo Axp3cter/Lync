@@ -552,9 +552,10 @@ counter and a cost, so each has an option (below); whether such a fact informs a
 ## 7. Timing facts
 
 Three server measures time a client's answer against when it could have seen what it answers: early answers to
-server asks (§7.2), reactions to declared stimuli (§7.3) and challenges (§7.4). They share one clock, one origin and
-one bound, so a fact's evidence equals the timing fields of the server's request result (`v5.md` §3.5) for the
-same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
+server asks (§7.2), reactions to declared stimuli (§7.3) and challenges (§7.4). They share one clock and one bound;
+the origin is the sending flush for asks and stimuli, and for challenges the first flush after the call, a lower
+bound on the token's departure. So an early answer's evidence equals the timing fields of the server's request
+result (`v5.md` §3.5) for the same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 
 ### 7.1 Clock, origin and bound
 
@@ -566,11 +567,16 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   and of Lync's own ack round trips where state frames flow (`v5-collections.md`). Engine ping excludes
   deserialization and processing, so it sits below the full path; the ack round trip is not smoothed and follows
   a latency drop within one state frame. Kept as 10 one-second minima, 40 B per player.
-- **Factor default, derived.** An option `factor` compares elapsed time with factor × b. On `v5.md` §9's default
-  network an unmodified automatic answer's `roundTrip` / ping is 0.97 at p1; after a one-way latency drop from
-  0.10 s to 0.03 s, `roundTrip` over a ping-only minimum falls to 0.52–0.59 within 0.5 s (smoothing time constant
-  assumed), and with ack round trips in the bound it stays at 1.64 `[clock-facts §U4.3]`. So 0.5 sits under every
-  simulated unmodified case; the smoothing measurement (§12) would change it.
+- **Factor default, chosen.** An option `factor` compares elapsed time with factor × b, a margin on Lync's own path
+  estimate. b can exceed the true path only after a latency drop where no ack round trip is in the bound, and by
+  how much depends on the drop and on `GetNetworkPing`'s smoothing, which is unmeasured. Simulated
+  `[clock-facts §U4.3]`: an unmodified automatic answer's `roundTrip` / ping is 0.97 at p1 on `v5.md` §9's default
+  network; after a one-way drop from 0.10 s to 0.03 s, `roundTrip` over a ping-only minimum falls to 0.52–0.59 within
+  0.5 s (smoothing time constant assumed); with ack round trips in the bound it stays at 1.64. A larger drop goes
+  lower: one-way 0.15 s → 0.02 s (cellular to Wi-Fi) gives a smoothed ping of about 0.24 s 0.5 s later (τ 2 s) against
+  an automatic answer of about 0.06 s, a ratio of 0.25, below 0.5 (derived from the same model). So 0.5 is chosen:
+  it holds for the simulated drop, not for every drop, and §10 lists the case; the smoothing measurement (§12) and
+  a game's own drop pattern are what would change it.
 
 ### 7.2 Early answers
 
@@ -578,13 +584,14 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   `roundTrip` = t_r − t_s is below `earlyAnswer.factor` × b is delivered and reported as `earlyAnswer` (§10) with
   `challenge` 0; `roundTrip` and `minPing` are the result's fields for that answer.
 - **Prices** answers sent before the ask could arrive: a bot predicting a timed prompt gains up to one round trip
-  (**clock**, **api**).
+  (**clock**, **api**). **Universal counter:** yes, answering only after the ask arrives; it prices speed, not
+  automation.
 - **Cost.** 6.3–7.2 ns native per ask to record t_s and the sample; the bound's minimum, 44–56 ns native per answer
   (cacheable per second); one `GetNetworkPing` per ask and per answer (engine cost unmeasured, §12). No bytes.
 
 | Option | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
-| `earlyAnswer.factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (§7.1) | as above; server-only |
+| `earlyAnswer.factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (chosen, §7.1) | as above; server-only |
 
 ### 7.3 Reactions (`reactsTo`)
 
@@ -625,6 +632,7 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   data from another path, a blind auto-collector firing on every key), and, with a floor, responses faster than the
   game accepts from a person. Not priced: a client that waits for the stimulus and answers at a human-looking delay
   (it prices speed, not automation); a modified runtime overstating the receipt, which the time rule still bounds.
+  **Universal counter:** yes, answering only after the stimulus arrives and above the floor.
 - **Simulated** on `v5.md` §9's default network `[server-facts §U10.6]`: with b at or below the true path the
   estimate never falls below the true reaction; at b 0.02 s above it, 1.35% of 0.10 s reactions read under a 0.10 s
   floor, hence the docs' rule: floor ≤ the fastest reaction the game accepts, minus 0.02 s. Responses fired at the
@@ -633,14 +641,14 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   response to an event 34.7–38.1 ns at `track` 8, to a collection add 8.2–8.3 ns; a ping sample 7.9–8.1 ns per
   stimulus sent; the bound 45.4–46.0 ns per response. Memory: 24 B × `track` per (player, declaration); 4 B per
   (viewer, slot) per watched collection (400 KB at 100 viewers and 1024 slots); per player a ring of the last 256
-  reliable frames' send times (2 KB). Wire: the receipt, 1 B per upstream reliable frame, ≤ 120 B/s at the default
-  frame budget.
+  reliable frames' send times (2 KB). Wire: the receipt, 1 B per upstream reliable frame, ≤ 60 B/s at the default
+  `inbound.reliable.frames` of 60 (`v5.md` §7.5).
 
 | Option (`reactsTo`) | Type | Unit | Range | Default | Cost |
 |---|---|---|---|---|---|
 | `stimulus` (argument) | collection view, or field handle of a server-sent event | — | its codec equal to the key field's | required | collections: 4 B per (viewer, slot) |
 | `floor` | number (real) | s | 0 (off) or 0.01–2 | 0 (derived: the floor is the game's; none is a default human floor) | none beyond the response test |
-| `factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (§7.1) | none |
+| `factor` | number (real) | fraction of b | 0 (off) to 1 | 0.5 (chosen, §7.1) | none |
 | `track` | integer | event stimuli remembered per player | 1–64 | 8 (chosen: a response more than 8 stimuli of its definition behind counts `reactionsUnmatched`, never a fact) | 24 B per entry per player; the scan is linear in it |
 
 - The key field is required: paired with "the newest stimulus" instead, a slow answer to frequent stimuli pairs
@@ -671,7 +679,9 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
     3600 s, else `valueRefused`; nothing on a closed challenge); `cancel()`. A leaving player closes it as `left`;
     `BindToClose` closes every open one as `shutdown`.
 - **Timing.** t_s is the first flush after the `Lync.challenge` call: the token can leave no sooner, so elapsed
-  times can only be long. The deadline is t_s + `within` (plus extensions) in `os.clock()`, swept once per flush.
+  times can only be long, by however long the game waits before sending the token. The deadline is t_s + `within`
+  (plus extensions) in `os.clock()`, swept once per flush. The docs recipe calls `Lync.challenge` in the code that
+  fires the prompt.
 - **Outcome** (a result value, not a fact: the issuer waits for it, as for an `invoke`, and a fact would print a
   console line per answered challenge and have to be matched back to its call):
 
@@ -691,7 +701,8 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
 - **Prices** automation that doesn't produce the game's response: idle-timer defeaters, **api** farm bots firing
   gameplay definitions without per-game prompt handling, and blind guessing, which closes a challenge as `answered`
   with probability at most `attempts`/`values` (3/10^4 at the docs' values). Deadlines and `after` are server time,
-  so **clock** changes nothing. Not priced: a bot that reads the token (from Lync's decoded payload, the UI or a
+  so **clock** changes nothing. **Universal counter:** no: which field carries the token and which action carries
+  the answer is per game. Not priced: a bot that reads the token (from Lync's decoded payload, the UI or a
   collection: **state**, **mem**) and answers through the game's action, which is byte-identical to a person's
   answer except for its timing; programs that read the screen (OCR, trained solvers); human farms.
 - **Known causes on an unmodified client** `[decoy-challenge-facts §7]`. `timeout`: the player is away; slower than
@@ -699,7 +710,7 @@ same answer `[clock-facts §U4.1]` `[server-facts §U10.4]`.
   touch screen can't answer; a visual-only prompt for a player who can't see it (no scriptable screen-reader API
   exists); reduced-motion and text-size settings; the prompt covered (the Roblox menu, a modal, a loading screen,
   the app in the background); a reliable-lane stall longer than the time left, or a challenge issued before
-  `WELCOME`, waiting in the join hold. `mismatched`: typos and misclicks, controller drift, a misread code, an
+  `WELCOME`, waiting in the join hold; the game sending the token later than the call. `mismatched`: typos and misclicks, controller drift, a misread code, an
   answers field that also carries values in ordinary play. `answered` close to `minPing`: game code that fills the
   answer itself, a confirm key still held from the previous action. The docs page "Challenges" gives the recipe:
   `within` from a saved per-player setting over at least a 10× range, a warning 20 s before the deadline with

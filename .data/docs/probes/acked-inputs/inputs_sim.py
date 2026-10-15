@@ -89,29 +89,35 @@ def run(rate, J, C, mode, net, jitter=0.02, seed=3):
                     arrive[i] = at
             newest_srv = max(newest_srv, hi)
         # server: one state frame per state tick carrying the newest received index
-        if mode != "fixed" and int((t - flush) * rate + 1e-9) != k and newest_srv >= 0:
+        if mode not in ("fixed", "flushfixed") and int((t - flush) * rate + 1e-9) != k and newest_srv >= 0:
             down_frames += 1
             if not down.lost():
                 acks.append((t + 0.05 + rj_dn.uniform(0, jitter), newest_srv))
         acks.sort()
         while acks and acks[0][0] <= t:
             a_cl = max(a_cl, acks.pop(0)[1])
-        send = (k != tick_sent) or mode == "flush"
+        send = (k != tick_sent) or mode in ("flush", "flushref", "flushfixed")
         if not send:
             continue
         tick_sent = k
-        if mode == "fixed":
+        if mode in ("flushref", "flushfixed"):
+            # deadline window: index i is resent while t - i / rate <= J / rate + 1/60
+            lo_dead = max(0, int(-(-(t - J / rate - flush) * rate // 1)))
+            start = lo_dead if mode == "flushfixed" else max(lo_dead, a_cl + 1)
+            if start > k:
+                continue
+        elif mode == "fixed":
             start = max(0, k - C + 1)
         else:
             start = max(0, a_cl + 1, k - C + 1)
-        if mode == "ackref":
+        if mode in ("ackref", "flushref"):
             ref = a_cl >= 0 and k - a_cl <= 64
             refidx = a_cl
         else:
             ref = mode != "fixed" and start == a_cl + 1 and a_cl >= 0
             refidx = start - 1
         b = 3 + eg0(k - start) + 12 + 1
-        if mode == "ackref" and ref:
+        if mode in ("ackref", "flushref") and ref:
             b += eg0(start - 1 - refidx)
         b += delta_bits(vals[refidx], vals[start]) if ref else ABS
         for i in range(start + 1, k + 1):
@@ -166,7 +172,7 @@ if __name__ == "__main__":
                 for label, C, mode in (("R1", 1, "fixed"), ("R2", 2, "fixed"), (f"fixJ+1", J + 1, "fixed"),
                                        ("ack,C=J+1", J + 1, "ack"), ("ack,C=32", 32, "ack"),
                                        ("ack+ref,C=J+1", J + 1, "ackref")) + \
-                        ((("flush,C=J+1", J + 1, "flush"),) if rate == 20 else ()):
+                        (("flush+ref", 0, "flushref"), ("flush,no ack", 0, "flushfixed")):
                     r = run(rate, J, C, mode, net)
                     row.append(f"{label} {r['miss'] * 100:6.3f}% {r['Bps']:5.0f}B/s {r['copies']:4.0f}c/s")
                 lat = run(rate, J, J + 1, "ackref", net)

@@ -1,0 +1,401 @@
+export = () => {
+	it("should inherit from an abstract class without a base", () => {
+		abstract class Base {
+			value = 41;
+			abstract read(): number;
+		}
+		class Derived extends Base {
+			read() {
+				return this.value + 1;
+			}
+		}
+
+		expect(new Derived().read()).to.equal(42);
+	});
+
+	it("should preserve the receiver for computed super calls", () => {
+		class Base {
+			value = 42;
+			read() {
+				return this.value;
+			}
+		}
+		class Derived extends Base {
+			read() {
+				return super["read"]() + 1;
+			}
+		}
+
+		expect(new Derived().read()).to.equal(43);
+	});
+
+	it("should honor callback and method receivers in super calls", () => {
+		type Callable<T> = (this: T, value: number) => number;
+		class Base {
+			static value = 1;
+			static callback: Callable<void> = value => value + 1;
+			static method(value: number) {
+				return this.value + value;
+			}
+		}
+
+		class Derived extends Base {
+			static value = 2;
+			static check() {
+				expect(super.callback(41)).to.equal(42);
+				expect(super["callback"](41)).to.equal(42);
+				expect((super.callback)(41)).to.equal(42);
+				expect(super.callback?.(41)).to.equal(42);
+				expect(super.method(40)).to.equal(42);
+				expect(super["method"](40)).to.equal(42);
+			}
+			static withoutReceiver(this: void) {
+				return super.callback(41) + super["callback"](41);
+			}
+		}
+
+		Derived.check();
+		expect(Derived.withoutReceiver()).to.equal(84);
+	});
+
+	it("should properly initialize static properties and use `this` in a static context correctly", () => {
+		class X {
+			static value1 = "a";
+			static {
+				this.value1 += "b";
+			}
+			static value2 = this.value1 + "c";
+		}
+
+		expect(X.value1).to.equal("ab");
+		expect(X.value2).to.equal("abc");
+	});
+
+	it("should construct with default parameters and accessors", () => {
+		class Vector {
+			constructor(
+				public readonly x = 0,
+				public readonly y = 0,
+				public readonly z = 0,
+			) {}
+		}
+
+		const v0 = new Vector(1, 2, 3);
+		expect(v0.x).to.equal(1);
+		expect(v0.y).to.equal(2);
+		expect(v0.z).to.equal(3);
+
+		const v1 = new Vector();
+		expect(v1.x).to.equal(0);
+		expect(v1.y).to.equal(0);
+		expect(v1.z).to.equal(0);
+	});
+
+	it("should initialize properties after super call", () => {
+		const order = new Array<number>();
+
+		class Super {
+			constructor() {
+				order.push(1);
+			}
+		}
+
+		class Class extends Super {
+			parameter = order.push(2);
+
+			constructor() {
+				order.push(0);
+				super();
+				order.push(3);
+			}
+		}
+
+		new Class();
+
+		for (let i = 0; i < order.size(); i++) {
+			expect(order[i]).to.equal(i);
+		}
+	});
+
+	it("should expose a public method", () => {
+		class Greeter {
+			public greeting: string;
+
+			constructor(message: string) {
+				this.greeting = message;
+			}
+
+			public greet() {
+				return "Hello, " + this.greeting;
+			}
+
+			async f() {}
+		}
+
+		const artemis = new Greeter("artemis");
+		expect(artemis.greeting).to.equal("artemis");
+		expect(artemis.greet()).to.equal("Hello, artemis");
+	});
+
+	it("should inhereit methods", () => {
+		class Animal {
+			public move(distanceInMeters = 0) {
+				return `Animal moved ${distanceInMeters}m.`;
+			}
+		}
+
+		class Dog extends Animal {
+			private name: string;
+
+			constructor(name: string) {
+				super();
+				this.name = name;
+			}
+
+			public bark() {
+				return this.name + " barks";
+			}
+		}
+
+		const apollo = new Dog("apollo");
+		expect(apollo.move()).to.equal("Animal moved 0m.");
+		expect(apollo.move(5)).to.equal("Animal moved 5m.");
+		expect(apollo.bark()).to.equal("apollo barks");
+	});
+
+	it("should support static methods", () => {
+		class Foo {
+			static bar() {
+				return "bar";
+			}
+
+			static async barf() {
+				return "barf";
+			}
+		}
+		expect(Foo.bar()).to.equal("bar");
+	});
+
+	it("should inherit static methods", () => {
+		class Foo {
+			static bar() {
+				return "bar";
+			}
+		}
+
+		class Bar extends Foo {}
+		expect(Bar.bar()).to.equal("bar");
+	});
+
+	it("should support parameter initializers", () => {
+		class Foo {
+			public bar = "baz";
+		}
+		const foo = new Foo();
+		expect(foo.bar).to.equal("baz");
+	});
+
+	it("should support toString on classes and subclasses", () => {
+		class Foo {
+			public toString() {
+				return "Foo";
+			}
+		}
+
+		class Bar extends Foo {}
+
+		expect(tostring(new Foo())).to.equal("Foo");
+		expect(tostring(new Bar())).to.equal("Foo");
+	});
+
+	it("should support toString inheritance with ClassExpression", () => {
+		class A extends class B {
+			toString() {
+				return "B";
+			}
+		} {}
+		expect(tostring(new A())).to.equal("B");
+	});
+
+	it("should support multiple constructors", () => {
+		class Foo {
+			public name: string | undefined;
+			constructor();
+			constructor(name: string);
+			constructor(name?: string) {
+				if (name) {
+					this.name = name;
+				}
+			}
+		}
+		const foo1 = new Foo();
+		expect(foo1.name).never.to.be.ok();
+		const foo2 = new Foo("bar");
+		expect(foo2.name).to.equal("bar");
+	});
+
+	it("should support constructor parameter destructuring", () => {
+		class Foo {
+			bar: number;
+			constructor({ a }: { a: number }) {
+				this.bar = a;
+			}
+		}
+		expect(new Foo({ a: 123 }).bar).to.equal(123);
+	});
+
+	it("should support passing the rest parameter from constructor to super", () => {
+		class A {
+			constructor(...rest: Array<unknown>) {
+				expect(rest[0]).to.equal(10);
+				expect(rest[1]).to.equal(20);
+				expect(rest[2]).to.equal(30);
+			}
+		}
+
+		class B extends A {
+			constructor(...rest: Array<unknown>) {
+				super(...rest);
+			}
+		}
+
+		expect(() => new B(10, 20, 30)).never.throw();
+	});
+
+	it("should support class expressions", () => {
+		const Foo = class {
+			bar() {
+				return "A";
+			}
+		};
+		const Bar = class extends Foo {};
+		const bar = new Bar();
+		expect(bar.bar()).to.equal("A");
+	});
+
+	it("should support built-in classes", () => {
+		expect(new Promise(() => {})).to.be.ok();
+	});
+
+	it("should support numeric members", () => {
+		class Foo {
+			1 = "bar";
+		}
+		expect(new Foo()[1]).to.equal("bar");
+	});
+
+	it("should support computed members", () => {
+		class Foo {
+			["bar"] = "baz";
+		}
+		expect(new Foo()["bar"]).to.equal("baz");
+	});
+
+	it("should support numeric statics", () => {
+		class Foo {
+			static 1 = "bar";
+		}
+		expect(Foo[1]).to.equal("bar");
+	});
+
+	it("should support computed statics", () => {
+		class Foo {
+			static ["bar"] = "baz";
+		}
+		expect(Foo["bar"]).to.equal("baz");
+	});
+
+	it("should support new expressions without parentheses", () => {
+		class Foo {
+			bar = 1;
+		}
+		// prettier-ignore
+		const foo = new Foo;
+		expect(foo).to.be.ok();
+		expect(foo instanceof Foo).to.equal(true);
+		expect(foo.bar).to.equal(1);
+	});
+
+	it("should compile static fields last", () => {
+		class Foo {
+			static x = new Foo().bar();
+			bar() {
+				return "baz";
+			}
+		}
+		expect(Foo.x).to.equal("baz");
+	});
+
+	it("should support invalid indexing", () => {
+		expect(
+			new (class A {
+				public $() {
+					return ++this.$v;
+				}
+				public $v = 2;
+			})().$(),
+		).to.equal(3);
+
+		expect(
+			class {
+				public static $() {
+					return ++this.$v;
+				}
+				public static $v = 2;
+			}.$(),
+		).to.equal(3);
+
+		expect(
+			new (class extends class {
+				public $v = -1;
+				public $() {
+					return ++this.$v;
+				}
+			} {
+				public $() {
+					return super.$();
+				}
+			})().$(),
+		).to.equal(0);
+
+		expect(
+			class extends class {
+				public static $v = -1;
+				public static $() {
+					return ++this.$v;
+				}
+			} {
+				public static $() {
+					return super.$();
+				}
+			}.$(),
+		).to.equal(0);
+	});
+
+	it("should support nested classes which refer to the outer class", () => {
+		class A {
+			static member = class B {
+				method() {
+					return new A();
+				}
+			};
+		}
+		expect(new A.member().method() instanceof A).to.equal(true);
+	});
+
+	it("should support methods keys that emit prereqs", () => {
+		let i = 0;
+		class Base {}
+		class A extends Base {
+			[++i]() {
+				return "first";
+			}
+			[++i]() {
+				return "second";
+			}
+		}
+		const a = new A();
+		expect((a[1 as never] as (this: A) => string)()).to.equal("first");
+		expect((a[2 as never] as (this: A) => string)()).to.equal("second");
+	});
+};

@@ -1,0 +1,52 @@
+{
+	"name": "roblox-ts-tests",
+	"globIgnorePaths": ["**/package.json", "**/tsconfig.json"],
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"external": {
+				"$path": "projects/external"
+			},
+			"referenceCommon": {
+				"$path": "projects/common/out"
+			},
+			"referenceShared": {
+				"$path": "projects/shared/out"
+			},
+			"include": {
+				"$path": "include",
+				"node_modules": {
+					"$className": "Folder",
+					"@rbxts": {
+						"$path": "node_modules/@rbxts"
+					}
+				}
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"main": {
+				"$path": "out/main.server.luau"
+			},
+			"tests": {
+				"$path": "out/tests"
+			},
+			"diagnostics": {
+				"$path": "out/diagnostics"
+			},
+			"helpers": {
+				"$className": "Folder",
+				"util": {
+					"$path": "out/helpers/util"
+				}
+			}
+		},
+		"StarterGui": {
+			"$className": "StarterGui",
+			"isolated": {
+				"$path": "out/helpers/rojo/isolated.luau"
+			}
+		}
+	}
+}

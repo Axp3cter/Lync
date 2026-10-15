@@ -1,0 +1,346 @@
+import luau from "@roblox-ts/luau-ast";
+import { errors } from "Shared/diagnostics";
+import { TransformState } from "TSTransformer";
+import { DiagnosticService } from "TSTransformer/classes/DiagnosticService";
+import { Prereqs } from "TSTransformer/classes/Prereqs";
+import {
+	transformCallExpressionInner,
+	transformElementCallExpressionInner,
+	transformPropertyCallExpressionInner,
+} from "TSTransformer/nodes/expressions/transformCallExpression";
+import { transformElementAccessExpressionInner } from "TSTransformer/nodes/expressions/transformElementAccessExpression";
+import { transformExpression } from "TSTransformer/nodes/expressions/transformExpression";
+import { transformPropertyAccessExpressionInner } from "TSTransformer/nodes/expressions/transformPropertyAccessExpression";
+import { addOneIfArrayType } from "TSTransformer/util/addOneIfArrayType";
+import { convertToIndexableExpression } from "TSTransformer/util/convertToIndexableExpression";
+import { ensureTransformOrder } from "TSTransformer/util/ensureTransformOrder";
+import { isMethod } from "TSTransformer/util/isMethod";
+import { isUsedAsStatement } from "TSTransformer/util/isUsedAsStatement";
+import { skipDownwards } from "TSTransformer/util/traversal";
+import { getFirstDefinedSymbol } from "TSTransformer/util/types";
+import { wrapReturnIfLuaTuple } from "TSTransformer/util/wrapReturnIfLuaTuple";
+import ts from "typescript";
+
+enum OptionalChainItemKind {
+	PropertyAccess,
+	ElementAccess,
+	Call,
+	PropertyCall,
+	ElementCall,
+}
+
+interface OptionalChainItem<T extends OptionalChainItemKind, U extends ts.Expression> {
+	kind: T;
+	node: U;
+	optional: boolean;
+}
+
+interface PropertyAccessItem extends OptionalChainItem<
+	OptionalChainItemKind.PropertyAccess,
+	ts.PropertyAccessExpression
+> {
+	name: string;
+}
+
+interface ElementAccessItem extends OptionalChainItem<OptionalChainItemKind.ElementAccess, ts.ElementAccessExpression> {
+	expression: ts.Expression;
+}
+
+interface CallItem extends OptionalChainItem<OptionalChainItemKind.Call, ts.CallExpression> {
+	args: ReadonlyArray<ts.Expression>;
+}
+
+interface PropertyCallItem extends OptionalChainItem<OptionalChainItemKind.PropertyCall, ts.CallExpression> {
+	expression: ts.PropertyAccessExpression;
+	name: string;
+	callOptional: boolean;
+	args: ReadonlyArray<ts.Expression>;
+}
+
+interface ElementCallItem extends OptionalChainItem<OptionalChainItemKind.ElementCall, ts.CallExpression> {
+	expression: ts.ElementAccessExpression;
+	argumentExpression: ts.Expression;
+	callOptional: boolean;
+	args: ReadonlyArray<ts.Expression>;
+}
+
+function createPropertyAccessItem(node: ts.PropertyAccessExpression): PropertyAccessItem {
+	return {
+		node,
+		kind: OptionalChainItemKind.PropertyAccess,
+		optional: node.questionDotToken !== undefined,
+		name: node.name.text,
+	};
+}
+
+function createElementAccessItem(node: ts.ElementAccessExpression): ElementAccessItem {
+	return {
+		node,
+		kind: OptionalChainItemKind.ElementAccess,
+		optional: node.questionDotToken !== undefined,
+		expression: node.argumentExpression,
+	};
+}
+
+function createCallItem(node: ts.CallExpression): CallItem {
+	return {
+		node,
+		kind: OptionalChainItemKind.Call,
+		optional: node.questionDotToken !== undefined,
+		args: node.arguments,
+	};
+}
+
+function createPropertyCallItem(
+	node: PropertyCallItem["node"],
+	expression: PropertyCallItem["expression"],
+): PropertyCallItem {
+	return {
+		node,
+		expression,
+		kind: OptionalChainItemKind.PropertyCall,
+		optional: expression.questionDotToken !== undefined,
+		name: expression.name.text,
+		callOptional: node.questionDotToken !== undefined,
+		args: node.arguments,
+	};
+}
+
+function createElementCallItem(
+	node: ElementCallItem["node"],
+	expression: ElementCallItem["expression"],
+): ElementCallItem {
+	return {
+		node,
+		expression,
+		kind: OptionalChainItemKind.ElementCall,
+		optional: expression.questionDotToken !== undefined,
+		argumentExpression: expression.argumentExpression,
+		callOptional: node.questionDotToken !== undefined,
+		args: node.arguments,
+	};
+}
+
+type ChainItem = PropertyAccessItem | ElementAccessItem | CallItem | PropertyCallItem | ElementCallItem;
+
+export function flattenOptionalChain(expression: ts.Expression) {
+	const chain = new Array<ChainItem>();
+	while (true) {
+		if (ts.isPropertyAccessExpression(expression)) {
+			chain.unshift(createPropertyAccessItem(expression));
+			expression = expression.expression;
+		} else if (ts.isElementAccessExpression(expression)) {
+			chain.unshift(createElementAccessItem(expression));
+			expression = expression.expression;
+		} else if (ts.isCallExpression(expression)) {
+			// this is a bit of a mess..
+			const subExp = skipDownwards(expression.expression);
+			if (ts.isPropertyAccessExpression(subExp)) {
+				chain.unshift(createPropertyCallItem(expression, subExp));
+				expression = subExp.expression;
+			} else if (ts.isElementAccessExpression(subExp)) {
+				chain.unshift(createElementCallItem(expression, subExp));
+				expression = subExp.expression;
+			} else {
+				chain.unshift(createCallItem(expression));
+				expression = subExp;
+			}
+		} else {
+			break;
+		}
+	}
+	return { chain, expression };
+}
+
+function transformChainItem(state: TransformState, prereqs: Prereqs, baseExpression: luau.Expression, item: ChainItem) {
+	if (item.kind === OptionalChainItemKind.PropertyAccess) {
+		return transformPropertyAccessExpressionInner(state, prereqs, item.node, baseExpression, item.name);
+	} else if (item.kind === OptionalChainItemKind.ElementAccess) {
+		return transformElementAccessExpressionInner(state, prereqs, item.node, baseExpression, item.expression);
+	} else if (item.kind === OptionalChainItemKind.Call) {
+		return transformCallExpressionInner(state, prereqs, item.node, baseExpression, item.args);
+	} else if (item.kind === OptionalChainItemKind.PropertyCall) {
+		return transformPropertyCallExpressionInner(
+			state,
+			prereqs,
+			item.node,
+			item.expression,
+			baseExpression,
+			item.name,
+			item.args,
+		);
+	} else {
+		return transformElementCallExpressionInner(
+			state,
+			prereqs,
+			item.node,
+			item.expression,
+			baseExpression,
+			item.argumentExpression,
+			item.args,
+		);
+	}
+}
+
+function createOrSetTempId(
+	prereqs: Prereqs,
+	tempId: luau.TemporaryIdentifier | undefined,
+	expression: luau.Expression,
+	node: ts.Node,
+) {
+	if (tempId === undefined) {
+		tempId = prereqs.pushToVar(
+			expression,
+			node.parent && ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)
+				? node.parent.name.text
+				: "result",
+		);
+	} else {
+		if (tempId !== expression) {
+			prereqs.push(
+				luau.create(luau.SyntaxKind.Assignment, {
+					left: tempId,
+					operator: "=",
+					right: expression,
+				}),
+			);
+		}
+	}
+	return tempId;
+}
+
+function createNilCheck(tempId: luau.TemporaryIdentifier, statements: luau.List<luau.Statement>) {
+	return luau.create(luau.SyntaxKind.IfStatement, {
+		condition: luau.binary(tempId, "~=", luau.nil()),
+		statements,
+		elseBody: luau.list.make(),
+	});
+}
+
+function isCompoundCall(item: ChainItem): item is PropertyCallItem | ElementCallItem {
+	return item.kind === OptionalChainItemKind.PropertyCall || item.kind === OptionalChainItemKind.ElementCall;
+}
+
+function transformOptionalChainInner(
+	state: TransformState,
+	prereqs: Prereqs,
+	chain: Array<ChainItem>,
+	baseExpression: luau.Expression,
+	tempId: luau.TemporaryIdentifier | undefined = undefined,
+	index = 0,
+): luau.Expression {
+	if (index >= chain.length) return baseExpression;
+	const item = chain[index];
+	if (item.optional || (isCompoundCall(item) && item.callOptional)) {
+		let isMethodCall = false;
+		let isSuperCall = false;
+		let selfParam: luau.TemporaryIdentifier | undefined;
+
+		if (isCompoundCall(item)) {
+			isMethodCall = isMethod(state, item.expression);
+			isSuperCall = ts.isSuperProperty(item.expression);
+
+			if (item.callOptional && isMethodCall && !isSuperCall) {
+				selfParam = prereqs.pushToVar(baseExpression, "self");
+				baseExpression = selfParam;
+			}
+
+			if (item.optional) {
+				tempId = createOrSetTempId(prereqs, tempId, baseExpression, chain[chain.length - 1].node);
+				baseExpression = tempId;
+			}
+
+			if (item.callOptional) {
+				if (item.kind === OptionalChainItemKind.PropertyCall) {
+					baseExpression = luau.property(convertToIndexableExpression(baseExpression), item.name);
+				} else {
+					const expType = state.getType(item.expression.expression);
+
+					baseExpression = luau.create(luau.SyntaxKind.ComputedIndexExpression, {
+						expression: convertToIndexableExpression(baseExpression),
+						index: addOneIfArrayType(
+							state,
+							expType,
+							transformExpression(state, prereqs, item.argumentExpression),
+						),
+					});
+				}
+			}
+		}
+
+		// receiver initialization may need its own nil check before the optional call
+		const receiverPrereqs = new Prereqs();
+		tempId = createOrSetTempId(receiverPrereqs, tempId, baseExpression, chain[chain.length - 1].node);
+
+		const branchPrereqs = new Prereqs();
+		let newExpression: luau.Expression | undefined;
+		if (isCompoundCall(item) && item.callOptional) {
+			const expType = state.typeChecker.getNonOptionalType(state.getType(item.node.expression));
+			const symbol = getFirstDefinedSymbol(state, expType);
+			const macro = symbol && state.services.macroManager.getPropertyCallMacro(symbol);
+			if (macro) {
+				DiagnosticService.addDiagnostic(errors.noOptionalMacroCall(item.node));
+			} else {
+				const args = ensureTransformOrder(state, branchPrereqs, item.args);
+				if (isMethodCall) {
+					if (isSuperCall) {
+						args.unshift(luau.globals.self);
+					} else {
+						args.unshift(selfParam!);
+					}
+				}
+				newExpression = wrapReturnIfLuaTuple(state, item.node, luau.call(tempId, args));
+			}
+		} else {
+			newExpression = transformChainItem(state, branchPrereqs, tempId, item);
+		}
+		const newValue = newExpression
+			? transformOptionalChainInner(state, branchPrereqs, chain, newExpression, tempId, index + 1)
+			: luau.none();
+		const isUsed = !luau.isNone(newValue) && !isUsedAsStatement(item.node);
+
+		if (tempId !== newValue && isUsed) {
+			branchPrereqs.push(
+				luau.create(luau.SyntaxKind.Assignment, {
+					left: tempId,
+					operator: "=",
+					right: newValue,
+				}),
+			);
+		} else if (luau.isCall(newValue)) {
+			branchPrereqs.push(
+				luau.create(luau.SyntaxKind.CallStatement, {
+					expression: newValue,
+				}),
+			);
+		}
+
+		receiverPrereqs.push(createNilCheck(tempId, branchPrereqs.statements));
+
+		if (isCompoundCall(item) && item.optional && item.callOptional) {
+			prereqs.push(createNilCheck(tempId, receiverPrereqs.statements));
+		} else {
+			prereqs.pushList(receiverPrereqs.statements);
+		}
+
+		return isUsed ? tempId : luau.none();
+	} else {
+		return transformOptionalChainInner(
+			state,
+			prereqs,
+			chain,
+			transformChainItem(state, prereqs, baseExpression, item),
+			tempId,
+			index + 1,
+		);
+	}
+}
+
+export function transformOptionalChain(
+	state: TransformState,
+	prereqs: Prereqs,
+	node: ts.PropertyAccessExpression | ts.ElementAccessExpression | ts.CallExpression,
+): luau.Expression {
+	const { chain, expression } = flattenOptionalChain(node);
+	return transformOptionalChainInner(state, prereqs, chain, transformExpression(state, prereqs, expression));
+}

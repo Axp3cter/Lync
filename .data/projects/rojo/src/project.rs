@@ -1,0 +1,692 @@
+use std::{
+    collections::{BTreeMap, HashSet},
+    ffi::OsStr,
+    fs, io,
+    net::IpAddr,
+    path::{Path, PathBuf},
+};
+
+use memofs::Vfs;
+use rbx_dom_weak::Ustr;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::{
+    glob::IgnorableGlob, json, resolution::UnresolvedValue, snapshot::SyncRule,
+    syncback::SyncbackRules,
+};
+
+/// Represents 'default' project names that act as `init` files
+pub static DEFAULT_PROJECT_NAMES: [&str; 2] = ["default.project.json", "default.project.jsonc"];
+
+/// Error type returned by any function that handles projects.
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub struct ProjectError(#[from] Error);
+
+#[derive(Debug, Error)]
+enum Error {
+    #[error(
+        "Rojo requires a project file, but no project file was found in path {}\n\
+        See https://rojo.space/docs/ for guides and documentation.",
+        .path.display()
+    )]
+    NoProjectFound { path: PathBuf },
+
+    #[error("The folder for the provided project cannot be used as a project name: {}\n\
+            Consider setting the `name` field on this project.", .path.display())]
+    FolderNameInvalid { path: PathBuf },
+
+    #[error("The file name of the provided project cannot be used as a project name: {}.\n\
+            Consider setting the `name` field on this project.", .path.display())]
+    ProjectNameInvalid { path: PathBuf },
+
+    #[error(transparent)]
+    Io {
+        #[from]
+        source: io::Error,
+    },
+
+    #[error("Error parsing Rojo project in path {}", .path.display())]
+    Json {
+        source: serde_json::Error,
+        path: PathBuf,
+    },
+}
+
+/// Contains all of the configuration for a Rojo-managed project.
+///
+/// Project files are stored in `.project.json` files.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Project {
+    #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
+    schema: Option<String>,
+
+    /// The name of the top-level instance described by the project.
+    pub name: Option<String>,
+
+    /// The tree of instances described by this project. Projects always
+    /// describe at least one instance.
+    pub tree: ProjectNode,
+
+    /// If specified, sets the default port that `rojo serve` should use when
+    /// using this project for live sync.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serve_port: Option<u16>,
+
+    /// If specified, contains the set of place IDs that this project is
+    /// compatible with when doing live sync.
+    ///
+    /// This setting is intended to help prevent syncing a Rojo project into the
+    /// wrong Roblox place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serve_place_ids: Option<HashSet<u64>>,
+
+    /// If specified, contains a set of place IDs that this project is
+    /// not compatible with when doing live sync.
+    ///
+    /// This setting is intended to help prevent syncing a Rojo project into the
+    /// wrong Roblox place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_place_ids: Option<HashSet<u64>>,
+
+    /// If specified, sets the current place's place ID when connecting to the
+    /// Rojo server from Roblox Studio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place_id: Option<u64>,
+
+    /// If specified, sets the current place's game ID when connecting to the
+    /// Rojo server from Roblox Studio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub game_id: Option<u64>,
+
+    /// If specified, this address will be used in place of the default address
+    /// As long as --address is unprovided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serve_address: Option<IpAddr>,
+
+    /// Additional `Host`/`Origin` header values that `rojo serve` will accept
+    /// beyond `localhost` and the bind address, such as a hostname like
+    /// `mypc.lan` used to reach a network-exposed server by name. Listing any
+    /// host also turns on `Host`/`Origin` validation for binds where it is
+    /// otherwise off (such as `0.0.0.0`). The `--allowed-hosts` CLI option
+    /// overrides this field when provided.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub serve_allowed_hosts: Vec<String>,
+
+    /// Determines if Rojo should emit scripts with the appropriate `RunContext`
+    /// for `*.client.lua` and `*.server.lua` files in the project instead of
+    /// using `Script` and `LocalScript` Instances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emit_legacy_scripts: Option<bool>,
+
+    /// A list of globs, relative to the folder the project file is in, that
+    /// match files that should be excluded if Rojo encounters them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub glob_ignore_paths: Vec<IgnorableGlob>,
+
+    /// A list of rules for syncback with this project file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub syncback_rules: Option<SyncbackRules>,
+
+    /// A list of mappings of globs to syncing rules. If a file matches a glob,
+    /// it will be 'transformed' into an Instance following the rule provided.
+    /// Globs are relative to the folder the project file is in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sync_rules: Vec<SyncRule>,
+
+    /// The path to the file that this project came from. Relative paths in the
+    /// project should be considered relative to the parent of this field, also
+    /// given by `Project::folder_location`.
+    #[serde(skip)]
+    pub file_location: PathBuf,
+}
+
+impl Project {
+    /// Tells whether the given path describes a Rojo project.
+    pub fn is_project_file(path: &Path) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.ends_with(".project.json") || name.ends_with(".project.jsonc"))
+            .unwrap_or(false)
+    }
+
+    /// Attempt to locate a project represented by the given path.
+    ///
+    /// This will find a project if the path refers to a `.project.json` file,
+    /// or is a folder that contains a `default.project.json` file.
+    fn locate(path: &Path) -> Option<PathBuf> {
+        let meta = fs::metadata(path).ok()?;
+
+        if meta.is_file() {
+            if Project::is_project_file(path) {
+                Some(path.to_path_buf())
+            } else {
+                None
+            }
+        } else {
+            for filename in DEFAULT_PROJECT_NAMES {
+                let child_path = path.join(filename);
+                let child_meta = fs::metadata(&child_path).ok()?;
+
+                if child_meta.is_file() {
+                    return Some(child_path);
+                }
+            }
+            // This is a folder with the same name as a Rojo default project
+            // file.
+            //
+            // That's pretty weird, but we can roll with it.
+            None
+        }
+    }
+
+    /// Sets the name of a project. The order it handles is as follows:
+    ///
+    /// - If the project is a `default.project.json`, uses the folder's name
+    /// - If a fallback is specified, uses that blindly
+    /// - Otherwise, loops through sync rules (including the default ones!) and
+    ///   uses the name of the first one that matches and is a project file
+    fn set_file_name(&mut self, fallback: Option<&str>) -> Result<(), Error> {
+        let file_name = self
+            .file_location
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| Error::ProjectNameInvalid {
+                path: self.file_location.clone(),
+            })?;
+
+        // If you're editing this to be generic, make sure you also alter the
+        // snapshot middleware to support generic init paths.
+        for default_file_name in DEFAULT_PROJECT_NAMES {
+            if file_name == default_file_name {
+                let folder_name = self.folder_location().file_name().and_then(OsStr::to_str);
+                if let Some(folder_name) = folder_name {
+                    self.name = Some(folder_name.to_string());
+                    return Ok(());
+                } else {
+                    return Err(Error::FolderNameInvalid {
+                        path: self.file_location.clone(),
+                    });
+                }
+            }
+        }
+        if let Some(fallback) = fallback {
+            self.name = Some(fallback.to_string());
+        } else {
+            // As of the time of writing (July 10, 2024) there is no way for
+            // this code path to be reachable. It can in theory be reached from
+            // both `load_fuzzy` and `load_exact` but in practice it's never
+            // invoked.
+            // If you're adding this codepath, make sure a test for it exists
+            // and that it handles sync rules appropriately.
+            todo!(
+                "set_file_name doesn't support loading project files that aren't default.project.json without a fallback provided"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Loads a Project file from the provided contents with its source set as
+    /// the provided location.
+    fn load_from_slice(
+        contents: &[u8],
+        project_file_location: PathBuf,
+        fallback_name: Option<&str>,
+    ) -> Result<Self, Error> {
+        let mut project: Self = json::from_slice(contents).map_err(|e| Error::Json {
+            source: serde_json::Error::io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                e.to_string(),
+            )),
+            path: project_file_location.clone(),
+        })?;
+        project.file_location = project_file_location;
+        project.check_compatibility();
+        if project.name.is_none() {
+            project.set_file_name(fallback_name)?;
+        }
+
+        Ok(project)
+    }
+
+    /// Loads a Project from a path. This will find the project if it refers to
+    /// a `.project.json` file or if it refers to a directory that contains a
+    /// file named `default.project.json`.
+    pub fn load_fuzzy(
+        vfs: &Vfs,
+        fuzzy_project_location: &Path,
+    ) -> Result<Option<Self>, ProjectError> {
+        if let Some(project_path) = Self::locate(fuzzy_project_location) {
+            let contents = vfs.read(&project_path).map_err(|e| match e.kind() {
+                io::ErrorKind::NotFound => Error::NoProjectFound {
+                    path: project_path.to_path_buf(),
+                },
+                _ => e.into(),
+            })?;
+
+            Ok(Some(Self::load_from_slice(&contents, project_path, None)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Loads a Project from a path.
+    pub fn load_exact(
+        vfs: &Vfs,
+        project_file_location: &Path,
+        fallback_name: Option<&str>,
+    ) -> Result<Self, ProjectError> {
+        log::debug!(
+            "Loading project file from {}",
+            project_file_location.display()
+        );
+        let project_path = project_file_location.to_path_buf();
+        let contents = vfs.read(&project_path).map_err(|e| match e.kind() {
+            io::ErrorKind::NotFound => Error::NoProjectFound {
+                path: project_path.to_path_buf(),
+            },
+            _ => e.into(),
+        })?;
+
+        Ok(Self::load_from_slice(
+            &contents,
+            project_path,
+            fallback_name,
+        )?)
+    }
+
+    pub(crate) fn load_initial_project(vfs: &Vfs, path: &Path) -> Result<Self, ProjectError> {
+        if Self::is_project_file(path) {
+            Self::load_exact(vfs, path, None)
+        } else {
+            // Check for default projects.
+            for default_project_name in DEFAULT_PROJECT_NAMES {
+                let project_path = path.join(default_project_name);
+                if let Ok(true) = vfs.exists(&project_path) {
+                    return Self::load_exact(vfs, &project_path, None);
+                }
+            }
+            Err(Error::NoProjectFound {
+                path: path.to_path_buf(),
+            }
+            .into())
+        }
+    }
+
+    /// Checks if there are any compatibility issues with this project file and
+    /// warns the user if there are any.
+    fn check_compatibility(&self) {
+        self.tree.validate_reserved_names();
+    }
+
+    pub fn folder_location(&self) -> &Path {
+        self.file_location.parent().unwrap()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct OptionalPathNode {
+    #[serde(serialize_with = "crate::path_serializer::serialize_absolute")]
+    pub optional: PathBuf,
+}
+
+impl OptionalPathNode {
+    pub fn new(optional: PathBuf) -> Self {
+        OptionalPathNode { optional }
+    }
+}
+
+/// Describes a path that is either optional or required
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PathNode {
+    Required(#[serde(serialize_with = "crate::path_serializer::serialize_absolute")] PathBuf),
+    Optional(OptionalPathNode),
+}
+
+impl PathNode {
+    /// Returns the path of the `PathNode`, without regard for if it's optional
+    // or not.
+    #[inline]
+    pub fn path(&self) -> &Path {
+        match self {
+            PathNode::Required(pathbuf) => pathbuf,
+            PathNode::Optional(OptionalPathNode { optional }) => optional,
+        }
+    }
+
+    /// Returns whether this `PathNode` is optional or not.
+    #[inline]
+    pub fn is_optional(&self) -> bool {
+        matches!(self, PathNode::Optional(_))
+    }
+}
+
+/// Describes an instance and its descendants in a project.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ProjectNode {
+    /// If set, defines the ClassName of the described instance.
+    ///
+    /// `$className` MUST be set if `$path` is not set.
+    ///
+    /// `$className` CANNOT be set if `$path` is set and the instance described
+    /// by that path has a ClassName other than Folder.
+    #[serde(rename = "$className", skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<Ustr>,
+
+    /// If set, defines an ID for the described Instance that can be used
+    /// to refer to it for the purpose of referent properties.
+    #[serde(rename = "$id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+
+    /// Contains all of the children of the described instance.
+    #[serde(flatten)]
+    pub children: BTreeMap<String, ProjectNode>,
+
+    /// The properties that will be assigned to the resulting instance.
+    ///
+    // TODO: Is this legal to set if $path is set?
+    #[serde(
+        rename = "$properties",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub properties: BTreeMap<Ustr, UnresolvedValue>,
+
+    #[serde(
+        rename = "$attributes",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub attributes: BTreeMap<String, UnresolvedValue>,
+
+    /// Defines the behavior when Rojo encounters unknown instances in Roblox
+    /// Studio during live sync. `$ignoreUnknownInstances` should be considered
+    /// a large hammer and used with care.
+    ///
+    /// If set to `true`, those instances will be left alone. This may cause
+    /// issues when files that turn into instances are removed while Rojo is not
+    /// running.
+    ///
+    /// If set to `false`, Rojo will destroy any instances it does not
+    /// recognize.
+    ///
+    /// If unset, its default value depends on other settings:
+    /// - If `$path` is not set, defaults to `true`
+    /// - If `$path` is set, defaults to `false`
+    #[serde(
+        rename = "$ignoreUnknownInstances",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ignore_unknown_instances: Option<bool>,
+
+    /// Defines that this instance should come from the given file path. This
+    /// path can point to any file type supported by Rojo, including Lua files
+    /// (`.lua`), Roblox models (`.rbxm`, `.rbxmx`), and localization table
+    /// spreadsheets (`.csv`).
+    #[serde(rename = "$path", skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathNode>,
+}
+
+impl ProjectNode {
+    fn validate_reserved_names(&self) {
+        for (name, child) in &self.children {
+            if name.starts_with('$') {
+                log::warn!(
+                    "Keys starting with '$' are reserved by Rojo to ensure forward compatibility."
+                );
+                log::warn!(
+                    "This project uses the key '{}', which should be renamed.",
+                    name
+                );
+            }
+
+            child.validate_reserved_names();
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn path_node_required() {
+        let path_node: PathNode = json::from_str(r#""src""#).unwrap();
+        assert_eq!(path_node, PathNode::Required(PathBuf::from("src")));
+    }
+
+    #[test]
+    fn path_node_optional() {
+        let path_node: PathNode = json::from_str(r#"{ "optional": "src" }"#).unwrap();
+        assert_eq!(
+            path_node,
+            PathNode::Optional(OptionalPathNode::new(PathBuf::from("src")))
+        );
+    }
+
+    #[test]
+    fn project_node_required() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$path": "src"
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            project_node.path,
+            Some(PathNode::Required(PathBuf::from("src")))
+        );
+    }
+
+    #[test]
+    fn project_node_optional() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$path": { "optional": "src" }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            project_node.path,
+            Some(PathNode::Optional(OptionalPathNode::new(PathBuf::from(
+                "src"
+            ))))
+        );
+    }
+
+    #[test]
+    fn project_node_none() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$className": "Folder"
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(project_node.path, None);
+    }
+
+    #[test]
+    fn project_node_optional_serialize_absolute() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$path": { "optional": "..\\src" }
+            }"#,
+        )
+        .unwrap();
+
+        let serialized = serde_json::to_string(&project_node).unwrap();
+        assert_eq!(serialized, r#"{"$path":{"optional":"../src"}}"#);
+    }
+
+    #[test]
+    fn project_node_optional_serialize_absolute_no_change() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$path": { "optional": "../src" }
+            }"#,
+        )
+        .unwrap();
+
+        let serialized = serde_json::to_string(&project_node).unwrap();
+        assert_eq!(serialized, r#"{"$path":{"optional":"../src"}}"#);
+    }
+
+    #[test]
+    fn project_node_optional_serialize_optional() {
+        let project_node: ProjectNode = json::from_str(
+            r#"{
+                "$path": "..\\src"
+            }"#,
+        )
+        .unwrap();
+
+        let serialized = serde_json::to_string(&project_node).unwrap();
+        assert_eq!(serialized, r#"{"$path":"../src"}"#);
+    }
+
+    #[test]
+    fn project_with_jsonc_features() {
+        // Test that JSONC features (comments and trailing commas) are properly handled
+        let project_json = r#"{
+            // This is a single-line comment
+            "name": "TestProject",
+            /* This is a
+               multi-line comment */
+            "tree": {
+                "$path": "src", // Comment after value
+            },
+            "servePort": 34567,
+            "emitLegacyScripts": false,
+            // Test glob parsing with comments
+            "globIgnorePaths": [
+                "**/*.spec.lua", // Ignore test files
+                "**/*.test.lua",
+            ],
+            "syncRules": [
+                {
+                    "pattern": "*.data.json",
+                    "use": "json", // Trailing comma in object
+                },
+                {
+                    "pattern": "*.module.lua",
+                    "use": "moduleScript",
+                }, // Trailing comma in array
+            ], // Another trailing comma
+        }"#;
+
+        let project = Project::load_from_slice(
+            project_json.as_bytes(),
+            PathBuf::from("/test/default.project.jsonc"),
+            None,
+        )
+        .expect("Failed to parse project with JSONC features");
+
+        // Verify the parsed values
+        assert_eq!(project.name, Some("TestProject".to_string()));
+        assert_eq!(project.serve_port, Some(34567));
+        assert_eq!(project.emit_legacy_scripts, Some(false));
+
+        // Verify glob_ignore_paths were parsed correctly
+        assert_eq!(project.glob_ignore_paths.len(), 2);
+        assert!(project.glob_ignore_paths[0].is_match("test/foo.spec.lua"));
+        assert!(project.glob_ignore_paths[1].is_match("test/bar.test.lua"));
+
+        // Verify sync_rules were parsed correctly
+        assert_eq!(project.sync_rules.len(), 2);
+        assert!(project.sync_rules[0].include.is_match("data.data.json"));
+        assert!(project.sync_rules[1].include.is_match("init.module.lua"));
+    }
+
+    #[test]
+    fn project_with_serve_allowed_hosts() {
+        let project_json = r#"{
+            "name": "TestProject",
+            "tree": { "$path": "src" },
+            "serveAllowedHosts": ["mypc.lan", "192.168.1.5"]
+        }"#;
+
+        let project = Project::load_from_slice(
+            project_json.as_bytes(),
+            PathBuf::from("/test/default.project.json"),
+            None,
+        )
+        .expect("Failed to parse project with serveAllowedHosts");
+
+        assert_eq!(project.serve_allowed_hosts, vec!["mypc.lan", "192.168.1.5"]);
+    }
+
+    #[test]
+    fn project_without_serve_allowed_hosts_defaults_to_empty() {
+        let project_json = r#"{
+            "name": "TestProject",
+            "tree": { "$path": "src" }
+        }"#;
+
+        let project = Project::load_from_slice(
+            project_json.as_bytes(),
+            PathBuf::from("/test/default.project.json"),
+            None,
+        )
+        .expect("Failed to parse project");
+
+        assert!(project.serve_allowed_hosts.is_empty());
+    }
+
+    #[test]
+    fn glob_ignore_paths_negation() {
+        let project_json = r#"{
+            "name": "TestProject",
+            "tree": { "$path": "src" },
+            "globIgnorePaths": [
+                "**/*.spec.lua",
+                "!keep.spec.lua",
+                "\\!literal.lua"
+            ]
+        }"#;
+
+        let project = Project::load_from_slice(
+            project_json.as_bytes(),
+            PathBuf::from("/test/default.project.json"),
+            None,
+        )
+        .expect("project should parse");
+
+        let paths = &project.glob_ignore_paths;
+        assert_eq!(paths.len(), 3);
+
+        assert!(!paths[0].is_negation());
+        assert!(paths[0].is_match("foo.spec.lua"));
+
+        assert!(paths[1].is_negation());
+        assert!(paths[1].is_match("keep.spec.lua"));
+
+        // `\!literal.lua` should match a file literally named `!literal.lua`,
+        // not be parsed as a negation.
+        assert!(!paths[2].is_negation());
+        assert!(paths[2].is_match("!literal.lua"));
+
+        let rules: Vec<_> = paths
+            .iter()
+            .map(|g| crate::snapshot::PathIgnoreRule {
+                base_path: PathBuf::from("/test"),
+                glob: g.clone(),
+            })
+            .collect();
+        assert!(crate::snapshot::is_path_ignored(
+            &rules,
+            "/test/foo.spec.lua"
+        ));
+        assert!(!crate::snapshot::is_path_ignored(
+            &rules,
+            "/test/keep.spec.lua"
+        ));
+        assert!(!crate::snapshot::is_path_ignored(&rules, "/test/plain.lua"));
+    }
+}

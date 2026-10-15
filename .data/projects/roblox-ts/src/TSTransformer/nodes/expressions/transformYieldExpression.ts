@@ -1,0 +1,65 @@
+import luau from "@roblox-ts/luau-ast";
+import { Prereqs } from "TSTransformer/classes/Prereqs";
+import { TransformState } from "TSTransformer/classes/TransformState";
+import { transformExpression } from "TSTransformer/nodes/expressions/transformExpression";
+import { convertToIndexableExpression } from "TSTransformer/util/convertToIndexableExpression";
+import { isUsedAsStatement } from "TSTransformer/util/isUsedAsStatement";
+import ts from "typescript";
+
+export function transformYieldExpression(state: TransformState, prereqs: Prereqs, node: ts.YieldExpression) {
+	if (!node.expression) {
+		return luau.call(luau.globals.coroutine.yield, []);
+	}
+
+	const expression = transformExpression(state, prereqs, node.expression);
+	if (node.asteriskToken) {
+		// delegation keeps the original next function even if the iterator is later modified
+		const nextId = prereqs.pushToVar(luau.property(convertToIndexableExpression(expression), "next"), "next");
+		const currentInputId = prereqs.pushToVar(undefined, "currentInput");
+		const resultId = luau.tempId("result");
+
+		const finalizer = luau.list.make<luau.Statement>(luau.create(luau.SyntaxKind.BreakStatement, {}));
+		let evaluated: luau.Expression = luau.none();
+
+		if (!isUsedAsStatement(node)) {
+			const returnValue = prereqs.pushToVar(undefined, "returnValue");
+			luau.list.unshift(
+				finalizer,
+				luau.create(luau.SyntaxKind.Assignment, {
+					left: returnValue,
+					operator: "=",
+					right: luau.property(resultId, "value"),
+				}),
+			);
+			evaluated = returnValue;
+		}
+
+		const yieldCall = luau.call(luau.globals.coroutine.yield, [luau.property(resultId, "value")]);
+
+		prereqs.push(
+			luau.create(luau.SyntaxKind.WhileStatement, {
+				condition: luau.bool(true),
+				statements: luau.list.make<luau.Statement>(
+					luau.create(luau.SyntaxKind.VariableDeclaration, {
+						left: resultId,
+						right: luau.call(nextId, [currentInputId]),
+					}),
+					luau.create(luau.SyntaxKind.IfStatement, {
+						condition: luau.property(resultId, "done"),
+						statements: finalizer,
+						elseBody: luau.list.make(),
+					}),
+					luau.create(luau.SyntaxKind.Assignment, {
+						left: currentInputId,
+						operator: "=",
+						right: yieldCall,
+					}),
+				),
+			}),
+		);
+
+		return evaluated;
+	} else {
+		return luau.call(luau.globals.coroutine.yield, [expression]);
+	}
+}

@@ -1,0 +1,19 @@
+{
+	"name": "tests",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@rbxts/compiler-types": "github:roblox-ts/compiler-types",
+		"@rbxts/roact": "github:roblox-ts/roact",
+		"@rbxts/services": "^1.6.0",
+		"@rbxts/testez": "^0.4.2-ts.0",
+		"@rbxts/types": "^1.0.950"
+	}
+}

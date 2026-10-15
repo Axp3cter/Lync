@@ -1,0 +1,10 @@
+[package]
+name = "rojo-insta-ext"
+version = "0.1.0"
+authors = ["Lucien Greathouse <me@lpghatguy.com>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+serde = "1.0.197"
+serde_yaml = "0.8.26"

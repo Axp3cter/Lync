@@ -1,0 +1,23 @@
+---
+source: tests/tests/serve.rs
+expression: "socket_packet.intern_and_redact(&mut redactions, ())"
+---
+body:
+  messageCursor: 1
+  messages:
+    - added:
+        id-3:
+          Children: []
+          ClassName: Model
+          Id: id-3
+          Metadata:
+            ignoreUnknownInstances: false
+          Name: test
+          Parent: id-2
+          Properties:
+            NeedsPivotMigration:
+              Bool: false
+      removed: []
+      updated: []
+packetType: messages
+sessionId: id-1

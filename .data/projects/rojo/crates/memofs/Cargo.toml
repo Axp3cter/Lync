@@ -1,0 +1,25 @@
+[package]
+name = "memofs"
+description = "Virtual filesystem with configurable backends."
+version = "0.4.0"
+authors = [
+    "Lucien Greathouse <me@lpghatguy.com>",
+    "Micah Reid <git@dekkonot.com>",
+    "Ken Loeffler <kenloef@gmail.com>",
+]
+edition = "2018"
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/rojo-rbx/rojo/tree/master/memofs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crossbeam-channel = "0.5.12"
+dunce = "1.0.5"
+fs-err = "2.11.0"
+notify = "4.0.17"
+serde = { version = "1.0.197", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3.10.1"

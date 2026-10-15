@@ -1,0 +1,44 @@
+---
+source: tests/tests/serve.rs
+expression: "read_response.intern_and_redact(&mut redactions, root_id)"
+
+---
+instances:
+  id-2:
+    Children:
+      - id-3
+      - id-4
+    ClassName: Folder
+    Id: id-2
+    Metadata:
+      ignoreUnknownInstances: false
+    Name: scripts
+    Parent: "00000000000000000000000000000000"
+    Properties: {}
+  id-3:
+    Children: []
+    ClassName: Script
+    Id: id-3
+    Metadata:
+      ignoreUnknownInstances: false
+    Name: bar
+    Parent: id-2
+    Properties:
+      RunContext:
+        Enum: 0
+      Source:
+        String: "-- Hello, from bar!"
+  id-4:
+    Children: []
+    ClassName: ModuleScript
+    Id: id-4
+    Metadata:
+      ignoreUnknownInstances: false
+    Name: foo
+    Parent: id-2
+    Properties:
+      Source:
+        String: "-- Hello, from foo!"
+messageCursor: 0
+sessionId: id-1
+

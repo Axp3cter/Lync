@@ -1,0 +1,274 @@
+import luau from "@roblox-ts/luau-ast";
+import { TransformState } from "TSTransformer";
+import { Prereqs } from "TSTransformer/classes/Prereqs";
+import { transformExpression } from "TSTransformer/nodes/expressions/transformExpression";
+import { transformImportExpression } from "TSTransformer/nodes/expressions/transformImportExpression";
+import { transformMacroCall } from "TSTransformer/nodes/transformMacroCall";
+import { transformOptionalChain } from "TSTransformer/nodes/transformOptionalChain";
+import { addOneIfArrayType } from "TSTransformer/util/addOneIfArrayType";
+import { convertToIndexableExpression } from "TSTransformer/util/convertToIndexableExpression";
+import { ensureTransformOrder } from "TSTransformer/util/ensureTransformOrder";
+import { isStableBuiltinMember, tryMarkBuiltinMember } from "TSTransformer/util/evaluation/builtins";
+import { effectsCommute, getEffects, isLateRead, joinEffects, NO_EFFECTS } from "TSTransformer/util/evaluation/effects";
+import { isMethod, isMethodFromType } from "TSTransformer/util/isMethod";
+import { getFirstDefinedSymbol, isPossiblyType, isRobloxType, isUndefinedType } from "TSTransformer/util/types";
+import { validateNotAnyType } from "TSTransformer/util/validateNotAny";
+import { wrapReturnIfLuaTuple } from "TSTransformer/util/wrapReturnIfLuaTuple";
+import ts from "typescript";
+
+/**
+ * Some C functions like `tonumber()` will error if the given argument is a function that returns nothing.
+ * i.e.
+ * ```lua
+ * local function foo()
+ * end
+ * local x = tonumber(foo()) -- error!
+ * ```
+ *
+ * To protect against this, we can wrap possibly-undefined arguments with `()` to coerce the values to `nil`
+ */
+function fixVoidArgumentsForRobloxFunctions(
+	state: TransformState,
+	type: ts.Type,
+	args: Array<luau.Expression>,
+	nodeArguments: ReadonlyArray<ts.Expression>,
+) {
+	if (isPossiblyType(type, isRobloxType(state))) {
+		for (let i = 0; i < args.length; i++) {
+			const arg = args[i];
+			const nodeArg = nodeArguments[i];
+			if (ts.isCallExpression(nodeArg) && isPossiblyType(state.getType(nodeArg), isUndefinedType)) {
+				args[i] = luau.create(luau.SyntaxKind.ParenthesizedExpression, {
+					expression: arg,
+				});
+			}
+		}
+	}
+}
+
+export function transformCallExpressionInner(
+	state: TransformState,
+	prereqs: Prereqs,
+	node: ts.CallExpression,
+	expression: luau.Expression,
+	nodeArguments: ReadonlyArray<ts.Expression>,
+) {
+	if (ts.isImportCall(node)) {
+		return transformImportExpression(state, node);
+	}
+
+	// a in a()
+	validateNotAnyType(state, node.expression);
+
+	if (ts.isSuperCall(node)) {
+		return luau.call(luau.property(convertToIndexableExpression(expression), "constructor"), [
+			luau.globals.self,
+			...ensureTransformOrder(state, prereqs, node.arguments),
+		]);
+	}
+
+	const expType = state.typeChecker.getNonOptionalType(state.getType(node.expression));
+	const symbol = getFirstDefinedSymbol(state, expType);
+	if (symbol) {
+		const macro = state.services.macroManager.getCallMacro(symbol);
+		if (macro) {
+			return transformMacroCall(macro, state, prereqs, node, expression, nodeArguments);
+		}
+	}
+
+	const argsPrereqs = new Prereqs();
+	const args = ensureTransformOrder(state, argsPrereqs, nodeArguments);
+	fixVoidArgumentsForRobloxFunctions(state, expType, args, nodeArguments);
+
+	if (!effectsCommute(getEffects(expression), getEffects(argsPrereqs.statements))) {
+		expression = prereqs.pushToVar(expression, "fn");
+	}
+	prereqs.pushList(argsPrereqs.statements);
+
+	if (isMethodFromType(state, node.expression, expType)) {
+		// direct calls have no receiver, but the implementation still expects its slot
+		args.unshift(luau.nil());
+	}
+
+	const exp = luau.call(convertToIndexableExpression(expression), args);
+
+	return wrapReturnIfLuaTuple(state, node, exp);
+}
+
+function createOrderedPropertyCall(
+	state: TransformState,
+	prereqs: Prereqs,
+	source: ts.PropertyAccessExpression | ts.ElementAccessExpression,
+	base: luau.Expression,
+	key: string | luau.Expression,
+	args: Array<luau.Expression>,
+	prereqStatements: luau.List<luau.Statement>,
+	method: boolean,
+) {
+	const property = () => {
+		const expression =
+			typeof key === "string"
+				? luau.property(convertToIndexableExpression(base), key)
+				: luau.create(luau.SyntaxKind.ComputedIndexExpression, {
+						expression: convertToIndexableExpression(base),
+						index: key,
+					});
+		tryMarkBuiltinMember(state, source, expression);
+		return expression;
+	};
+	const prereqEffects = getEffects(prereqStatements);
+	const name = typeof key === "string" ? key : luau.isStringLiteral(key) ? key.value : undefined;
+	const stableMethod = method && isStableBuiltinMember(state, source);
+	let callee: luau.IndexableExpression = property();
+	const lookupEffects = getEffects(callee);
+	const captureCallee = !effectsCommute(lookupEffects, prereqEffects);
+	if (
+		method &&
+		name !== undefined &&
+		luau.isValidIdentifier(name) &&
+		(stableMethod || (!captureCallee && typeof key === "string"))
+	) {
+		// a stable method lookup can stay inline even when its receiver needs a snapshot
+		if (stableMethod && !effectsCommute(getEffects(base), prereqEffects)) {
+			base = prereqs.pushToVar(base, "self");
+		}
+		prereqs.pushList(prereqStatements);
+		return luau.create(luau.SyntaxKind.MethodCallExpression, {
+			expression: convertToIndexableExpression(base),
+			name,
+			args: luau.list.make(...args),
+		});
+	}
+	// an explicit self argument must denote the receiver from before the lookup
+	if (
+		method &&
+		(!luau.isSimple(base) || !effectsCommute(getEffects(base), joinEffects(lookupEffects, prereqEffects)))
+	) {
+		base = prereqs.pushToVar(base, "self");
+		callee = property();
+	}
+	if (captureCallee) {
+		callee = prereqs.pushToVar(callee, "fn");
+	}
+	prereqs.pushList(prereqStatements);
+	return luau.call(callee, method ? [base, ...args] : args);
+}
+
+export function transformPropertyCallExpressionInner(
+	state: TransformState,
+	prereqs: Prereqs,
+	node: ts.CallExpression,
+	expression: ts.PropertyAccessExpression,
+	baseExpression: luau.Expression,
+	name: string,
+	nodeArguments: ReadonlyArray<ts.Expression>,
+) {
+	// a in a.b()
+	validateNotAnyType(state, expression.expression);
+	// a.b in a.b()
+	validateNotAnyType(state, node.expression);
+
+	if (ts.isSuperProperty(expression)) {
+		const callee = luau.property(convertToIndexableExpression(baseExpression), expression.name.text);
+		const args = ensureTransformOrder(state, prereqs, node.arguments);
+		return luau.call(callee, isMethod(state, expression) ? [luau.globals.self, ...args] : args);
+	}
+
+	const expType = state.typeChecker.getNonOptionalType(state.getType(node.expression));
+	const symbol = getFirstDefinedSymbol(state, expType);
+	if (symbol) {
+		const macro = state.services.macroManager.getPropertyCallMacro(symbol);
+		if (macro) {
+			return transformMacroCall(macro, state, prereqs, node, baseExpression, nodeArguments);
+		}
+	}
+
+	const argsPrereqs = new Prereqs();
+	const args = ensureTransformOrder(state, argsPrereqs, nodeArguments);
+	fixVoidArgumentsForRobloxFunctions(state, expType, args, nodeArguments);
+
+	const exp = createOrderedPropertyCall(
+		state,
+		prereqs,
+		expression,
+		baseExpression,
+		name,
+		args,
+		argsPrereqs.statements,
+		isMethod(state, expression),
+	);
+	return wrapReturnIfLuaTuple(state, node, exp);
+}
+
+export function transformElementCallExpressionInner(
+	state: TransformState,
+	prereqs: Prereqs,
+	node: ts.CallExpression,
+	expression: ts.ElementAccessExpression,
+	baseExpression: luau.Expression,
+	argumentExpression: ts.Expression,
+	nodeArguments: ReadonlyArray<ts.Expression>,
+) {
+	// a in a[b]()
+	validateNotAnyType(state, expression.expression);
+	// b in a[b]()
+	validateNotAnyType(state, expression.argumentExpression);
+	// a[b] in a[b]()
+	validateNotAnyType(state, node.expression);
+
+	if (ts.isSuperProperty(expression)) {
+		const callee = luau.create(luau.SyntaxKind.ComputedIndexExpression, {
+			expression: convertToIndexableExpression(baseExpression),
+			index: transformExpression(state, prereqs, expression.argumentExpression),
+		});
+		const args = ensureTransformOrder(state, prereqs, node.arguments);
+		return luau.call(callee, isMethod(state, expression) ? [luau.globals.self, ...args] : args);
+	}
+
+	const expType = state.typeChecker.getNonOptionalType(state.getType(node.expression));
+	const symbol = getFirstDefinedSymbol(state, expType);
+	if (symbol) {
+		const macro = state.services.macroManager.getPropertyCallMacro(symbol);
+		if (macro) {
+			return transformMacroCall(macro, state, prereqs, node, baseExpression, nodeArguments);
+		}
+	}
+
+	const keyPrereqs = new Prereqs();
+	const argumentExp = transformExpression(state, keyPrereqs, argumentExpression);
+	if (
+		!effectsCommute(
+			getEffects(baseExpression),
+			joinEffects(
+				getEffects(keyPrereqs.statements),
+				isLateRead(baseExpression) ? getEffects(argumentExp) : NO_EFFECTS,
+			),
+		)
+	) {
+		baseExpression = prereqs.pushToVar(baseExpression, "exp");
+	}
+	prereqs.pushList(keyPrereqs.statements);
+	const argsPrereqs = new Prereqs();
+	const args = ensureTransformOrder(state, argsPrereqs, nodeArguments);
+	fixVoidArgumentsForRobloxFunctions(state, expType, args, nodeArguments);
+	const key = addOneIfArrayType(
+		state,
+		state.typeChecker.getNonOptionalType(state.getType(expression.expression)),
+		argumentExp,
+	);
+	const exp = createOrderedPropertyCall(
+		state,
+		prereqs,
+		expression,
+		baseExpression,
+		key,
+		args,
+		argsPrereqs.statements,
+		isMethod(state, expression),
+	);
+	return wrapReturnIfLuaTuple(state, node, exp);
+}
+
+export function transformCallExpression(state: TransformState, prereqs: Prereqs, node: ts.CallExpression) {
+	return transformOptionalChain(state, prereqs, node);
+}

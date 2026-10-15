@@ -1,0 +1,14 @@
+{
+	"files": [],
+	"compilerOptions": {
+		"composite": true,
+		"baseUrl": "src",
+		"outDir": "out"
+	},
+	"references": [
+		{ "path": "./src/Shared" },
+		{ "path": "./src/CLI" },
+		{ "path": "./src/Project" },
+		{ "path": "./src/TSTransformer" }
+	]
+}

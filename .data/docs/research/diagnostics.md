@@ -527,6 +527,8 @@ The CLI renders it three ways:
 - Review-2 found that `error()` inside a type function crashes the new solver through cross-module use.
 - **Rule:** type functions return a marker type whose name is the diagnostic, e.g. the string singleton
   `"[Lync] expected a codec at chat.data"`, and never call `error()` on user-derived input [review-2, `crash_fix/`].
+- **verified (milestone build, f1fbfd7):** the rule held through milestone 1's typing proofs. Separately, a type function that selects a view's
+  side crashed luau-analyze when given tables holding error types; the built-in `index<…>` doesn't.
 
 ### 6.5 roblox-ts users
 
@@ -620,6 +622,9 @@ global verbosity levels (NGO, Unreal), whose levels are vague bundles (`Normal` 
      chose.
    - Keep one `pcall` per frame (+18–28 ns) for unexpected errors (`decoderRaised`).
 3. **Protected validators cost +18–38 ns per call**, which is cheap insurance against v4's frame-killing [2].
+   **verified (milestone build, f1fbfd7):** a public encoder that marks its writer and instance list, runs the encode in one `pcall` and rolls
+   back on failure costs 0.1–0.3 µs per encode. Registry examples compared byte for byte worked as golden messages,
+   with a frozen list deferring the codes a later milestone raises.
    `xpcall` with a handler costs the same as `pcall` on success, so the traceback is captured only on failure.
 4. **Formatting choice does not matter for cost.** Interpolation is equal or faster and reads better.
 5. **Counters, not events, for anything per message or per frame**: 3–45 ns against 260–425 ns plus dispatch (§5.3).

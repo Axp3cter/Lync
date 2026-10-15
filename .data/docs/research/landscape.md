@@ -329,6 +329,14 @@ The QuickNet thread (2026-05) benchmarks 1000 fires per frame for 10 s and repor
   - Follow-up RFCs: generics in type functions, `thread`/`buffer` support, the `extern` tag ([rfcs/docs](https://github.com/luau-lang/rfcs/tree/master/docs)).
   - **[MEASURED]** in luau-analyze 0.740 (new solver), a type function mapping `struct2({x = u8, name = str})` to `Codec<{x: number, name: string}>` works and rejects wrong field types.
   - The **old solver rejects it entirely** ("read keyword is illegal", "This syntax is not supported", "Unknown type 'Infer'").
+  - **verified (milestone build, f1fbfd7)** (luau-analyze 0.740, luau-lsp 1.70.1; `f1fbfd7:src/types.luau`, `f1fbfd7:test/types/`):
+    - a literal option survives as a singleton when the parameter is `D & { read from: "client" | "server" }`;
+      the old solver drops `read` fields there and accepts the literal rather than widening it;
+    - picking a side with a type function given tables that hold error types crashes luau-analyze (exit 139); the
+      built-in `index<…>` works;
+    - an `error()` in a type function on user input crashes the analyzers through a view; a marker type doesn't;
+    - a phantom brand `_value` collides with a record field of that name; `["[Lync] value"]` doesn't;
+    - the old solver can't check exhaustiveness with a `never` binding, so exhaustiveness is checked by tests.
 - **Consequence:**
   - A runtime-schema library whose payload types depend on type functions gives *no or broken types* to strict-mode Roblox users not opted into the new solver, and to default luau-lsp.
   - Generated code with concrete type aliases works on both solvers. **This is the strongest argument for an offline compiler.**

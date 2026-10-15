@@ -407,7 +407,7 @@ are over 3 runs.
 | FOR, fixed width, `readu32` window | 23–39 | 2.7–3.0 | `p // 8`, `p % 8` addressing, no state |
 | FOR via `buffer.readbits` | 27–42 | 25–27 | Not a fastcall; never use it in native code |
 | Exp-Golomb (`countrz`) | 58–81 | 11–17 | |
-| **Exp-Golomb, 12-bit LUT** | **35–58** | 10.6–13.4 | Recommended client decoder |
+| **Exp-Golomb, 12-bit LUT** | **35–58** | 10.6–13.4 | Recommended client decoder. **verified (milestone build, f1fbfd7):** in the shipped column coder, a batched reader (cursor in a local, lookup inline) decodes EG-0 at 43–47 ns interpreted and 23–29 native; a call per value measured 86–94 interpreted (`probes/build/results/`) |
 | Rice (`countrz`) | 45–61 | 11–13 | |
 | Class code (v5a) | 47–64 | 10.7–12.6 | |
 | Unity bucket Huffman | 60–93 | 12–15 | |
@@ -421,7 +421,10 @@ are over 3 runs.
 - Server (native, encode): 100 recipients × 300 values × 15 ns ≈ **0.45 ms per tick**, before
   any sharing of identical sections between recipients.
 - Searching all 16 k per column adds up to 16 cheap costing passes. That could double or
-  triple the server figure (estimate, unmeasured) unless:
+  triple the server figure (estimate, unmeasured). **verified (milestone build, f1fbfd7):** the full mode and k search costs
+  2.2–2.6× a k = 0 encode on ±1-noise and Gaussian σ = 50 columns and 1.0–1.4× on constant and
+  sparse ones, interpreted and native (64 rows; `probes/build/results/579015b.json`,
+  `c91960e.json`), so the fallbacks below weren't needed. Otherwise the options are:
   - columns are costed once from a histogram of residual bit lengths;
   - or residual columns that are identical for several recipients are encoded once and shared.
 
@@ -547,6 +550,12 @@ Monte Carlo over 20,000 uniform rotations:
 | yaw only, 8 / 10 / 12 / 16 bits | 8 / 10 / 12 / 16 | 0.70 / 0.18 / 0.044 / 0.003 | half of max |
 | axis-aligned (24 rotations) | 5 | 0 | 0 |
 
+**verified (milestone build, f1fbfd7), worst cases by search** (the table above is sampled): plain smallest-three at 9 bits reaches 0.5187°.
+With the canonical encoding Lync uses (`design/v5.md` §3.3), the maxima are 7 bits 2.8969°, 8 bits 1.4575° (every
+first code evaluated), 9: 0.7255°, 10: 0.3664°, 11: 0.1836°, 12: 0.0921°, 13: 0.0459°, 14: 0.0230°, 15: 0.0115°
+(sampled near-ties), about 375° / (2^bits − 1). Decoding then re-encoding moves about 1.5% of codes at 7 bits and
+0.02% at 15, and about 1% at 7 bits and 0.006% at 15 form 2-cycles (`f1fbfd7:test/codec/rotation_full.luau`).
+
 - Smallest-three beats naive four-component quantization by 6–8 bits at equal error.
 - Each extra bit per component halves the error.
 - Error budgets in degrees:
@@ -567,11 +576,15 @@ Monte Carlo over 20,000 uniform rotations:
 
 - **Octahedral directions** ([Cigolle et al., JCGT 2014](https://jcgt.org/published/0003/02/01/)):
   - 8 bits per axis (16 total): max 0.93°;
-  - 10 (20): 0.23°;
-  - 12 (24): 0.057°;
+  - 10 (20): 0.23° (**verified (milestone build, f1fbfd7):** worst case by search 0.2369°);
+  - 12 (24): 0.057° (**verified (milestone build, f1fbfd7):** 0.05924°);
   - 16 (32): 0.004°.
 
   These match the attempt's figures. Use **10–12 b/axis** for look vectors and hit normals.
+  **verified (milestone build, f1fbfd7):** the fold edge decodes several codes to one direction (511 of 65,536 codes at 8 bits are not
+  fixed points), and the encoder's first code lands on the wrong side of the fold for 0.26% of random directions at
+  8 bits, 0.063% at 10, 0.016% at 12 and 0.0009% at 16; one re-encode always reaches a fixed point, with no 2-cycle
+  (exhaustive at 8 bits, 10^6 per width at 8, 10, 12, 16; `f1fbfd7:test/wire/quant.spec.luau`).
 - **CFrame** = position codec + rotation codec, coded as separate columns so each gets its
   own predictor and k. Building CFrames allocates on Roblox, so the decoder should produce
   `(vector, quaternion components)` and construct the CFrame once (skill reference).

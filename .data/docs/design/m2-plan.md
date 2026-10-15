@@ -1,5 +1,9 @@
 # Milestone 2 build plan
 
+> **Record.** The code this plan describes was built (to commit `f1fbfd7`) and then removed at the author's
+> request. Its rulings, measurements and decisions are folded into `v5.md` draft 3.4; the evidence data is in
+> `probes/build/`. Paths below name files that now exist only in git at `f1fbfd7`.
+
 2026-10-15. Builds `v5.md` §10 item 2 (events and requests, runtime path) on design draft 3.2 and the finished
 milestone 1. This is a plan: rules are cited, not restated. Where it fixes something the design leaves to
 implementation (files, signatures, seams, test tools), the plan is authoritative for milestone 2. Repo layout,

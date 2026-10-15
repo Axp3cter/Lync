@@ -283,6 +283,11 @@ authentication, which it must not be.
 reliable frames/s that is 120 B/s per player upstream. The per-call engine overhead of a RemoteEvent is not
 documented (**unverified**), so the relative cost on tiny frames cannot be stated; the frame payload grows by 2 B.
 
+**verified (milestone build, f1fbfd7):** HalfSipHash-1-3 with a 4-byte output takes 1.8–3.5 µs per 64 B interpreted and 0.26–0.42 µs native,
+and 22–24 µs and 3.1–3.7 µs per 1024 B: about 23 ns per covered byte interpreted and 3 ns native
+(`probes/build/results/579015b.json`, `c91960e.json`). The estimate below holds for interpreted code; native is
+faster than estimated.
+
 **CPU (estimate, not measured).** Interpreted Luau on the reference Xeon, from §2.2 call costs and ~15 builtin
 ops per 32-bit word for one SipRound: HalfSipHash-1-3 ≈ 0.2–0.3 µs fixed plus 13–23 ns per covered byte; 2-4 rounds
 roughly double the per-byte term. A 64 B frame ≈ 1–1.5 µs, a 1 KB frame ≈ 15–25 µs. Server, 100 players × 60

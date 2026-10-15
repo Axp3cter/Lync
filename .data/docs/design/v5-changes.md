@@ -424,3 +424,51 @@ fixes are listed in `m1-plan.md` §7, with an owning unit and a proof each. `m2-
 
 **Routing.** Unit E is editing `src/diag/` for milestone 2, so B's diag changes touch only `fail.luau`. The three
 new codes are appended to `codes.luau` and `docs/codes/` after E's changes land.
+
+# Draft 3.3 to 3.4 (build findings folded in)
+
+2026-10-15. Milestones 1 and 2 were built to commit `f1fbfd7`, measured, and the code removed at the author's
+request. This revision moves everything the build learned into the design and research, so nothing lives only in
+deleted code or the build plans. Sources: `m1-plan.md` §6–§7, `m2-plan.md` §9, `reviews/m1-code.md`, this log's
+3.1–3.3 sections, and the build's sources and benchmark data at `f1fbfd7` (copied evidence in `probes/build/`). No
+review findings are triaged here; no product decision changes.
+
+**Folded into `v5.md`.**
+
+| Section | What the build established |
+|---|---|
+| header | Milestones 1–2 built, measured, removed; code at `f1fbfd7`, data in `probes/build/`. |
+| §3.2 | Typing facts: `{ read from }`; side selection by `index<…>` (a type-function selector crashed luau-analyze, exit 139); brand `["[Lync] value"]`; the old solver rejects type functions and `read` fields, so the module is `--!nocheck`; exhaustiveness checked by a kind-coverage test, since `never` is unusable on the old solver. |
+| §3.3 | `t.number` decode clamp; canonical rotation (fixed point or lower 2-cycle member) with checked decode at 2.2–2.7× (1.09 vs 0.43 µs interpreted, 0.36 vs 0.13 native); canonical direction with fold-edge rates; `t.vector3` f32 rule and `vectorStep`; `optionalPlacement`. |
+| §4.1 | Split counting charges each frame kind's longest header (five kinds; up to about 5 B early). |
+| §4.2 | Collect visitor at 3.4% of encode; unlisted instance raises `internal`; committed-count rule; decoders take the chunk count from the header; instance array always the second argument; rollback by one `pcall` at 0.1–0.3 µs per encode. |
+| §4.3 | `columnMinRows` = 3 with its table; exactness to 2^53 (first-row residual as a difference, decode wraps before adding) and the bug that broke it; k search measured at 2.2–2.6× a k = 0 encode (1.0–1.4× on constant and sparse columns), so no fallback; batched EG-0 decode at 43–47 ns interpreted and 23–29 ns native against 86–94 per value. |
+| §4.4 | `Seq.extend` range 2047 behind to 2048 ahead; counters start at 0 and are never negative. |
+| §4.5 | HalfSipHash-1-3 at 1.8–3.5 µs (interpreted) and 0.26–0.42 µs (native) per 64 B; 22–24 and 3.1–3.7 µs per 1024 B. |
+| §4.6 | Control counts charged to the element budget; `HELLO` name outside 1–64 is rule 2; `WELCOME` index 0, `stateRate` outside 10–60, cover over 16,384 or a non-finite epoch is rule 3; `REKEY` row is two u32. |
+| §4.8, §4.9 | Decode amplification's two-part bound; client allowance 4,194,304. |
+| §4.10 | Golden vectors G10, G11 and PERM in full; the `Q-*` quantizer vectors are in `probes/build/golden/`. |
+| §7.1 | Code registry page format with byte-exact examples; deferral of codes raised by unbuilt units (the build's `RAISED_BY_UNIT_F` list); the build's 50 codes by family. |
+| §7.3 | Fact key (player, reason, namespace, definition); `os.clock` windows; caps windowed per player; one record feeds counter and console; `Fact` frozen. |
+| §7.4 | Counter names as field plus qualifier; console windows; summary counts the first occurrence. |
+| §9 | Simulated network parameters (latency 0.05, jitter 0.02, loss 0.05, burst {0,1}, duplicate 0, stall {0.05, 0.3}, fps 60, unreliableLimit 1000); rates checked within 0.01 absolute; heavy specs behind an environment switch. |
+
+**Superseded figures.** The 3.2→3.3 rows above quoted estimates the build then measured: rollback (M6) costs
+0.1–0.3 µs per encode, not 20–30 ns; batched EG-0 decode (M7) is 43–47 ns interpreted and 23–29 ns native, not 53
+and 22. `v5.md` carries the measured figures.
+
+**Research annotations,** each marked "verified (milestone build, f1fbfd7)" in place, with the figure:
+
+- `compression.md`: EG LUT row (batched figures); k-search cost; rotation worst case after the §4.4 table;
+  direction errors 0.2369° and 0.05924°; fold-edge rates.
+- `client-security.md` §3.1: HalfSipHash about 23 ns per byte interpreted, 3 ns native.
+- `landscape.md` §3.3: the typing findings.
+- `client-security-build.md` §1.2: Lune requires, `@lune/roblox` datatypes, Roblox globals injected by
+  `getfenv(0)`, selene std not generable behind the proxy.
+- `diagnostics.md`: §6.4 the luau-analyze crash; §9 rollback cost and the byte-exact registry.
+
+**Plans kept as records.** `m1-plan.md` and `m2-plan.md` each open with a record header: built to `f1fbfd7`,
+removed, folded into `v5.md` draft 3.4. Their bodies are unchanged.
+
+**Citations.** References in the design to deleted source files now read `f1fbfd7:<path>`; measured data is cited
+from `probes/build/`.

@@ -115,6 +115,11 @@ exit codes): a few hundred lines once, with no dependency on a moving runtime AP
 and Lune has none. The crate pins the exact Luau release (`+luau740`). `lune-roblox`, `lune-std-serde` and the
 rbx-dom crates can be reused as libraries for place-file work.
 
+**verified (milestone build, f1fbfd7):** Lune 0.11.0 resolves `@self/`, `./` and `../` string requires as Roblox does. It exposes `Vector3`,
+`CFrame`, `Color3`, `Instance` and `Enum` only through `@lune/roblox`, with f32 `CFrame` components as on Roblox,
+so a test runner copies them into `getfenv(0)` before requiring library code. selene's `roblox` std couldn't be
+generated behind the sandbox's proxy.
+
 Lune is the right **prototyping** host and a supported fallback, because the core is host-agnostic. Lute stays
 fine for repo-internal scripts. Python remains fine for compression simulations, capture tables and bench
 statistics, which never ship.

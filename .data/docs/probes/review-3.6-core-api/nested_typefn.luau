@@ -1,31 +1,34 @@
 --!strict
--- Runtime path: a type function builds field(path) overloads through records and optionals with dotted paths.
--- Arrays, maps and union variants are not reachable (v5.md §3.4). Field<T> is the handle type.
-type Field<T> = { derive: (self: Field<T>, options: { fn: () -> T?, policy: "drop" | "deliver" }) -> () }
-type function stripNil(t)
-	if t:is("union") then
-		local rest = {}
-		local hadNil = false
-		for _, c in t:components() do
-			if c:is("nil") then hadNil = true else table.insert(rest, c) end
-		end
-		if hadNil and #rest == 1 then return rest[1] end
-	end
-	return t
-end
-type function isRecord(t)
-	-- a plain table type with properties and no indexer (arrays and maps have an indexer)
-	return t:is("table") and t:indexer() == nil
-end
-type function FieldOf(rec, handle)
+-- Runtime path: a type function builds field(path) overloads through records and optionals with dotted paths
+-- (v5.md §3.4: "through records and optionals with dots"; arrays, maps and union variants not reachable).
+-- The handle type is built inline, as in probes/design-3.6/field_handle_typefn.luau.
+type function FieldOf(rec)
 	local parts = {}
-	local function walk(t, prefix)
+	local function handleOf(t)
+		return types.newtable({ [types.singleton("derive")] = types.newfunction(
+			{ head = { types.any, types.newtable({
+				[types.singleton("fn")] = types.newfunction({}, { head = { types.optional(t) } }),
+				[types.singleton("policy")] = types.unionof(types.singleton("drop"), types.singleton("deliver")),
+			}) } }, {}) })
+	end
+	local function stripNil(t: any): any
+		if t:is("union") then
+			local rest = {}
+			local hadNil = false
+			for _, c in t:components() do
+				if c:is("nil") then hadNil = true else table.insert(rest, c) end
+			end
+			if hadNil and #rest == 1 then return rest[1] end
+		end
+		return t
+	end
+	local function walk(t: any, prefix: string)
 		for key, prop in t:properties() do
-			local ft = prop.read
-			local path = if prefix == "" then key:value() else prefix .. "." .. key:value()
-			local inner = stripNil(ft)
-			table.insert(parts, types.newfunction({ head = { types.any, types.singleton(path) } }, { head = { handle(inner) } }))
-			if isRecord(inner) then walk(inner, path) end
+			local name = tostring(key:value())
+			local path = if prefix == "" then name else prefix .. "." .. name
+			local inner = stripNil(prop.read)
+			table.insert(parts, types.newfunction({ head = { types.any, types.singleton(path) } }, { head = { handleOf(inner) } }))
+			if inner:is("table") and inner:indexer() == nil then walk(inner, path) end
 		end
 	end
 	walk(rec, "")
@@ -40,13 +43,13 @@ type Shot = {
 	map: { [string]: { w: number } },    -- map: values not reachable
 	variant: Kinded,                     -- union: variants not reachable
 }
-type View = { field: FieldOf<Shot, Field> }
+type View = { field: FieldOf<Shot> }
 local v: View = nil :: any
 v:field("origin"):derive({ fn = function() return vector.create(1, 2, 3) end, policy = "drop" })
 v:field("hit.at"):derive({ fn = function() return vector.create(1, 2, 3) end, policy = "drop" })
 v:field("hit.part"):derive({ fn = function() return 1 end, policy = "deliver" })
 v:field("meta.tag.level"):derive({ fn = function() return 1 end, policy = "deliver" })
--- EXPECT errors below
+-- EXPECT errors below (lines 53-57)
 v:field("hit.part"):derive({ fn = function() return vector.create(1, 2, 3) end, policy = "drop" }) -- wrong return
 v:field("hit.nope") -- unknown nested path
 v:field("list.z") -- through an array

@@ -48,9 +48,9 @@ below `[security-tooling §9]` `[generation-methods §0]`.
   developer's: trap names (§3), decoy placement and keys (§8), canary text (§9), thresholds that encode a judgement
   (§7). Every game callback Lync runs (decoy behaviours, canary formats) runs as `v5-collections.md` §8.7 states:
   on a pooled thread per call site, a throw or a yield detected at the call, reported natively, and the stated
-  fallback applied. It has no quiet mitigation hooks (R22), no suspicion
-  weights or scores (R23) and no automatic kick, ban, throttle or client-visible rejection (R24): each would be
-  Lync deciding policy, which is the game's code (`v5.md` §0).
+  fallback applied. Lync has no quiet mitigation hooks (R22), no suspicion weights or scores (R23) and no automatic
+  kick, ban, throttle or client-visible rejection (R24): each would be Lync deciding policy, which is the game's
+  code (`v5.md` §0).
 
 ## 2. Per-build and per-player values
 

@@ -57,16 +57,16 @@ H_STR = '{ derive: (any, { fn: () -> string?, policy: "drop" | "deliver" }) -> (
 H_NUM = '{ derive: (any, { fn: () -> number?, policy: "drop" | "deliver" }) -> () }'
 
 
-def calls(n, acc):
+def calls(n, acc, hs=H_STR, hn=H_NUM):
     """Consumer lines; acc(path) is the expression for the handle of path. Returns text (EXPECT marks)."""
     last = n - 3
     return f'''local h2 = {acc("f2")} -- inferred type: see run.out (--annotate)
 {acc("f3")}:derive({{ fn = function() return 1 end, policy = "drop" }})
 {acc("hit.at")}:derive({{ fn = function() return vector.create(1, 2, 3) end, policy = "deliver" }})
 {acc(f"f{last}")}:derive({{ fn = function() return nil end, policy = "drop" }})
-local _exact: {H_STR} = {acc("f2")}
+local _exact: {hs} = {acc("f2")}
 -- EXPECT an error on each line below
-local _wrongType: {H_NUM} = {acc("f2")} -- f2 is a string handle
+local _wrongType: {hn} = {acc("f2")} -- f2 is a string handle
 {acc("hit.part")}:derive({{ fn = function() return vector.create(1, 2, 3) end, policy = "drop" }}) -- wrong return
 local _wrongPath = {acc("nope")} -- unknown path
 {acc("f3")}:derive({{ fn = function() return 1 end, policy = "dorp" }}) -- wrong option
@@ -347,4 +347,8 @@ for n in SIZES:
 -- (f) No type function, {n} paths: the handle is the codec value's own type, fields is the schema table (generic S).
 {F_LIB}
 local v = define({{ {leaves}, hit = t.optional({{ part = t.leaf() :: Handle<number>, at = t.leaf() :: Handle<vector> }}) }})
-{calls(n, lambda p: "v.fields." + p)}''')
+{calls(n, lambda p: "v.fields." + p, "Handle<string>", "Handle<number>")}''')
+
+# (b) library with --!nocheck: does the old solver still report, and what does the consumer get?
+write("b_lib_nocheck.luau", open(os.path.join(HERE, "b_lib.luau")).read().replace("--!strict", "--!nocheck", 1))
+write("b_consumer_nocheck_128.luau", open(os.path.join(HERE, "b_consumer_128.luau")).read().replace('"./b_lib"', '"./b_lib_nocheck"'))

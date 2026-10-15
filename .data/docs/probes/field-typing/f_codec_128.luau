@@ -10,9 +10,9 @@ local h2 = v.fields.f2 -- inferred type: see run.out (--annotate)
 v.fields.f3:derive({ fn = function() return 1 end, policy = "drop" })
 v.fields.hit.at:derive({ fn = function() return vector.create(1, 2, 3) end, policy = "deliver" })
 v.fields.f125:derive({ fn = function() return nil end, policy = "drop" })
-local _exact: { derive: (any, { fn: () -> string?, policy: "drop" | "deliver" }) -> () } = v.fields.f2
+local _exact: Handle<string> = v.fields.f2
 -- EXPECT an error on each line below
-local _wrongType: { derive: (any, { fn: () -> number?, policy: "drop" | "deliver" }) -> () } = v.fields.f2 -- f2 is a string handle
+local _wrongType: Handle<number> = v.fields.f2 -- f2 is a string handle
 v.fields.hit.part:derive({ fn = function() return vector.create(1, 2, 3) end, policy = "drop" }) -- wrong return
 local _wrongPath = v.fields.nope -- unknown path
 v.fields.f3:derive({ fn = function() return 1 end, policy = "dorp" }) -- wrong option

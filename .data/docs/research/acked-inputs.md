@@ -20,7 +20,7 @@ on the shared 2.1 GHz Xeon (run-to-run spread about ±25%). Python sims: `python
 ## Checklist
 
 - [x] 1. `acked`: mechanism in Lync's terms
-- [ ] 2. `acked`: what it saves and what it costs, measured
+- [x] 2. `acked`: what it saves and what it costs, measured
 - [ ] 3. `acked`: encode-once, `FireAllClients`, budgets, interest, rewind, decoys
 - [ ] 4. `acked`: unmodified clients, refusals, the open values, options
 - [ ] 5. `inputs`: mechanism in Lync's terms
@@ -147,3 +147,88 @@ acked rows chunk := collection:u(wc) n−1:EG0
 - **Respawn and teleport:** `cut(key)` flips `seg`; no baseline of the other segment is named, so the first row
   after a cut is nb = 0 and prediction never extrapolates across the jump.
 - **`state.rate` change:** the history restarts with the rate (as rewind's rings do); pairs are cleared.
+
+## 2. `acked`: what it saves and what it costs, measured
+
+### 2.1 Bytes and update rate (`acked_sim.py`, verified by running)
+
+One viewer, 60 s per case, `state.budget` 16,000 B/s, `v5.md` §9's network (0.05 s + U(0, 0.02) s each way, 5%
+Bernoulli loss each way), busy client (acks at its next 1/60 s flush). Every model field is a `:newest()` field.
+"Rows/s" is rows applied per record per second (the tick rate minus losses and deferral); "stale" is the mean of
+T − (tick of the client's newest applied row) over ticks where the client's value differs from the truth.
+
+| Case | core B/s (no cap) | core under budget: B/s, rows/s, stale | `acked` G: B/s, rows/s, stale | bytes saved |
+|---|---|---|---|---|
+| shooter, 30 players, 20 Hz | 7,074 | 7,074, 18.80, 2.057 | 3,004, 18.80, 2.057 | 2.35× |
+| shooter, 30 players, 60 Hz | 21,173 | 15,476, **40.91**, 4.768 | 8,390, **56.11**, 4.466 | 2.52× |
+| shooter, 100 players, 20 Hz | 23,940 | 15,947, **12.53**, 2.432 | 9,546, **18.76**, 2.059 | 2.51× |
+| racing, 12 cars, 60 Hz | 15,476 | 15,476, 56.17, 4.464 | 10,474, 56.14, 4.465 | 1.48× |
+| mmo, ≈70 visible of 400, 20 Hz | 7,393 | 7,393, 7.27, 2.055 | 2,510, 7.27, 2.055 | 2.95× |
+| tycoon, ≈160 records, 10 Hz | 11,901 | 9,943, 5.69, 1.269 | 2,434 (nb ≤ 1, §1.3), 6.81, 1.043 | 4.89× |
+
+"No cap" is `core_uncapped.py` (every changed row, every tick, any number of frames); the sim sends one state frame
+per tick, so its core figures for the 100-player shooter and the tycoon are capped at 1000 B per tick. What it makes
+possible: the 100-player shooter's rows run at 18.76 per second per record (20 Hz minus 5% loss) inside the
+default budget, against the core's 12.53; the 60 Hz shooter at 56.11 against 40.91. The earlier 2.3–2.8x
+(`design-2/newest_layout.out`: lossless, every record every tick, fixed baseline age, no naming bits) holds on the
+shooters and is exceeded on the mmo and tycoon; racing gains least (1.48×), its 60 Hz high-speed motion leaving the
+largest residuals at a 6–7-tick baseline age.
+
+**Predictor** (same runs, B/s): guarded linear (G) / unguarded linear (L) / delta against b0 only (D):
+
+| Case | G | L | D |
+|---|---|---|---|
+| shooter 20 Hz | 3,004 | 3,041 (+1.2%) | 3,296 (+9.7%) |
+| shooter 60 Hz | 8,390 | 8,556 (+2.0%) | 9,430 (+12.4%) |
+| shooter 100p | 9,546 | 9,669 (+1.3%) | 10,547 (+10.5%) |
+| racing 60 Hz | 10,474 | 10,888 (+4.0%) | 11,143 (+6.4%) |
+| mmo 20 Hz | 2,510 | 2,608 (+3.9%) | 2,790 (+11.2%) |
+| tycoon 10 Hz (no linear leaf) | 2,600 | 2,599 | **2,434 (−6.4%)** |
+
+So Unity's guard as written wins wherever a linear leaf exists, and three baselines lose where none does, which is
+§1.3's rule.
+
+**History length H** (G, B/s): at 60 Hz the round trip is 7–8 ticks, so H = 8 leaves no usable baseline (100%
+nb = 0: shooter 12,120, racing 13,213, worse than the core's 15,476 only by the frame cap); H = 16 already equals
+H = 32 on both 60 Hz cases. Idle-heavy collections keep gaining slowly: mmo 2,899 (H 8), 2,614 (16), 2,510 (32),
+2,490 (64), 2,466 (255); tycoon 2,660, 2,619, 2,600, 2,596, 2,585.
+
+**Ack timing:** an idle client (ack-only frames after 2 unacked frames or 100 ms, `v5.md` §4.1) costs +4.5%
+(shooter 20 Hz 3,140), +1.6% (60 Hz), +4.5% (100p), +0.8% (racing), +3.9% (mmo), +5.7% (tycoon).
+
+**Loss** (core / `acked`, B/s and rows/s): bursty 5% (mean burst 3): shooter 100p 15,947 at 12.50 / 9,686 at 18.71;
+bursty 15%: 15,947 at 11.28 / 9,996 at 16.88; mmo 15%: 7,425 / 2,637. `acked`'s bytes rise 1.5–5% from 5%
+Bernoulli to 15% bursty, because lost acks age the baselines; nb = 0 stays at 0–2% of rows.
+
+**Scheduler bound** (§1.4): bound ÷ actual block bits = 1.25–1.27 on the shooters, 1.10 racing, 1.29 mmo, 1.57
+tycoon. A bound at the core's piece width (2.23–4.02× actual) admits only as many rows as the core: shooter 100p
+12.53 rows/s at 7,165 B/s, the bytes saved but none of the rate.
+
+### 2.2 CPU (`acked_cost.luau`, verified by running; 99 rows × 12 leaves, shooter-like)
+
+| Path | Native (server) | Interpreted (client) |
+|---|---|---|
+| core: copy 99 × 12 B pieces into a viewer's frame | 33.6–35.7 ns per row | 40.8–42.0 ns per row |
+| `acked` encode per viewer: 3 history lookups, guarded prediction on 5 linear leaves, residuals, full mode and k search per column, writes | **1,182–1,220 ns per row** (prediction 506, search 480, writes about 230) | 4,939–5,205 ns per row |
+| `acked` client decode and rebuild (generic reader: modes, EG-k, prediction, store) | 1,610–1,795 ns per row | **3,746–4,049 ns per row** |
+
+- Round trip verified bit for bit on every leaf; the block is 537 B against 1,193 B of pieces for the same 99 rows.
+- The k search uses an exact closed form: with L = bit length of v and r the length of its top run of one bits,
+  EG-k(v) = k + 1 for k ≥ L, else 2L − k − 1 + 2·[k ≥ L − r]; per column that is O(1) work per value plus a
+  16-step fold, and gives the reference encoder's minimum (block bytes unchanged against the per-k loop).
+- **At the 100-player shooter, all 99 rows to every viewer at 20 Hz:** `acked` 234–242 ms/s of server CPU per
+  second (24% of one core), against 6.96–7.08 ms/s of copies for the core (34× more). At 30 players, 20 Hz:
+  30 × 29 × 20 × 1.2 µs ≈ 21 ms/s (derived). A generated encoder with straight-line leaves would cut the generic
+  probe's loop overhead by an unmeasured amount.
+- **Client:** 99 rows at 20 Hz cost 7.5–8.0 ms/s interpreted on this core (0.8%); a low-end phone's multiplier is
+  unmeasured (`compression.md` §3.2's 3–5× is unverified).
+
+### 2.3 Memory
+
+- **Server, shared:** H × slots × leaves codes. As f64: 32 × 99 × 12 × 8 B = 304 KB for the 100-player shooter
+  (152 KB as u32 for leaves of ≤ 32 bits), plus 1 bit of `seg` per slot per tick.
+- **Server, per (viewer, record):** 16 B: 158 KB at 100 viewers × 99 records.
+- **Client, per record:** at most H rows of codes (12 × 8 B each: 3 KB per record, 304 KB for 99); in steady
+  state the rows between the newest applied one and its baselines, about (round trip in ticks + 3) rows: about
+  6 × 96 B = 576 B per record at 20 Hz (derived).
+- **Wire upstream:** none; `acked` uses the core's acks unchanged.

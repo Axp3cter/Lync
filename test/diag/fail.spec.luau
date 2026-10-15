@@ -47,7 +47,7 @@ return {
 		Check.expectThrow(
 			function()
 				local ok, message =
-					pcall(Fail.caller, "valueRefused", "arena.chat:fire data", "be a string")
+					pcall(Fail.caller, "valueRefused", "arena.chat:fire data", "be text")
 				Check.expect(not ok, "pcall must fail")
 				error(message, 0)
 			end,

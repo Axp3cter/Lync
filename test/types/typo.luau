@@ -8,12 +8,10 @@
 	Before type functions returned marker types instead of calling `error()`, this crashed both.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Types = require("../../src/types")
 local schema = require("./typo_schema")
-
 
 -- Main --------------------------------------------------------------------------------------------
 

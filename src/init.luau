@@ -10,25 +10,21 @@
 	constructor's line, with a code from `docs/codes/`.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Dsl = require("@self/plan/dsl")
 local Planner = require("@self/plan/planner")
 local Types = require("@self/types")
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Lync = {}
-
 
 -- Private ----------------------------------------------------------------------------------------
 
 local function atOf(source: string, line: number): { line: number, source: string }
 	return { line = line, source = source }
 end
-
 
 -- Public ------------------------------------------------------------------------------------------
 
@@ -47,7 +43,6 @@ Lync.event = (Dsl.event :: any) :: Types.Event
 --- Declares a request (v5.md §3.4).
 Lync.request = (Dsl.request :: any) :: Types.Request
 
-
 --[=[
 	Plans a schema: checks every definition and computes its IR (v5.md §3.4, §4.6, §4.7).
 
@@ -63,6 +58,5 @@ function Lync.schema<Defs>(name: string, definitions: Defs): Types.Schema<Defs>
 	-- `_definitions` exists only in the type, for the views.
 	return table.freeze({ ir = namespace }) :: any
 end
-
 
 return table.freeze(Lync)

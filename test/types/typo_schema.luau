@@ -7,21 +7,22 @@
 	other proofs view it from each side.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Lync = require("../../src")
-
 
 -- Constants ---------------------------------------------------------------------------------------
 
 local t = Lync.types
 
-
 -- Main --------------------------------------------------------------------------------------------
 
 return Lync.schema("arena", {
-	chat = Lync.event({ from = "client", data = t.string(200), limit = { perSecond = 5, burst = 5 } }),
+	chat = Lync.event({
+		from = "client",
+		data = t.string(200),
+		limit = { perSecond = 5, burst = 5 },
+	}),
 	strike = Lync.event({
 		from = "client",
 		lane = "unreliable",

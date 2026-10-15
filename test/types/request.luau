@@ -7,12 +7,10 @@
 	directions of a request are typed through the views.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Types = require("../../src/types")
 local arena = require("./arena")
-
 
 -- Main --------------------------------------------------------------------------------------------
 

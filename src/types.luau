@@ -18,16 +18,13 @@
 	The views exist as types only in milestone 1; their runtime is milestone 2.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Ir = require("./plan/ir")
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Types = {}
-
 
 -- Types -------------------------------------------------------------------------------------------
 
@@ -36,7 +33,6 @@ export type Codec<T> = {
 	read _value: T,
 	newest: (self: Codec<T>) -> Codec<T>,
 }
-
 
 --[=[
 	The value type of a codec, or of a record of codecs.
@@ -66,7 +62,6 @@ export type function Infer(codec)
 
 	return record
 end
-
 
 --[=[
 	The value type of a union: one record per variant, each with its name as `kind`.
@@ -101,7 +96,6 @@ export type function Tagged(variants)
 	return types.unionof(table.unpack(members))
 end
 
-
 --[=[
 	A record type with every field optional, as `patch` takes it.
 
@@ -121,7 +115,6 @@ export type function Partial(record)
 	return partial
 end
 
-
 --- The custom codec's specification (v5.md §8).
 export type CustomSpec<V> = {
 	encode: (writer: any, value: V) -> (),
@@ -133,7 +126,6 @@ export type CustomSpec<V> = {
 	name: string,
 	version: number,
 }
-
 
 --- The `t` table: every codec constructor of v5.md §3.3.
 export type T = {
@@ -158,33 +150,31 @@ export type T = {
 	map: <K, V>(key: K, value: V, maxCount: number) -> Codec<{ [Infer<K>]: Infer<V> }>,
 	union: <S>(variants: S) -> Codec<Tagged<S>>,
 	custom: <V>(spec: CustomSpec<V>) -> Codec<V>,
-	convert: <B, U>(base: B, decode: (value: Infer<B>) -> U, encode: (value: U) -> Infer<B>) -> Codec<U>,
+	convert: <B, U>(
+		base: B,
+		decode: (value: Infer<B>) -> U,
+		encode: (value: U) -> Infer<B>
+	) -> Codec<U>,
 }
-
 
 --- A connection returned by `connect`.
 export type Connection = {
 	disconnect: (self: Connection) -> (),
 }
 
-
 --- Who a server send goes to.
 export type Target = Player | { Player }
-
 
 --- Why a request failed (v5.md §3.5).
 export type Failure = "timeout" | "rejected" | "unanswered" | "left" | "shutdown"
 
-
 --- A request's result; requests never throw.
 export type Result<R> = { ok: true, value: R } | { ok: false, error: Failure }
-
 
 --- A signal of a collection.
 export type Signal<T...> = {
 	connect: (self: Signal<T...>, handler: (T...) -> ()) -> Connection,
 }
-
 
 --- The server's side of an event the client sends.
 export type ServerInbound<T> = {
@@ -192,24 +182,20 @@ export type ServerInbound<T> = {
 	validate: (self: ServerInbound<T>, validator: (player: Player, value: T) -> boolean) -> (),
 }
 
-
 --- The client's side of an event the client sends.
 export type ClientOutbound<T> = {
 	fire: (self: ClientOutbound<T>, value: T) -> (),
 }
-
 
 --- The server's side of an event the server sends.
 export type ServerOutbound<T> = {
 	fire: (self: ServerOutbound<T>, target: Target, value: T) -> (),
 }
 
-
 --- The client's side of an event the server sends.
 export type ClientInbound<T> = {
 	connect: (self: ClientInbound<T>, handler: (value: T) -> ()) -> Connection,
 }
-
 
 --- The server's side of a request the client asks.
 export type ServerResponder<T, R> = {
@@ -217,24 +203,20 @@ export type ServerResponder<T, R> = {
 	validate: (self: ServerResponder<T, R>, validator: (player: Player, value: T) -> boolean) -> (),
 }
 
-
 --- The client's side of a request the client asks.
 export type ClientAsker<T, R> = {
 	invoke: (self: ClientAsker<T, R>, value: T) -> Result<R>,
 }
-
 
 --- The server's side of a request the server asks.
 export type ServerAsker<T, R> = {
 	invoke: (self: ServerAsker<T, R>, player: Player, value: T) -> Result<R>,
 }
 
-
 --- The client's side of a request the server asks.
 export type ClientResponder<T, R> = {
 	handle: (self: ClientResponder<T, R>, handler: (value: T) -> R) -> (),
 }
-
 
 --- The server's side of a keyed collection.
 export type ServerCollection<K, T> = {
@@ -244,7 +226,6 @@ export type ServerCollection<K, T> = {
 	audience: (self: ServerCollection<K, T>, key: K, target: Target) -> (),
 }
 
-
 --- The client's side of a keyed collection.
 export type ClientCollection<K, T> = {
 	get: (self: ClientCollection<K, T>, key: K) -> T?,
@@ -252,7 +233,6 @@ export type ClientCollection<K, T> = {
 	changed: Signal<K, T, T>,
 	removed: Signal<K>,
 }
-
 
 --- The server's side of a singleton collection, which has no key.
 export type ServerSingleton<T> = {
@@ -262,7 +242,6 @@ export type ServerSingleton<T> = {
 	audience: (self: ServerSingleton<T>, target: Target) -> (),
 }
 
-
 --- The client's side of a singleton collection.
 export type ClientSingleton<T> = {
 	get: (self: ClientSingleton<T>) -> T?,
@@ -270,7 +249,6 @@ export type ClientSingleton<T> = {
 	changed: Signal<T, T>,
 	removed: Signal<>,
 }
-
 
 --[=[
 	The value type of a definition's option, nil when it is absent.
@@ -288,7 +266,6 @@ export type function OptionValue(definition, option)
 	return Infer(codec)
 end
 
-
 --[=[
 	The `from` option of a definition.
 
@@ -304,7 +281,6 @@ export type function FromOf(definition)
 	return from
 end
 
-
 --[=[
 	Whether a collection has a `key`.
 
@@ -318,7 +294,6 @@ export type function KeyOf(definition)
 
 	return types.singleton("keyed")
 end
-
 
 -- The definition types pick a side table with the built-in `index` rather than passing both to a
 -- type function: a type function given side tables that hold error types (an unknown `Vector3`,
@@ -336,7 +311,6 @@ export type EventDef<D> = index<{
 	},
 }, FromOf<D>>
 
-
 --- A request, with the types of both its sides.
 export type RequestDef<D> = index<{
 	client: {
@@ -348,7 +322,6 @@ export type RequestDef<D> = index<{
 		read _client: ClientResponder<OptionValue<D, "data">, OptionValue<D, "reply">>,
 	},
 }, FromOf<D>>
-
 
 --- A collection, with the types of both its sides.
 export type CollectionDef<D> = index<{
@@ -362,13 +335,11 @@ export type CollectionDef<D> = index<{
 	},
 }, KeyOf<D>>
 
-
 --- A planned schema; `_definitions` exists only in the type.
 export type Schema<Defs> = {
 	ir: Ir.Namespace,
 	_definitions: Defs,
 }
-
 
 --[=[
 	Selects one side's types from every definition of a schema.
@@ -403,14 +374,11 @@ export type function SideOf(schema, side)
 	return view
 end
 
-
 --- The server's view of a schema (v5.md §3.5).
 export type ServerView<S> = SideOf<S, "_server">
 
-
 --- The client's view of a schema (v5.md §3.5).
 export type ClientView<S> = SideOf<S, "_client">
-
 
 --[=[
 	`Lync.event`. The intersection keeps the literal `from` a singleton under the new solver
@@ -419,13 +387,10 @@ export type ClientView<S> = SideOf<S, "_client">
 ]=]
 export type Event = <D>(options: D & { read from: "client" | "server" }) -> EventDef<D>
 
-
 --- `Lync.request`, with `from` as in `Event`.
 export type Request = <D>(options: D & { read from: "client" | "server" }) -> RequestDef<D>
 
-
 --- `Lync.collection`.
 export type Collection = <D>(options: D) -> CollectionDef<D>
-
 
 return table.freeze(Types)

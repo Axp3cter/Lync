@@ -12,16 +12,13 @@
 	Indices that travel on the wire (enum items, union variants, ids) are 0-based.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Bits = require("../wire/bits")
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Ir = {}
-
 
 -- Types -------------------------------------------------------------------------------------------
 
@@ -65,7 +62,6 @@ export type Codec =
 	}
 	| { kind: "convert", base: Codec, decode: (any) -> any, encode: (any) -> any }
 
-
 --- A `t.number`, and each axis of a `t.vector3`.
 export type NumberCodec = {
 	kind: "number",
@@ -76,14 +72,11 @@ export type NumberCodec = {
 	width: number,
 }
 
-
 --- A record field, in name order; `newest` marks a collection field declared with `:newest()`.
 export type Field = { name: string, codec: Codec, newest: boolean }
 
-
 --- A union variant, in name order; `record` is a `record` codec.
 export type Variant = { name: string, record: Codec }
-
 
 --[=[
 	A planned definition. Options a kind does not take hold 0 (`timeout`, `maxRecords`,
@@ -119,10 +112,8 @@ export type Definition = {
 	source: string,
 }
 
-
 --- One id in an id space (v5.md §4.6): a definition's event, or a request's ask or answer.
 export type Entry = { definition: Definition, role: "event" | "ask" | "answer", id: number }
-
 
 --[=[
 	A planned schema.
@@ -157,6 +148,5 @@ export type Namespace = {
 	line: number,
 	source: string,
 }
-
 
 return table.freeze(Ir)

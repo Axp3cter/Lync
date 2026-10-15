@@ -7,12 +7,10 @@
 	expected output records their text, which names neither the side nor the definition.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Types = require("../../src/types")
 local arena = require("./arena")
-
 
 -- Main --------------------------------------------------------------------------------------------
 

@@ -7,11 +7,9 @@
 	`Codec<unknown>`. The reveals below fail on purpose; the expected output records the types.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Lync = require("../../src")
-
 
 -- Main --------------------------------------------------------------------------------------------
 

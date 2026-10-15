@@ -11,17 +11,14 @@
 	Golden vector G6 (v5.md §4.10) fixes the bytes and the hash.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local HalfSipHash = require("../wire/halfsiphash")
 local Ir = require("./ir")
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Serialize = {}
-
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -67,18 +64,15 @@ const CODEC_TYPE: { [string]: number } = {
 }
 table.freeze(CODEC_TYPE)
 
-
 -- Private -----------------------------------------------------------------------------------------
 
 local function writeU8(parts: { string }, value: number)
 	table.insert(parts, string.pack("B", value))
 end
 
-
 local function writeU16(parts: { string }, value: number)
 	table.insert(parts, string.pack("<I2", value))
 end
-
 
 local function writeNum(parts: { string }, value: number)
 	-- -0 == 0, so this writes +0 for both.
@@ -86,12 +80,10 @@ local function writeNum(parts: { string }, value: number)
 	table.insert(parts, string.pack("<d", canonical))
 end
 
-
 local function writeStr(parts: { string }, text: string)
 	writeU16(parts, #text)
 	table.insert(parts, text)
 end
-
 
 -- Kinds the chain leaves out have no parameters.
 local function writeCodec(parts: { string }, codec: Ir.Codec)
@@ -157,7 +149,6 @@ local function writeCodec(parts: { string }, codec: Ir.Codec)
 	end
 end
 
-
 local function writeOptionalCodec(parts: { string }, codec: Ir.Codec?)
 	if codec == nil then
 		writeU8(parts, 0)
@@ -168,7 +159,6 @@ local function writeOptionalCodec(parts: { string }, codec: Ir.Codec?)
 	writeCodec(parts, codec)
 end
 
-
 local function writeOptionalNum(parts: { string }, value: number?)
 	if value == nil then
 		writeU8(parts, 0)
@@ -178,7 +168,6 @@ local function writeOptionalNum(parts: { string }, value: number?)
 	writeU8(parts, 1)
 	writeNum(parts, value)
 end
-
 
 local function writeDefinition(parts: { string }, definition: Ir.Definition)
 	local isRequest = definition.kind == "request"
@@ -200,7 +189,6 @@ local function writeDefinition(parts: { string }, definition: Ir.Definition)
 	writeOptionalNum(parts, if isCollection then definition.priority else nil)
 	writeOptionalNum(parts, definition.reliableRate)
 end
-
 
 -- Public ------------------------------------------------------------------------------------------
 
@@ -226,7 +214,6 @@ function Serialize.bytes(namespace: Ir.Namespace): buffer
 	return buffer.fromstring(table.concat(parts))
 end
 
-
 --[=[
 	Hashes a serialization: HalfSipHash-2-4 with a zero key and a 64-bit output (v5.md §4.6).
 
@@ -237,6 +224,5 @@ end
 function Serialize.hash(bytes: buffer): (number, number)
 	return HalfSipHash.hash(ZERO_KEY, bytes, 0, buffer.len(bytes), 2, 4, 8)
 end
-
 
 return table.freeze(Serialize)

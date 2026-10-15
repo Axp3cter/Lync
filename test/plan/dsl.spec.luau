@@ -268,10 +268,10 @@ return {
 		end, { code = "unknownOption", at = at(line + 2), subject = "t.custom" })
 		Check.expectThrow(function()
 			t.custom({ encode = encode, decode = decode, name = "x", version = 1 } :: any)
-		end, { code = "missingOption", at = at(line + 5), subject = "t.custom" })
+		end, { code = "missingOption", at = at(line + 7), subject = "t.custom" })
 		Check.expectThrow(function()
 			t.custom({ encode = encode, decode = decode, maxBits = 8, name = "", version = 1 })
-		end, { code = "nameLength", at = at(line + 8), subject = "t.custom" })
+		end, { code = "nameLength", at = at(line + 10), subject = "t.custom" })
 	end,
 
 	["nameLength: a union variant named by a number"] = function()

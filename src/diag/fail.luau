@@ -15,22 +15,18 @@
 	level, where `error(message, 2)` does not (diagnostics §1.1).
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Codes = require("./codes")
-
 
 -- Module ------------------------------------------------------------------------------------------
 
 local Fail = {}
 
-
 -- Types -------------------------------------------------------------------------------------------
 
 --- Where a schema constructor was called.
 export type At = { line: number, source: string }
-
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -41,8 +37,10 @@ const MAX_INTEGER_SHOWN = 2 ^ 63
 -- Every Lync module's source starts with this prefix: this file's own source without its
 -- extension and its place in the package (`diag/fail` in a file tree, `.diag.fail` on Roblox).
 const OWN_SOURCE = (string.gsub(debug.info(1, "s"), "%.luau?$", ""))
-const LYNC_PREFIX =
-	assert(string.match(OWN_SOURCE, "^(.-)%.?diag[%./\\]fail$"), "Lync must be loaded from diag/fail")
+const LYNC_PREFIX = assert(
+	string.match(OWN_SOURCE, "^(.-)%.?diag[%./\\]fail$"),
+	"Lync must be loaded from diag/fail"
+)
 
 const ESCAPE_BY_CHARACTER: { [string]: string } = {
 	["\n"] = "\\n",
@@ -52,7 +50,6 @@ const ESCAPE_BY_CHARACTER: { [string]: string } = {
 	['"'] = '\\"',
 }
 table.freeze(ESCAPE_BY_CHARACTER)
-
 
 -- Private -----------------------------------------------------------------------------------------
 
@@ -71,7 +68,6 @@ local function cutOf(text: string, maxBytes: number): number
 
 	return cut
 end
-
 
 local function showNumber(value: number): string
 	if value ~= value then
@@ -97,10 +93,9 @@ local function showNumber(value: number): string
 	return string.format("%.17g", value)
 end
 
-
 local function escapedOf(text: string): string
 	local isValidUtf8 = utf8.len(text) ~= nil
-	local escaped = string.gsub(text, "[%c\\\"\128-\255]", function(character: string): string
+	local escaped = string.gsub(text, '[%c\\"\128-\255]', function(character: string): string
 		local named = ESCAPE_BY_CHARACTER[character]
 		if named ~= nil then
 			return named
@@ -117,7 +112,6 @@ local function escapedOf(text: string): string
 	return escaped
 end
 
-
 local function showString(text: string): string
 	if #text <= MAX_SHOWN_BYTES then
 		return `"{escapedOf(text)}"`
@@ -130,7 +124,6 @@ local function showString(text: string): string
 	return `"{shown}"…(+{restBytes} bytes)`
 end
 
-
 local function showTable(value: { [unknown]: unknown }): string
 	local keyCount = 0
 	for _ in next, value do
@@ -139,7 +132,6 @@ local function showTable(value: { [unknown]: unknown }): string
 
 	return `table ({keyCount} keys)`
 end
-
 
 local function show(value: any): string
 	local valueType = typeof(value)
@@ -183,7 +175,6 @@ local function show(value: any): string
 	return valueType
 end
 
-
 local function bodyOf(
 	code: Codes.Code,
 	subject: string,
@@ -201,7 +192,6 @@ local function bodyOf(
 	return string.sub(body, 1, cutOf(body, MAX_BODY_BYTES))
 end
 
-
 local function callerPosition(): string?
 	local level = 2
 	while true do
@@ -218,7 +208,6 @@ local function callerPosition(): string?
 		level += 1
 	end
 end
-
 
 -- Public ------------------------------------------------------------------------------------------
 
@@ -248,7 +237,6 @@ function Fail.caller(
 	error(`{position}: {body}`, 0)
 end
 
-
 --[=[
 	Raises a declaration error, positioned where a schema constructor was called.
 
@@ -272,7 +260,6 @@ function Fail.declaration(
 	error(`{at.source}:{at.line}: {body}`, 0)
 end
 
-
 --[=[
 	Renders a value for a message: strings quoted, escaped and cut at 40 bytes; buffers and
 	tables by their size; instances by their class, never their names.
@@ -283,6 +270,5 @@ end
 function Fail.show(value: any): string
 	return show(value)
 end
-
 
 return table.freeze(Fail)

@@ -10,11 +10,9 @@
 	fails when they differ. Codes are never renamed or reused; later milestones only add them.
 ]=]
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Codes = {}
-
 
 -- Types -------------------------------------------------------------------------------------------
 
@@ -27,7 +25,6 @@ export type Family =
 	| "fault"
 	| "build"
 	| "internal"
-
 
 --- Every code Lync raises or reports.
 export type Code =
@@ -48,7 +45,6 @@ export type Code =
 	| "messageTooLarge"
 	| "unreliableTooLarge"
 	| "valueRefused"
-
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -74,11 +70,9 @@ const FAMILY: { [Code]: Family } = {
 }
 table.freeze(FAMILY)
 
-
 -- Public ------------------------------------------------------------------------------------------
 
 --- The family of every code.
 Codes.family = FAMILY
-
 
 return table.freeze(Codes)

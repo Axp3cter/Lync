@@ -405,7 +405,7 @@ return {
 					fetch = Lync.request({ from = "client", reply = t.buffer(16_000) }),
 				})
 			end,
-			{ code = "messageTooLarge", at = at(line + 3), subject = "arena.fetch", path = "reply" }
+			{ code = "messageTooLarge", at = at(line + 4), subject = "arena.fetch", path = "reply" }
 		)
 	end,
 

@@ -14,7 +14,6 @@
 	for a map key.
 ]=]
 
-
 -- Imports -----------------------------------------------------------------------------------------
 
 local Dsl = require("./dsl")
@@ -23,11 +22,9 @@ local Ints = require("../wire/ints")
 local Ir = require("./ir")
 local Serialize = require("./serialize")
 
-
 -- Module ------------------------------------------------------------------------------------------
 
 local Planner = {}
-
 
 -- Types -------------------------------------------------------------------------------------------
 
@@ -47,7 +44,6 @@ type Place = {
 }
 
 type Record = { [unknown]: unknown }
-
 
 -- Constants ---------------------------------------------------------------------------------------
 
@@ -123,14 +119,12 @@ const IS_KEY_KIND: { [string]: boolean } = {
 }
 table.freeze(IS_KEY_KIND)
 
-
 -- Private -----------------------------------------------------------------------------------------
 
 -- The casts are for the old solver, whose `getmetatable` and `table.isfrozen` take no `unknown`.
 local function isRecord(value: unknown): boolean
 	return typeof(value) == "table" and getmetatable(value :: any) == nil
 end
-
 
 local function toName(value: unknown, maxBytes: number): string?
 	if typeof(value) ~= "string" or #value < 1 or #value > maxBytes then
@@ -140,7 +134,6 @@ local function toName(value: unknown, maxBytes: number): string?
 	return value
 end
 
-
 local function toFinite(value: unknown): number?
 	if typeof(value) ~= "number" or not math.isfinite(value) then
 		return nil
@@ -148,7 +141,6 @@ local function toFinite(value: unknown): number?
 
 	return value
 end
-
 
 local function toDeclaration(value: unknown): Dsl.Declaration?
 	if typeof(value) ~= "table" or not table.isfrozen(value :: any) then
@@ -172,7 +164,6 @@ local function toDeclaration(value: unknown): Dsl.Declaration?
 	return value :: any
 end
 
-
 -- Freezes the IR once it is complete. Tables from the DSL are frozen already, and user
 -- functions and Roblox values are left alone.
 local function freezeDeeply(value: unknown)
@@ -187,7 +178,6 @@ local function freezeDeeply(value: unknown)
 	end
 end
 
-
 -- `Ints.width` needs at least one value; an empty id space has no ids to write.
 local function widthOf(count: number): number
 	if count == 0 then
@@ -196,7 +186,6 @@ local function widthOf(count: number): number
 
 	return Ints.width(count)
 end
-
 
 -- Returns the names of a record or definitions table in bytewise order.
 local function sortedNamesOf(
@@ -225,16 +214,13 @@ local function sortedNamesOf(
 	return names
 end
 
-
 local function placeAt(place: Place, path: string, at: Fail.At, isNewestAllowed: boolean): Place
 	return { subject = place.subject, path = path, at = at, isNewestAllowed = isNewestAllowed }
 end
 
-
 local function subjectOf(place: Place): string
 	return `{place.subject} {place.path}`
 end
-
 
 local function numberCodecOf(min: number, max: number, step: number, steps: number): Ir.NumberCodec
 	local codec: Ir.NumberCodec = {
@@ -248,7 +234,6 @@ local function numberCodecOf(min: number, max: number, step: number, steps: numb
 
 	return codec
 end
-
 
 -- Returns the worst-case bits and tail bytes of a codec's single-row encoding (v5.md §3.3).
 local function sizeOf(codec: Ir.Codec): (number, number)
@@ -327,7 +312,6 @@ local function sizeOf(codec: Ir.Codec): (number, number)
 	error(`a codec must have a known kind, got {kind}`)
 end
 
-
 local function hasInstance(codec: Ir.Codec): boolean
 	if codec.kind == "instance" then
 		return true
@@ -356,7 +340,6 @@ local function hasInstance(codec: Ir.Codec): boolean
 	return false
 end
 
-
 local function hasAnyInstance(data: Ir.Codec?, reply: Ir.Codec?): boolean
 	if data ~= nil and hasInstance(data) then
 		return true
@@ -364,7 +347,6 @@ local function hasAnyInstance(data: Ir.Codec?, reply: Ir.Codec?): boolean
 
 	return reply ~= nil and hasInstance(reply)
 end
-
 
 -- A `:newest()` field must have a bounded, tail-free row: no counts, lengths, Exp-Golomb codes,
 -- instance indices or opaque custom encodings.
@@ -404,9 +386,7 @@ local function isFixedWidth(codec: Ir.Codec): boolean
 	return true
 end
 
-
 local planCodec: (value: unknown, place: Place) -> Ir.Codec
-
 
 local function planRecord(record: Record, place: Place, areFieldsNewestAllowed: boolean): Ir.Codec
 	local names = sortedNamesOf(
@@ -430,7 +410,6 @@ local function planRecord(record: Record, place: Place, areFieldsNewestAllowed: 
 
 	return { kind = "record", fields = fields }
 end
-
 
 local function planUnion(variants: Record, place: Place): Ir.Codec
 	local names = sortedNamesOf(
@@ -475,7 +454,6 @@ local function planUnion(variants: Record, place: Place): Ir.Codec
 	return { kind = "union", variants = planned, byName = byName, width = Ints.width(#names) }
 end
 
-
 local function planNode(node: Dsl.Node, place: Place): Ir.Codec
 	if node.kind == "int" then
 		return {
@@ -507,8 +485,14 @@ local function planNode(node: Dsl.Node, place: Place): Ir.Codec
 	elseif node.kind == "cframe" then
 		return {
 			kind = "cframe",
-			position = planCodec(node.position, placeAt(place, `{place.path}.position`, place.at, false)),
-			rotation = planCodec(node.rotation, placeAt(place, `{place.path}.rotation`, place.at, false)),
+			position = planCodec(
+				node.position,
+				placeAt(place, `{place.path}.position`, place.at, false)
+			),
+			rotation = planCodec(
+				node.rotation,
+				placeAt(place, `{place.path}.rotation`, place.at, false)
+			),
 		}
 	elseif node.kind == "enum" then
 		local index: { [string]: number } = {}
@@ -570,14 +554,19 @@ local function planNode(node: Dsl.Node, place: Place): Ir.Codec
 	return node :: any
 end
 
-
 function planCodec(value: unknown, place: Place): Ir.Codec
 	if isRecord(value) then
 		return planRecord(value :: Record, placeAt(place, place.path, place.at, false), false)
 	end
 
 	if not Dsl.isCodec(value) then
-		return Fail.declaration("notACodec", place.at, subjectOf(place), "be a codec or a record of codecs", value)
+		return Fail.declaration(
+			"notACodec",
+			place.at,
+			subjectOf(place),
+			"be a codec or a record of codecs",
+			value
+		)
 	end
 
 	local codec = value :: Dsl.Codec
@@ -605,7 +594,6 @@ function planCodec(value: unknown, place: Place): Ir.Codec
 	return planned
 end
 
-
 local function checkSize(
 	code: "messageTooLarge" | "unreliableTooLarge",
 	bits: number,
@@ -620,15 +608,23 @@ local function checkSize(
 	end
 end
 
-
-local function fromOf(declaration: Dsl.Declaration, at: Fail.At, subject: string): "client" | "server"
+local function fromOf(
+	declaration: Dsl.Declaration,
+	at: Fail.At,
+	subject: string
+): "client" | "server"
 	if declaration.kind == "collection" then
 		return "server"
 	end
 
 	local from = declaration.options.from
 	if from == nil then
-		return Fail.declaration("missingOption", at, subject, `have the option from, "client" or "server"`)
+		return Fail.declaration(
+			"missingOption",
+			at,
+			subject,
+			`have the option from, "client" or "server"`
+		)
 	end
 
 	if from == "client" then
@@ -642,18 +638,22 @@ local function fromOf(declaration: Dsl.Declaration, at: Fail.At, subject: string
 	return Fail.declaration("paramRange", at, `{subject} from`, `be "client" or "server"`, from)
 end
 
-
 local function checkOptionNames(declaration: Dsl.Declaration, at: Fail.At, subject: string)
 	local kind = declaration.kind
 	local isOption: { [string]: boolean } = IS_OPTION_BY_KIND[kind]
 	local optionNames = OPTION_NAMES[kind]
 	for key in declaration.options do
 		if typeof(key) ~= "string" or not isOption[key] then
-			Fail.declaration("unknownOption", at, subject, `have only the options {optionNames}`, key)
+			Fail.declaration(
+				"unknownOption",
+				at,
+				subject,
+				`have only the options {optionNames}`,
+				key
+			)
 		end
 	end
 end
-
 
 local function checkLimitSide(
 	declaration: Dsl.Declaration,
@@ -669,8 +669,11 @@ local function checkLimitSide(
 	Fail.declaration("unknownOption", at, subject, `have only the options {optionNames}`, "limit")
 end
 
-
-local function laneOf(declaration: Dsl.Declaration, at: Fail.At, subject: string): "reliable" | "unreliable"
+local function laneOf(
+	declaration: Dsl.Declaration,
+	at: Fail.At,
+	subject: string
+): "reliable" | "unreliable"
 	local lane = declaration.options.lane
 	if lane == nil or lane == "reliable" then
 		return "reliable"
@@ -680,33 +683,65 @@ local function laneOf(declaration: Dsl.Declaration, at: Fail.At, subject: string
 		return "unreliable"
 	end
 
-	return Fail.declaration("paramRange", at, `{subject} lane`, `be "reliable" or "unreliable"`, lane)
+	return Fail.declaration(
+		"paramRange",
+		at,
+		`{subject} lane`,
+		`be "reliable" or "unreliable"`,
+		lane
+	)
 end
-
 
 local function planKey(value: unknown, at: Fail.At, subject: string): Ir.Codec
 	if not Dsl.isCodec(value) then
-		return Fail.declaration("mapKey", at, `{subject} key`, "be a t.int, list t.enum or t.string codec", value)
+		return Fail.declaration(
+			"mapKey",
+			at,
+			`{subject} key`,
+			"be a t.int, list t.enum or t.string codec",
+			value
+		)
 	end
 
 	local keyKind = (value :: Dsl.Codec).node.kind
 	if not IS_KEY_KIND[keyKind] then
-		return Fail.declaration("mapKey", at, `{subject} key`, "be a t.int, list t.enum or t.string codec", keyKind)
+		return Fail.declaration(
+			"mapKey",
+			at,
+			`{subject} key`,
+			"be a t.int, list t.enum or t.string codec",
+			keyKind
+		)
 	end
 
 	return planCodec(value, { subject = subject, path = "key", at = at, isNewestAllowed = false })
 end
 
-
-local function planLimit(value: unknown, at: Fail.At, subject: string): { perSecond: number, burst: number }
+local function planLimit(
+	value: unknown,
+	at: Fail.At,
+	subject: string
+): { perSecond: number, burst: number }
 	if not isRecord(value) then
-		return Fail.declaration("paramRange", at, `{subject} limit`, "be a table with perSecond and burst", value)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} limit`,
+			"be a table with perSecond and burst",
+			value
+		)
 	end
 
 	local limit = value :: Record
 	for key in limit do
 		if key ~= "perSecond" and key ~= "burst" then
-			return Fail.declaration("unknownOption", at, `{subject} limit`, "have only perSecond and burst", key)
+			return Fail.declaration(
+				"unknownOption",
+				at,
+				`{subject} limit`,
+				"have only perSecond and burst",
+				key
+			)
 		end
 	end
 
@@ -731,13 +766,23 @@ local function planLimit(value: unknown, at: Fail.At, subject: string): { perSec
 	end
 
 	local burstCount = toFinite(burst)
-	if burstCount == nil or burstCount < 1 or burstCount > MAX_BURST or math.floor(burstCount) ~= burstCount then
-		return Fail.declaration("paramRange", at, `{subject} limit.burst`, "be an integer from 1 to 1000", burst)
+	if
+		burstCount == nil
+		or burstCount < 1
+		or burstCount > MAX_BURST
+		or math.floor(burstCount) ~= burstCount
+	then
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} limit.burst`,
+			"be an integer from 1 to 1000",
+			burst
+		)
 	end
 
 	return { perSecond = perSecond, burst = burstCount }
 end
-
 
 local function timeoutOf(value: unknown, at: Fail.At, subject: string): number
 	if value == nil then
@@ -746,12 +791,17 @@ local function timeoutOf(value: unknown, at: Fail.At, subject: string): number
 
 	local timeout = toFinite(value)
 	if timeout == nil or timeout < MIN_TIMEOUT or timeout > MAX_TIMEOUT then
-		return Fail.declaration("paramRange", at, `{subject} timeout`, "be from 0.1 to 300 seconds", value)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} timeout`,
+			"be from 0.1 to 300 seconds",
+			value
+		)
 	end
 
 	return timeout
 end
-
 
 local function maxRecordsOf(value: unknown, at: Fail.At, subject: string): number
 	if value == nil then
@@ -765,12 +815,17 @@ local function maxRecordsOf(value: unknown, at: Fail.At, subject: string): numbe
 		or maxRecords > MAX_RECORDS
 		or math.floor(maxRecords) ~= maxRecords
 	then
-		return Fail.declaration("paramRange", at, `{subject} maxRecords`, "be an integer from 1 to 65536", value)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} maxRecords`,
+			"be an integer from 1 to 65536",
+			value
+		)
 	end
 
 	return maxRecords
 end
-
 
 local function priorityOf(value: unknown, at: Fail.At, subject: string): number
 	if value == nil then
@@ -779,12 +834,17 @@ local function priorityOf(value: unknown, at: Fail.At, subject: string): number
 
 	local priority = toFinite(value)
 	if priority == nil or priority <= 0 then
-		return Fail.declaration("paramRange", at, `{subject} priority`, "be a finite number above 0", value)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} priority`,
+			"be a finite number above 0",
+			value
+		)
 	end
 
 	return priority
 end
-
 
 local function reliableRateOf(value: unknown, at: Fail.At, subject: string): number?
 	if value == nil then
@@ -793,12 +853,17 @@ local function reliableRateOf(value: unknown, at: Fail.At, subject: string): num
 
 	local rate = toFinite(value)
 	if rate == nil or rate < MIN_RELIABLE_RATE or rate > MAX_RELIABLE_RATE then
-		return Fail.declaration("paramRange", at, `{subject} reliableRate`, "be nil or from 1 to 60 Hz", value)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			`{subject} reliableRate`,
+			"be nil or from 1 to 60 Hz",
+			value
+		)
 	end
 
 	return rate
 end
-
 
 local function planData(declaration: Dsl.Declaration, at: Fail.At, subject: string): Ir.Codec?
 	local value = declaration.options.data
@@ -818,7 +883,6 @@ local function planData(declaration: Dsl.Declaration, at: Fail.At, subject: stri
 	return planRecord(value :: Record, place, true)
 end
 
-
 local function planReply(value: unknown, at: Fail.At, subject: string): Ir.Codec?
 	if value == nil then
 		return nil
@@ -827,7 +891,6 @@ local function planReply(value: unknown, at: Fail.At, subject: string): Ir.Codec
 	return planCodec(value, { subject = subject, path = "reply", at = at, isNewestAllowed = false })
 end
 
-
 local function sizeOrZeroOf(codec: Ir.Codec?): (number, number)
 	if codec == nil then
 		return 0, 0
@@ -835,7 +898,6 @@ local function sizeOrZeroOf(codec: Ir.Codec?): (number, number)
 
 	return sizeOf(codec)
 end
-
 
 local function newestBitsOf(data: Ir.Codec?): number
 	if data == nil or data.kind ~= "record" then
@@ -852,14 +914,25 @@ local function newestBitsOf(data: Ir.Codec?): number
 	return bits
 end
 
-
 -- Checks a definition's worst-case messages against v5.md §4.9's caps.
 local function checkSizes(definition: Ir.Definition, at: Fail.At, subject: string)
 	local dataSubject = `{subject} data`
 	if definition.kind == "event" and definition.lane == "unreliable" then
-		checkSize("unreliableTooLarge", definition.dataMaxBits, definition.dataMaxTail, at, dataSubject)
+		checkSize(
+			"unreliableTooLarge",
+			definition.dataMaxBits,
+			definition.dataMaxTail,
+			at,
+			dataSubject
+		)
 	elseif definition.kind == "event" then
-		checkSize("messageTooLarge", definition.dataMaxBits, definition.dataMaxTail, at, dataSubject)
+		checkSize(
+			"messageTooLarge",
+			definition.dataMaxBits,
+			definition.dataMaxTail,
+			at,
+			dataSubject
+		)
 	elseif definition.kind == "request" then
 		local askBits = ASK_PREFIX_BITS + definition.dataMaxBits
 		local answerBits = ANSWER_PREFIX_BITS + definition.replyMaxBits
@@ -877,7 +950,6 @@ local function checkSizes(definition: Ir.Definition, at: Fail.At, subject: strin
 		checkSize("unreliableTooLarge", rowBits, 0, at, dataSubject)
 	end
 end
-
 
 local function planDefinition(
 	namespaceName: string,
@@ -909,7 +981,9 @@ local function planDefinition(
 		key = if options.key == nil then nil else planKey(options.key, at, subject),
 		limit = if options.limit == nil then nil else planLimit(options.limit, at, subject),
 		timeout = if kind == "request" then timeoutOf(options.timeout, at, subject) else 0,
-		maxRecords = if kind == "collection" then maxRecordsOf(options.maxRecords, at, subject) else 0,
+		maxRecords = if kind == "collection"
+			then maxRecordsOf(options.maxRecords, at, subject)
+			else 0,
 		priority = if kind == "collection" then priorityOf(options.priority, at, subject) else 0,
 		reliableRate = reliableRateOf(options.reliableRate, at, subject),
 		dataMaxBits = dataBits,
@@ -925,12 +999,14 @@ local function planDefinition(
 	return definition
 end
 
-
-local function entryOf(definition: Ir.Definition, role: "event" | "ask" | "answer", space: { Ir.Entry })
+local function entryOf(
+	definition: Ir.Definition,
+	role: "event" | "ask" | "answer",
+	space: { Ir.Entry }
+)
 	local entry: Ir.Entry = { definition = definition, role = role, id = #space }
 	table.insert(space, entry)
 end
-
 
 -- Public ------------------------------------------------------------------------------------------
 
@@ -947,11 +1023,23 @@ end
 function Planner.plan(name: string, definitions: { [string]: any }, at: Fail.At): Ir.Namespace
 	local namespaceName = toName(name, MAX_NAMESPACE_BYTES)
 	if namespaceName == nil then
-		return Fail.declaration("nameLength", at, "Lync.schema name", "be a string of 1 to 64 bytes", name)
+		return Fail.declaration(
+			"nameLength",
+			at,
+			"Lync.schema name",
+			"be a string of 1 to 64 bytes",
+			name
+		)
 	end
 
 	if not isRecord(definitions) then
-		return Fail.declaration("paramRange", at, namespaceName, "be given a table of definitions", definitions)
+		return Fail.declaration(
+			"paramRange",
+			at,
+			namespaceName,
+			"be given a table of definitions",
+			definitions
+		)
 	end
 
 	local names = sortedNamesOf(
@@ -1017,6 +1105,5 @@ function Planner.plan(name: string, definitions: { [string]: any }, at: Fail.At)
 
 	return namespace
 end
-
 
 return table.freeze(Planner)

@@ -43,11 +43,11 @@ WHICH = WHICH or "new"
 local PRICES = {
 	-- RESULTS.md claim 2 and claim 1 (native, reference host); filled from derive.out
 	new = {
-		cfr = 4110, cfu = 3600, cbr = 23.50, cbu = 15.30, unit = 100, mu = 0.25, p0 = 2400, p1 = 133,
+		cfr = 3938, cfu = 3338, cbr = 23.04, cbu = 13.28, unit = 100, mu = 0.25, p0 = 2500, p1 = 133,
 		weights = {
-			bool = 1, int = 1, varint = 1, number = 1, f32 = 1, f64 = 1, angle = 1, enum = 1, string = 1, buffer = 1,
-			robloxEnum = 1, instance = 1, vector3 = 3, vector3f32 = 3, color3 = 3, direction = 2, rotation = 4,
-			cframe = 7, optional = 1, union = 1, array = 2, map = 2, record = 0,
+			bool = 1, int = 2, varint = 3, number = 2, f32 = 2, f64 = 3, angle = 2, enum = 1, string = 3, buffer = 3,
+			robloxEnum = 3, instance = 3, vector3 = 3, vector3f32 = 4, color3 = 3, direction = 4, rotation = 8,
+			cframe = 14, optional = 1, union = 2, array = 2, map = 2, record = 2,
 		},
 		perElementBound = false,
 	},
@@ -61,8 +61,10 @@ local PRICES = {
 		perElementBound = true,
 	},
 }
--- the reference host's header-only reliable frame at e + 4 (RESULTS.md claim 2), the denominator of every ratio
-local H_REF = 4110
+-- the denominator of every ratio: this gate's own header-only reliable frame at e + 4 on the reference host (median
+-- of its sweeps' denominators there, 3,561-3,597 ns; tag_cost.luau's harness measures the same frame at 3,938 ns,
+-- which is c_f,r). Calibrating it with the gate's own harness keeps the harness difference out of the ratios.
+local H_REF = 3590
 local P = PRICES[WHICH]
 assert(P, "gate: argument is new or v36")
 if MU ~= nil then
@@ -188,25 +190,39 @@ local function framesE4(body, ic, n)
 	return frames
 end
 
-local results = {}
-local H -- this run's header-only reliable frame at e + 4
+-- One sweep times every shape once; the gate runs RUNS sweeps and compares each shape's median ratio over them.
+-- Each sweep's denominator is the median of the header-only frame at e + 4 timed before every 32nd shape.
+local RUNS = 3
+local results = {} -- name -> { ratios = { ... }, limit }
+local order = {}
+local headerTimes = {}
+local headerFrames
+local function timeHeader()
+	table.insert(headerTimes, timeIt(resetConn, function(i) Inbound.receive(rt, player, 0, headerFrames[i]) end, #headerFrames))
+end
+local pending = {} -- this sweep's { name, ns, boundNs }
 local function check(name, ns, boundNs)
 	-- boundNs is in reference-host ns; the test compares ratios to the header-only frame
-	local ratio = ns / H
-	local limit = (1 + P.mu) * boundNs / H_REF
-	table.insert(results, { name = name, ratio = ratio, limit = limit })
+	table.insert(pending, { name, ns, boundNs })
+	if #pending % 32 == 0 then
+		timeHeader()
+	end
 end
 
 local BATCH = 32
+local function sweep()
+table.clear(headerTimes)
+table.clear(pending)
 do
 	local body = Frame.up(0, nil, nil, {})
-	local frames = framesE4(body, 0, BATCH)
-	H = timeIt(resetConn, function(i) Inbound.receive(rt, player, 0, frames[i]) end, BATCH)
+	headerFrames = framesE4(body, 0, BATCH)
+	timeHeader()
 	local framesE = {}
 	for i = 1, BATCH do framesE[i] = Tag.append(body, tagAt(body, i - 1, 0)) end
 	local he = timeIt(resetConn, function(i) Inbound.receive(rt, player, 0, framesE[i]) end, BATCH)
 	check("header only e", he, P.cfr + P.cbr * 3)
-	check("header only e+4", H, P.cfr + P.cbr * 3)
+	local h4 = timeIt(resetConn, function(i) Inbound.receive(rt, player, 0, headerFrames[i]) end, BATCH)
+	check("header only e+4", h4, P.cfr + P.cbr * 3)
 end
 
 -- every frame of the shape set at e + 4
@@ -314,20 +330,45 @@ do
 	end
 end
 
+timeHeader()
+local H = median(headerTimes)
+for _, r in pending do
+	local name, ns, boundNs = r[1], r[2], r[3]
+	local entry = results[name]
+	if entry == nil then
+		entry = { ratios = {}, limit = (1 + P.mu) * boundNs / H_REF, at0 = boundNs / H_REF }
+		results[name] = entry
+		table.insert(order, name)
+	end
+	table.insert(entry.ratios, ns / H)
+end
+return H
+end
+
 -- verdict -------------------------------------------------------------------------------------------------------------
+local hs = {}
+for run = 1, RUNS do
+	hs[run] = sweep()
+end
 local failed = {}
-print(string.format("gate %s: header-only reliable frame at e + 4 in this run %.0f ns (reference %d ns); mu %.2f", WHICH, H, H_REF, P.mu))
-for _, r in results do
-	local ok = r.ratio <= r.limit
-	print(string.format("%-4s %-60s ratio %8.3f  limit %8.3f", if ok then "ok" else "FAIL", r.name, r.ratio, r.limit))
-	if not ok then table.insert(failed, r.name) end
-end
+print(string.format("gate %s: %d sweeps; header-only reliable frame at e + 4 per sweep %s ns (reference %d ns); mu %.2f",
+	WHICH, RUNS, table.concat((function() local t = {} for i, h in hs do t[i] = string.format("%.0f", h) end return t end)(), ", "), H_REF, P.mu))
+local over = { [0] = 0, [10] = 0, [25] = 0 }
 local worstAt0, worstName = 0, ""
-for _, r in results do
-	local at0 = r.ratio / (r.limit / (1 + P.mu))
-	if at0 > worstAt0 then worstAt0, worstName = at0, r.name end
+for _, name in order do
+	local r = results[name]
+	local ratio = median(r.ratios)
+	local ok = ratio <= r.limit
+	print(string.format("%-4s %-60s ratio %8.3f  limit %8.3f", if ok then "ok" else "FAIL", name, ratio, r.limit))
+	if not ok then table.insert(failed, name) end
+	local at0 = ratio / r.at0
+	if at0 > worstAt0 then worstAt0, worstName = at0, name end
+	for mu, _ in over do
+		if at0 > 1 + mu / 100 then over[mu] += 1 end
+	end
 end
-print(string.format("%d shapes, %d over the bound; highest ratio / bound at mu 0: %.3f (%s)", #results, #failed, worstAt0, worstName))
+print(string.format("%d shapes, %d over the bound at mu %.2f; highest ratio / bound at mu 0: %.3f (%s); over at mu 0 / 0.10 / 0.25: %d / %d / %d",
+	#order, #failed, P.mu, worstAt0, worstName, over[0], over[10], over[25]))
 if #failed > 0 then
 	error(string.format("inbound bound exceeded by %d shape(s): %s", #failed, table.concat(failed, "; ")), 0)
 end

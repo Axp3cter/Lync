@@ -78,9 +78,9 @@ has tag && timed tag_cost
 has extra && { extra decode_cost; extra tag_cost; }
 has gate && {
 	: > "$P/gate.out"
-	for bound in v36 new; do
+	for bound in v36 new new new; do
 		echo "== gate, bound $bound, native (luau 0.742 -O2 --codegen)" >> "$P/gate.out"
-		(cd "$W" && "$B/luau" -O2 --codegen gate.luau -a "$bound" >> "$P/gate.out" 2>&1; echo "exit $?" >> "$P/gate.out")
+		if (cd "$W" && "$B/luau" -O2 --codegen gate.luau -a "$bound" >> "$P/gate.out" 2>&1); then echo "exit 0" >> "$P/gate.out"; else echo "exit $?" >> "$P/gate.out"; fi
 	done
 }
 has derive && python3 -I "$P/derive.py" > "$P/derive.out"

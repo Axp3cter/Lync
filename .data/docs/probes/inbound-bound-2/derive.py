@@ -1,10 +1,10 @@
-"""Claims 1-3 from decode_cost.out and tag_cost.out (3 runs per mode); writes derive.out. Stdlib only.
+"""Claims 1-3 from decode_cost.out and tag_cost.out (7 native and 3 interpreted runs); writes derive.out. Stdlib only.
 Run: python3 -I derive.py > derive.out
 
 Terms (design/v5.md §7.5 as restructured mid-unit): each element (a message, an array element, a map pair, a control
 row) costs w = ceil(p(L) / 100 ns) decode units, p(L) = p_0 + p_1 * L, L the element's own leaves; one frame costs
-at most (1 + mu) * (c_f + c_b * charge + 100 ns * units). Per case, the figure of a mode is the median of its 3 run
-medians; "worst run" is the highest of the 3 run medians (the spread the margin mu must cover).
+at most (1 + mu) * (c_f + c_b * charge + 100 ns * units). Per case, the figure of a mode is the median of its run
+medians; "worst run" is the highest of the run medians (the spread the margin mu must cover).
 
 - c_f, c_b (claim 2) come from tag_cost.out: c_f,r = the header-only reliable frame at its costliest position, c_b,r =
   the costliest (F - c_f,r - 100 ns * units of its one element) / (B - 3) over the string and buffer frames at every
@@ -184,6 +184,7 @@ def pred(f, w):
 
 
 FEATS_ALL = ["frame", "p0"] + KINDS
+STATE = {}
 
 
 def main():
@@ -201,7 +202,7 @@ def main():
             continue
         t = T[mode]
         # ---- claim 2: prices
-        p(f"## {mode}: claim 2, frame and byte prices (ns), median of 3 run medians [highest run median]")
+        p(f"## {mode}: claim 2, frame and byte prices (ns), median of the run medians (7 native, 3 interpreted) [highest run median]")
         def tv(k):
             return t[k][0], t[k][1]
         rel = {}
@@ -319,6 +320,9 @@ def main():
         p(f"## {mode}: claim 1, marginal ns per field per message = ((F_e - h B) / msgs at 16 fields - (F_e - h B) / msgs at 1 field) / 15,")
         p(f"   h = {h1:.2f} ns/B (one hash per byte, from failing frames); per-message base = (F_e - header-only F_e - h (B - 3)) / msgs of the no-payload event")
         forms = ("row1", "runs", "colC", "colR")
+        MARG = {}
+        BASE = {}
+        BASE1 = {}
         for path in ("milestone", "generated"):
             def val(n):
                 v = fe[n][0]
@@ -332,6 +336,7 @@ def main():
                 r = meta[n]
                 base[f_] = (val(n) - he - h1 * (r["B"] - 3)) / r["msgs"]
             p("    no-payload message: " + ", ".join(f"{f_} {base[f_]:.0f}" for f_ in forms))
+            BASE[path] = base
             kinds = []
             for n in meta:
                 m = re.match(r"(\w+)_16 row1$", n)
@@ -344,6 +349,12 @@ def main():
                     ya = (val(f"{k}_16 {f_}") - h1 * a["B"]) / a["msgs"]
                     yb = (val(f"{k}_1 {f_}") - h1 * b["B"]) / b["msgs"]
                     cells.append((ya - yb) / 15)
+                MARG[(path, k)] = dict(zip(forms, cells))
+                # the per-message base of a message with data: the 1-field record less its one field
+                for f_, c in zip(forms, cells):
+                    b = meta[f"{k}_1 {f_}"]
+                    yb1 = (val(f"{k}_1 {f_}") - he - h1 * (b["B"] - 3)) / b["msgs"]
+                    BASE1[(path, k, f_)] = yb1 - c
                 p(f"    {k:12s} " + " ".join(f"{f_} {c:6.0f}" for f_, c in zip(forms, cells)) + f"   max {max(cells):6.0f} ns = {max(cells) / P1_DESIGN:4.1f} x 133")
         p("")
 
@@ -362,6 +373,22 @@ def main():
         p("")
 
         if mode != "native":
+            # the native unit rule (variant M) priced at this mode's own c_f, c_b: the unit price it needs
+            wmw, p0m, _ = STATE["RULE_M"]
+            need = []
+            for n in names:
+                r = meta.get(n)
+                if r is None or not r["sig"]:
+                    continue
+                units = units_of(r["sig"], wmw, p0m, P1_DESIGN)
+                need.append(((fe4[n][0] - CF_R - CB_R * r["B"]) / units, n))
+                need.append(((fe4[n][0] - dd[n][0] + gg[n][0] - CF_R - CB_R * r["B"]) / units, n + " (generated)"))
+            need.sort(reverse=True)
+            p(f"## {mode}: the native unit rule (variant M) at this mode's c_f,r {CF_R:.0f} ns, c_b,r {CB_R:.2f} ns/B: unit price needed (ns per unit)")
+            for v, n in need[:8]:
+                p(f"    {n:40s} {v:7.0f}")
+            p(f"  max {need[0][0]:.0f} ns per unit = {need[0][0] / UNIT:.2f} x the native 100 ns")
+            p("")
             continue
 
         def rule_from(per_frame):
@@ -386,7 +413,58 @@ def main():
             rs.sort(reverse=True)
             return rs
 
+        # variant M: weights from the marginal per-field costs (max over forms and over both decoders), p_0 from the
+        # per-message base of the no-payload event (max over forms and decoders)
+        def mmax(*terms):
+            # each term: (sign, kind); the value per form and path is the signed sum; returns the max over forms, paths
+            best = -1e18
+            for path in ("milestone", "generated"):
+                for f_ in forms:
+                    v = sum(sign * MARG[(path, k)][f_] for sign, k in terms)
+                    best = max(best, v)
+            return best
+        wm = {
+            "bool": mmax((1, "bool")), "int": max(mmax((1, "int8")), mmax((1, "int32"))), "varint": mmax((1, "varint")),
+            "number": mmax((1, "number")), "f32": mmax((1, "f32")), "f64": mmax((1, "f64")), "angle": mmax((1, "angle")),
+            "enum": mmax((1, "enum3")), "string": max(mmax((1, "str8")), mmax((1, "str200"))),
+            "buffer": max(mmax((1, "buf8")), mmax((1, "buf200"))), "robloxEnum": mmax((1, "robloxEnum")),
+            "instance": mmax((1, "instance")), "vector3": mmax((1, "vector3")), "vector3f32": mmax((1, "vector3f32")),
+            "color3": mmax((1, "color3")), "direction": mmax((1, "direction")), "rotation": mmax((1, "rotation")),
+            "cframe": mmax((1, "cframe")),
+            "optional": max(mmax((1, "optAbsent")), mmax((1, "optPresent"), (-1, "int8")), mmax((1, "optRecord"), (-1, "record1"))),
+            "union": mmax((1, "union2"), (-1, "int8")),
+            "record": max(mmax((1, "record1"), (-1, "int8")), mmax((1, "recordDeep4"), (-1, "int8")) / 4),
+            "array": mmax((1, "arr0")), "map": mmax((1, "map0")),
+        }
+        nested_base = max(mmax((1, "arr1"), (-1, "arr0"), (-1, "int8")), mmax((1, "map1"), (-1, "map0"), (-1, "int8"), (-1, "bool")))
+        base_none = max(max(BASE[path].values()) for path in BASE)
+        base1_at = max(BASE1, key=lambda key: BASE1[key])
+        base_max = max(base_none, BASE1[base1_at])
+        p(f"  per-message base: no-payload event {base_none:.0f} ns; a message with data (1-field record less its field), highest {BASE1[base1_at]:.0f} ns at {base1_at}")
+        for f_ in forms:
+            vals = sorted(BASE1[(path, k, ff)] for (path, k, ff) in BASE1 if ff == f_ and path == "milestone")
+            p(f"    {f_}: milestone per-message base with data, median over kinds {statistics.median(vals):.0f}, max {vals[-1]:.0f} ns")
+        p("## native: claim 1, the per-leaf cost model from the marginal costs (variant M): ns per node, max over the four forms and both decoders")
+        p("  " + ", ".join(f"{k} {wm[k]:.0f}" for k in KINDS))
+        p(f"  per nested element base (array element, map pair) {nested_base:.0f} ns")
+        p0m = math.ceil(base_max / 100) * 100
+        wmw = {k: max(1 if DESIGN_W[k] > 0 else 0, math.ceil(wm[k] / P1_DESIGN - 1e-9)) for k in KINDS}
+        p(f"  as a unit rule: p_0 = {p0m} ns (base rounded up), p_1 = 133 ns, weight = ceil(ns / 133), at least 1 where §7.5 has one:")
+        p("  weights (leaves): " + ", ".join(f"{k} {wmw[k]}" for k in KINDS))
+        p("  against §7.5: " + ", ".join(f"{k} {DESIGN_W[k]} -> {wmw[k]}" for k in KINDS if wmw[k] != DESIGN_W[k]))
+        rs = check(wmw, p0m, 0)
+        p("  highest F_e4 / bound (whole frame, mu = 0), milestone [worst run] (generated):")
+        for a, b2, c2, n, u in rs[:15]:
+            p(f"    {n:28s} {a:6.3f} [{b2:6.3f}] ({c2:6.3f})  units {u}")
+        p(f"  max over {len(rs)} frames: median-run {max(r[0] for r in rs):.3f}, worst-run {max(r[1] for r in rs):.3f}, generated {max(r[2] for r in rs):.3f}")
+        for mu in (0.0, 0.10, 0.25):
+            p(f"  frames over (1 + {mu:.2f}) x bound: median-run {sum(1 for r in rs if r[0] > 1 + mu)}, worst-run {sum(1 for r in rs if r[1] > 1 + mu)}")
+        p("")
+
         rules = {}
+        rules["M"] = (wmw, p0m, 0)
+
+        STATE["RULE_M"] = (wmw, p0m, 0)
         for per_frame in (False, True):
             neww, p0n, dcf = rule_from(per_frame)
             rules[per_frame] = (neww, p0n, dcf)
@@ -422,13 +500,13 @@ def main():
         frames0 = CF_R * Fr + CF_U * Fu
         p(f"current defaults (Fr {Fr}, Fu {Fu}, Br {Br}, Bu {Bu}, E {E} units/s, §7.5's rule): frames {frames0 / 1000:.0f} us + bytes {bytes_cost / 1000:.0f} us + units {UNIT * E / 1000:.0f} us = {(frames0 + bytes_cost + UNIT * E) / 1000:.0f} us/s at mu = 0 if 100 ns per unit held;")
         p(f"  at §7.5's weights the measured worst excess is {worst_unit:.2f} x 100 ns per unit: units {worst_unit * UNIT * E / 1000:.0f} us, total {(frames0 + bytes_cost + worst_unit * UNIT * E) / 1000:.0f} us/s")
-        for per_frame in (False, True):
+        for per_frame in ("M", False, True):
             neww, p0n, dcf = rules[per_frame]
             busy = 60 * units_of(move6, neww, p0n, P1_DESIGN) + 10 * units_of(sm, neww, p0n, P1_DESIGN)
             busy_design = 60 * units_of(move6, DESIGN_W, P0_DESIGN, P1_DESIGN) + 10 * units_of(sm, DESIGN_W, P0_DESIGN, P1_DESIGN)
             cfr, cfu = CF_R + dcf, CF_U + dcf
             frames_cost = cfr * Fr + cfu * Fu
-            name = "B" if per_frame else "A"
+            name = "M" if per_frame == "M" else ("B" if per_frame else "A")
             p(f"variant {name}: c_f,r {cfr:.0f}, c_f,u {cfu:.0f} ns; units at p_0 {p0n:.0f}; busy model {busy} units/s ({busy_design} at §7.5's rule): move6 {units_of(move6, neww, p0n, P1_DESIGN)}, sm {units_of(sm, neww, p0n, P1_DESIGN)} units")
             p(f"  at the current defaults: frames {frames_cost / 1000:.0f} + bytes {bytes_cost / 1000:.0f} + units {UNIT * E / 1000:.0f} = {(frames_cost + bytes_cost + UNIT * E) / 1000:.0f} us/s at mu = 0")
             burst_cost = cfr * 240 + cfu * 240 + CB_R * 49152 + CB_U * 32768 + UNIT * 81920

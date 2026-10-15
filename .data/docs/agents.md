@@ -38,6 +38,7 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `abc0b8963b21872e9` | critic | milestone 1 code review: correctness against the design, hostile decode input (fuzzing), hot-path cost, types, style, tests | `reviews/m1-code.md`, `probes/review-m1/` | done (1 blocking, 9 major, 9 minor, 5 taste; seeded fuzzer); reusable for code review |
 | `a8d693323bb70d522` | builder | milestone 2 unit E: `Host` seams, facts, counters, console, buckets, simulated world and network model | `src/host/`, `src/diag/`, `docs/codes/`, `src/session/buckets.luau`, `test/support/{world,net}.luau`, `test/{host,diag}/` | done (27 codes; `Facts.new` takes `Counters`); reusable for host, diag and world work |
 | `ac8059b22a5323815` | builder | milestone 2 unit D: frames, headers, toc, control, tag, sequences, replay window, permutation, goldens G5, G7, G10, G11 | `src/transport/`, `src/session/{permutation,replay}.luau`, `test/transport/`, `test/golden/` | done (430 tests; goldens through G11; fuzzed); reusable for transport work |
+| `a1cbd31181cf78f54` | builder | milestone 2 unit F: session (handshake, tag, acks, requests, inbound pipeline), scheduler (flushing, ticks, budgets), API views, simulated-world honest and attack suites | `src/session/` (rest), `src/sched/`, `src/api/`, `src/init.luau`, `test/{session,sched,api,world}/` | running |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.
 

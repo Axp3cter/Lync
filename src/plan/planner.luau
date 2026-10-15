@@ -550,8 +550,9 @@ local function checkElementWidth(elementBits: number, elementTail: number, place
 			"zeroWidthElement",
 			place.at,
 			subjectOf(place),
-			"have elements that cost at least 1 bit; a count alone is a t.int",
-			Fail.NONE
+			"have elements that cost at least 1 bit",
+			Fail.NONE,
+			"send the count as a t.int"
 		)
 	end
 end

@@ -26,7 +26,7 @@ Fail.caller(
 	"internal",
 	"t.rotation encode",
 	"reach a fixed point or a 2-cycle of encode(decode(q)) within 4 steps",
-	nil,
+	Fail.NONE,
 	"report this as a Lync bug"
 )
 ```

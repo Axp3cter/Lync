@@ -18,13 +18,15 @@
 
 	Each observer gets each fact through `host.spawn`, so a throwing observer is a native report
 	and a yielding one holds only itself. Windows are `os.clock()` seconds; `first` and `last`
-	are `GetServerTimeNow()`. Facts also feed the console, every occurrence.
+	are `GetServerTimeNow()`. Every occurrence also feeds the console and its reason's counter,
+	`facts.<reason>`, uncapped.
 ]=]
 
 -- Imports -----------------------------------------------------------------------------------------
 
 local Codes = require("./codes")
 local Console = require("./console")
+local Counters = require("./counters")
 local Host = require("../host/host")
 
 -- Module ------------------------------------------------------------------------------------------
@@ -80,6 +82,8 @@ type Observer = { notify: (fact: Fact) -> () }
 export type State = {
 	host: Host.Host,
 	console: Console.State,
+	counters: Counters.State,
+	counterSlotByReason: { [Codes.Code]: number },
 	window: number,
 	perPlayer: number,
 	server: number,
@@ -311,14 +315,24 @@ end
 --[=[
 	Creates a side's facts, with the default limits (v5.md §7.5).
 
-	@param  host    the side's host: clocks, and `spawn` for delivery
-	@param  console the side's console, which counts every occurrence
+	@param  host     the side's host: clocks, and `spawn` for delivery
+	@param  console  the side's console, which counts every occurrence
+	@param  counters the side's counters, where every fact reason gets its `facts.<reason>` slot
 	@return the facts
 ]=]
-function Facts.new(host: Host.Host, console: Console.State): State
+function Facts.new(host: Host.Host, console: Console.State, counters: Counters.State): State
+	local counterSlotByReason: { [Codes.Code]: number } = {}
+	for code: Codes.Code, family: Codes.Family in Codes.family do
+		if family == "fact" then
+			counterSlotByReason[code] = Counters.slot(counters, `facts.{code}`)
+		end
+	end
+
 	return {
 		host = host,
 		console = console,
+		counters = counters,
+		counterSlotByReason = counterSlotByReason,
 		window = DEFAULT_WINDOW,
 		perPlayer = DEFAULT_PER_PLAYER,
 		server = DEFAULT_SERVER,
@@ -407,6 +421,7 @@ function Facts.record(
 )
 	local clock = s.host.clock()
 	Console.fact(s.console, reason, player, definition, clock)
+	Counters.add(s.counters, s.counterSlotByReason[reason], player, 1)
 
 	local now = s.host.now()
 	local sender = senderOf(s, player)

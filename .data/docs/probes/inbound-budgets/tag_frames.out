@@ -114,3 +114,25 @@ lane    bytes | bad tag                    | bad tag, pending key       | over b
 0       16384 |   2407703 (2130459-3024165) |   5042884 (4344944-5255814) |   4692206 (4284805-6049950)
 sink	1
 == tag_frames, native (luau 0.742 -O2 --codegen), run 3
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |       290 (   190-   327)  |       104 (    64-   119)  |       184 (   152-   213) 
+1          16 |       235 (   225-   252)  |       104 (   100-   119)  |       193 (   185-   202) 
+1          64 |       433 (   400-   582)  |       293 (   268-   334)  |       305 (   277-   350) 
+1         256 |      1415 (  1117-  1613)  |      1058 (  1003-  1217)  |       777 (   707-   864) 
+1        1000 |      4384 (  4112-  5367)  |      3866 (  3640-  4162)  |      2373 (  2149-  2847) 
+0           3 |       185 (   176-   211)  |        58 (    56-    62)  |       119 (   113-   127) 
+0        1024 |      4533 (  3980-  5520)  |      3999 (  3790-  5000)  |      2452 (  2278-  3372) 
+0        4096 |     18115 ( 16579- 21570)  |     16089 ( 15550- 17220)  |      9572 (  9064- 10705) 
+0       16384 |     67129 ( 64675- 76309)  |     64378 ( 59879- 71441)  |     37024 ( 34535- 39335) 
+fit M   fixed    185 ns (reliable, 3 B frame),    290 ns (unreliable, 4 B); marginal   4.08 ns/B (reliable 1024..16384),   4.11 ns/B (unreliable 3..1000)
+fit Gl  fixed     58 ns (reliable, 3 B frame),    104 ns (unreliable, 4 B); marginal   3.93 ns/B (reliable 1024..16384),   3.78 ns/B (unreliable 3..1000)
+fit Gu  fixed    119 ns (reliable, 3 B frame),    184 ns (unreliable, 4 B); marginal   2.25 ns/B (reliable 1024..16384),   2.20 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      2621 (  2364-  4044)  |      3045 (  2946-  4992)  | -                         
+1        1000 |     11143 ( 10003- 12712)  |     19645 ( 18230- 22976)  | -                         
+0           3 |      2604 (  2408-  3127)  |      3562 (  3309-  4265)  |      2961 (  2772-  4744) 
+0        1024 |     24129 ( 21707- 28901)  |     44214 ( 43045- 52413)  |     43805 ( 41697- 52921) 
+0       16384 |    343117 (305750-389387)  |    690046 (631687-806340)  |    676451 (611382-750585) 
+sink	0

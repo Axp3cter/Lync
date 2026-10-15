@@ -14,6 +14,7 @@
 -- Output: share of decoy adds and of real adds whose gap is under G, for several G; the best single-threshold
 -- accuracy of "gap < G means decoy", balanced over the two classes.
 local MAX, RATE, LIFE, DLIFE, TICK, T = 1024, 3.2, 20, 5, 0.05, 7200
+local CONFIGS = { { 3.2, "64 live (6% of slots)" }, { 40, "800 live (78%)" }, { 47, "940 live (92%)" } }
 local function expo(mean: number): number
 	return -mean * math.log(1 - math.random())
 end
@@ -130,7 +131,9 @@ local function share(g: { number }, lim: number): number
 	end
 	return if #g == 0 then 0 else n / #g
 end
-print(string.format("model: maxRecords %d, real arrivals %.1f/s, life %d s, decoy life %d s, %d s simulated", MAX, RATE, LIFE, DLIFE, T))
+for _, cfg in CONFIGS do
+RATE = cfg[1]
+print(string.format("model (%s): maxRecords %d, real arrivals %.1f/s, life %d s, decoy life %d s, %d s simulated", cfg[2], MAX, RATE, LIFE, DLIFE, T))
 for _, scheme in { "range", "pool0", "pool2", "shared" } do
 	local real, dec = run(scheme, 42)
 	local line = string.format("%-6s reuse adds seen: real %d, decoy %d |", scheme, #real, #dec)
@@ -146,5 +149,6 @@ for _, scheme in { "range", "pool0", "pool2", "shared" } do
 		end
 	end
 	print(line .. string.format(" best balanced accuracy %.3f at G=%g", best, bestG))
+end
 end
 print("range: every decoy add has slot >= maxRecords; no real add does (exact by construction)")

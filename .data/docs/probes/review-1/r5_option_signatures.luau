@@ -33,3 +33,6 @@ local _rc: "REVEAL_iii" = c
 
 -- (iv) typo in from under (i)
 local d = i({ from = "clinet", data = str })
+
+-- (v) misspelled option names under (i): accepted silently?
+local _e = i({ from = "client", data = str, timestampd = true, rtae = 5, lnae = "unreliable" })

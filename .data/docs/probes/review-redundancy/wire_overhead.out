@@ -1,0 +1,62 @@
+== Header + section framing, bytes per second per player (design §4.1, §5.2, §6.2)
+profile  dir   design   proposed  saved
+busy     up     886.2     352.5   533.8 (60.2%)
+busy     dn     352.5     130.0   222.5 (63.1%)
+idle     up     115.0      71.2    43.8 (38.0%)
+idle     dn     135.0     100.0    35.0 (25.9%)
+
+== Upstream unreliable input frame, bytes (design: tick+ack+bits+seq+tag+section)
+design header 12.88 B vs input payload 6.5-9.0 B/packet [state-sync §4.1]
+proposed header 4.25 B (no new ack) / 7.75 B (with ack)
+
+== Ack repetition: how many upstream acks cover each downstream unreliable frame
+bitfield L  dn_u Hz  ack frames/s  repeats  P(never acked | 5% iid loss)
+        8       20            20      9.0  2.0e-12
+        8       20            10      4.5  1.4e-06
+        8       60            10      1.5  1.1e-02
+        8       60            60      9.0  2.0e-12
+       16       20            20     17.0  7.6e-23
+       16       20            10      8.5  8.7e-12
+       16       60            10      2.8  2.1e-04
+       16       60            60     17.0  7.6e-23
+       32       20            20     33.0  1.2e-43
+       32       20            10     16.5  3.4e-22
+       32       60            10      5.5  7.0e-08
+       32       60            60     33.0  1.2e-43
+design (ack on every upstream frame, both lanes, L=32) at busy profile: each dn_u frame covered by 116 acks
+
+== Ack bytes alone, busy profile
+design 420 B/s, proposed 79 B/s
+
+== Section length prefixes downstream, as share of the 16,000 B/s state budget (busy)
+192 B/s of kind+length = 1.2% of stateBudget
+
+== Intern table (design §4.4: per connection, append-only, cap 4096, no transient marker)
+  1 new strings/s server-wide broadcast -> table full after  68.3 min
+  5 new strings/s server-wide broadcast -> table full after  13.7 min
+ 20 new strings/s server-wide broadcast -> table full after   3.4 min
+cap 4096 x t.string(20) x 100 connections, one direction: up to 18.0 MB server memory
+cap 4096 x t.string(200) x 100 connections, one direction: up to 91.8 MB server memory
+
+== Handshake HELLO size (design §4.5) by definition count, hash widths 32/64 bit
+n= 20 hash=32b  HELLO    91 B   (needed when hashes match: 6 B)
+n= 20 hash=64b  HELLO   175 B   (needed when hashes match: 10 B)
+n=100 hash=32b  HELLO   411 B   (needed when hashes match: 6 B)
+n=100 hash=64b  HELLO   815 B   (needed when hashes match: 10 B)
+n=300 hash=32b  HELLO  1211 B   (needed when hashes match: 6 B)
+n=300 hash=64b  HELLO  2415 B   (needed when hashes match: 10 B)
+
+== Request ids (design §5.5: u16 per request and per reply)
+implicit request id (both sides count reliable requests): saves 16 bits per request
+reply id as offset into the in-flight window (cap 16): 4 bits instead of 16
+
+== timestamped (design §5.6: 1 B sub-tick offset per event)
+state 20 Hz, frames 60 Hz: frame index within tick = 2 bits per frame; per-event offset = 8 bits per event
+state 30 Hz, frames 60 Hz: frame index within tick = 1 bits per frame; per-event offset = 8 bits per event
+state 60 Hz, frames 60 Hz: frame index within tick = 0 bits per frame; per-event offset = 8 bits per event
+
+== Notify in-flight ring per viewer (design §5.2; research says 64 entries, ack covers 33)
+ 50 records/frame, 64 entries: buffer u16   6.2 KB, Luau array   50.0 KB per viewer
+ 50 records/frame, 33 entries: buffer u16   3.2 KB, Luau array   25.8 KB per viewer
+200 records/frame, 64 entries: buffer u16  25.0 KB, Luau array  200.0 KB per viewer
+200 records/frame, 33 entries: buffer u16  12.9 KB, Luau array  103.1 KB per viewer

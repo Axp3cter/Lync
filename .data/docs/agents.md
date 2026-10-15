@@ -30,11 +30,11 @@ session restarts after a definition is added, run the role as `general-purpose` 
 | `a56677e25c2c92fb5` | critic | broad review of design draft 1: API beauty, typing (probes), hot path, research consistency, gaps | `reviews/v5-design-1.md`, `probes/review-1/` | draft 1 done (3 blocking, 13 major, 11 minor, 4 taste); draft 2 done → `reviews/v5-design-2.md` (3 blocking, 12 major, 11 minor, 2 taste); reusable for design and typing review |
 | `a00f8d63b9b01f794` | critic | redundancy and inefficiency in design draft 1, with measurements | `reviews/v5-design-1-redundancy.md`, `probes/review-redundancy/` | draft 1 done (1 blocking, 8 major, 10 minor, 1 taste); draft 2 done → `reviews/v5-design-2-redundancy.md` (1 blocking, 2 major, 9 minor, 3 taste); reusable for cost and redundancy review |
 | `a3deaff2845a787e5` | architect | design draft 2 from both draft-1 reviews; holds the design, both reviews and the research sections they cite | `design/v5.md` (partial draft 2, commit d979d52), `probes/design-2/` | **cancelled** by an interrupt; cannot be resumed |
-| `a43f3fd7d64db5725` | architect | finishes draft 2 from the partial file; both draft-1 reviews; decisions: facts not verdicts, rotation and permutation kept | `design/v5.md` (draft 2), `design/v5-changes.md`, `probes/design-2/` | done (51 findings: 30 accepted, 20 changed, 1 deferred); reusable for the next draft |
+| `a43f3fd7d64db5725` | architect | finishes draft 2 from the partial file; both draft-1 reviews; decisions: facts not verdicts, rotation and permutation kept | `design/v5.md` (draft 2), `design/v5-changes.md`, `probes/design-2/` | draft 2 done (51 findings: 30 accepted, 20 changed, 1 deferred); **running**: draft 3 from both draft-2 reviews and the diagnostics brief |
 | `a0ea34d7fc5c8bfc1` | researcher | diagnostics: Luau/Roblox error mechanics, error codes (rustc, TS, Node, SQLSTATE, gRPC, RFC 9457), message design, failure taxonomy and channels, observer events, metrics, CLI/SARIF/LSP output, competitors, abuse, hot-path cost | `research/diagnostics.md`, `probes/diagnostics/` | done; **first choice for errors, codes and reporting** (Mirror, FishNet, Photon not covered) |
 
 Paths are relative to `.data/docs/`.
 
 ## Next
 
-- When both draft-2 reviews and the diagnostics brief are in: an architect writes draft 3 from them. Then milestone 1 (wire and codecs) with builders.
+- Draft 3 in progress. Then a short check of draft 3 if warranted, then milestone 1 (wire and codecs) with builders.

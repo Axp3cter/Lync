@@ -1,5 +1,5 @@
 // .d.ts of the chosen form, 32 paths: one field(path) overload per path.
-declare interface Vector3 { readonly X: number; readonly Y: number; readonly Z: number }
+declare global { interface Vector3 { readonly X: number; readonly Y: number; readonly Z: number } }
 export interface Handle<T> { derive(options: { fn: () => T | undefined; policy: "drop" | "deliver" }): void }
 export interface View {
 	field(path: "f1"): Handle<Vector3>;

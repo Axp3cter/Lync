@@ -185,7 +185,11 @@ local v: View = nil :: any
 {calls(n, method)}''')
 
     # (e) the overloads, each with its own unused generic: the normalizer neither merges nor union-saturates them
-    write(f"e_phantom_{n}.luau", f'''--!strict
+    pass  # written below, after e_phantom is defined
+
+
+def e_phantom(n, name):
+    write(name, f'''--!strict
 -- (e) The overloads of the baseline, each with a distinct unused generic G<i>, {n} paths. Normalize.cpp
 -- unionSaturatedFunctions and intersectionOfFunctions return nullopt when two overloads' generics differ.
 type function FieldOf(rec)
@@ -201,6 +205,11 @@ end
 type View = {{ field: FieldOf<Shot> }}
 local v: View = nil :: any
 {calls(n, method)}''')
+
+for n in SIZES:
+    e_phantom(n, f"e_phantom_{n}.luau")
+for n in (53, 54):  # the (e) threshold at the default fuel
+    e_phantom(n, f"limit/e_phantom_{n}.luau")
 
 # (e) as a library: the type function in Lync's module, the game's script calls define(schema) and never names it
 write("e_lib.luau", f'''--!strict
@@ -244,7 +253,7 @@ for n in SIZES:
     last = n - 3
     sigs = "\n".join(f'\tfield(path: "f{i}"): Handle<{TS[i % 3]}>;' for i in range(1, n - 2))
     write(f"ts/view_{n}.d.ts", f'''// .d.ts of the chosen form, {n} paths: one field(path) overload per path.
-declare interface Vector3 {{ readonly X: number; readonly Y: number; readonly Z: number }}
+declare global {{ interface Vector3 {{ readonly X: number; readonly Y: number; readonly Z: number }} }}
 export interface Handle<T> {{ derive(options: {{ fn: () => T | undefined; policy: "drop" | "deliver" }}): void }}
 export interface View {{
 {sigs}
@@ -352,3 +361,27 @@ local v = define({{ {leaves}, hit = t.optional({{ part = t.leaf() :: Handle<numb
 # (b) library with --!nocheck: does the old solver still report, and what does the consumer get?
 write("b_lib_nocheck.luau", open(os.path.join(HERE, "b_lib.luau")).read().replace("--!strict", "--!nocheck", 1))
 write("b_consumer_nocheck_128.luau", open(os.path.join(HERE, "b_consumer_128.luau")).read().replace('"./b_lib"', '"./b_lib_nocheck"'))
+
+# roblox-ts runtime path for form (b): fields is a mapped type over the schema's paths
+for n in SIZES:
+    last = n - 3
+    leaves = "; ".join(f"f{i}: {TS[i % 3]}" for i in range(1, n - 2))
+    lib = TS_LIB.replace("export interface View<S> { field<P extends Paths<S>>(path: P): Handle<At<S, P>> }",
+                         "export interface View<S> { readonly fields: { readonly [P in Paths<S>]: Handle<At<S, P>> } }")
+    write(f"ts/table_{n}.ts", f'''// roblox-ts runtime path for form (b), {n} paths: View<S>.fields is a mapped type over the schema's paths.
+{lib}
+type Shot = {{ {leaves}; hit?: {{ part: number; at: Vector3 }} }};
+declare const v: View<Shot>;
+declare const p: Vector3;
+const h2 = v.fields.f2; // Handle<string>
+v.fields.f3.derive({{ fn: () => 1, policy: "drop" }});
+v.fields["hit.at"].derive({{ fn: () => p, policy: "deliver" }});
+v.fields.f{last}.derive({{ fn: () => undefined, policy: "drop" }});
+const exact: Handle<string> = v.fields.f2;
+// EXPECT an error on each line below
+const wrongType: Handle<number> = v.fields.f2;
+v.fields["hit.part"].derive({{ fn: () => p, policy: "drop" }});
+const wrongPath = v.fields.nope;
+v.fields.f3.derive({{ fn: () => 1, policy: "dorp" }});
+export {{ h2, exact, wrongType, wrongPath }};
+''')

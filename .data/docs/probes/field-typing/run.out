@@ -1,0 +1,447 @@
+== claim 1: plain overloads (limit/), too-complex count per overload count, pinned 0.740 --solver=new
+H      6:0 7:0 8:0 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+plain  6:0 7:0 8:0 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+limit/e_phantom_53: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+limit/e_phantom_54: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+src build, LuauNormalizerInitialFuel=3000   H      6:0 7:0 8:0 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=3000   plain  6:0 7:0 8:0 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=6000   H      6:0 7:0 8:0 9:0 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=6000   plain  6:0 7:0 8:0 9:0 10:1 11:1 12:1 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=30000  H      6:0 7:0 8:0 9:0 10:0 11:0 12:0 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=30000  plain  6:0 7:0 8:0 9:0 10:0 11:0 12:0 13:1 14:1 15:1 16:1
+src build, LuauNormalizerInitialFuel=300000 H      6:0 7:0 8:0 9:0 10:0 11:0 12:0 13:0 14:0 15:0 16:1
+src build, LuauNormalizerInitialFuel=300000 plain  6:0 7:0 8:0 9:0 10:0 11:0 12:0 13:0 14:0 15:0 16:1
+src build, LuauTypeFamilyGraphReductionMaximumSteps=1e9, fuel 3000, H: 8:0 9:1 10:1
+src build, fuel=3000   base_overloads_10: 1
+src build, fuel=6000   base_overloads_10: 1
+src build, fuel=12000  base_overloads_10: 0
+src build, fuel=3000   e_phantom_128: 1
+src build, fuel=30000  e_phantom_128: 0
+== claims 2-3: summaries (too-complex count; errors on correct calls; EXPECT lines not rejected)
+base_overloads_10    --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+base_overloads_10    --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [47, 48, 49, 50]; errors before the calls: [3, 39]
+  line 3: This syntax is not supported
+  line 39: Unknown type 'FieldOf'
+base_overloads_32    --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+base_overloads_32    --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [47, 48, 49, 50]; errors before the calls: [3, 39]
+  line 3: This syntax is not supported
+  line 39: Unknown type 'FieldOf'
+base_overloads_128   --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+base_overloads_128   --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [47, 48, 49, 50]; errors before the calls: [3, 39]
+  line 3: This syntax is not supported
+  line 39: Unknown type 'FieldOf'
+a_generic_10         --solver=new: too-complex: 0; errors on correct calls: [42, 43, 44, 45, 46]; EXPECT lines not rejected: none
+  line 42: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 43: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 44: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+a_generic_10         --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+a_generic_32         --solver=new: too-complex: 0; errors on correct calls: [42, 43, 44, 45, 46]; EXPECT lines not rejected: none
+  line 42: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 43: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 44: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+a_generic_32         --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+a_generic_128        --solver=new: too-complex: 0; errors on correct calls: [42, 43, 44, 45, 46]; EXPECT lines not rejected: none
+  line 42: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 43: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+  line 44: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, g
+a_generic_128        --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+a_index_10           --solver=new: too-complex: 0; errors on correct calls: [39, 40, 41, 42, 43]; EXPECT lines not rejected: none
+  line 39: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 40: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 41: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+a_index_10           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'index'
+a_index_32           --solver=new: too-complex: 0; errors on correct calls: [39, 40, 41, 42, 43]; EXPECT lines not rejected: none
+  line 39: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 40: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 41: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+a_index_32           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'index'
+a_index_128          --solver=new: too-complex: 0; errors on correct calls: [39, 40, 41, 42, 43]; EXPECT lines not rejected: none
+  line 39: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 40: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+  line 41: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+a_index_128          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'index'
+a_explicit_10        --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+a_explicit_10        --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+a_explicit_32        --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+a_explicit_32        --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+a_explicit_128       --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+a_explicit_128       --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [48, 49, 50, 51]; errors before the calls: [3, 40]
+  line 3: This syntax is not supported
+  line 40: Unknown type 'FieldAt'
+b_table_10           --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+b_table_10           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'FieldsOf'
+b_table_32           --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+b_table_32           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'FieldsOf'
+b_table_128          --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+b_table_128          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [45, 46, 47, 48]; errors before the calls: [3, 37]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'FieldsOf'
+c_nested_10          --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+c_nested_10          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [56, 57, 58, 59]; errors before the calls: [4, 48]
+  line 4: This syntax is not supported
+  line 48: Unknown type 'NodeOf'
+c_nested_32          --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+c_nested_32          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [56, 57, 58, 59]; errors before the calls: [4, 48]
+  line 4: This syntax is not supported
+  line 48: Unknown type 'NodeOf'
+c_nested_128         --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+c_nested_128         --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [56, 57, 58, 59]; errors before the calls: [4, 48]
+  line 4: This syntax is not supported
+  line 48: Unknown type 'NodeOf'
+d_union_10           --solver=new: too-complex: 0; errors on correct calls: [41, 42, 43, 44]; EXPECT lines not rejected: none
+  line 41: Cannot call a value of the union type:
+  line 42: Cannot call a value of the union type:
+  line 43: Cannot call a value of the union type:
+d_union_10           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [46, 47, 48, 49]; errors before the calls: [3, 37, 38]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'keyof'
+  line 38: Unknown type 'index'
+d_union_32           --solver=new: too-complex: 0; errors on correct calls: [41, 42, 43, 44]; EXPECT lines not rejected: none
+  line 41: Cannot call a value of the union type:
+  line 42: Cannot call a value of the union type:
+  line 43: Cannot call a value of the union type:
+d_union_32           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [46, 47, 48, 49]; errors before the calls: [3, 37, 38]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'keyof'
+  line 38: Unknown type 'index'
+d_union_128          --solver=new: too-complex: 0; errors on correct calls: [41, 42, 43, 44]; EXPECT lines not rejected: none
+  line 41: Cannot call a value of the union type:
+  line 42: Cannot call a value of the union type:
+  line 43: Cannot call a value of the union type:
+d_union_128          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [46, 47, 48, 49]; errors before the calls: [3, 37, 38]
+  line 3: This syntax is not supported
+  line 37: Unknown type 'keyof'
+  line 38: Unknown type 'index'
+e_phantom_10         --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+e_phantom_10         --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [49, 50, 51, 52]; errors before the calls: [4, 41]
+  line 4: This syntax is not supported
+  line 41: Unknown type 'FieldOf'
+e_phantom_32         --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+e_phantom_32         --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [49, 50, 51, 52]; errors before the calls: [4, 41]
+  line 4: This syntax is not supported
+  line 41: Unknown type 'FieldOf'
+e_phantom_128        --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+e_phantom_128        --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [49, 50, 51, 52]; errors before the calls: [4, 41]
+  line 4: This syntax is not supported
+  line 41: Unknown type 'FieldOf'
+f_codec_10           --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+f_codec_10           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+f_codec_32           --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+f_codec_32           --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+f_codec_128          --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+f_codec_128          --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+b_consumer_128       --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+b_consumer_128       --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [12, 13, 14, 15]
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib.luau(3,1): TypeError: This syntax is not supported
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib.luau(36,33): TypeError: Unknown type 'FieldsOf'
+b_consumer_nocheck_128 --solver=new: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: none
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,10): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,28): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,57): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+b_consumer_nocheck_128 --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [12, 13, 14, 15]
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,10): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,28): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+  other module: /home/user/Lync/.data/docs/probes/field-typing/b_lib_nocheck.luau(5,57): UnknownGlobal: Unknown global 'types'; consider assigning to it first
+e_consumer_128       --solver=new: too-complex: 1; errors on correct calls: none; EXPECT lines not rejected: none
+e_consumer_128       --solver=old: too-complex: 0; errors on correct calls: none; EXPECT lines not rejected: [12, 13, 14, 15]
+  other module: /home/user/Lync/.data/docs/probes/field-typing/e_lib.luau(3,1): TypeError: This syntax is not supported
+  other module: /home/user/Lync/.data/docs/probes/field-typing/e_lib.luau(39,32): TypeError: Unknown type 'FieldOf'
+== inferred type of h2 (--annotate)
+base_overloads_128   --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}=v:field('f2')
+base_overloads_128   --solver=old: local h2:Unifiable<Error>=v:field('f2')
+a_generic_128        --solver=new: local h2:user=v:field('f2')
+a_generic_128        --solver=old: local h2:Unifiable<Error>=v:field('f2')
+a_explicit_128       --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}=v:field<<'f2'>>('f2')
+a_explicit_128       --solver=old: local h2:Unifiable<Error>=v:field<<'f2'>>('f2')
+b_table_128          --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}=v.fields.f2
+b_table_128          --solver=old: local h2:Unifiable<Error>=v.fields.f2
+b_consumer_128       --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}=v.fields.f2
+b_consumer_128       --solver=old: local h2:Unifiable<Error>=v.fields.f2
+d_union_128          --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}|{derive:(any,{fn:()->(number?),policy:'drop'|'deliver'})->()}|{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}|{derive:(any,{fn:()->(str
+d_union_128          --solver=old: local h2:Unifiable<Error>=v:field('f2')
+e_phantom_32         --solver=new: local h2:{derive:(any,{fn:()->(string?),policy:'drop'|'deliver'})->()}=v:field('f2')
+e_phantom_32         --solver=old: local h2:Unifiable<Error>=v:field('f2')
+f_codec_128          --solver=new: local h2:Handle<string>=v.fields.f2
+f_codec_128          --solver=old: local h2:Handle<string>=v.fields.f2
+== full diagnostics, new solver, one size per form
+-- base_overloads_10
+./base_overloads_10.luau(39,22): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+./base_overloads_10.luau(47,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'; 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+./base_overloads_10.luau(48,46): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./base_overloads_10.luau(49,20): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./base_overloads_10.luau(49,20): TypeError: Available overloads: (any, "f1") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; (any, "hit") -> { derive: (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> () }; (any, "hit.at") -> { derive: (
+./base_overloads_10.luau(50,63): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+-- a_generic_10
+./a_generic_10.luau(42,12): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(43,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(43,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(43,1): TypeError: Type 'FieldAt<Shot, string>' does not have key 'derive'
+./a_generic_10.luau(44,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(44,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(44,1): TypeError: Type 'FieldAt<Shot, string>' does not have key 'derive'
+./a_generic_10.luau(45,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(45,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(45,1): TypeError: Type 'FieldAt<Shot, string>' does not have key 'derive'
+./a_generic_10.luau(46,92): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(48,96): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(49,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(49,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(49,1): TypeError: Type 'FieldAt<Shot, string>' does not have key 'derive'
+./a_generic_10.luau(50,20): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(51,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(51,1): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+./a_generic_10.luau(51,1): TypeError: Type 'FieldAt<Shot, string>' does not have key 'derive'
+./a_generic_10.luau(52,8): TypeError: 'FieldAt' type function errored at runtime: [string "FieldAt"]:32: field: the path must be a string literal, got a non-singleton
+-- a_index_10
+./a_index_10.luau(39,12): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" 
+./a_index_10.luau(40,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(40,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(40,1): TypeError: Type 'index<{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }, f4: { deri
+./a_index_10.luau(41,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(41,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(41,1): TypeError: Type 'index<{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }, f4: { deri
+./a_index_10.luau(42,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(42,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(42,1): TypeError: Type 'index<{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }, f4: { deri
+./a_index_10.luau(43,92): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" 
+./a_index_10.luau(45,96): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" 
+./a_index_10.luau(46,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(46,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(46,1): TypeError: Type 'index<{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }, f4: { deri
+./a_index_10.luau(47,20): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" 
+./a_index_10.luau(48,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(48,1): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+./a_index_10.luau(48,1): TypeError: Type 'index<{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }, f4: { deri
+./a_index_10.luau(49,8): TypeError: Property 'string' does not exist on type '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f2: { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }, f3: { derive: (any, { fn: () -> number?, policy: "deliver" |
+-- b_table_128
+./b_table_128.luau(45,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'; 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+./b_table_128.luau(46,47): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./b_table_128.luau(47,20): TypeError: Key 'nope' not found in table '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f10: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f100: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop
+./b_table_128.luau(48,61): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+-- c_nested_32
+./c_nested_32.luau(48,22): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+./c_nested_32.luau(56,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'; 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+./c_nested_32.luau(57,55): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./c_nested_32.luau(58,20): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./c_nested_32.luau(58,20): TypeError: Available overloads: (any, "f21") -> { derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }; (any, "f20") -> { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }; (any, "f23") -> { derive: (any, { fn: () -> string?, poli
+./c_nested_32.luau(59,63): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+-- d_union_10
+./d_union_10.luau(41,1): TypeError: Cannot call a value of the union type:
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+We are unable to determine the appropriate result type for such a call.
+./d_union_10.luau(42,1): TypeError: Cannot call a value of the union type:
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+We are unable to determine the appropriate result type for such a call.
+./d_union_10.luau(43,1): TypeError: Cannot call a value of the union type:
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+We are unable to determine the appropriate result type for such a call.
+./d_union_10.luau(44,92): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string?`, but got `number`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string?`, but got `vector`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string?`, but got `{ at: vector, part: number }`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string`, but got `number?`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string`, but got `vector?`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `string`, but got `{ at: vector, part: number }?`
+./d_union_10.luau(46,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () } | { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `vector`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `{ at: vector, part: number }`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `vector?`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `{ at: vector, part: number }?`
+./d_union_10.luau(47,1): TypeError: Cannot call a value of the union type:
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+We are unable to determine the appropriate result type for such a call.
+./d_union_10.luau(48,28): TypeError: Expected this to be '"f1" | "f2" | "f3" | "f4" | "f5" | "f6" | "f7" | "hit" | "hit.at" | "hit.part"', but got '"nope"'
+./d_union_10.luau(49,1): TypeError: Cannot call a value of the union type:
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> { at: vector, part: number }?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> ()
+  | (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> ()
+We are unable to determine the appropriate result type for such a call.
+-- e_phantom_128
+./e_phantom_128.luau(41,22): TypeError: Code is too complex to typecheck! Consider simplifying the code around this area
+./e_phantom_128.luau(49,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'; 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+./e_phantom_128.luau(50,46): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./e_phantom_128.luau(51,20): TypeError: None of the overloads for function that accept 2 arguments are compatible.
+./e_phantom_128.luau(51,20): TypeError: Available overloads: <G1>(any, "f14") -> { derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }; <G2>(any, "f4") -> { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }; <G3>(any, "f2") -> { derive: (any, { fn: () -> s
+./e_phantom_128.luau(52,63): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+-- b_consumer_128
+./b_consumer_128.luau(12,96): TypeError: Expected this to be
+	'{ derive: (any, { fn: () -> number?, policy: "deliver" | "drop" }) -> () }'
+but got
+	'{ derive: (any, { fn: () -> string?, policy: "deliver" | "drop" }) -> () }'; 
+this is because 
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number?`, but got `string`
+	 * Expected the return type of property `fn` of the 2nd parameter of property `derive` to be exactly `number`, but got `string?`
+./b_consumer_128.luau(13,47): TypeError: Expected this to be 'number?', but got 'vector'; 
+Expected the 1st type pack entry to be `number?`, but got `vector`
+./b_consumer_128.luau(14,20): TypeError: Key 'nope' not found in table '{ f1: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f10: { derive: (any, { fn: () -> vector?, policy: "deliver" | "drop" }) -> () }, f100: { derive: (any, { fn: () -> vector?, policy: "deliver" | "d
+./b_consumer_128.luau(15,61): TypeError: Expected this to be '"deliver" | "drop"', but got '"dorp"'
+-- b_table_128 --solver=old
+./b_table_128.luau(3,1): TypeError: This syntax is not supported
+./b_table_128.luau(37,23): TypeError: Unknown type 'FieldsOf'
+== claim 4: tsc --strict
+Version 6.0.2
+-- ts/use_10.ts
+ts/use_10.ts(10,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/use_10.ts(11,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/use_10.ts(12,27): error TS2769: No overload matches this call.
+ts/use_10.ts(13,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/generic_10.ts
+ts/generic_10.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/generic_10.ts(24,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/generic_10.ts(25,27): error TS2345: Argument of type '"nope"' is not assignable to parameter of type 'Paths<Shot, "">'.
+ts/generic_10.ts(26,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/table_10.ts
+ts/table_10.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/table_10.ts(24,41): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/table_10.ts(25,28): error TS2339: Property 'nope' does not exist on type '{ readonly f1: Handle<Vector3>; readonly f2: Handle<string>; readonly f3: Handle<number>; readonly f4: Handle<Vector3>; rea
+ts/table_10.ts(26,35): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/use_32.ts
+ts/use_32.ts(10,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/use_32.ts(11,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/use_32.ts(12,27): error TS2769: No overload matches this call.
+ts/use_32.ts(13,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/generic_32.ts
+ts/generic_32.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/generic_32.ts(24,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/generic_32.ts(25,27): error TS2345: Argument of type '"nope"' is not assignable to parameter of type 'Paths<Shot, "">'.
+ts/generic_32.ts(26,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/table_32.ts
+ts/table_32.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/table_32.ts(24,41): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/table_32.ts(25,28): error TS2339: Property 'nope' does not exist on type '{ readonly f1: Handle<Vector3>; readonly f2: Handle<string>; readonly f3: Handle<number>; readonly f4: Handle<Vector3>; rea
+ts/table_32.ts(26,35): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/use_128.ts
+ts/use_128.ts(10,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/use_128.ts(11,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/use_128.ts(12,27): error TS2769: No overload matches this call.
+ts/use_128.ts(13,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/generic_128.ts
+ts/generic_128.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/generic_128.ts(24,40): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/generic_128.ts(25,27): error TS2345: Argument of type '"nope"' is not assignable to parameter of type 'Paths<Shot, "">'.
+ts/generic_128.ts(26,37): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+-- ts/table_128.ts
+ts/table_128.ts(23,7): error TS2322: Type 'Handle<string>' is not assignable to type 'Handle<number>'.
+ts/table_128.ts(24,41): error TS2322: Type 'Vector3' is not assignable to type 'number'.
+ts/table_128.ts(25,28): error TS2339: Property 'nope' does not exist on type '{ readonly f32: Handle<string>; readonly f64: Handle<Vector3>; readonly f1: Handle<Vector3>; readonly f2: Handle<string>; 
+ts/table_128.ts(26,35): error TS2322: Type '"dorp"' is not assignable to type '"drop" | "deliver"'.
+== claim 5: time_check.py
+empty.luau                 --solver=new: median     8.4 ms  (min     7.7, max    10.6)
+empty.luau                 --solver=old: median     6.4 ms  (min     6.1, max     8.4)
+base_overloads_128.luau    --solver=new: median   112.7 ms  (min    92.8, max   137.7)
+base_overloads_128.luau    --solver=old: median     8.4 ms  (min     7.3, max    12.3)
+b_table_128.luau           --solver=new: median    21.5 ms  (min    18.5, max    24.7)
+b_table_128.luau           --solver=old: median     7.4 ms  (min     6.8, max     9.7)
+b_consumer_128.luau        --solver=new: median    31.8 ms  (min    28.7, max    37.0)
+b_consumer_128.luau        --solver=old: median     7.8 ms  (min     7.4, max     8.5)
+a_explicit_128.luau        --solver=new: median    25.0 ms  (min    21.2, max    42.3)
+a_explicit_128.luau        --solver=old: median     7.7 ms  (min     7.1, max     9.8)
+e_phantom_32.luau          --solver=new: median    30.7 ms  (min    29.3, max    39.6)
+e_phantom_32.luau          --solver=old: median     7.2 ms  (min     6.7, max     7.3)
+f_codec_128.luau           --solver=new: median    21.8 ms  (min    19.8, max    25.5)
+f_codec_128.luau           --solver=old: median    13.5 ms  (min    12.9, max    21.5)
+ts/empty.ts                tsc --strict: median  1499.8 ms  (min  1360.1, max  1622.5)
+ts/use_128.ts              tsc --strict: median  1484.5 ms  (min  1466.8, max  1605.2)
+ts/generic_128.ts          tsc --strict: median  1497.6 ms  (min  1359.6, max  1530.0)
+ts/table_128.ts            tsc --strict: median  1485.0 ms  (min  1397.8, max  1498.6)

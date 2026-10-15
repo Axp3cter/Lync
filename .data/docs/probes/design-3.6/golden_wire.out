@@ -11,17 +11,26 @@ G2b	95 06 44 30
 G3 	4a 03 03 f4 01 00 
 G4 	00 48 2b 00 67 67 35 5e a9 22 
 G4c	01 48 2b 00 67 67 20 26 cc 0f 
-G5 	00 60 01 0c 00 04 b8 a6 11 cc 
+G5 	00 60 01 0c 00 08 56 2d c5 9a 
 G6 serialization	01 05 00 61 72 65 6e 61 01 00 04 00 63 68 61 74 01 01 01 01 08 00 00 00 00 00 00 69 40 00 00 00 00 00 00 00 00 01 00 00 
 G6 hash         	6f 5c 47 f4 ce 67 b3 44 
-G7 	00 68 0c 00 00 00 00 78 e3 3a a2 77 3e 9b 25 02 00 00 00 28 00 61 72 65 6e 61 	(hash of the G6 schema)
-G8 	00 80 54 e2 6a ff bb da ff 01 c6 0e a8 ce 30 fe 
+G7 	00 68 0c 00 00 00 00 78 e3 3a a2 77 3e 9b 25 02 00 00 00 58 00 61 72 65 6e 61 	(hash of the G6 schema)
+G8 	00 00 a9 c4 d5 fe 77 b5 ff 03 8c 1d a8 57 a3 ee 
    aim code 1024; modes (mode,k,cost): (2,11,22) (2,11,22) (1,0,20)
 G9 t.int() -4503599627370496: zigzag 9007199254740991, 107 bits:	00 00 00 00 00 00 20 00 00 00 00 00 00 00 
 G9 t.int() 4503599627370495: zigzag 9007199254740990, 105 bits:	00 00 00 00 00 00 f0 ff ff ff ff ff ff 01 
 G10	03 00 d4 01 29 00 00 00 00 00 44 8f 40 54 06 40 80 c0 00 41 81 c1 01 00 01 00 00 00 00 00 00 
 G11	ea 0a 
-DERIVE key	3a 33 49 1c 72 20 4e d1 	permutation seed 0x908e0dfe
 W1 	00 48 57 00 67 67 5c 4c 1f 9d 	(chat site, "gg")
 W2 	00 48 19 00 1a 77 5b 5a 	(literal buy site, slot 0)
-SIZES REPORT (1,1,0,0)	8	(0,0,1,0)	8	(0,0,80,0)	9	(60,60,60,60)	12	BEACON	9	BEACON+REPORT(1,1,0,0)	11
+PERM	00 02 03 04 01
+DERIVE key	3a 33 49 1c 72 20 4e d1 	K_up	5b b3 64 41 85 11 1a 75 	layout seed	60 7a 1a c8 4f da 87 9a 
+ROT	00 00 a9 44 54 43 aa 3a e6 00 00 00 00 70 2f fa 1c 6d 07 40 42 90 27 
+    order aim, target; offsets aim 695 1433, target 1953753273; constants 6c116fc3 7cccc9d7; S bc 87 ec a4 55 30 83 40 ; key e0 91 59 58 99 af 95 64 
+S0 serialization	01 04 00 66 65 65 64 03 00 04 00 6b 69 6c 6c 01 02 01 01 17 02 00 06 00 6b 69 6c 6c 65 72 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 06 00 76 69 63 74 69 6d 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 00 00 00 00 00 00 00 00 00 00 05 00 6e 61 6d 65 73 04 00 00 00 00 00 00 50 40 00 00 00 00 00 00 94 40 05 00 74 61 75 6e 74 01 01 01 01 17 01 00 02 00 74 6f 1b 05 00 6e 61 6d 65 73 08 00 00 00 00 00 00 34 40 00 00 00 00 00 00 00 00 00 00 01 00 00 
+S0 hash         	ea 12 40 c0 a9 6b c6 fd 
+S1 	b4 34 72 a1 a2 02 17 23 5a 69 70 70 79 42 75 69 6c 64 65 72 6d 61 6e 
+S1b	4a 03 17 23 
+S2	04 48 8f 00 1e 04 77 de 
+S3	04 48 33 4e 6f 62 6f 64 79 6d 34 fd 6e 
+SIZES REPORT one count 1	8	four counts 60	13	five counts 60	14	BEACON	9	BEACON+REPORT one	11	BEACON+REPORT four 60	16	BEACON+REPORT five 60	17

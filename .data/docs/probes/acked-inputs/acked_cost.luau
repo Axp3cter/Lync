@@ -269,7 +269,7 @@ local function encodeViewer(v, T)
 	pos, acc, nacc = 0, 0, 0
 	wbits(0, 28) -- frame header + toc
 	wEG(R - 1, 0)
-	wbits(2, 2) -- reference triple: three baselines (ages of record 0; every record shares it here)
+	wbits(3, 2) -- reference triple: nb = 3, three baselines (ages of record 0; every record shares it here)
 	do
 		local o = v * R * 12
 		local t0, t1, t2 = buffer.readu32(ackedTicks, o), buffer.readu32(ackedTicks, o + 4), buffer.readu32(ackedTicks, o + 8)

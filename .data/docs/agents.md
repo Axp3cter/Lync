@@ -71,7 +71,7 @@ Branch `claude/hopeful-edison-kwkdxt`. Task: reconsider every refused security d
 | `a16a77f14df4e38ea` | architect (Opus) | consistency: `v5.md` §4 (incl. golden regeneration) | `design/v5-3.6-consistency-wire.md` | running |
 | `a60b226001890347a` | architect (Opus) | consistency: `v5-integrity.md` | `design/v5-3.6-consistency-integrity.md` | done on Opus 5.5 (stopped once by mistake, resumed): 56 items (50 applied, 5 changed, 1 rejected), about 110 renames plus 8 named, 2 open (`WELCOME` bits for the two report switches; §7.3 splitting rule) |
 | `abde9d80edeb18314` | architect (Opus) | consistency: `v5-collections.md` | `design/v5-3.6-consistency-collections.md` | running |
-| `a73892475d245bd6b` | architect (Opus) | consistency: `v5-checks.md`; empties or removes `v5-extensions.md` | `design/v5-3.6-consistency-checks.md` | running |
+| `a73892475d245bd6b` | architect (Opus) | consistency: `v5-checks.md`; empties or removes `v5-extensions.md` | `design/v5-3.6-consistency-checks.md` | done on Opus 5.5 (stopped once by mistake, resumed): 23 items (21 applied, 1 n/a, 1 rejected), 58 renames, `v5-extensions.md` deleted and references fixed, 6 open |
 | `aebc577709fa651ed` | architect (Opus) | consistency: `v5-tooling.md` | `design/v5-3.6-consistency-tooling.md` | done on Opus 5.5 (stopped once by mistake, resumed): 32 items (24 applied, 5 in place, 2 superseded, 1 rejected), about 63 renames, `pvs` byte format defined, 4 open |
 
 Paths are relative to `.data/docs/`, except builders' paths, which are relative to the repo root.

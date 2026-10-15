@@ -1,8 +1,9 @@
 # Lync v5: collections (milestone 4)
 
 Draft 3.6, 2026-10-15. Part of the v5 design (`v5.md`); this file specifies milestone 4: collections, and with them
-everything that decides what each viewer is shown and when: interest (§8), visibility classes (§9), scoped events
-(§10), interpolation (§11), rewind (§12), and staged namespaces (§13). Wire terms (chunks, segments, `align`, EG-k,
+everything that decides what each viewer is shown and when: acked rows (§5.1), interest (§8), visibility classes
+(§9), scoped events (§10), interpolation (§11), rewind (§12), and staged namespaces (§13); and client input streams
+(§15), which share the state tick, the acks and the timing estimate. Wire terms (chunks, segments, `align`, EG-k,
 column blocks, extended sequences, the ack) are defined in `v5.md` §4. Build-time keys (`[[pvs]]`, `[[staged]]`,
 `check.*`) are in `v5-tooling.md`; decoys and their facts are in `v5-integrity.md` §8.
 
@@ -107,6 +108,8 @@ remove chunk := collection:u(wc) n−1:EG0, then n × slot:u(ws)
 rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 seg:u1 :newest() fields align }  -- state frames only
 ```
 
+An `acked` collection's rows travel in the acked rows chunk of §5.1 in the rows chunk's place.
+
 - wc = ⌈log2(collections in the namespace)⌉; collection indices are the namespace's collection id space, permuted
   like the others (`v5.md` §4.5). `gen` is §2's generation; `seg` is §11.3's cut bit. The wire unit owns the bit
   positions in `v5.md` §4; this grammar states what each chunk carries.
@@ -162,13 +165,13 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   per-viewer encoding with a k search, history per viewer and a baseline agreement protocol); prediction against a
   partition baseline (encode once per partition, 1.1–1.45x acked prediction, no per-viewer selection, one slow
   member ages everyone's baseline).
-- **Choice: absolute rows, encoded once per tick, as byte-aligned pieces copied per viewer.** Fast ranks above
-  small: no history, no desynchronisation. Copying a 12 B row costs 27.6 ns native per viewer-row against 41.1 ns to
-  bit-pack it per viewer `[probes review-redundancy-2 newest_rows]`; the padding costs 5.4–8% of bytes. A 100-player
-  shooter's 1190 B per tick is 1.5x the default budget, so records update at about 13 Hz instead of 20. Acked
-  prediction is the `acked` extension (2.3–2.8x fewer bytes on the shooters); whatever coding it uses, each of its
-  rows must carry `gen:u2 seg:u1` and decode to the values the truth ring holds for that tick, or §2's acceptance and
-  §12's `"received"` mode no longer hold.
+- **Choice: absolute rows by default, encoded once per tick as byte-aligned pieces copied per viewer; acked
+  prediction per collection with `acked = true` (§5.1).** The two sit at opposite ends of one measured trade the
+  game owns: absolute rows need no history and cost a 27.6 ns copy per viewer-row against 41.1 ns to bit-pack it
+  per viewer `[probes review-redundancy-2 newest_rows]`, with 5.4–8% padding, but a 100-player shooter's 1190 B per
+  tick is 1.5x the default budget, so records update at about 13 Hz instead of 20; acked rows cost 1.18–1.22 µs per
+  (viewer, row) native, 34x the copy, for 1.48–4.89x fewer row bytes and full-rate rows inside the budget
+  `[acked-inputs §2.1, §2.2]`. Neither is better for every game, so the collection declares which it pays.
 - **Wire.** Each record's row is encoded once per tick into its own byte-aligned piece (slot, `gen`, `seg`,
   fields); a viewer's rows chunk is the header (`collection`, count) followed by copies of the selected pieces.
   `gen` and `seg` add 3 bits per row; with byte padding that is 0 or 1 byte per row, 3/8 B on average when row
@@ -177,6 +180,124 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   tag constants only, so every unit of §3, cell chunks included, is encoded once for all players. A variant that
   varied downstream field order would need one encode per variant per unit, V times the CPU and chunk memory
   `[interest-rewind §6.2]`.
+
+### 5.1 `acked`: rows predicted from acked baselines
+
+- **Declaration.** `acked = true` on a collection in the shared schema (boolean, default `false`; hashed after
+  `sealed` and present with `false` when omitted, since the client predicts with the same rule, `v5.md` §4.7). It
+  applies to every `:newest()` field of that collection and to nothing else: adds (catch-up included) stay absolute
+  on the reliable lane, and reliable fields, removes and other collections in the same frame are unchanged. On a
+  collection with no `:newest()` field it is the declaration error `ackedNoNewest`.
+- **Server state.** A *shared history* per collection: for each slot, every `:newest()` leaf's code at each of the
+  last H = 32 state ticks and its `seg` bit, written once per tick from the values that tick's rows carry (it
+  replaces the piece encode; a decoy's slot holds the values its one viewer is sent). Per (viewer, record): the ticks
+  of the three newest acked rows of the record's current occupancy for that viewer and of the viewer's latest
+  catch-up add, 16 B. On an ack, each row carried by a frame the ack shows received, with a tick at or after the
+  pair's add tick, joins the pair's newest three; a catch-up add clears the pair. The notify ring (§6) is read, not
+  extended.
+- **Baselines.** For a row of record r at tick T to viewer v, the usable baselines are the pair's acked ticks t with
+  T − t ≤ H − 1 whose history entry has the row's `seg` (a cut ends prediction, §11.3):
+  - three usable and the collection has a linear leaf: nb = 3, baselines b0, b1, b2 at t0 > t1 > t2, ages a0 =
+    T − t0, a1 = t0 − t1, a2 = t1 − t2 (each ≥ 1, a0 + a1 + a2 ≤ H − 1);
+  - otherwise one or more usable: nb = 1, b0 at the newest; none: nb = 0, prediction 0 (absolute codes).
+  - A collection with no linear leaf never uses nb = 3: three baselines then cost ages and predict nothing better
+    (−6.4% bytes for nb ≤ 1 on the tycoon model) `[acked-inputs §2.1]`.
+- **Prediction, per leaf** on its code interval of n codes (`v5.md` §4.3):
+  - *Linear leaves*: `t.number`, `t.angle`, each column of `t.vector3` and of a `t.cframe`'s position, with
+    n ≤ 2^43; `t.rotation`'s three component columns when the row and all three baselines have flag 0 and the same
+    dropped index. With nb = 3, Unity's guarded linear predictor as written (`GhostDeltaPredictor`): pf = ⌊16 · a1 /
+    a2⌋, af = ⌊16 · a0 / a1⌋; d12 = wrap(b1 − b2), d01 = wrap(b0 − b1), wrap into [−⌊n/2⌋, ⌈n/2⌉ − 1]; pb = b1 +
+    trunc(d12 · pf / 16); the prediction is b0 if |wrap(b0 − pb)| ≥ |d01|, else (b0 + trunc(d01 · af / 16)) mod n,
+    trunc toward zero. Every product stays below 2^51, so the arithmetic is exact in doubles; a wider leaf is
+    predicted as a non-linear one. The guard beats unguarded linear by 1.2–4.0% and delta against b0 by 6.4–12.4% of
+    bytes wherever a linear leaf exists `[acked-inputs §1.3, §2.1]`.
+  - *Every other leaf*, and linear leaves at nb = 1: b0's code. `t.f32`, `t.f64`, `t.vector3f32` and `t.custom` stay
+    raw columns with no prediction.
+- **Wire: the acked rows chunk** takes the rows chunk's place (§3) in state frames, one column block per frame:
+
+  ```
+  acked rows chunk := collection:u(wc) n−1:EG0
+                      refNb:u2 [ refA0−1:EG0 [ refA1−1:EG0 refA2−1:EG0 ] ]   -- the block's reference baselines
+                      columns over the n rows, in slot order:
+                        slot                    -- integer column, residual against the previous row
+                        own                     -- bool: 1 when the row's baselines differ from the reference
+                        nb, a0−1, a1−1, a2−1    -- over own rows only (a0 when nb ≥ 1; a1, a2 when nb = 3), as values
+                        gen, seg                -- over rows with nb = 0 only
+                        one column per leaf     -- zigzag(wrap(code − prediction)); bools: code XOR prediction
+                      align
+  ```
+
+  Columns use `v5.md` §4.3's four modes with the reference encoder's full search; a column over zero rows writes
+  nothing. The reference triple is the baselines of the first row the scheduler admitted. For nb ≥ 1, `gen` and
+  `seg` are b0's: the server names baselines of the same occupancy and segment only, one viewer gets at most one
+  row per record per tick, and two occupants of a slot are at least the 2 s reuse delay apart, so a tick within H
+  names one occupant. §2's acceptance then applies with that `gen` and the frame's tick.
+- **Scheduling.** Rows are admitted in §7's order while an exact upper bound of the block so far fits the frame and
+  the tick's budget: per leaf column the smaller of mode 1's bits at the k that column chose in the viewer's previous
+  block and mode 2's at that k with its gap bits bounded by m(2 log2(n/m) + 1); the slot column by
+  n(2 log2(2^(ws+1)/n + 1) + 1); `own`, `gen` and `seg` by their EG-0 worst case per row. The encoder picks the
+  fewest bits over every mode and k, which includes each option the bound prices, so a block never exceeds it. Rows
+  stop at the first that doesn't fit, §7's rule. Bound ÷ actual: 1.10–1.57; a bound at the piece width would admit
+  only the core's row rate `[acked-inputs §1.4, §2.1]`.
+- **Client.** Per record it keeps the received rows' codes by tick, for ticks later than the newest applied row's
+  tick − H (at most H entries): every row that can still apply names baselines after its own tick − H. A late row is
+  parsed and its codes stored, since the server may name it, but applied only when newer for its record. The client
+  acks only state frames it decoded and accepted, so the server never names a row the client didn't store. A row
+  that acceptance would apply naming a baseline tick the client doesn't hold, ages outside 1 … H − 1 or summing past
+  H − 1, nb = 2, or nb = 3 without a linear leaf refuses the frame (a canonical decode rule, `v5.md` §4.8; counted in
+  `refusedFrames`; known cause: a Lync bug).
+- **Loss, reordering, rekey, join, cuts.** A lost frame's rows re-pend (§6) and baselines don't advance; lost acks
+  age baselines toward nb = 1 or 0; a late frame's rows apply only when newer, its named baselines held by the
+  client's rule; a rekey drops old-key frames for at most one round trip, as loss. A catch-up add clears the pair, so
+  the first rows after it are nb = 0 for one round trip; the add is never a baseline, since it can leave in a
+  non-state-tick flush with values written after that tick's history entry. A cut makes the next row nb = 0. A
+  `state.rate` change restarts the history and clears every pair.
+- **Decision: encoding one block for viewers whose blocks are identical.**
+  - *Problem.* `acked` gives up encode-once for its rows: 1.18–1.22 µs per (viewer, row), 234–242 ms/s of server CPU
+    for the 100-player shooter's 99 rows to 100 viewers at 20 Hz `[acked-inputs §2.2]`. Two viewers whose admitted
+    rows and every row's baselines are identical get byte-identical blocks (the encoder is deterministic), so a block
+    could be encoded once per such group.
+  - *Options:* encode every viewer's block (no extra work, no sharing); **a per-tick cache keyed by the admitted
+    (slot, nb, ages) sequence**, copying an earlier viewer's block on a match (one key per viewer per tick, O(rows),
+    paid on every miss); grouping viewers before admission (would change which rows each admits: not exact).
+  - *Choice: no cache.* A match needs every row's three acked ticks to be equal, which needs both viewers' acks to
+    have named the same frames at the same ticks: equal round trips to the tick and the same loss and ack pattern
+    over the last H ticks, and admitted counts that agree although each viewer's bound uses its own previous block's
+    k. The research measured no hit rate, and its own model (5% loss each way, 0–20 ms jitter per frame, per-viewer
+    loss draws) makes equal ack patterns across 99 rows the exception, while the key would be built for every viewer
+    every tick. The bytes are the same either way, so nothing on the wire depends on it.
+- **Interest, classes, decoys, rewind.** Interest is unchanged; each interest entry is a catch-up add, so churn costs
+  one round trip of nb = 0 rows (2% of rows on the mmo model). Visibility classes are reliable-only (§9), so they
+  don't meet `acked`. A decoy's rows are predicted from its slot's history, which holds the values its viewer was
+  sent, so it is coded as a real record of the same motion. Rows decode to the codes the truth ring (§12.2) holds, so
+  rewind and interpolation take acked rows as samples like any other; the `"received"` per-pair bits and `acked`'s
+  newest-three ticks are two records of the same acks.
+- **Cost.** Server encode 1.18–1.22 µs per (viewer, row) native; client decode and rebuild 3.7–4.0 µs per row
+  interpreted (7.5–8.0 ms/s for 99 rows at 20 Hz; a low-end phone's factor unmeasured, §16); shared history H ×
+  slots × leaves codes (304 KB as f64 for 99 records × 12 leaves) plus 16 B per (viewer, record) (158 KB at 100 ×
+  99); client store up to H rows of codes per record, about round trip + 3 rows in steady state. Bytes and rate
+  (one viewer, default budget, `v5.md` §9's network):
+
+  | Case | core: B/s, rows/s | `acked`: B/s, rows/s | bytes saved |
+  |---|---|---|---|
+  | shooter, 30 players, 20 Hz | 7,074, 18.80 | 3,004, 18.80 | 2.35× |
+  | shooter, 30 players, 60 Hz | 15,476, 40.91 | 8,390, 56.11 | 2.52× |
+  | shooter, 100 players, 20 Hz | 15,947, 12.53 | 9,546, 18.76 | 2.51× |
+  | racing, 12 cars, 60 Hz | 15,476, 56.17 | 10,474, 56.14 | 1.48× |
+  | mmo, ≈70 visible of 400, 20 Hz | 7,393, 7.27 | 2,510, 7.27 | 2.95× |
+  | tycoon, ≈160 records, 10 Hz | 9,943, 5.69 | 2,434, 6.81 | 4.89× |
+
+  `[acked-inputs §2.1]`; an idle client's ack timing adds 0.8–5.7%, 15% bursty loss 1.5–5%.
+- **How it fails on an unmodified client.** Byte and latency effects only, never a wrong value: a round trip above
+  H − 3 ticks (1.45 s at 20 Hz, 0.48 s at 60 Hz) leaves fewer than three usable baselines (rows fall to nb = 1 or 0,
+  up to the core's bytes plus naming bits); loss ages baselines; each catch-up add and cut costs one round trip of
+  nb = 0 rows. No fact is added. A modified client that acks frames it never received makes the server name rows it
+  lacks, and only its own later frames are refused; one that never acks gets nb = 0 rows; neither costs the server
+  more than an unmodified client.
+- **Constants** (protocol): H = 32 state ticks (at least the notify ring's 17 plus 2 older baselines, 19; the next
+  power of two, chosen, so T mod H is a mask; H 16 equals H 32 at 60 Hz and H 8 leaves no baseline there);
+  nb ∈ {0, 1, 3}; the linear leaves and n ≤ 2^43; fractions in 1/16, truncation toward zero; the reference triple
+  rule.
 
 ## 6. Repair (notify)
 
@@ -217,7 +338,7 @@ rows chunk   := collection:u(wc) n−1:EG0 align, then n × { slot:u(ws) gen:u2 
   2. Then the largest class c = clamp(⌊log2 s⌋, −20, 19) first;
   3. within a class, the oldest pending first; then the lower collection index.
   A collection's rows are fixed-width, so once its next row doesn't fit none of it does, and the others continue
-  until nothing fits.
+  until nothing fits; an `acked` collection's rows stop at the first whose block bound doesn't fit (§5.1).
 - **Two implementations of the one rule.**
   - *Without `weight`* (with or without interest), w is constant per collection, so s = `priority` × age in state
     ticks, and one FIFO per collection, ordered by the tick records became pending, holds them in order: its head is
@@ -310,7 +431,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
 - **Problem.** Reliable changes are encoded once per partition and rows once per tick (§1). Under interest two
   viewers of one partition hold different subsets of its records, so a partition chunk no longer fits either.
 - **Options** `[interest-rewind §3]`: per-record byte-aligned pieces copied per viewer (encode-once holds; 5.4–8%
-  padding; column coding across records lost, by an unmeasured amount, §15); per-viewer encoding (48 against 25 ns
+  padding; column coding across records lost, by an unmeasured amount, §16); per-viewer encoding (48 against 25 ns
   per record native, 237 against 43 interpreted `[state-sync §3.6]`); **cell chunks**: the changes of the records
   filed in one cell, per partition, encoded once, with column coding inside the cell kept (ReplicationGraph's
   per-cell lists `[state-sync §2.1]`).
@@ -340,7 +461,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
   marked hidden while the line through it is clear (`probes/scope-3.6/pvs_gap.luau`). A 1,024-cell table is
   128 KiB, baked in 0.17–2.16 s native on the measured synthetic map; 4,096 cells take 2 MiB `[interest-rewind
   §4.2]`. A base64 string is decoded with `EncodingService:Base64Decode` (takes and returns a `buffer`; security
-  None, checked in the API dump); whether a string module of that size is accepted is unverified (§15), so `pvs`
+  None, checked in the API dump); whether a string module of that size is accepted is unverified (§16), so `pvs`
   also takes the decoded `buffer`, from a `DataStore` value (at most 4,194,304 characters per key, documented) or
   any source.
 - **Decision: at what granularity the table narrows.**
@@ -428,7 +549,7 @@ wrong name is a type error; untyped, a path naming no top-level field throws `un
   `focusError`/`focusYielded`, `predicateError`/`predicateYielded`, `weightError`/`weightYielded`,
   `bindingError`/`bindingYielded`. Checked on the CLI: normal, yielding and throwing callbacks give `ok`,
   `yielded` and `threw`, and the next call after a yield runs on a new thread.
-- **Cost.** One `resume` per call, 119 ns interpreted on the CLI (unmeasured native and on Roblox, §15); one thread
+- **Cost.** One `resume` per call, 119 ns interpreted on the CLI (unmeasured native and on Roblox, §16); one thread
   allocation per fault, and one `task.cancel` per yield (unmeasured; the CLI has no `task` library).
 
 ## 9. Visibility classes
@@ -938,6 +1059,9 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 
 | Code | Family | Trigger |
 |---|---|---|
+| `ackedNoNewest` | declaration | `acked = true` on a collection with no `:newest()` field (§5.1) |
+| `streamCodec`, `streamTooLarge` | declaration | a stream's `data` without a fixed single-row width; a namespace's streams over 960 B at 33 copies together (§15.2) |
+| `playoutUnset` | caller | `connect` on a stream with no depth set (§15.2) |
 | `visibilityPlacement` | declaration | a visibility modifier off a top-level reliable field of a collection record, on a `:newest()` field, or a second modifier on one field (§9) |
 | `fieldCodec` | caller (as `unknownField`, which server-view declarations already throw) | on the untyped path, a server-view option names a field whose codec the option doesn't take: `interest` `position`, `about`, `rewind` `fields` (§8.2, §10, §12.2) |
 | `perceivedOutsideDispatch` | caller | `Lync.perceived(player)` outside a synchronous call for a message from `player` (§12.5) |
@@ -949,8 +1073,9 @@ The docs carry a page, "What engine streaming shows, and what Lync can hide" `[i
 | `bindingError`, `bindingYielded` | fault | an `owner`, `team` or `gate` binding throws, or yields (§8.7, §9) |
 | `ownerUnbound`, `teamUnbound`, `gateUnbound` | fault | a class modifier with no binding at the first state tick with a record (§9) |
 
-Option errors reuse `unknownOption`, `missingOption`, `paramRange` and `unknownField`. No fact is added: interest,
-classes and scoping are the server's own behaviour, and rewind can't know a message is a claim.
+Option errors reuse `unknownOption`, `missingOption`, `paramRange` and `unknownField`. One fact is added,
+`inputRewritten` (§15.6); interest, classes, scoping and `acked` are the server's own behaviour, and rewind can't
+know a message is a claim. Malformed: §5.1's acked-row rule (client) and §15.6's stream rules 2 and 3 (server).
 
 **Counters** (`Lync.counters`, `v5.md` §7.4; `<field>.<namespace>.<collection>`, and per viewer with `player`). The
 last column states what the count equals; causes go on the registry pages:
@@ -963,9 +1088,10 @@ last column states what the count equals; causes go on the registry pages:
 | `predicateErrors` | each predicate throw or yield | predicate calls that gave `predicateOnError`'s result |
 | `scopedDropped` (`.<namespace>.<definition>`) | each (message, viewer) a scoped event skipped (§10) | scoped messages not sent |
 | `decoysUnplaced` | each decoy add not made because `maxSlots` was reached or no slot was free (§2) | decoy adds deferred to a later tick |
+| `inputsLate`, `inputsSkipped`, `inputCopies` (`.<namespace>.<stream>`) | each index discarded after a later one played; each index jumped between delivered ones; each redundant copy parsed (§15.6) | inputs not played, inputs missing, copies parsed |
 
 Cost: one add per viewer per state tick and one per membership change, 0.1 ns per pair native and 0.2 interpreted
-amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six more numbers per collection.
+amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six more numbers per collection and three per stream.
 
 **Constants** (`v5.md` §4.9's rule: none is a knob):
 
@@ -975,6 +1101,8 @@ amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six mo
 | segment | `seg:u1` in every add and row | §11.3 |
 | state chunk kind | `kind:u1` | §3 |
 | D unit, step | 4 ms, u8 in `RATE`; one unit per second | §11.1 |
+| `acked` history H, baseline counts, predictor | 32 ticks; nb ∈ {0, 1, 3}; Unity's guard, 1/16 fractions | §5.1 |
+| stream constants | index, 33 copies, deadline, `ref` reach, `in` and `first` widths, `DEPTH`, rate-change spacing | §15.7 |
 | extrapolation cap | 0.25 s | chosen: Source's `cl_extrapolate_amount` `[state-sync §6.3]`, unmeasured here; both ends must hold it for rewind to reproduce sampling (§11.2) |
 
 | Runtime constant | Value | Derivation |
@@ -986,11 +1114,178 @@ amortised over 160-member sets `[interest-rewind §9]`; a snapshot copies six mo
 | rendering clock | ±4% slew; dead band one client flush; snap above 0.25 s | chosen: Mirror's 2–4% `[state-sync §6.3]`, unmeasured here (§11.2) |
 | rewind history | max(2 s, `maxRewind` + 0.25 s) | the slot reuse delay, or the window plus the extrapolation cap |
 
-Developer options introduced here, beside the declarations' own tables: `state.maxPendingAge` (§7),
+Developer options introduced here, beside the declarations' own tables (`acked`, §5.1; stream `depth`, §15.2):
+`state.maxPendingAge` (§7),
 `interpolation.delayFloor` and `interpolation.jitterFactor` (§11.1), `rewind.rttSlack` (§12.3), all in
 `Lync.configure` (`v5.md` §7.5).
 
-## 15. Pending measurements
+## 15. Input streams
+
+A stream carries one client value per state tick to the server, resent until it is acked or can no longer play on
+time, and plays each tick's value out at a fixed depth behind its earliest arrivals `[state-sync §4.1]`
+`[acked-inputs §5–§8]`.
+
+### 15.1 Decision: what indexes an input
+
+- **Problem.** Playout in state ticks needs an index that advances once per tick on the client. The upstream
+  unreliable `seq` (`v5.md` §4.4), named as the index in draft 3.5's scope, counts frames: a flush may send several
+  (split at 1000 B) or none, and the flush accumulator runs 29.1 steps a second at 30 FPS (`v5.md` §5.1).
+- **Options:** the upstream `seq` (no new field; not a tick); a per-stream counter of `set` calls (a count of game
+  calls, not of time); **the client's state tick**.
+- **Choice: the client's state tick.** K = ⌊(`GetServerTimeNow()` − epoch) × `stateRate`⌋, the estimate the client
+  already uses to extend `tick:u8` (`v5.md` §4.1): one index per tick of `state.rate`.
+
+### 15.2 Declaration and API
+
+- **Shared schema:** `move = Lync.stream({ data = codec })`, a fourth definition kind (hash kind byte 4, `from`
+  client, lane unreliable, `v5.md` §4.7), in the namespace's up id space. `data` must have a fixed single-row width
+  (no strings, buffers, arrays, maps, optionals or unions), else the declaration error `streamCodec`: copies are
+  delta-coded per top-level field. A namespace's streams must fit one chunk each at 33 copies in 960 B together
+  (`streamTooLarge`), so they always ride the first unreliable frame of a flush, with one fate and one ack.
+- **Client:** `Net.move:set(value)` latches the value; `Net.move:stop()` ends sampling until the next `set`.
+- **Server view:** `Net.move:playout({ depth = J })` sets the depth for every player, `Net.move:playout({ depth = J,
+  player = p })` for one. `Net.move:connect(function(player, input, index) … end)` throws the caller error
+  `playoutUnset` while no depth is set.
+
+  | Option | Type | Unit | Range | Default | Cost |
+  |---|---|---|---|---|---|
+  | `depth` | integer | state ticks | 0–31 | required: it trades J / `stateRate` of latency against late inputs on each player's jitter, and the acceptable miss rate is the game's (§15.6) | latency J / `stateRate` plus the arrival offset o; §15.7's memory; one `DEPTH` row (1–2 B) to the client per change |
+  | `player` | `Player` or nil | — | — | nil: every player | none |
+
+  Each change of a player's depth sends that client `DEPTH` (control type 4: definition id u(w), depth u5), which
+  sets the client's resend window (§15.3).
+- **Delivery:** each received index exactly once, in index order, at its playout time; a missing index is a jump in
+  `index`, never a nil value (what a hole means is the game's).
+
+### 15.3 Client: sampling and sending
+
+- **Sampling.** At each flush step, every index i in (k_last, K] takes the latched value (ticks inside one long frame
+  share it); k_last ← K. The client keeps each sampled index's codes while it may still send it.
+- **Window: resend at every flush.** Each flush step's chunk for a stream carries indices [start, K], start =
+  max(a + 1, d): a is the newest index the server stated received (§15.5); d is the oldest index whose tick began at
+  most J / `stateRate` + 1/60 s ago. No chunk when start > K. A copy sent later than that can't arrive before its
+  playout (a copy sent α after its tick began arrives at offset ≥ α + the shortest transit, while the index is due
+  at o + J / `stateRate`, with o ≤ 1/60 s + the shortest first-copy transit), so the cap follows from the depth: at
+  most J + 2 copies, 33 at J = 31. At 20 Hz, resending every flush cuts undelivered inputs from 4.949% to 0.059% at
+  J = 1 (5% loss), for 2.6–2.7× the chunk bytes; copies beyond the depth delivered nothing in any run, so Quake 3's
+  fixed 32 is not used `[acked-inputs §6.1]`.
+- **Chunk** (a run chunk of the stream's id in the upstream unreliable toc):
+
+  ```
+  stream chunk := id:u(w) count−1:EG0 first:u12 rp:u1 ref:u1 [back:EG0]
+                  copy(first) copy(first+1) … copy(first+count−1)
+  copy(i)      := '1' (same as index i−1) | '0' { changed:u1 [field single-row encoding] } per top-level field
+  copy(first)  := ref = 0: the full single-row encoding
+                | ref = 1: as copy(i), against index first − 1 − back
+  ```
+
+  - **First copy against an acked index.** `ref = 1` when the client holds an acked index a with K − a ≤ 63, back =
+    first − 1 − a. The server keeps the codes of its last 64 received indices, so a is held. The ack plus `ref` saves
+    37–52% of the chunk bytes at 20 Hz and 13–23% at 60 Hz `[acked-inputs §6.1]`.
+  - `rp` is the parity of the `stateRate` changes the client has applied (§15.6).
+- **Full ack.** Every upstream frame holding a stream chunk carries `'1' seq received` whenever any state frame has
+  arrived, as a `perceived` definition's frames do (§12.3), so each index's perceived value is exact.
+
+### 15.4 Server: receipt and playout
+
+- **Receipt** (per player, per stream). `first` is extended to the value in [T_now − 2047, T_now + 2048], T_now the
+  server's state tick at decode (`v5.md` §4.4's rule). Before allocating, the decoder counts the new indices of
+  [first, first + count − 1] (neither received nor delivered) and charges that many elements (§15.7). It parses every
+  copy, stores the new ones with the perceived value of their frame (§12.5), and compares each redundant copy with
+  the stored codes (§15.6).
+- **Offset.** For each index on its first arrival, s_i = arrival − θ_i, θ_i = epoch + i / `stateRate` on the server's
+  clock; o = the minimum of s over the indices first received in the last 5 s (§11.1's timing window), kept by a
+  monotone deque. o absorbs the one-way delay and the client's clock offset; every arrival's lateness s_i − o is
+  ≥ 0. Playout is anchored to arrivals, so an index inflated ahead of the server's tick gains no earlier delivery: it
+  only lowers o for 5 s and makes that client's own later inputs late.
+- **Playout.** At each server `PostSimulation`, before the flush, index i is due when now ≥ θ_i + o + J /
+  `stateRate`. Due received indices are delivered in order. An index that arrives after it was due is delivered at
+  arrival if no later index has been delivered, else discarded and counted (`inputsLate`). So every index plays at
+  most J / `stateRate` plus one server step after its arrival.
+- **Steps 5–7 per index at playout** (`v5.md` §6.1): checks, the claim requirement, the validator and delivery run
+  per index, in index order, each game function in §8.7's runner. `Lync.perceived(player)` there returns the
+  perceived value kept with the index. A check's `"drop"` or a `false` validator drops the index (a jump in
+  `index`). `monotonic` and `maxRate` key on the index and see no late frames; `maxRate`'s t is the playout time,
+  which advances by exactly 1 / `stateRate` per index while o holds (`v5-checks.md`). `limit` doesn't apply to
+  streams: an unmodified client delivers one index per tick, and `inbound.elements` bounds a modified one's new
+  indices.
+
+### 15.5 The downstream ack
+
+- **Field.** The downstream state-frame header gains `in := '0' | '1' index:u12` on connections with a welcomed
+  namespace that declares a stream: the newest index received from that client. The client extends it to the value
+  in (K − 4096, K]. Aliasing needs an ack 4096 ticks stale (68 s at 60 Hz). Cost: 13 bits per state frame, 33 B/s at
+  20 Hz and 98 B/s at 60 Hz when every tick carries one (derived).
+- **Only in state frames that exist anyway.** A player with no `:newest()` rows gets no state frames, and its client
+  sends by the deadline window alone (485–768 B/s instead of 306–607, measured). A rows-less state frame per tick
+  only for `in` would cost about 170 B/s at 20 Hz and 517 B/s at 60 Hz to save at most 208 B/s, so none is sent
+  `[acked-inputs §5.5]`.
+
+### 15.6 Loss, rate changes, facts and counters
+
+- **Loss and reordering.** Each index rides every flush until acked or past its deadline; lost acks change only
+  bytes; the first arrival counts, later copies are compared, late ones follow §15.4; the replay window
+  (`v5.md` §4.5) drops duplicated frames before decode; a rekey is loss for one round trip.
+- **Join and respawn.** A stream starts at the client's first `set` after its namespace's `WELCOME`; the first index
+  sets o and plays J ticks after it arrives. A game resetting its own input logic calls `resetChecks`.
+- **`state.rate` changes.** The client's indices switch to the new rate when it decodes `RATE`, so one round trip of
+  chunks carries old-rate ticks; `rp` names which (rate, epoch) a chunk's indices use, and the server keeps the
+  current and previous pair. Lync applies a new `state.rate` no sooner than 4 s after the previous change (chosen:
+  the replay window's 64 frames last at most 4 s at 16 or more unreliable frames a second, which an active stream
+  sends at 16 FPS or more, so no frame two changes old reaches decode).
+- **Fact `inputRewritten`.** Trigger: a copy of index i decodes to codes different from those first received for i.
+  Action: none, every redundant copy is discarded and the first stands. Evidence: `index`, `firstSeq` and `seq` (the
+  two frames' extended upstream seqs), `field` (1-based top-level field of the first difference). Known causes on an
+  unmodified client: none, since the client re-encodes one stored code tuple per index; a Lync bug. It prices
+  revising an input after seeing an outcome; sending a single late copy instead shows only as lateness.
+- **Malformed** (`v5.md` §4.8): a stream chunk with count > 33, `back` > 63, or two chunks of one stream in one
+  frame is rule 2; `ref = 1` naming an index the server doesn't hold is rule 3. Known causes: none.
+- **Counters** per (player, stream): `inputsLate` (indices discarded after a later one was delivered),
+  `inputsSkipped` (the sum of index jumps between delivered indices: loss, lateness, `stop`), `inputCopies`
+  (redundant copies parsed).
+- **`Net.move:lateness(player)`** returns a frozen array of 33 counts: the indices of the last 5 s whose first
+  arrival was ⌊(s_i − o) × `stateRate`⌋ = 0, 1, … 31 ticks after the earliest, and ≥ 32. The share late at depth J
+  is Σ_{j ≥ J} count_j / total exactly, for any J: the measurement behind a per-player depth, with no formula of
+  Lync's.
+- **How it fails on an unmodified client.** A depth below the player's jitter: late inputs (at J = 0 almost every
+  input, 99.0–99.7%; at 60 Hz J = 1, 16.7 ms below 20 ms of jitter, 20.6–28.6%). Bursts longer than the window:
+  skipped indices. Below 60 FPS fewer resends per index; below `stateRate` FPS several ticks share one value. A
+  client hitch: its ticks sampled at once with one value, arriving late. A backgrounded mobile client: no sends.
+
+### 15.7 Budgets and cost
+
+| What | Counts against | Why |
+|---|---|---|
+| the frame | `inbound.unreliable.frames` | chunks ride the flush's first unreliable frame; a stream adds a frame only for a client with no other unreliable traffic, at most one per flush step |
+| every bit, redundant copies included | `inbound.unreliable.bytes` | 98–768 B/s measured, at most 4.7% of 16,384 B/s |
+| each new index | `inbound.elements` | it becomes a delivered message (steps 5–7 and a handler call); charged from the header before allocation |
+| each redundant copy | no bucket; a bounded parse term | parsed and compared, never allocated, at most 33 per stream per frame (rule 2): per player ≤ `inbound.unreliable.frames` × Σ_streams 33 × c_copy, 120 × 33 × 64.7 ns = 0.26 ms/s native for one 42-bit stream at the defaults, a term added to `v5.md` §7.5's bound |
+
+- Charging redundant copies as elements would refuse an unmodified 60 Hz stream's frames (167–406 of the 411
+  elements a second the derived default gives at L = 6) for work measured at 28–65 ns a copy `[acked-inputs §7.1]`.
+- **CPU.** Server parse per redundant copy 28.5–64.7 ns native (64.9–181 ns interpreted); at most 26 µs/s per
+  player at the measured 98–406 copies a second; per delivered index one element and steps 5–7, `stateRate` a second
+  per stream. Client encode per flush of up to J + 2 copies, unmeasured (§16).
+- **Memory per (player, stream).** Server: 64 indices' codes (3 KB for six fields), the offset deque (at most 5 s ×
+  `stateRate` entries of 16 B: 4.8 KB at 60 Hz), 33 lateness counts, each buffered index's perceived value. Client:
+  the window's codes, at most 33 copies.
+- **Wire.** Up 98–768 B/s per stream (§15.3); down 13 bits per state frame.
+- **Interest** doesn't meet streams. **Server Authority:** simulation input belongs in `InputActions`
+  `[state-sync §8.1]`; streams are for games without it and for intents outside the simulation, and their index is
+  not the engine's simulation step.
+
+| Constant (protocol) | Value | Derivation |
+|---|---|---|
+| index | the client's state tick K | §15.1 |
+| copies per chunk | ≤ 33 | J ≤ 31, window J + 2 |
+| deadline | J / `stateRate` + 1/60 s | §15.3 |
+| `ref` reach, server retention | 63 back, the last 64 indices | chosen: 1.05 s at 60 Hz, 3.2 s at 20 Hz of ack delay before the first copy goes absolute |
+| `in`, `first` | u12 each | the sequences' extension rule (`v5.md` §4.4) |
+| `DEPTH` | control type 4: id u(w), depth u5 | type 4 was unused |
+| offset window | 5 s, minimum of first-arrival offsets | §11.1's timing window, chosen |
+| rate-change spacing | 4 s | 64 replay-window frames at ≥ 16 frames a second, chosen |
+
+## 16. Pending measurements
 
 None blocks milestone 4; each has a default the design uses.
 - The column-coding loss of reliable updates sent as pieces (hysteresis, predicates, owner fields) against cell
@@ -1006,3 +1301,5 @@ None blocks milestone 4; each has a default the design uses.
   `EncodingService:Base64Decode` on it.
 - `interpolated` on clients: CPU per call and garbage per second at 64 records × 60 Hz.
 - Round-trip distribution of real players, which `lookAhead` and `maxRewind` would be set from.
+- Real-device jitter and loss on mobile (stream depths; `acked` baseline ages), the interpreted decode cost of acked
+  blocks on low-end phones, and a client's encode cost per flush of up to J + 2 stream copies.

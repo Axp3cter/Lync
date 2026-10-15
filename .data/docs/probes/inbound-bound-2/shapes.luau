@@ -87,14 +87,14 @@ return function(Lync, R)
 		{ "union2", function() return t.union({ A = { a = t.int(0, 255) }, B = { b = t.int(0, 255) } }) end, function()
 			return if math.random() < 0.5 then { kind = "A", a = math.random(0, 255) } else { kind = "B", b = math.random(0, 255) }
 		end, function() return { kind = "A", a = 7 } end },
-		{ "arr0", function() return t.array(t.int(0, 255), 255) end, function() return {} end, function() return {} end },
-		{ "arr1", function() return t.array(t.int(0, 255), 255) end, function() return { math.random(0, 255) } end, function() return { 7 } end },
-		{ "arr4", function() return t.array(t.int(0, 255), 255) end, function()
+		{ "arr0", function() return t.array(t.int(0, 255), 15) end, function() return {} end, function() return {} end },
+		{ "arr1", function() return t.array(t.int(0, 255), 15) end, function() return { math.random(0, 255) } end, function() return { 7 } end },
+		{ "arr4", function() return t.array(t.int(0, 255), 15) end, function()
 			return { math.random(0, 255), math.random(0, 255), math.random(0, 255), math.random(0, 255) }
 		end, function() return { 7, 7, 7, 7 } end },
-		{ "map0", function() return t.map(t.int(0, 255), t.bool(), 255) end, function() return {} end, function() return {} end },
-		{ "map1", function() return t.map(t.int(0, 255), t.bool(), 255) end, function() return { [math.random(0, 255)] = math.random() < 0.5 } end, function() return { [7] = false } end },
-		{ "map4", function() return t.map(t.int(0, 255), t.bool(), 255) end, function()
+		{ "map0", function() return t.map(t.int(0, 255), t.bool(), 15) end, function() return {} end, function() return {} end },
+		{ "map1", function() return t.map(t.int(0, 255), t.bool(), 15) end, function() return { [math.random(0, 255)] = math.random() < 0.5 } end, function() return { [7] = false } end },
+		{ "map4", function() return t.map(t.int(0, 255), t.bool(), 15) end, function()
 			local m = {}
 			while true do
 				m[math.random(0, 255)] = math.random() < 0.5
@@ -103,10 +103,10 @@ return function(Lync, R)
 				if n == 4 then return m end
 			end
 		end, function() return { [1] = false, [2] = false, [3] = false, [4] = false } end },
-		{ "mapStr4", function() return t.map(t.string(8), t.int(0, 255), 255) end, function()
+		{ "mapStr4", function() return t.map(t.string(8), t.int(0, 255), 15) end, function()
 			return { [word(4)] = math.random(0, 255), [word(4)] = math.random(0, 255), [word(4)] = math.random(0, 255), [word(4)] = math.random(0, 255) }
 		end, function() return { aaaa = 7, aaab = 7, aaac = 7, aaad = 7 } end },
-		{ "arrRecord4", function() return t.array({ a = t.int(0, 255), b = t.bool() }, 255) end, function()
+		{ "arrRecord4", function() return t.array({ a = t.int(0, 255), b = t.bool() }, 15) end, function()
 			local a = {}
 			for i = 1, 4 do a[i] = { a = math.random(0, 255), b = math.random() < 0.5 } end
 			return a
@@ -115,7 +115,7 @@ return function(Lync, R)
 			for i = 1, 4 do a[i] = { a = 7, b = false } end
 			return a
 		end },
-		{ "arrArr2", function() return t.array(t.array(t.bool(), 255), 255) end, function() return { {}, {} } end, function() return { {}, {} } end },
+		{ "arrArr2", function() return t.array(t.array(t.bool(), 15), 15) end, function() return { {}, {} } end, function() return { {}, {} } end },
 		{ "str200", function() return t.string(200) end, function() return word(200) end, function() return string.rep("a", 200) end },
 		{ "buf200", function() return t.buffer(200) end, function() return buffer.fromstring(word(200)) end, function() return buffer.fromstring(string.rep("a", 200)) end },
 	}
@@ -218,13 +218,13 @@ return function(Lync, R)
 	end
 	-- long arrays in one message: per array element
 	defs.arrBool_a = Lync.event({ from = "client", data = t.array(t.bool(), 65535) })
-	defs.arrRec_a = Lync.event({ from = "client", data = t.array({ a = t.int(0, 255) }, 65535) })
+	defs.arrRec_a = Lync.event({ from = "client", data = t.array({ a = t.bool() }, 65535) })
 	table.insert(cases, { name = "arrBool4096 single", kind = "arrBool", n = 1, form = "single", a = "arrBool_a", value = function()
 		return table.create(4096, false)
 	end, cap = 1 })
 	table.insert(cases, { name = "arrRec4096 single", kind = "arrRec", n = 1, form = "single", a = "arrRec_a", value = function()
 		local v = table.create(4096)
-		for i = 1, 4096 do v[i] = { a = math.random(0, 255) } end
+		for i = 1, 4096 do v[i] = { a = math.random() < 0.5 } end
 		return v
 	end, cap = 1 })
 	-- one long string or buffer (the review's e + 4 frames): byte-linear decode

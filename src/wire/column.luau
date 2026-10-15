@@ -10,6 +10,9 @@
 	A column's codes are the integers [lo, lo + n - 1]. A residual is wrapped modulo n into
 	[-floor(n / 2), ceil(n / 2) - 1], so every zigzagged residual is in [0, n - 1]; a decoded one
 	past n - 1 is refused (rule 2), which keeps each column's encoding unique for its mode and k.
+	Residuals are exact for every n up to 2^53. The first row's residual against 0 is wrapped in one
+	step, which needs lo between -n - floor(n / 2) and ceil(n / 2): this holds for lo = 0, and for
+	lo = -2^52 with n = 2^53.
 
 	The modes, after `mode:u2`: 0, every residual is 0; 1, `k:u4` then each residual as EG-k;
 	2, `k:u4 m:EG0` then m pairs `gap:EG0 value:EG-k` (rows skipped since the previous non-zero
@@ -69,17 +72,15 @@ local sparseEgCosts: { number } = table.create(K_COUNT, 0)
 
 -- Private -----------------------------------------------------------------------------------------
 
+-- Every difference and every wrap below stays within 2^53 in magnitude, so all of it is exact for
+-- every n up to 2^53.
 local function fillResiduals(codes: { number }, first: number, count: number, n: number)
 	local half = n // 2
 	local low = -half
 	local high = n - half - 1
 
-	local firstCode = codes[first]
-	local firstResidual = (firstCode + half) % n - half
-	residuals[1] = Ints.zigzag(firstResidual)
-
-	local previous = firstCode
-	for i = 2, count do
+	local previous = 0
+	for i = 1, count do
 		local code = codes[first + i - 1]
 		local residual = code - previous
 		if residual > high then
@@ -398,19 +399,19 @@ function Column.read(
 		return rule
 	end
 
+	-- Wrapping before adding keeps every sum within the interval, so it is exact up to n = 2^53.
 	local top = lo + n - 1
-	local firstCode = lo + (Ints.unzigzag(residuals[1]) - lo) % n
-	out[first] = firstCode
-
-	local previous = firstCode
-	for i = 2, count do
+	local previous = 0
+	for i = 1, count do
 		local z = residuals[i]
 		local residual = if z % 2 == 0 then z / 2 else -(z + 1) / 2
-		local code = previous + residual
-		if code > top then
-			code -= n
-		elseif code < lo then
-			code += n
+		local code
+		if residual > top - previous then
+			code = previous + (residual - n)
+		elseif residual < lo - previous then
+			code = previous + (residual + n)
+		else
+			code = previous + residual
 		end
 
 		out[first + i - 1] = code

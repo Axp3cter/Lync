@@ -29,7 +29,13 @@ local function slowZigzags(case: Case): { number }
 	local previous = 0
 	for i = case.first, case.first + case.count - 1 do
 		local code = case.codes[i]
-		local residual = (code - previous + floorHalf) % case.n - floorHalf
+		-- math.fmod is exact, so the reference stays exact for n up to 2^53.
+		local residual = math.fmod(code - previous, case.n)
+		if residual > case.n - floorHalf - 1 then
+			residual -= case.n
+		elseif residual < -floorHalf then
+			residual += case.n
+		end
 		table.insert(zigzags, if residual >= 0 then 2 * residual else -2 * residual - 1)
 		previous = code
 	end
@@ -125,6 +131,33 @@ local function caseOf(size: number): Case
 	return { codes = codes, first = first, count = count, lo = lo, n = n }
 end
 
+local function wideCaseOf(size: number): Case
+	local kind = math.random(1, 6)
+	local lo, n = 0, 2 ^ 53
+	if kind == 2 then
+		lo = -(2 ^ 52)
+	elseif kind == 3 then
+		n = 2 ^ 53 - 1
+	elseif kind == 4 then
+		n = 2 ^ 53 - math.random(1, 2 ^ 20)
+	elseif kind == 5 then
+		n = 2 ^ 52 + 1
+	elseif kind == 6 then
+		n = 2 ^ 52 + math.random(1, 2 ^ 30) * 2 ^ 21
+	end
+
+	local half = n // 2
+	local edges = { lo, lo + 1, lo + n - 1, lo + n - 2, lo + half, lo + half - 1, lo + half + 1 }
+	local codes = {}
+	for i = 1, math.random(1, math.min(40, size)) do
+		codes[i] = if math.random() < 0.7
+			then edges[math.random(1, #edges)]
+			else lo + randomBelow(n)
+	end
+
+	return { codes = codes, first = 1, count = #codes, lo = lo, n = n }
+end
+
 local function encodedOf(case: Case): Bits.Writer
 	local w = Bits.writer()
 	Column.write(w, case.codes, case.first, case.count, case.lo, case.n)
@@ -146,6 +179,28 @@ local function readRule(bytes: buffer, count: number, lo: number, n: number): nu
 end
 
 return {
+	["codes intervals near and at 2^53 exactly"] = function()
+		Prop.check("wide column", wideCaseOf, function(case: Case)
+			local w = encodedOf(case)
+			local chosen = { Column.choose(case.codes, case.first, case.count, case.lo, case.n) }
+			Check.expectEqual(chosen, { slowChoice(case) }, "choice against the exact reference")
+			Check.expectEqual(w.bit, chosen[3], "bits written against chosen")
+
+			local out = {}
+			local r = Bits.reader(Bits.finish(w))
+			Check.expectEqual(Column.read(r, out, 1, case.count, case.lo, case.n), 0)
+			Check.expectEqual(out, case.codes)
+		end, { runs = 1000 })
+
+		local n = 2 ^ 53 - 1
+		local codes = { n - 1, 0, n - 1, n // 2, n // 2 + 1, 0 }
+		local w = Bits.writer()
+		Column.write(w, codes, 1, #codes, 0, n)
+		local out = {}
+		Check.expectEqual(Column.read(Bits.reader(Bits.finish(w)), out, 1, #codes, 0, n), 0)
+		Check.expectEqual(out, codes)
+	end,
+
 	["round-trips every interval kind at counts 0 to 40"] = function()
 		Prop.check("column round trip", caseOf, function(case: Case)
 			local w = encodedOf(case)
@@ -249,6 +304,6 @@ return {
 	end,
 
 	["sets MIN_ROWS"] = function()
-		Check.expectEqual(Column.MIN_ROWS, 4)
+		Check.expectEqual(Column.MIN_ROWS, 3)
 	end,
 }

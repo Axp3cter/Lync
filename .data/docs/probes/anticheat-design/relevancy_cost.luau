@@ -6,7 +6,6 @@ local CELLS = 64
 local NCELL = CELLS * CELLS
 local WORDS = NCELL // 32
 local pvs = buffer.create(NCELL * WORDS * 4) -- 2 MiB
-local rng = Random and nil
 local seed = 12345
 local function rand(): number
 	seed = (seed * 1103515245 + 12345) % 2147483648

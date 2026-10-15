@@ -15,3 +15,6 @@ This folder keeps only the data the design and research cite:
 Scripts cited by the design at that commit: `test/wire/quant.spec.luau` (direction and rotation worst-case search),
 `test/codec/rotation_full.luau` (exhaustive and random canonical rotation runs, error search),
 `test/codec/min_rows.luau` (`columnMinRows`).
+
+**Superseded by draft 3.5:** the upstream tag is now 32 bits, so `golden/G4.bin`, `G5.bin` and `G8.bin` here are the
+16-bit forms the build produced. The current hex is in `v5.md` §4.10, built by `probes/design-3.5/golden_tag32.luau`.

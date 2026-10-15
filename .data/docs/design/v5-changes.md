@@ -472,3 +472,110 @@ removed, folded into `v5.md` draft 3.4. Their bodies are unchanged.
 
 **Citations.** References in the design to deleted source files now read `f1fbfd7:<path>`; measured data is cited
 from `probes/build/`.
+
+---
+
+# Draft 3.4 to 3.5
+
+2026-10-15. Applies `.data/docs/reviews/simplifications.md` (findings #1–#26 and its six vague refusal reasons,
+here R1–R6), and the author's direction that performance is a cost to weigh, never a veto, for security (part 2).
+New probe: `probes/design-3.5/golden_tag32.luau` (`.out`), the golden set with a 32-bit tag.
+
+**Count, part 1:** 26 findings. Accepted 15, changed 11, rejected 0. The six vague refusal reasons: restated 6
+(R2 also re-judged in part 2). **Part 2:** 19 security items re-judged: adopted or widened 7, still refused or kept
+12.
+
+## Root causes, fixed once
+
+| Root cause | Findings | Fix, and where |
+|---|---|---|
+| A. "Honest" judging a player | #1, #5, #25 | "Unmodified client" defined in `v5.md` §1 and used everywhere; the fact tables' column is "Known causes on an unmodified client" (`v5.md` §7.3, `v5-integrity.md` §10); registry fix lines follow a rule (`v5.md` §7.1); test names and the network model renamed (`v5.md` §9); the plan records name the superseded terms in their headers. |
+| B. A word list in place of the rule | #2, #11, #25 | The rule in `v5.md` §7.1, applied to code, evidence and counter names, messages, registry pages and docs; the lint is its backstop. |
+| C. Facts named by action or channel | #3, #6, #10, #11, #18, #20 | One reason, or one evidence value, per trigger whose cause or knob differs: `overBudget` → three reasons, `clientReport` → three, `configInvalid` → five, `sendDropped` gains `cause`, outcome `limited`, the family sentence says "primary channel". |
+| D. Option tables without cost | #7, #8, #13, #15 | Every options table has Type, Unit, Range, Default and Cost (`v5.md` §3.4, §7.5; `v5-integrity.md` §2, §4, §6–§9); integer/real stated; every constant in one split table (`v5.md` §4.9). |
+| E. Research labels without definitions | #9, #12, #14 | `"release"` defined; the beacon gate is two options; `rawRemote` and `solverOff` have exact triggers (`v5-tooling.md` §3). |
+| F. Causes written from memory | #4, #5, #19 | Each fact's causes derived from its trigger's documented failure modes, with the condition under which "none" holds; `v5.md` §9 runs every listed cause. |
+
+## Findings
+
+| # | Title | Outcome | Reason |
+|---|---|---|---|
+| 1 | "Honest" is an undefined label | accepted | The review's definition, in `v5.md` §1, plus "modified client" for the rest. `Net.HONEST` → `Net.DEFAULT`; tests named by origin (`v5.md` §9); the registry fix-line rule replaces the deleted pages' wording (`v5.md` §7.1). |
+| 2 | The judging-word rule is a six-word list | changed | The rule as proposed, extended to counter names and the published docs and to "trustworthiness or skill" and "consequence". The lint list differs in two words: `flagged` rather than `flag*`, since "flag" names `t.rotation`'s axis bit; `honest*` banned outright, since no page needs it once the column is renamed. |
+| 3 | `overBudget` merges three budgets | changed | Split into `overFrameBudget`, `overByteBudget` and `overElementBudget`, the review's alternative, on the coordinator's direction and root cause C: three triggers with three knobs. Evidence per reason: `tokens` where the bucket's level carries a fact (bytes), `allowance` and `elements` for rule 10; not for frames, where the level is always below 1. |
+| 4 | "Known causes" contradict the design | changed | `tagMismatch`: the 5-raise cause, plus 6,144 consecutive unreliable losses (the seq extension and its retries). `desync`: the `tagMismatch` causes, 8 in a row; reconnect behaviour added to `v5.md` §10. `schemaMismatch`: the late-first-use cause listed, and the requirement stated in §4.6; the trigger is not changed, because answers go in `HELLO` order and a longer hold delays every later answer. `slotConflict`: "none while stalls are shorter than `timeout` and no frame is dropped whole", since each case needs two timeouts on one slot. `repeatedHello`, `impossibleAck`: "none" with the argument, `impossibleAck` bounded at 2048 lost state frames. |
+| 5 | Milestone 5 facts lack causes; one says "never" | changed | `unreachable`: the scan widened to every `LocalScript` and `RunContext = Client` `Script` wherever stored (checked: `BaseScript.RunContext`, `Enum.RunContext.Client`, Roblox API dump 0.741.19) and to `check.clientRoots`; the remaining cause, a cloned `ModuleScript` outside the scan, is listed. Declared-trap, `canaryEchoed` and `clockRate` causes added (`v5-integrity.md` §10); `clockRate`'s now hold because its default threshold moved (#12). |
+| 6 | `clientReport` merges three counts | changed | `reportedIdentity`, `reportedSourceUnlisted`, `reportedRefusedFrames`, marked client-stated. The count field is `reported`, not `count`, which is already the `Fact`'s coalescing count. |
+| 7 | Schema options: no cost, open ranges, `burst` escapes | changed | Cost column for every option; `limit.perSecond` (0, 1000]; `burst` defaults to min(1000, max(1, ⌈perSecond⌉)); `reliableRate` real. `priority` is real on 0.001–1000, not (0, 1e6]: a 10^6 ratio between extremes is already more than age in ticks can express. |
+| 8 | `configure`: blank costs, wire-contradicting types | changed | `state.rate` integer; bucket fields typed (perSecond real, burst integer); every burst bounded, unreliable bytes from 1,000; every cost cell filled or "unmeasured" with its milestone. `tag.cover`'s per-byte cost uses the build's 1024 B figures (0.022 µs/B interpreted, 0.0035 native) rather than the review's 64 B derivation, which includes per-call overhead; 0 defined. |
+| 9 | `build.seed = "release"` undefined | changed | Defined (`v5-integrity.md` §2): one seed per build run, for every namespace and both sides, written to the manifest and shard headers; drawn from a clock-seeded generator, since the seed is public (every shard and `HELLO` carries it) and only has to differ between builds. Shards from different runs give `schemaMismatch` (`seedDiffers`). Kept rather than deleted (option b): it is also the plugin's "Prepare release", and it is now the default (part 2). |
+| 10 | `rejected` and `unanswered` merge causes | changed | Outcome 3 is `limited` (over the server `limit`), which reveals nothing the client doesn't know. `rejected` stays merged on purpose, now stated: a trap must look like a `validate` refusal. "Returned nothing" is a reply the codec refuses, reported natively as `valueRefused` and answered `unanswered`, so no `handlerReturnedNil` code is needed (`v5.md` §3.5, §5.2). |
+| 11 | `configInvalid` | accepted | Split into `configSyntax`, `configUnknownKey`, `configType`, `configRange`, `configMissing`, following the declaration codes (`v5-tooling.md` §3). |
+| 12 | `clockRate`'s fixed gate | changed | Option (b): `clock.reportSlope` (0.001–1, default 0.01) and `clock.reportFits` (1–12, default 3). The default sits above the unmodified maximum (0.6% slew plus 0.03–0.08% fit noise) instead of at it. Option (a)'s per-fit counter is not added: the option at 0.001 already gives the game nearly every fit, and two ways to read slopes would break principle 4. `fits` is the run length so far, so it isn't constant (#24). Constants listed (#13). |
+| 13 | Constants outside the table | accepted | One table in two parts, protocol and runtime, each row with a derivation or "chosen, unmeasured" (`v5.md` §4.9). "(draft value 4)" was already gone in 3.4. |
+| 14 | `rawRemotes`, `solverOff` lack triggers | accepted | Triggers and evidence as proposed (`v5-tooling.md` §3, `v5.md` §3.2). `rawRemote` keeps `"warn"` by stated effect: Lync's inbound pipeline doesn't cover those remotes. |
+| 15 | Integrity tables: type and cost | accepted | `clock.beacon` integer tenths, 0 or 5–15; Cost columns everywhere in `v5-integrity.md`. |
+| 16 | "Once per window" names no key | accepted | One native report per (code, definition) per `observe.window` s from that key's previous report (`v5.md` §7.2), listed as a runtime constant. |
+| 17 | `missedFlush` "once"; `frames` counts steps | accepted | Once per wait, at the 3rd step; evidence `steps`. |
+| 18 | `sendDropped` `queue` | changed | `cause` 1–4 as proposed; `lane` dropped rather than kept, since `cause` determines it and a field that is a function of another carries no fact (#24's rule). |
+| 19 | Causes as vague quantities | accepted | Each restated in tokens, seconds or sequence numbers (`v5.md` §7.3). |
+| 20 | Families and two-channel codes | accepted | "A family fixes the primary channel", the two second channels named; `schemaMismatch` out of the `fault` list. |
+| 21 | Vague quantities | accepted | Each replaced: the no-build path's 3.2–4.6x / 4.2x; the compression threshold assumption; the level spread; the busy model's rates; 8.5 acks per state frame; the walk's 133–492 ns; snapshot cost "unmeasured, milestone 2" (no figure exists); the beacon's exact bits; scan cost "milestone 5"; the benchmark by name, columns and target. The extensions' cell figure keeps its citation. |
+| 22 | Extensions read as specification | accepted | "Unspecified until milestone 7" for each unvalued option; `rewind` returns state and the game decides the hit; jitter's estimator named, its window left to milestone 7. |
+| 23 | Every fact at warning severity | accepted | Option 1: kept and stated, with the reason (the Error Report collects warnings, not prints). |
+| 24 | Constant evidence fields | accepted | `desync`'s `failures` → `sinceRekey` (−1 when none, since evidence is numbers only); `remotesMissing` has no evidence. |
+| 25 | Threat vocabulary | accepted | "Modified client", "API drivers running at identity 8 under an unlisted chunk name", "a raw-state reader"; test names by rule (`v5.md` §9). |
+| 26 | Behaviour words | accepted | Each replaced. The seam sentence now states the mechanism (bound at start, no nil test) and that its cost is unmeasured, rather than "compiles out". |
+
+## Vague refusal reasons, restated
+
+| # | Item | Outcome | Stated reason |
+|---|---|---|---|
+| R1 | `rans`, the unreliable-event deadline, `:initial()`, the roblox-ts transformer, compiler plugins | accepted | `rans`: 2–10% best gain for 106 ns per symbol interpreted (2–3x the EG decode) and a trained-table artefact keyed by the schema hash `[compression §6.3]`. Deadline: nothing holds an unreliable event past the next flush (§5.3 and §5.4 drop rather than hold), so a deadline never fires. `:initial()`: a reliable field never written after its add already costs bits only in the add. Transformer: a second schema front end (principle 4); its TS-only checks run, less precisely, over `rbxtsc`'s Luau `[client-security-build §1.7]`. Compiler plugins: a public IR and codegen API to keep stable, with no consumer, since every listed extension uses `v5.md` §8's seams. |
+| R2 | Low-order watermarks | accepted | Re-judged in part 2 (below). |
+| R3 | A Studio line on runtime-path start | accepted | The reason is that Lync can't tell which solver is on, so the line would print in every runtime-path session, new solver included. The prediction about ignored output is withdrawn. |
+| R4 | Holding later messages behind a held one | accepted | The stall is up to `burst`/`perSecond` seconds (10 s at `perSecond` = 0.1), not "up to a second". |
+| R5 | SARIF | accepted | Cost stated: a fourth renderer and its golden tests, for a consumer the `github` format covers in Actions; added on a user's need (`v5-tooling.md` §3). |
+| R6 | Lute | accepted | The missing criteria from the brief: no macOS x86_64 release binary, and module paths that disagree with its own definitions (`v5-tooling.md` §4). |
+
+## Part 2: security cost re-judged
+
+Principle 2 now says it (`v5.md` §1, §6.2; `v5-integrity.md` §1): cost is stated and weighed, and where it matters
+an option controls it; it never refuses a security measure by itself.
+
+| Item | Earlier reason | New verdict | Cost accepted |
+|---|---|---|---|
+| Tag width 16 bits | 2 B; "32 bits only matters if acceptance were treated as authentication" `[client-security §3.1]` | **32 bits** (`v5.md` §4.5) | 2 B more per upstream frame, 140 B/s for the busy model; no CPU (the hash's natural output). A keyless sender at the default budgets passes once per about 50 s at 16 bits and once per about 38 days at 32; Lync applies no consequence, so the width must bound it. G4, G5, G8 gain two bytes. |
+| `tag.cover` default 1024 B | tag CPU per covered byte | **default 16,384** (every frame byte) | ≤ 0.23 ms/s per player on the server at the default byte budgets; about 0.022 µs/B on the client. Bytes past 1024 of a large frame could be edited below the encoder without failing the tag. |
+| Caller probe sampled, 1 in 20, ≤ 10/s | draft 2 decision 9: one failing `pcall` per probe | **every call, ≤ 60/s** (`v5-integrity.md` §4) | ≤ 0.2 ms of client CPU a second. If Studio shows a caught capability failure is logged, the default returns to sampling, for that reason, not cost. |
+| Clock beacon off by default | unmeasured noise, not cost; "about 4 B per beacon" | **on, 1 s,** with the gate as two options (#12) | ≤ 3 B/s per player up; one 66-slope fit per 5 s per player (unmeasured). The beacon rides frames the client sends anyway. |
+| Build seed default 0 (rotation off) | none recorded | **default `"release"`** (`v5-integrity.md` §2) | none at run time or on the wire; every build changes every shard's bytes, and client and server shards must come from one build run. |
+| Canary whole-value match | review-2 m3: exact match only | **scan up to `canary.scanBytes`, default 256** (`v5-integrity.md` §9) | up to `scanBytes` − 11 lookups per longer inbound value (per-offset cost measured in milestone 5). Finds a canary pasted into chat. |
+| Decoys `maxPerViewer` 1–16 | per-viewer re-encode and pool slots | **range 1–256** | each decoy takes a pool slot out of `maxRecords` and its bytes per viewer; the game chooses. |
+| Downstream tags, client replay window | own view only; a PRF per recipient, ≤ 3% of a core; ends `FireAllClients` | still refused | Cost is not the reason: no third party can write a client's downstream (the engine's transport carries it), so they protect only a modified client's view from itself; the refused-frame report covers non-canonical injection. |
+| Masking or whitening frames | +62–272% bytes after zstd; stops nothing above the wire | still refused | Cost is not the reason: everything it would hide, a reader gets with less work by requiring the client shard and connecting to its signals, so it prices no reader; every forge it would block, the tag blocks. Cost stated: about 0 B for the bit section, CPU per byte at the tag's rate, +62–272% if the tail is masked. |
+| Per-session upstream id shuffle | marginal over the tag and permutation | still out | Its per-session read is the tag key's read, in the same pass, so it adds no recurring work. Cost: a decode table per player (about 20,000 slots for 200 definitions × 100 players). |
+| Runtime field shuffling | 2–3x slower per record write | still out | Re-judged on protection: a forger who reads the per-session key reads a per-session order in the same pass, and rotation already varies order per build. Cost stated: 2–3x per record write. |
+| Codecs scattered into game scripts | 5.0x bytecode, developer cost | still refused | Correctness and an author decision, not cost: rewriting the developer's scripts each build (merge conflicts, `UpdateSourceAsync` races) and removing the typed shard API, which the author made primary. |
+| Per-player shard variants | join-time dependency | still refused | A rotation-aware tool already reads its variant's constants from the loaded shard, so no work is added. |
+| Low-order watermarks (R2) | "weak; visible jitter" | still refused | One rounding to twice the step strips the mark with no per-build work, so it prices nothing; and it moves values past the declared step/2 error, breaking §3.3's precision. Cost: per-viewer encoding. |
+| Obfuscation, VMs, `getfenv`/`setfenv`, `loadstring` | Creator Store; fast calls | still refused | The Creator Store rule, a platform constraint, not the deoptimisation. |
+| Hook and environment checks | standard tools pass them | still refused | Unchanged: they price nothing, at any cost. |
+| `REPORT` never forces a frame | bytes | kept | Forcing adds no protection: a patched Lync suppresses `REPORT` either way, and counts ride the next frame the client sends. |
+| `REKEY` at most once per 60 s | traffic | kept | A rekey restores a desynced client; more frequent rekeys add no protection, since the key is already per session. |
+| Per-viewer slot permutation | keys travel in adds | refused | Unchanged: comparing key sets finds what it hides. |
+
+## Decisions made in 3.5
+
+1. **Downstream frames split before 4,194,304 elements** (`v5.md` §4.1), found while deriving
+   `reportedRefusedFrames`' causes: without it, constant columns let an unmodified server write a frame its clients
+   refuse by rule 10.
+2. **`limited`**, the sixth outcome code, on the spare outcome value 3.
+3. **A client counter `refusedFrames`** (`v5.md` §7.4), which `REPORT` already sends.
+4. **The `HELLO` hold stays 10 s,** with the requirement stated, because answers are ordered.
+5. **`check.clientRoots`** in `lync.toml`, so a game can list where cloned client modules live.
+6. **The beacon never forces a frame;** an idle gap over 3 × `clock.beacon` restarts the estimate.
+7. **Clock defaults:** beacon 1 s, `reportSlope` 0.01, `reportFits` 3.
+8. **`callerProbe.maxPerSecond` 1–63,** the full u6.
+9. **Evidence names:** `reported` for client-stated counts; `sinceRekey` −1 when no `REKEY` was sent.
+10. **Codes of milestones 1–2:** 53 (`v5.md` §7.1).

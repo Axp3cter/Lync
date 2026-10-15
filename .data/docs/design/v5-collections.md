@@ -1,6 +1,6 @@
 # Lync v5: collections (milestone 4)
 
-Draft 3, 2026-10-15. Part of the v5 design (`v5.md`); this file specifies milestone 4. Wire terms (chunks,
+Draft 3.5, 2026-10-15. Part of the v5 design (`v5.md`); this file specifies milestone 4. Wire terms (chunks,
 segments, `align`, EG-k, column blocks, extended sequences) are defined in `v5.md` §4.
 
 ## 1. Model

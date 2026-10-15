@@ -1,0 +1,19 @@
+check HalfSipHash-2-4/32, key 00..07, empty: a9 35 9f 5b  (reference a9 35 9f 5b)
+G1 EG-0(0) stream bits: 1
+G1 EG-0(1) stream bits: 010
+G1 EG-0(2) stream bits: 011
+G1 EG-0(3) stream bits: 00100
+G1 EG-0(7) stream bits: 0001000
+G1 EG-2(5) stream bits: 01010
+G2  03 00 94 06 12 00 
+G2b 95 06 44 30 
+G3  4a 03 03 f4 01 00 
+G4  a4 15 00 67 67 9e 09 c7 aa 
+G5  00 b0 00 06 00 02 67 f1 70 d3 
+G6 serialization 01 05 00 61 72 65 6e 61 01 00 04 00 63 68 61 74 01 01 01 01 08 00 00 00 00 00 00 69 40 00 00 00 00 00 00 00 00 
+G6 hash          ab 86 8b 15 cd 9c 16 40 
+G7  34 06 00 00 00 00 ac 1a 2e 56 34 73 5a 00 15 00 61 72 65 6e 61  (hash of the G6 schema)
+G8  00 40 2a 71 b5 ff 5d ed ff 00 63 07 21 47 81 6b 
+   aim code 1024; modes (mode,k,cost): (2,11,22) (2,11,22) (1,0,20)
+G9 t.int() -4503599627370496: zigzag 9007199254740991, 107 bits: 00 00 00 00 00 00 20 00 00 00 00 00 00 00 
+G9 t.int() 4503599627370495: zigzag 9007199254740990, 105 bits: 00 00 00 00 00 00 f0 ff ff ff ff ff ff 01 

@@ -1,6 +1,6 @@
 # Lync v5: compiler outputs and tools (milestones 3 and 6)
 
-Draft 3, 2026-10-15. Part of the v5 design (`v5.md`). Milestone 3 builds §1–§4 on the Lune host; milestone 6 the
+Draft 3.5, 2026-10-15. Part of the v5 design (`v5.md`). Milestone 3 builds §1–§4 on the Lune host; milestone 6 the
 Rust/mlua host, `diff`, `replay`, the plugin's inspector and the profiler adapter.
 
 ## 1. Outputs
@@ -28,7 +28,7 @@ projects keep the same text in a plugin-managed `StringValue` in ServerStorage.
 format = 1
 
 [build]
-seed = 0                        # integer 0–2^32−1, or "release" for a fresh seed per CI release (v5-integrity.md §2)
+seed = "release"                # "release" (default: a seed drawn per build run) or an integer 0–2^32−1 (v5-integrity.md §2)
 
 [[namespace]]
 schema = "src/shared/Net/schema.luau"
@@ -37,11 +37,12 @@ server = "src/server/Net"
 dts = "types/net.d.ts"          # optional
 
 [types]
-solver = "old"                  # "old" | "new": with "new", runtime-path use is not reported as solverOff
+solver = "old"                  # "old" | "new": with "new", Lync.server( and Lync.client( call sites are not reported as solverOff
 
 [check]
-rawRemotes = "warn"             # "off" | "warn" | "error": client code touching RemoteEvents directly
+rawRemotes = "warn"             # "off" | "warn" | "error": severity of rawRemote (§3)
 reachability = true             # v5-integrity.md §3
+clientRoots = []                # instance paths scanned as client code beyond the defaults (v5-integrity.md §3)
 
 [output]
 manifest = "build/lync-manifest.json"
@@ -62,25 +63,41 @@ The vendored TOML parser uses no `const`, whose availability in Studio scripts i
   - `json`: JSON Lines, one Diagnostic plus `uri` per line (it streams under `watch`);
   - `github`: `::error file=…,line=…,col=…,title=lync <code>::<message>`, plus the human report in
     `$GITHUB_STEP_SUMMARY`, since Actions shows at most 10 annotations per step.
-  SARIF waits until a user asks.
+  SARIF is not built: it would be a fourth renderer to maintain and golden-test, for GitHub code scanning, whose
+  annotations the `github` format already gives in Actions. It is added if a user's CI consumes SARIF.
 - **Severity by effect:** `error` writes no outputs; `warning` writes them. Declaration and `staleShard` codes are
   errors; `[check]` entries set the rest by name.
+- **Build checks with their triggers:**
+  - `rawRemote`: a method call `:FireServer(`, `:InvokeServer(`, `:FireClient(` or `:FireAllClients(` in a scanned
+    client or server script outside `Packages/`. Evidence: file, line, column (the Diagnostic's `range`) and the
+    method (`data.method`). Default `"warn"`, by its effect: traffic on such a remote is not budgeted, tagged or
+    decoded by Lync, so §6.1 of `v5.md` doesn't cover it.
+  - `solverOff`: each call site of `Lync.server(` or `Lync.client(` in the scanned scripts, unless
+    `[types] solver = "new"` (`v5.md` §3.2).
+  - Configuration, each with the key's position: `configSyntax` (TOML that doesn't parse, with line and column),
+    `configUnknownKey` (a key the schema of `lync.toml` doesn't define), `configType` (a value of the wrong type),
+    `configRange` (a value outside its range, including an unsupported `format`), `configMissing` (no `lync.toml`
+    and no plugin `StringValue`, or a required key or table absent, such as `[[namespace]]`).
 - **Exit codes:** 0 no errors; 1 errors (including stale shards in `check`); 2 usage or configuration
-  (`configInvalid`); 3 internal error, printed with a request to file an issue.
+  (`configSyntax`, `configUnknownKey`, `configType`, `configRange`, `configMissing`); 3 internal error, printed with
+  a request to file an issue.
 
 ## 4. Hosts
 
 - **CLI:** `lync build`, `lync watch`, `lync check`, `lync explain <code>` (milestone 3); `lync diff <old> <new>`
   (breaking wire changes) and `lync replay <capture>` (milestone 6). `watch` is in milestone 3 because, outside
   Studio-only projects, it is the only regenerate-on-edit path. The shipped host is a Rust binary on mlua, installed
-  with rokit; Lune is the fallback and first host; Lute 1.0 is not ready `[client-security-build §1.2]`.
+  with rokit; Lune is the fallback and first host. Lute 1.0 is not used: its latest release has no macOS x86_64 binary, and its
+  module paths differ from its own documented definitions (`@lute/crypto` against `@std/crypto`, a CST node's
+  field `token` against `value`) `[client-security-build §1.2]`.
 - **Studio plugin** (milestone 6): the same diagnostics through
   `ScriptEditorService:RegisterScriptAnalysisCallback`, with `code` and `href`, plus `staleShard` on shards; the
   network inspector; a "Prepare release" action that writes a fresh build seed. It regenerates on schema edit only
   when the configuration lives in its `StringValue`; with a filesystem `lync.toml`, `lync watch` is the one writer.
   No plugin can hook publish or save `[client-security-build §1.4]`.
-- **CI:** `lync check --format github` fails on stale shards, errors and type tests; release builds use
-  `seed = "release"` and publish through Open Cloud `[client-security-build §1.8]`.
+- **CI:** `lync check --format github` fails on stale shards, errors and type tests; a release builds client and
+  server shards in one `lync build` run (one seed, `v5-integrity.md` §2) and publishes through Open Cloud
+  `[client-security-build §1.8]`.
 
 ## 5. Inspector and profiler (milestone 6)
 

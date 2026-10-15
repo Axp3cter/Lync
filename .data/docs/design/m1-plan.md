@@ -2,7 +2,10 @@
 
 > **Record.** The code this plan describes was built (to commit `f1fbfd7`) and then removed at the author's
 > request. Its rulings, measurements and decisions are folded into `v5.md` draft 3.4; the evidence data is in
-> `probes/build/`. Paths below name files that now exist only in git at `f1fbfd7`.
+> `probes/build/`. Paths below name files that now exist only in git at `f1fbfd7`. Draft 3.5 supersedes this
+> plan's vocabulary and some names: "honest" client, model, suite or frames → "unmodified client", `Net.DEFAULT`,
+> "unmodified-client suites", "encoder output"; attack cases → modified-client cases; `overBudget` → three codes;
+> `clientReport` → three codes; `configInvalid` → five; the 16-bit tag → 32 bits (`v5-changes.md`, draft 3.5).
 
 2026-10-15. Builds `v5.md` §10 item 1 (wire and codecs) against design draft 3.1. This is a plan: the design is
 the specification, and every rule is cited, not restated. Where the plan fixes something the design leaves to

@@ -13,7 +13,7 @@
 --          without stalls and without frame waits).
 -- Prints percentiles of roundTrip - ping (s) and of roundTrip / ping.
 -- Run: luau -O2 roundtrip_sim.luau
-local LAT, JIT = 0.05, 0.02
+local LAT, JIT = 0.05, 0.02 -- LAT is reassigned by the latency-drop section below
 local SSTEP = 1 / 60
 local TRIALS = 100_000
 math.randomseed(23)
@@ -78,4 +78,36 @@ for _, case in {
 	table.sort(xs)
 	table.sort(rs)
 	print(string.format("%-36s %8.3f %8.3f %8.3f %8.3f %8.3f   %.2f / %.2f", name, xs[1], q(xs, 0.01), q(xs, 0.5), q(xs, 0.99), xs[#xs], q(rs, 0.01), q(rs, 0.5)))
+end
+
+-- Latency drop: one-way latency falls from 0.10 s to 0.03 s at t = 0 (a route change); the engine ping is modelled
+-- as an exponential moving average of the network round trip with time constant TAU (an assumption: the engine's
+-- smoothing is unmeasured, v5.md §10). An automatic answer to an ask sent at t = d after the drop; the 10 s minimum
+-- of ping samples (one per second) is what earlyAnswer compares with; the ack round trip, where state frames flow,
+-- is the minimum of (network RTT + client hold U(0, 1/60)) over the last 10 s.
+print("")
+print("latency drop 0.10 -> 0.03 s one-way at t = 0; automatic answer at 60 fps; 20000 trials per line")
+print(string.format("%-30s %10s %12s %14s %14s", "case", "p50 rt (s)", "pingAtAsk", "rt / min ping", "rt / min(ping, ack)"))
+for _, tau in { 2, 10 } do
+	for _, d in { 0.5, 2, 5, 10 } do
+		local pingAtAsk = 0.2 + (0.06 - 0.2) * (1 - math.exp(-d / tau))
+		-- minimum of 10 s of 1 Hz samples: samples before the drop read 0.2, after it the EMA
+		local minPing = math.huge
+		for k = 0, 9 do
+			local t = d - k
+			local p = t < 0 and 0.2 or 0.2 + (0.06 - 0.2) * (1 - math.exp(-t / tau))
+			if p < minPing then minPing = p end
+		end
+		local ack = 0.06 + 0.001 -- an ack after the drop: network RTT plus a short hold
+		local xs = table.create(20000, 0)
+		for i = 1, 20000 do
+			local saveLat = LAT
+			LAT = 0.03
+			xs[i] = trial(60, 0)
+			LAT = saveLat
+		end
+		table.sort(xs)
+		local rt = q(xs, 0.5)
+		print(string.format("tau %2d s, ask %4.1f s after drop %10.3f %12.3f %14.2f %14.2f", tau, d, rt, pingAtAsk, rt / minPing, rt / math.min(minPing, ack)))
+	end
 end

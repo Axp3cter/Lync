@@ -1,0 +1,210 @@
+## A0 no clock error (network and quantization only), forced, P 1.0
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00000  p99 0.00001  p99.9 0.00015  max 0.00035  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A0m no clock error, forced, P 1.5, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.5 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 0.67/s per player
+   unmodified |s|: p50 0.00000  p99 0.00056  p99.9 0.00083  max 0.00146  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A1 unmodified, forced, P 1.0
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00021  p99 0.00241  p99.9 0.00330  max 0.00400  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A2 unmodified, forced, P 0.5
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 0.5 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 2.00/s per player
+   unmodified |s|: p50 0.00020  p99 0.00238  p99.9 0.00327  max 0.00373  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A3 unmodified, forced, P 1.5
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.5 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 0.67/s per player
+   unmodified |s|: p50 0.00025  p99 0.00241  p99.9 0.00321  max 0.00378  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A4 unmodified, forced, P 1.0, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00029  p99 0.00248  p99.9 0.00318  max 0.00393  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A5 unmodified, forced, P 1.5, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.5 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 0.67/s per player
+   unmodified |s|: p50 0.00034  p99 0.00251  p99.9 0.00316  max 0.00350  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A6 unmodified, sustained 0.6% slew, forced, P 1.0
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00600  p99 0.00622  p99.9 0.00630  max 0.00636  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## A7 unmodified, sustained 0.6% slew, forced, P 1.0, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00600  p99 0.00647  p99.9 0.00663  max 0.00691  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## B1 riding, lambda 0 (unreliable-only or idle client)
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 0.00/s; 100 players x 3 seeds x 600 s
+   coverage 0.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 0.00/s per player
+## B2 riding, lambda 0.1/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 0.10/s; 100 players x 3 seeds x 600 s
+   coverage 0.0% of epochs after 90 s have a fit; restarts 263.8 per player-hour; beacons 0.09/s per player
+## B3 riding, lambda 0.33/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 0.33/s; 100 players x 3 seeds x 600 s
+   coverage 0.0% of epochs after 90 s have a fit; restarts 456.9 per player-hour; beacons 0.25/s per player
+## B4 riding, lambda 1/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 1.00/s; 100 players x 3 seeds x 600 s
+   coverage 0.6% of epochs after 90 s have a fit; restarts 240.8 per player-hour; beacons 0.50/s per player
+   unmodified |s|: p50 0.00004  p99 0.00219  p99.9 0.00220  max 0.00220  (185 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## B5 riding, lambda 3/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 3.00/s; 100 players x 3 seeds x 600 s
+   coverage 89.2% of epochs after 90 s have a fit; restarts 6.8 per player-hour; beacons 0.74/s per player
+   unmodified |s|: p50 0.00007  p99 0.00228  p99.9 0.00293  max 0.00366  (27558 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## B6 riding, lambda 10/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 10.00/s; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 0.90/s per player
+   unmodified |s|: p50 0.00016  p99 0.00244  p99.9 0.00337  max 0.00417  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## B7 riding, lambda 1/s, P 1.5
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.5 s; beacon rides reliable frames, lambda 1.00/s; 100 players x 3 seeds x 600 s
+   coverage 25.6% of epochs after 90 s have a fit; restarts 72.4 per player-hour; beacons 0.40/s per player
+   unmodified |s|: p50 0.00003  p99 0.00223  p99.9 0.00262  max 0.00291  (7895 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## C1 uplink queue 0 -> 1 s over 60 s, drains over 30 s (every player, from t = 200 s)
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00053  p99 0.02079  p99.9 0.02247  max 0.02451  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 300; (0.01, 5) 300; (0.0068, 3) 300; (0.0068, 4) 300; (0.01, 3, split) 300; (0.0068, 3, split) 300
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0005 max 0.0034 (300 facts)
+   unmodified |drift| at first fact: p50 0.70 s max 1.03 s
+## C2 uplink queue 0 -> 0.5 s over 60 s, drains over 60 s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00065  p99 0.00927  p99.9 0.01034  max 0.01169  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 18; (0.01, 4) 10; (0.01, 5) 2; (0.0068, 3) 297; (0.0068, 4) 295; (0.01, 3, split) 0; (0.0068, 3, split) 232
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0020 max 0.0035 (18 facts)
+   unmodified |drift| at first fact: p50 0.13 s max 0.48 s
+## C3 uplink queue 0 -> 2 s over 120 s, drains over 10 s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00076  p99 0.03757  p99.9 0.03977  max 0.04146  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 300; (0.01, 5) 300; (0.0068, 3) 300; (0.0068, 4) 300; (0.01, 3, split) 300; (0.0068, 3, split) 300
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0005 max 0.0034 (300 facts)
+   unmodified |drift| at first fact: p50 0.70 s max 1.03 s
+## C1r uplink queue 0 -> 1 s over 60 s, drains over 30 s, per player at a random time
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00056  p99 0.02079  p99.9 0.02252  max 0.02460  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 300; (0.01, 5) 300; (0.0068, 3) 300; (0.0068, 4) 300; (0.01, 3, split) 300; (0.0068, 3, split) 300
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0155 max 0.0177 (300 facts)
+   unmodified |drift| at first fact: p50 0.70 s max 1.03 s
+## S1 uplink delay step +0.25 s for 120 s, per player at a random time
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00034  p99 0.00582  p99.9 0.00699  max 0.00762  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 5; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## S2 uplink delay step +0.5 s for 120 s, per player
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00034  p99 0.01092  p99.9 0.01202  max 0.01288  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 188; (0.01, 4) 2; (0.01, 5) 1; (0.0068, 3) 300; (0.0068, 4) 9; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0106 max 0.0122 (188 facts)
+   unmodified |drift| at first fact: p50 0.45 s max 0.81 s
+## S3 uplink delay step +1.0 s for 120 s, per player
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00034  p99 0.02125  p99.9 0.02252  max 0.02343  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 4; (0.01, 5) 4; (0.0068, 3) 300; (0.0068, 4) 9; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0200 max 0.0227 (300 facts)
+   unmodified |drift| at first fact: p50 0.99 s max 1.31 s
+## S4 uplink delay step +2.0 s for 120 s, per player
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 97.7% of epochs after 90 s have a fit; restarts 1.2 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00033  p99 0.04222  p99.9 0.04362  max 0.04455  (30204 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 2; (0.01, 5) 2; (0.0068, 3) 300; (0.0068, 4) 6; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0400 max 0.0428 (300 facts)
+   unmodified |drift| at first fact: p50 2.00 s max 2.31 s
+## S5 uplink delay step +1.0 s for 8 s, per player (a burst shorter than 3 windows)
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00021  p99 0.00242  p99.9 0.00330  max 0.00400  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+## S6 uplink delay step +1.0 s for 120 s, per player, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00045  p99 0.02131  p99.9 0.02268  max 0.02422  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 52; (0.01, 5) 42; (0.0068, 3) 300; (0.0068, 4) 135; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0200 max 0.0231 (300 facts)
+   unmodified |drift| at first fact: p50 0.96 s max 1.31 s
+## C4 server inbound delay 0 -> 1.8 s over 30 s, drains over 90 s (all players)
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00069  p99 0.03901  p99.9 0.04070  max 0.04158  (30900 fits)
+   unmodified players with a fact, of 300, by (T, F): (0.01, 3) 300; (0.01, 4) 300; (0.01, 5) 300; (0.0068, 3) 300; (0.0068, 4) 300; (0.01, 3, split) 300; (0.0068, 3, split) 300
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0005 max 0.0030 (300 facts)
+   unmodified |drift| at first fact: p50 1.72 s max 2.02 s
+## D1 10 modified at +1%, forced
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00022  p99 0.00241  p99.9 0.00329  max 0.00400  (27810 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.00784  p50 0.01000  (3090 fits); first fact at (0.01, 3) p50 105 s, max 285 s; at (0.01, 3, split) p50 170 s, max 475 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 30; (0.01, 4) 30; (0.01, 5) 30; (0.0068, 3) 30; (0.0068, 4) 30; (0.01, 3, split) 30; (0.0068, 3, split) 30
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0103 max 0.0120 (30 facts)
+   modified |drift| at first fact: p50 0.81 s max 2.40 s
+## D1b 10 modified at +1.2%, forced, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00031  p99 0.00248  p99.9 0.00323  max 0.00393  (27810 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.00976  p50 0.01200  (3090 fits); first fact at (0.01, 3) p50 100 s, max 105 s; at (0.01, 3, split) p50 100 s, max 135 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 30; (0.01, 4) 30; (0.01, 5) 30; (0.0068, 3) 30; (0.0068, 4) 30; (0.01, 3, split) 30; (0.0068, 3, split) 30
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0120 max 0.0141 (30 facts)
+   modified |drift| at first fact: p50 0.85 s max 1.39 s
+## D2 10 modified at +2%, forced
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00022  p99 0.00241  p99.9 0.00329  max 0.00400  (27810 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.01786  p50 0.02000  (3090 fits); first fact at (0.01, 3) p50 100 s, max 100 s; at (0.01, 3, split) p50 100 s, max 100 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 30; (0.01, 4) 30; (0.01, 5) 30; (0.0068, 3) 30; (0.0068, 4) 30; (0.01, 3, split) 30; (0.0068, 3, split) 30
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0200 max 0.0221 (30 facts)
+   modified |drift| at first fact: p50 1.37 s max 1.50 s
+## D3 10 modified at -2%, forced
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00022  p99 0.00241  p99.9 0.00329  max 0.00400  (27810 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.01785  p50 0.02000  (3090 fits); first fact at (0.01, 3) p50 100 s, max 100 s; at (0.01, 3, split) p50 100 s, max 100 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 30; (0.01, 4) 30; (0.01, 5) 30; (0.0068, 3) 30; (0.0068, 4) 30; (0.01, 3, split) 30; (0.0068, 3, split) 30
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0200 max 0.0224 (30 facts)
+   modified |drift| at first fact: p50 1.29 s max 1.46 s
+## D4 10 modified at +2%, riding, lambda 1/s
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon rides reliable frames, lambda 1.00/s; 100 players x 3 seeds x 600 s
+   coverage 0.6% of epochs after 90 s have a fit; restarts 240.8 per player-hour; beacons 0.50/s per player
+   unmodified |s|: p50 0.00004  p99 0.00201  p99.9 0.00219  max 0.00219  (166 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.01701  p50 0.02010  (19 fits); first fact at (0.01, 3) p50 570 s, max 595 s; at (0.01, 3, split) p50 570 s, max 595 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 3; (0.01, 4) 2; (0.01, 5) 1; (0.0068, 3) 3; (0.0068, 4) 2; (0.01, 3, split) 3; (0.0068, 3, split) 3
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0203 max 0.0207 (3 facts)
+   modified |drift| at first fact: p50 1.37 s max 1.40 s
+## D5 10 modified at +2%, forced, mobile
+   net mobile, chosen (0.08 + Exp(0.04) s, stalls 0.2/s x U(0.1, 0.8) s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00031  p99 0.00248  p99.9 0.00323  max 0.00393  (27810 fits)
+   unmodified players with a fact, of 270, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.01777  p50 0.02000  (3090 fits); first fact at (0.01, 3) p50 100 s, max 100 s; at (0.01, 3, split) p50 100 s, max 100 s
+   modified players with a fact, of 30, by (T, F): (0.01, 3) 30; (0.01, 4) 30; (0.01, 5) 30; (0.0068, 3) 30; (0.0068, 4) 30; (0.01, 3, split) 30; (0.0068, 3, split) 30
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0200 max 0.0220 (30 facts)
+   modified |drift| at first fact: p50 1.40 s max 1.95 s
+## D6 60 modified at +2% (a majority), forced
+   net v5 §9 default (0.05 + U(0, 0.02) s, stalls 0.05/s x 0.3 s); P 1.0 s; beacon forced; 100 players x 3 seeds x 600 s
+   coverage 100.0% of epochs after 90 s have a fit; restarts 0.0 per player-hour; beacons 1.00/s per player
+   unmodified |s|: p50 0.00024  p99 0.00241  p99.9 0.00321  max 0.00400  (12360 fits)
+   unmodified players with a fact, of 120, by (T, F): (0.01, 3) 0; (0.01, 4) 0; (0.01, 5) 0; (0.0068, 3) 0; (0.0068, 4) 0; (0.01, 3, split) 0; (0.0068, 3, split) 0
+   modified |s|: p1 0.01779  p50 0.02000  (18540 fits); first fact at (0.01, 3) p50 100 s, max 100 s; at (0.01, 3, split) p50 100 s, max 100 s
+   modified players with a fact, of 180, by (T, F): (0.01, 3) 180; (0.01, 4) 180; (0.01, 5) 180; (0.0068, 3) 180; (0.0068, 4) 180; (0.01, 3, split) 180; (0.0068, 3, split) 180
+   at first fact (T 0.01, F 3): |slope - othersSlope| p50 0.0006 max 0.0029 (180 facts)
+   modified |drift| at first fact: p50 1.38 s max 1.51 s

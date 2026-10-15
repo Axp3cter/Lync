@@ -7,3 +7,14 @@ automatic answer, 240 fps              -0.003   -0.003    0.030    0.213    0.51
 answer after 1 frame (yield), 60 fps    0.013    0.013    0.047    0.247    0.597   1.11 / 1.39
 human, median 0.35 s, 60 fps            0.097    0.180    0.380    0.847    1.897   2.50 / 4.17
 human, median 0.35 s, 30 fps            0.113    0.197    0.397    0.847    1.563   2.64 / 4.31
+
+latency drop 0.10 -> 0.03 s one-way at t = 0; automatic answer at 60 fps; 20000 trials per line
+case                           p50 rt (s)    pingAtAsk  rt / min ping rt / min(ping, ack)
+tau  2 s, ask  0.5 s after drop      0.100        0.169           0.59           1.64
+tau  2 s, ask  2.0 s after drop      0.100        0.112           0.90           1.64
+tau  2 s, ask  5.0 s after drop      0.100        0.071           1.40           1.64
+tau  2 s, ask 10.0 s after drop      0.100        0.061           1.64           1.64
+tau 10 s, ask  0.5 s after drop      0.100        0.193           0.52           1.64
+tau 10 s, ask  2.0 s after drop      0.100        0.175           0.57           1.64
+tau 10 s, ask  5.0 s after drop      0.100        0.145           0.69           1.64
+tau 10 s, ask 10.0 s after drop      0.100        0.112           0.90           1.64

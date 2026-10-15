@@ -1,0 +1,6 @@
+== luau-analyze --solver=new
+clean
+== luau-analyze --solver=old
+clean
+== tsc --strict
+clean

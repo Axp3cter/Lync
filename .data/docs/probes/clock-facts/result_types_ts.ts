@@ -1,5 +1,5 @@
 // U4: the roblox-ts declaration a generated .d.ts would carry for a server-side ask result, and game-code reads.
-// Checked with: tsc --noEmit --strict result_types.d.ts.check.ts
+// Checked with: tsc --noEmit --strict result_types_ts.ts
 interface ServerTiming {
 	/** s: os.clock() at the answer's decode minus os.clock() at the flush that sent the ask; -1 if none */
 	readonly roundTrip: number;

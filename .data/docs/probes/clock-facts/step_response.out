@@ -1,0 +1,12 @@
+k  straddling pairs  slope/h (1/s)  step h (s) giving |slope| = 0.01   = 0.0068
+ 1                11        0.00000                              never     never
+ 2                20        0.00000                              never     never
+ 3                27        0.00000                              never     never
+ 4                32        0.00000                              never     never
+ 5                35        0.02000                              0.500     0.340
+ 6                36        0.02111                              0.474     0.322
+ 7                35        0.02000                              0.500     0.340
+ 8                32        0.00000                              never     never
+ 9                27        0.00000                              never     never
+10                20        0.00000                              never     never
+11                11        0.00000                              never     never

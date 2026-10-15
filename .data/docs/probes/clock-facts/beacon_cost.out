@@ -1,0 +1,162 @@
+== beacon_cost, luau 0.742 -O2, run 1
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               634.94     568.46     935.08     1.00     1.00     1.00
+tag13 over the BEACON frame body      1148.40    1082.38    1185.51     1.79     1.27     2.08
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        3025.69    2529.01    3531.51     1.00     1.00     1.00
+two 15-pair half fits                 1412.74    1110.16    1814.08     0.44     0.40     0.60
+epoch: copy + sort 100 slopes         4979.14    4379.78    7192.13     1.80     1.24     2.27
+epoch: fill only (setup)              2882.06    2351.45    3537.28     1.01     0.70     1.27
+per fact: find rank + leave-one-out median     233.08     199.64     306.58     0.08     0.07     0.10
+epoch sort net of setup: 2097 ns; at one epoch per 5 s: 0.419 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    42.20      37.02      61.37     1.00     1.00     1.00
+result + 4 timing fields                89.39      74.24     145.38     2.05     1.68     3.17
+bound: min of 10 one-second buckets     161.99     142.68     201.84     3.78     2.80     4.93
+record send time + ping in slot         23.07      20.81      34.50     0.55     0.39     0.78
+sink	4837585304877948
+== beacon_cost, luau 0.742 -O2, run 2
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               606.19     561.88     760.54     1.00     1.00     1.00
+tag13 over the BEACON frame body      1111.98    1052.02    1180.41     1.84     1.53     1.97
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        2567.86    2418.56    3384.91     1.00     1.00     1.00
+two 15-pair half fits                 1178.57    1093.76    1848.89     0.46     0.39     0.55
+epoch: copy + sort 100 slopes         4220.96    3865.97    6061.51     1.64     1.21     2.00
+epoch: fill only (setup)              2454.77    2247.17    3488.95     0.94     0.67     1.15
+per fact: find rank + leave-one-out median     232.10     199.93     243.58     0.08     0.06     0.10
+epoch sort net of setup: 1766 ns; at one epoch per 5 s: 0.353 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    39.94      37.34      70.86     1.00     1.00     1.00
+result + 4 timing fields                80.65      72.62      95.76     1.98     1.35     2.32
+bound: min of 10 one-second buckets     144.00     141.13     167.89     3.73     2.01     4.08
+record send time + ping in slot         21.54      19.22      28.55     0.54     0.33     0.67
+sink	4837585304877948
+== beacon_cost, luau 0.742 -O2, run 3
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               624.27     605.31     883.81     1.00     1.00     1.00
+tag13 over the BEACON frame body      1146.37    1092.48    1297.76     1.82     1.27     2.09
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        2627.68    2434.45    4018.47     1.00     1.00     1.00
+two 15-pair half fits                 1091.30    1035.72    1240.04     0.41     0.26     0.49
+epoch: copy + sort 100 slopes         4053.13    3870.74    5846.97     1.59     0.98     2.15
+epoch: fill only (setup)              2338.49    2127.95    3631.73     0.87     0.58     1.33
+per fact: find rank + leave-one-out median     210.51     194.93     283.51     0.08     0.06     0.10
+epoch sort net of setup: 1715 ns; at one epoch per 5 s: 0.343 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    39.77      35.22      50.47     1.00     1.00     1.00
+result + 4 timing fields                79.71      73.34      99.94     2.05     1.47     2.33
+bound: min of 10 one-second buckets     145.62     135.26     166.91     3.66     2.68     4.49
+record send time + ping in slot         29.34      26.63      38.09     0.74     0.54     1.02
+sink	4837585304877948
+== beacon_cost, luau 0.742 -O2 --codegen, run 1
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               448.48     415.88     502.33     1.00     1.00     1.00
+tag13 over the BEACON frame body       118.37     103.32     144.95     0.26     0.25     0.29
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        1548.03    1443.68    2492.75     1.00     1.00     1.00
+two 15-pair half fits                  599.11     559.99     647.86     0.37     0.24     0.41
+epoch: copy + sort 100 slopes         2527.46    2267.18    3327.13     1.63     0.95     2.30
+epoch: fill only (setup)               555.63     514.47     807.14     0.36     0.23     0.56
+per fact: find rank + leave-one-out median     118.95     107.37     156.64     0.07     0.05     0.10
+epoch sort net of setup: 1972 ns; at one epoch per 5 s: 0.394 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    32.32      30.57      38.06     1.00     1.00     1.00
+result + 4 timing fields                47.97      45.09      79.64     1.49     1.42     2.40
+bound: min of 10 one-second buckets      44.29      42.70      69.73     1.40     1.15     2.10
+record send time + ping in slot          6.29       5.85      10.35     0.19     0.17     0.31
+sink	4837585304877948
+== beacon_cost, luau 0.742 -O2 --codegen, run 2
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               429.84     410.03     533.05     1.00     1.00     1.00
+tag13 over the BEACON frame body       114.99     101.39     125.73     0.25     0.22     0.29
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        1524.19    1420.72    2489.82     1.00     1.00     1.00
+two 15-pair half fits                  567.76     495.48     989.31     0.37     0.30     0.41
+epoch: copy + sort 100 slopes         2651.20    2387.89    4071.32     1.64     1.11     1.93
+epoch: fill only (setup)               577.88     559.05     947.45     0.38     0.23     0.61
+per fact: find rank + leave-one-out median     124.60     118.12     166.18     0.08     0.05     0.10
+epoch sort net of setup: 2073 ns; at one epoch per 5 s: 0.415 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    36.55      33.46      51.61     1.00     1.00     1.00
+result + 4 timing fields                61.98      52.34      80.49     1.58     1.20     2.10
+bound: min of 10 one-second buckets      55.49      45.92      69.32     1.44     1.11     1.79
+record send time + ping in slot          7.17       6.44      10.32     0.20     0.14     0.26
+sink	4837585304877948
+== beacon_cost, luau 0.742 -O2 --codegen, run 3
+check: G4 reproduced: a4 15 00 67 67 9e 09 c7 aa
+## A. upstream frame bytes, tag included
+BEACON-only forced frame, ack '0'                           8 B  b4 bf fb 02 f6 78 71 ca
+BEACON-only forced frame, ack '1' seq received             11 B  ff ff ff 5f fb bb 2f 03 cd ed b9
+BEACON + REPORT (probes 1, identity 1, refused 0), ack '0'  9 B  54 2d f5 77 5f a9 f0 8f d2
+G4 (chat 'gg') without BEACON                               9 B  a4 15 00 67 67 9e 09 c7 aa
+G4 with a riding BEACON                                    12 B  bc fa bb 6f 05 00 67 67 8e dd 70 33
+## B. forced BEACON frame, client side (200000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+encode BEACON-only frame               434.51     405.32     569.68     1.00     1.00     1.00
+tag13 over the BEACON frame body       111.05     105.94     129.36     0.25     0.19     0.27
+## C. server, per fit and per epoch (U3) (20000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+66-pair fit (today, for scale)        1592.96    1492.97    2450.57     1.00     1.00     1.00
+two 15-pair half fits                  561.39     539.68     834.14     0.36     0.23     0.49
+epoch: copy + sort 100 slopes         2529.34    2345.37    4183.90     1.57     1.08     2.80
+epoch: fill only (setup)               576.96     503.75     915.58     0.36     0.25     0.61
+per fact: find rank + leave-one-out median     119.30     110.12     161.51     0.07     0.05     0.11
+epoch sort net of setup: 1952 ns; at one epoch per 5 s: 0.390 us/s
+## D. server, per answered ask (U4) (1000000 iters x 11 rounds)
+case                                median ns        min        max    ratio     rmin     rmax
+result { ok, value }                    33.12      30.32      40.93     1.00     1.00     1.00
+result + 4 timing fields                51.67      48.28      58.59     1.56     1.38     1.74
+bound: min of 10 one-second buckets      47.68      42.84      53.23     1.44     1.30     1.51
+record send time + ping in slot          6.76       6.31       7.84     0.20     0.16     0.23
+sink	4837585304877948

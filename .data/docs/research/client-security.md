@@ -1,5 +1,7 @@
 # Client-side security for Lync v5: runtime, wire and signals
 
+> **Superseded in part (author decision, 2026-10-15):** Lync reports facts only. The Suspicion model below (weights, scores, decay, quiet mitigation) is rejected; the design keeps the exact triggers and evidence as factual events and leaves all policy to the developer.
+
 Researcher brief, 2026-10-15. Scope: what a typed buffer networking library can do on the client and on the
 wire to raise the cost of exploiting, detect tampering, break public scripts and feed the server signals, without
 false positives or performance or debuggability loss. The server-side hard guarantees (per-player byte and frame

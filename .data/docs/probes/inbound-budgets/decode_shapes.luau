@@ -29,19 +29,23 @@ local G = require("./gen_decoders")
 
 local t = Lync.types
 local ROUNDS = 11
-local TARGET = 0.03 -- seconds per case per round
+local TARGET = 0.04 -- seconds per case per round
 
 -- Schema ----------------------------------------------------------------------------------------------------------
 
 local move6 = { a = t.int(0, 1000), b = t.int(0, 1000), c = t.bool(), d = t.number(0, 1, 1 / 1024), e = t.enum({ "x", "y", "z" }), f = t.int(0, 255) }
 local bools = {}
 for i = 1, 32 do bools[string.format("b%02d", i)] = t.bool() end
+local bools128 = {}
+for i = 1, 128 do bools128[string.format("c%03d", i)] = t.bool() end
 
 local schema = Lync.schema("bench", {
 	move6 = Lync.event({ from = "client", lane = "unreliable", data = move6 }),
 	move6r = Lync.event({ from = "client", data = move6 }),
 	sm = Lync.event({ from = "client", data = { item = t.enum({ "sword", "bow", "staff" }), name = t.string(32), qty = t.int(1, 99), slot = t.optional(t.int(0, 15)) } }),
 	bools32 = Lync.event({ from = "client", data = bools }),
+	rec1 = Lync.event({ from = "client", data = { a = t.bool() } }),
+	bools128 = Lync.event({ from = "client", data = bools128 }),
 	ping1 = Lync.event({ from = "client" }),
 	ping2 = Lync.event({ from = "client" }),
 	text = Lync.event({ from = "client", data = t.string(200) }),
@@ -49,7 +53,7 @@ local schema = Lync.schema("bench", {
 	arrRec = Lync.event({ from = "client", data = t.array({ a = t.bool() }, 65535) }),
 })
 local IR = schema.ir
-local GEN_INDEX = { move6 = 1, move6r = 2, sm = 3, bools32 = 4, ping1 = 5, ping2 = 6 }
+local GEN_INDEX = { move6 = 1, move6r = 2, sm = 3, bools32 = 4, ping1 = 5, ping2 = 6, rec1 = 7, bools128 = 8 }
 
 -- Server runtime --------------------------------------------------------------------------------------------------
 
@@ -200,7 +204,15 @@ do
 	local poolT, nT = fill(0, "text", function() return randomName(200) end, 16384)
 	shape(string.format("text (200 B strings) x %d, reliable 16 KB", nT), 0, { { "text", poolT, nT } }, "strings")
 end
+shape("rec1 x 4096 all false (constant column, 1 field)", 0, { { "rec1", listOf(4096, function() return { a = false } end), 4096 } }, "element-bound")
+shape("move6 x 4096 constant (6 fields)", 0, { { "move6r", listOf(4096, function() return { a = 5, b = 5, c = false, d = 0, e = "x", f = 0 } end), 4096 } }, "element-bound")
 shape("bools32 x 4096 all false (constant columns)", 0, { { "bools32", listOf(4096, function() return boolsOf(false) end), 4096 } }, "element-bound")
+do
+	local v = {}
+	for i = 1, 128 do v[string.format("c%03d", i)] = false end
+	shape("bools128 x 1024 all false (constant columns)", 0, { { "bools128", listOf(1024, function() return table.clone(v) end), 1024 } }, "element-bound")
+end
+shape("ping1 x 4096 in one run (no payload)", 0, { { "ping1", {}, 4096 } }, "element-bound")
 do
 	local runs = {}
 	for i = 1, 4096 do table.insert(runs, { if i % 2 == 1 then "ping1" else "ping2", {}, 1 }) end
@@ -295,6 +307,7 @@ for _, s in SHAPES do
 	for i = 1, #cases do times[i] = {} end
 	for _ = 1, ROUNDS do
 		for i, c in cases do
+			collectgarbage("collect")
 			local t0 = os.clock()
 			for _ = 1, passes[i] do c.fn() end
 			table.insert(times[i], (os.clock() - t0) / (passes[i] * batch) * 1e9)

@@ -1,0 +1,116 @@
+== tag_frames, interpreted (luau 0.742 -O2), run 1
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |      1019 (   881-  1384)  |      1077 (   940-  1474)  |       913 (   806-  1143) 
+1          16 |      1383 (  1182-  1874)  |      1562 (  1415-  2027)  |      1307 (  1158-  1487) 
+1          64 |      2540 (  2395-  3767)  |      3059 (  2937-  3510)  |      2392 (  2274-  2852) 
+1         256 |      7710 (  7378- 11207)  |      9756 (  9370- 10653)  |      7864 (  7169- 10590) 
+1        1000 |     28263 ( 25902- 39471)  |     35629 ( 34151- 38799)  |     27159 ( 25831- 31920) 
+0           3 |       890 (   863-  1257)  |       948 (   923-  1094)  |       757 (   725-  1073) 
+0        1024 |     28615 ( 27154- 30227)  |     37954 ( 35096- 42623)  |     29537 ( 26628- 34717) 
+0        4096 |    111630 (103704-118587)  |    142565 (137411-157618)  |    106968 (102799-115389) 
+0       16384 |    652989 (624212-745094)  |    574856 (545982-716170)  |    451763 (412932-628139) 
+fit M   fixed    890 ns (reliable, 3 B frame),   1019 ns (unreliable, 4 B); marginal  40.65 ns/B (reliable 1024..16384),  27.35 ns/B (unreliable 3..1000)
+fit Gl  fixed    948 ns (reliable, 3 B frame),   1077 ns (unreliable, 4 B); marginal  34.95 ns/B (reliable 1024..16384),  34.69 ns/B (unreliable 3..1000)
+fit Gu  fixed    757 ns (reliable, 3 B frame),    913 ns (unreliable, 4 B); marginal  27.49 ns/B (reliable 1024..16384),  26.35 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      4533 (  4426-  8209)  |      6871 (  6544-  9559)  | -                         
+1        1000 |     60526 ( 56946- 66811)  |    119710 (113243-143004)  | -                         
+0           3 |      7789 (  7392-  8043)  |     14056 ( 13067- 15133)  |     13196 ( 12359- 16005) 
+0        1024 |    154244 (146851-228314)  |    317963 (294016-397280)  |    325731 (285242-376370) 
+0       16384 |   2269861 (2116132-2424003) |   4661845 (4281639-5424596) |   4704955 (4270963-5826763)
+sink	1
+== tag_frames, native (luau 0.742 -O2 --codegen), run 1
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |       201 (   184-   247)  |        64 (    58-    93)  |       150 (   143-   187) 
+1          16 |       255 (   220-   349)  |       109 (   101-   158)  |       216 (   188-   257) 
+1          64 |       435 (   416-   476)  |       287 (   279-   295)  |       298 (   290-   331) 
+1         256 |      1196 (  1128-  1363)  |      1032 (   999-  1101)  |       726 (   660-   772) 
+1        1000 |      4535 (  4025-  5155)  |      4068 (  3734-  4445)  |      2397 (  2162-  2885) 
+0           3 |       196 (   176-   277)  |        61 (    57-    86)  |       122 (   112-   147) 
+0        1024 |      4272 (  4134-  4466)  |      3924 (  3705-  4180)  |      2361 (  2250-  2517) 
+0        4096 |     16856 ( 15609- 21484)  |     15259 ( 14729- 18643)  |      9216 (  8567-  9740) 
+0       16384 |     67660 ( 60276- 81303)  |     62177 ( 59418- 76758)  |     36426 ( 33967- 42761) 
+fit M   fixed    196 ns (reliable, 3 B frame),    201 ns (unreliable, 4 B); marginal   4.13 ns/B (reliable 1024..16384),   4.35 ns/B (unreliable 3..1000)
+fit Gl  fixed     61 ns (reliable, 3 B frame),     64 ns (unreliable, 4 B); marginal   3.79 ns/B (reliable 1024..16384),   4.02 ns/B (unreliable 3..1000)
+fit Gu  fixed    122 ns (reliable, 3 B frame),    150 ns (unreliable, 4 B); marginal   2.22 ns/B (reliable 1024..16384),   2.26 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      2598 (  2409-  2992)  |      3079 (  2668-  4359)  | -                         
+1        1000 |     10791 (  9805- 14408)  |     18712 ( 17554- 23077)  | -                         
+0           3 |      2406 (  2278-  2842)  |      3243 (  3168-  3970)  |      2753 (  2637-  3847) 
+0        1024 |     22852 ( 22314- 29282)  |     46273 ( 43196- 52588)  |     44985 ( 41897- 48457) 
+0       16384 |    326362 (309321-382079)  |    646161 (614645-722639)  |    655838 (611233-760140) 
+sink	0
+== tag_frames, interpreted (luau 0.742 -O2), run 2
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |       892 (   866-  1075)  |       971 (   947-  1049)  |       811 (   782-   991) 
+1          16 |      1247 (  1193-  1855)  |      1370 (  1348-  1550)  |      1119 (  1082-  1831) 
+1          64 |      2729 (  2654-  3861)  |      3347 (  3108-  4225)  |      2506 (  2386-  3003) 
+1         256 |      7818 (  7418-  8620)  |      9891 (  9429- 11930)  |      7472 (  7289-  7991) 
+1        1000 |     27264 ( 26545- 33364)  |     34935 ( 34042- 44734)  |     28382 ( 25949- 30264) 
+0           3 |       903 (   853-  1230)  |       961 (   922-  1205)  |       758 (   730-   798) 
+0        1024 |     29760 ( 27809- 32820)  |     37482 ( 35673- 39997)  |     29239 ( 26661- 33170) 
+0        4096 |    115780 (106439-161789)  |    151246 (145504-266432)  |    111912 (107213-129926) 
+0       16384 |    489741 (427556-584663)  |    605264 (558740-650806)  |    461587 (426701-601834) 
+fit M   fixed    903 ns (reliable, 3 B frame),    892 ns (unreliable, 4 B); marginal  29.95 ns/B (reliable 1024..16384),  26.48 ns/B (unreliable 3..1000)
+fit Gl  fixed    961 ns (reliable, 3 B frame),    971 ns (unreliable, 4 B); marginal  36.96 ns/B (reliable 1024..16384),  34.10 ns/B (unreliable 3..1000)
+fit Gu  fixed    758 ns (reliable, 3 B frame),    811 ns (unreliable, 4 B); marginal  28.15 ns/B (reliable 1024..16384),  27.68 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      4454 (  4131-  6011)  |      6915 (  6012-  8393)  | -                         
+1        1000 |     62281 ( 56768- 64777)  |    123217 (113570-136322)  | -                         
+0           3 |      7084 (  6405-  9898)  |     12372 ( 11113- 16482)  |     11283 ( 10074- 15901) 
+0        1024 |    165684 (145217-209672)  |    326171 (295171-383046)  |    306821 (288315-398465) 
+0       16384 |   2387274 (2250171-2707484) |   4935173 (4579657-5922862) |   4906585 (4683063-6982916)
+sink	0
+== tag_frames, native (luau 0.742 -O2 --codegen), run 2
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |       199 (   193-   210)  |        63 (    60-    65)  |       157 (   152-   183) 
+1          16 |       250 (   236-   265)  |       109 (   105-   114)  |       204 (   197-   207) 
+1          64 |       443 (   406-   629)  |       289 (   268-   352)  |       303 (   291-   356) 
+1         256 |      1243 (  1140-  1488)  |      1021 (   979-  1122)  |       721 (   668-   790) 
+1        1000 |      4267 (  3906-  5385)  |      3980 (  3802-  4231)  |      2397 (  2300-  2625) 
+0           3 |       196 (   185-   294)  |        64 (    56-    91)  |       125 (   113-   154) 
+0        1024 |      4475 (  4133-  4818)  |      3985 (  3691-  4104)  |      2462 (  2279-  2647) 
+0        4096 |     19633 ( 16117- 21207)  |     16556 ( 14823- 17429)  |      9333 (  8849-  9787) 
+0       16384 |     66279 ( 62759- 77728)  |     63567 ( 60652- 65333)  |     36251 ( 35263- 38606) 
+fit M   fixed    196 ns (reliable, 3 B frame),    199 ns (unreliable, 4 B); marginal   4.02 ns/B (reliable 1024..16384),   4.08 ns/B (unreliable 3..1000)
+fit Gl  fixed     64 ns (reliable, 3 B frame),     63 ns (unreliable, 4 B); marginal   3.88 ns/B (reliable 1024..16384),   3.93 ns/B (unreliable 3..1000)
+fit Gu  fixed    125 ns (reliable, 3 B frame),    157 ns (unreliable, 4 B); marginal   2.20 ns/B (reliable 1024..16384),   2.25 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      2560 (  2391-  3555)  |      3274 (  2877-  4481)  | -                         
+1        1000 |     10602 (  9929- 14520)  |     19724 ( 19027- 24225)  | -                         
+0           3 |      2530 (  2370-  2594)  |      3474 (  3228-  3637)  |      2863 (  2687-  3186) 
+0        1024 |     23521 ( 22997- 29101)  |     46500 ( 44833- 55750)  |     45198 ( 43259- 50159) 
+0       16384 |    330457 (316166-340948)  |    652045 (615990-725371)  |    651800 (630582-678821) 
+sink	0
+== tag_frames, interpreted (luau 0.742 -O2), run 3
+## A. one tag per frame (cover 16,384)
+lane    bytes | M milestone                | Gl generated loop          | Gu generated unrolled     
+1           4 |       932 (   879-  1525)  |      1000 (   961-  1214)  |       838 (   797-  1176) 
+1          16 |      1271 (  1205-  1677)  |      1440 (  1359-  1789)  |      1170 (  1097-  1432) 
+1          64 |      2587 (  2463-  3026)  |      3156 (  2975-  3601)  |      2373 (  2297-  3222) 
+1         256 |      8277 (  7576-  9722)  |     10214 (  9648- 11176)  |      7743 (  7278-  9557) 
+1        1000 |     28428 ( 26656- 41886)  |     37127 ( 34980- 39396)  |     27738 ( 26037- 31747) 
+0           3 |       879 (   846-   950)  |       965 (   912-  1149)  |       755 (   716-   825) 
+0        1024 |     27980 ( 26819- 32583)  |     35613 ( 34713- 38487)  |     27853 ( 26492- 28835) 
+0        4096 |    112712 (104886-139363)  |    147697 (136728-163016)  |    110917 (103216-123739) 
+0       16384 |    463290 (428401-563654)  |    613816 (548837-705909)  |    470959 (423517-611860) 
+fit M   fixed    879 ns (reliable, 3 B frame),    932 ns (unreliable, 4 B); marginal  28.34 ns/B (reliable 1024..16384),  27.61 ns/B (unreliable 3..1000)
+fit Gl  fixed    965 ns (reliable, 3 B frame),   1000 ns (unreliable, 4 B); marginal  37.64 ns/B (reliable 1024..16384),  36.27 ns/B (unreliable 3..1000)
+fit Gu  fixed    755 ns (reliable, 3 B frame),    838 ns (unreliable, 4 B); marginal  28.85 ns/B (reliable 1024..16384),  27.01 ns/B (unreliable 3..1000)
+## B. milestone Inbound.receive on frames with a wrong tag (no decode)
+lane    bytes | bad tag                    | bad tag, pending key       | over byte budget, bad, pending
+1           4 |      7015 (  4467-  7491)  |     10188 (  6530- 13067)  | -                         
+1        1000 |     60230 ( 58998- 88716)  |    118550 (109248-149541)  | -                         
+0           3 |      6572 (  6052-  7498)  |     11384 ( 10640- 14901)  |     10423 (  9703- 12140) 
+0        1024 |    151027 (142717-182744)  |    313498 (287560-372951)  |    303486 (287122-332150) 
+0       16384 |   2407703 (2130459-3024165) |   5042884 (4344944-5255814) |   4692206 (4284805-6049950)
+sink	1
+== tag_frames, native (luau 0.742 -O2 --codegen), run 3

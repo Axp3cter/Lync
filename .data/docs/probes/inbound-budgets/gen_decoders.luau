@@ -208,43 +208,44 @@ local function sm(def: number, count: number): number
 	return 0
 end
 
-local BC = {}
-for i = 1, 32 do BC[i] = {} end
+local BOOLS32_COLS = {}
+for i = 1, 32 do BOOLS32_COLS[i] = {} end
 
 local function bools32(def: number, count: number): number
 	if count < 3 then error("generated bools32: row form not generated for this probe") end
-	local c1 = BC[1]
-	local c2 = BC[2]
-	local c3 = BC[3]
-	local c4 = BC[4]
-	local c5 = BC[5]
-	local c6 = BC[6]
-	local c7 = BC[7]
-	local c8 = BC[8]
-	local c9 = BC[9]
-	local c10 = BC[10]
-	local c11 = BC[11]
-	local c12 = BC[12]
-	local c13 = BC[13]
-	local c14 = BC[14]
-	local c15 = BC[15]
-	local c16 = BC[16]
-	local c17 = BC[17]
-	local c18 = BC[18]
-	local c19 = BC[19]
-	local c20 = BC[20]
-	local c21 = BC[21]
-	local c22 = BC[22]
-	local c23 = BC[23]
-	local c24 = BC[24]
-	local c25 = BC[25]
-	local c26 = BC[26]
-	local c27 = BC[27]
-	local c28 = BC[28]
-	local c29 = BC[29]
-	local c30 = BC[30]
-	local c31 = BC[31]
-	local c32 = BC[32]
+	local cols = BOOLS32_COLS
+	local c1 = cols[1]
+	local c2 = cols[2]
+	local c3 = cols[3]
+	local c4 = cols[4]
+	local c5 = cols[5]
+	local c6 = cols[6]
+	local c7 = cols[7]
+	local c8 = cols[8]
+	local c9 = cols[9]
+	local c10 = cols[10]
+	local c11 = cols[11]
+	local c12 = cols[12]
+	local c13 = cols[13]
+	local c14 = cols[14]
+	local c15 = cols[15]
+	local c16 = cols[16]
+	local c17 = cols[17]
+	local c18 = cols[18]
+	local c19 = cols[19]
+	local c20 = cols[20]
+	local c21 = cols[21]
+	local c22 = cols[22]
+	local c23 = cols[23]
+	local c24 = cols[24]
+	local c25 = cols[25]
+	local c26 = cols[26]
+	local c27 = cols[27]
+	local c28 = cols[28]
+	local c29 = cols[29]
+	local c30 = cols[30]
+	local c31 = cols[31]
+	local c32 = cols[32]
 	do local rule = col(count, 2, c1) if rule ~= 0 then return rule end end
 	do local rule = col(count, 2, c2) if rule ~= 0 then return rule end end
 	do local rule = col(count, 2, c3) if rule ~= 0 then return rule end end
@@ -283,13 +284,40 @@ local function bools32(def: number, count: number): number
 	return 0
 end
 
+local REC1_COLS = {}
+for i = 1, 1 do REC1_COLS[i] = {} end
+
+local function rec1(def: number, count: number): number
+	if count < 3 then error("generated rec1: row form not generated for this probe") end
+	local cols = REC1_COLS
+	local c1 = cols[1]
+	do local rule = col(count, 2, c1) if rule ~= 0 then return rule end end
+	for i = 1, count do
+		push(def, { a = c1[i] == 1 })
+	end
+	return 0
+end
+
+local BOOLS128_COLS = {}
+for i = 1, 128 do BOOLS128_COLS[i] = {} end
+
+local function bools128(def: number, count: number): number
+	if count < 3 then error("generated bools128: row form not generated for this probe") end
+	local cols = BOOLS128_COLS
+	for j = 1, 128 do local rule = col(count, 2, cols[j]) if rule ~= 0 then return rule end end
+	for i = 1, count do
+		push(def, { c001 = cols[1][i] == 1, c002 = cols[2][i] == 1, c003 = cols[3][i] == 1, c004 = cols[4][i] == 1, c005 = cols[5][i] == 1, c006 = cols[6][i] == 1, c007 = cols[7][i] == 1, c008 = cols[8][i] == 1, c009 = cols[9][i] == 1, c010 = cols[10][i] == 1, c011 = cols[11][i] == 1, c012 = cols[12][i] == 1, c013 = cols[13][i] == 1, c014 = cols[14][i] == 1, c015 = cols[15][i] == 1, c016 = cols[16][i] == 1, c017 = cols[17][i] == 1, c018 = cols[18][i] == 1, c019 = cols[19][i] == 1, c020 = cols[20][i] == 1, c021 = cols[21][i] == 1, c022 = cols[22][i] == 1, c023 = cols[23][i] == 1, c024 = cols[24][i] == 1, c025 = cols[25][i] == 1, c026 = cols[26][i] == 1, c027 = cols[27][i] == 1, c028 = cols[28][i] == 1, c029 = cols[29][i] == 1, c030 = cols[30][i] == 1, c031 = cols[31][i] == 1, c032 = cols[32][i] == 1, c033 = cols[33][i] == 1, c034 = cols[34][i] == 1, c035 = cols[35][i] == 1, c036 = cols[36][i] == 1, c037 = cols[37][i] == 1, c038 = cols[38][i] == 1, c039 = cols[39][i] == 1, c040 = cols[40][i] == 1, c041 = cols[41][i] == 1, c042 = cols[42][i] == 1, c043 = cols[43][i] == 1, c044 = cols[44][i] == 1, c045 = cols[45][i] == 1, c046 = cols[46][i] == 1, c047 = cols[47][i] == 1, c048 = cols[48][i] == 1, c049 = cols[49][i] == 1, c050 = cols[50][i] == 1, c051 = cols[51][i] == 1, c052 = cols[52][i] == 1, c053 = cols[53][i] == 1, c054 = cols[54][i] == 1, c055 = cols[55][i] == 1, c056 = cols[56][i] == 1, c057 = cols[57][i] == 1, c058 = cols[58][i] == 1, c059 = cols[59][i] == 1, c060 = cols[60][i] == 1, c061 = cols[61][i] == 1, c062 = cols[62][i] == 1, c063 = cols[63][i] == 1, c064 = cols[64][i] == 1, c065 = cols[65][i] == 1, c066 = cols[66][i] == 1, c067 = cols[67][i] == 1, c068 = cols[68][i] == 1, c069 = cols[69][i] == 1, c070 = cols[70][i] == 1, c071 = cols[71][i] == 1, c072 = cols[72][i] == 1, c073 = cols[73][i] == 1, c074 = cols[74][i] == 1, c075 = cols[75][i] == 1, c076 = cols[76][i] == 1, c077 = cols[77][i] == 1, c078 = cols[78][i] == 1, c079 = cols[79][i] == 1, c080 = cols[80][i] == 1, c081 = cols[81][i] == 1, c082 = cols[82][i] == 1, c083 = cols[83][i] == 1, c084 = cols[84][i] == 1, c085 = cols[85][i] == 1, c086 = cols[86][i] == 1, c087 = cols[87][i] == 1, c088 = cols[88][i] == 1, c089 = cols[89][i] == 1, c090 = cols[90][i] == 1, c091 = cols[91][i] == 1, c092 = cols[92][i] == 1, c093 = cols[93][i] == 1, c094 = cols[94][i] == 1, c095 = cols[95][i] == 1, c096 = cols[96][i] == 1, c097 = cols[97][i] == 1, c098 = cols[98][i] == 1, c099 = cols[99][i] == 1, c100 = cols[100][i] == 1, c101 = cols[101][i] == 1, c102 = cols[102][i] == 1, c103 = cols[103][i] == 1, c104 = cols[104][i] == 1, c105 = cols[105][i] == 1, c106 = cols[106][i] == 1, c107 = cols[107][i] == 1, c108 = cols[108][i] == 1, c109 = cols[109][i] == 1, c110 = cols[110][i] == 1, c111 = cols[111][i] == 1, c112 = cols[112][i] == 1, c113 = cols[113][i] == 1, c114 = cols[114][i] == 1, c115 = cols[115][i] == 1, c116 = cols[116][i] == 1, c117 = cols[117][i] == 1, c118 = cols[118][i] == 1, c119 = cols[119][i] == 1, c120 = cols[120][i] == 1, c121 = cols[121][i] == 1, c122 = cols[122][i] == 1, c123 = cols[123][i] == 1, c124 = cols[124][i] == 1, c125 = cols[125][i] == 1, c126 = cols[126][i] == 1, c127 = cols[127][i] == 1, c128 = cols[128][i] == 1 })
+	end
+	return 0
+end
+
 local function ping(def: number, count: number): number
 	for _ = 1, count do push(def, nil) end
 	return 0
 end
 
-local DECODE = { move6, move6, sm, bools32, ping, ping }
-local UNRELIABLE = { true, false, false, false, false, false }
+local DECODE = { move6, move6, sm, bools32, ping, ping, rec1, bools128 }
+local UNRELIABLE = { true, false, false, false, false, false, false, false }
 
 --[=[
 	Decodes one tagged upstream frame (tag not checked here; the tag is claim 2).

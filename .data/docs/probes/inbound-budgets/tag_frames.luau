@@ -135,6 +135,7 @@ local function compare(cases, perIter)
 	for i = 1, #cases do times[i] = {} end
 	for _ = 1, ROUNDS do
 		for i, c in cases do
+			collectgarbage("collect")
 			local t0 = os.clock()
 			for _ = 1, passes[i] do c.fn(perIter) end
 			table.insert(times[i], (os.clock() - t0) / (passes[i] * perIter) * 1e9)

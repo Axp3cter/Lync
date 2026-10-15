@@ -12,6 +12,7 @@ Run: python3 -I gen.py   (writes gen_decoders.luau next to this file)
 import os
 
 BOOLS = [f"b{i:02d}" for i in range(1, 33)]
+BOOLS128 = [f"c{i:03d}" for i in range(1, 129)]
 
 HEAD = r'''--!optimize 2
 --!nocheck
@@ -157,7 +158,8 @@ local E_ITEM = { "sword", "bow", "staff" }
 local CA, CB, CC, CD, CE, CF = {}, {}, {}, {}, {}, {}
 '''
 
-# def indices (constants the build assigns): 1 move6 (unreliable), 2 move6r (reliable), 3 sm, 4 bools32, 5 ping1, 6 ping2
+# def indices (constants the build assigns): 1 move6 (unreliable), 2 move6r (reliable), 3 sm, 4 bools32, 5 ping1, 6 ping2,
+# 7 rec1, 8 bools128
 MOVE6 = r'''
 local function move6Rows(def: number, count: number): number
 	for _ = 1, count do
@@ -230,15 +232,24 @@ end
 '''
 
 
-def bools32():
-    lines = ["", "local BC = {}", "for i = 1, 32 do BC[i] = {} end", "",
-             "local function bools32(def: number, count: number): number",
-             '\tif count < 3 then error("generated bools32: row form not generated for this probe") end']
-    for i in range(32):
-        lines.append(f"\tlocal c{i + 1} = BC[{i + 1}]")
-    for i in range(32):
-        lines.append(f"\tdo local rule = col(count, 2, c{i + 1}) if rule ~= 0 then return rule end end")
-    fields = ", ".join(f"{name} = c{i + 1}[i] == 1" for i, name in enumerate(BOOLS))
+def bool_record(fn, names):
+    """A record of 1-bit bool fields, column form only (runs of 3+ messages)."""
+    n = len(names)
+    lines = ["", f"local {fn.upper()}_COLS = {{}}", f"for i = 1, {n} do {fn.upper()}_COLS[i] = {{}} end", "",
+             f"local function {fn}(def: number, count: number): number",
+             f'\tif count < 3 then error("generated {fn}: row form not generated for this probe") end',
+             f"\tlocal cols = {fn.upper()}_COLS"]
+    if n <= 64:
+        for i in range(n):
+            lines.append(f"\tlocal c{i + 1} = cols[{i + 1}]")
+        for i in range(n):
+            lines.append(f"\tdo local rule = col(count, 2, c{i + 1}) if rule ~= 0 then return rule end end")
+        fields = ", ".join(f"{name} = c{i + 1}[i] == 1" for i, name in enumerate(names))
+    else:
+        # past 64 fields a generated decoder would not keep a local per column (Luau's 200-local limit):
+        # columns stay in an array, rows are still one constructor per message
+        lines.append(f"\tfor j = 1, {n} do local rule = col(count, 2, cols[j]) if rule ~= 0 then return rule end end")
+        fields = ", ".join(f"{name} = cols[{i + 1}][i] == 1" for i, name in enumerate(names))
     lines.append("\tfor i = 1, count do")
     lines.append(f"\t\tpush(def, {{ {fields} }})")
     lines.append("\tend")
@@ -253,8 +264,8 @@ local function ping(def: number, count: number): number
 	return 0
 end
 
-local DECODE = { move6, move6, sm, bools32, ping, ping }
-local UNRELIABLE = { true, false, false, false, false, false }
+local DECODE = { move6, move6, sm, bools32, ping, ping, rec1, bools128 }
+local UNRELIABLE = { true, false, false, false, false, false, false, false }
 
 --[=[
 	Decodes one tagged upstream frame (tag not checked here; the tag is claim 2).
@@ -331,5 +342,5 @@ return G
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gen_decoders.luau")
 with open(out, "w") as f:
-    f.write(HEAD + MOVE6 + SM + bools32() + TAIL)
+    f.write(HEAD + MOVE6 + SM + bool_record("bools32", BOOLS) + bool_record("rec1", ["a"]) + bool_record("bools128", BOOLS128) + TAIL)
 print("wrote", out)

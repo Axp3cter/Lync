@@ -95,6 +95,12 @@ Work is paused until the author says to begin again. State at the pause:
     `Field<S, …>` vs `Field<D, T>`; `burstLoss` fractions lack the `Fraction` suffix; merged counts omit the wire,
     tooling and checks totals and a few outcomes.
   - **Partly fixed:** A5, the core example has no reliable claim event (changing it re-cuts G8, ROT or W1, W2).
+- **Correction (author):** code can be delivered to a client. Pre-built `ModuleScript`s can be chosen per player at
+  run time and cloned into `PlayerGui` (the design already does this for variant masks), and run-time logic can be
+  delivered as data and run by a client-side Luau interpreter (a bytecode VM in Luau) or a closure tree built from a
+  delivered plan. `v5-integrity.md` §2.2's "no engine member delivers code to a client" and R8's stated reason
+  (`research/refusals-rejudged-4.md`) are wrong as written. To do first when resumed: re-judge R8 for run-time logic
+  delivered as data (cost, what it protects, composition with tag, variants, weaving), then fix the two texts.
 - Next when resumed, one agent at a time, reusing: the runtime consistency architect (`a7c10e3a2c92ae769`) fixes the
   six items and settles μ by the rule above; the final critic (`ae2bb0e6f8e366dce`) re-runs the gate and re-checks.
   Then the design is frozen and, on the author's go-ahead, the build plan is written.
